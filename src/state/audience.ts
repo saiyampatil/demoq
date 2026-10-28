@@ -89,15 +89,18 @@ export type Screener = {
 
 // ─── sourcing ───────────────────────────────────────────────────────────────
 
-export type Contact = { id: string; name: string; email: string; addedAt: string; invitedAt?: string }
+export type SourceOption = 'manual' | 'external'
+export type IdType = 'userId' | 'phone'
+export type SourceTag = 'Manual' | 'External'
 
-export type PanelMember = { id: string; addedAt: string; invitedAt?: string }
+/** One person added to the pool. Every applicant carries the route they came through. */
+export type Candidate = { id: string; value: string; idType: IdType; source: SourceTag; addedAt: string; invitedAt?: string }
 
 export type Sourcing = {
-  link: { code: string; createdAt: string; createdBy: string } | null
-  contacts: Contact[]
-  /** External panel. The integration is to be confirmed, so IDs are only stored here. */
-  panel: { name: string; members: PanelMember[] }
+  option: SourceOption
+  /** Panel the external IDs came from. The integration is to be confirmed, so IDs are only stored here. */
+  panelName: string
+  candidates: Candidate[]
 }
 
 // ─── document ───────────────────────────────────────────────────────────────
@@ -118,10 +121,12 @@ export type AudienceDoc = {
   confirmed?: { version: number; by: string; at: string; def: AudienceDef }
   events: AudienceEvent[]
   screener: Screener | null
+  /** Set when the AI is writing the screener. Confirming the audience starts it; regenerating restarts it. */
+  screenerPending?: boolean
   sourcing: Sourcing
 }
 
-export const emptySourcing = (): Sourcing => ({ link: null, contacts: [], panel: { name: '', members: [] } })
+export const emptySourcing = (): Sourcing => ({ option: 'manual', panelName: '', candidates: [] })
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -303,6 +308,8 @@ export function confirmAudience(doc: AudienceDoc, by: string): AudienceDoc {
     status: 'Confirmed',
     confirmed: { version: doc.version, by, at, def: structuredClone(doc.def) },
     events: [...doc.events, { id: uid('e'), at, by, version: doc.version, type: 'confirmed' }],
+    // The AI writes the screener on confirm. An existing one is kept (and was flagged), never silently replaced.
+    screenerPending: doc.screener ? doc.screenerPending : true,
   }
 }
 
@@ -364,8 +371,10 @@ export function generateQuestions(def: AudienceDef): ScreenerQuestion[] {
 }
 
 export function setScreener(doc: AudienceDoc, questions: ScreenerQuestion[]): AudienceDoc {
-  return { ...doc, screener: { status: 'Draft', questions, generatedAt: now(), fromAudienceVersion: doc.version } }
+  return { ...doc, screenerPending: false, screener: { status: 'Draft', questions, generatedAt: now(), fromAudienceVersion: doc.version } }
 }
+
+export const startScreener = (doc: AudienceDoc): AudienceDoc => ({ ...doc, screenerPending: true })
 
 /** Any change to the questions puts the screener back in Draft until it's accepted again. */
 export function editScreener(doc: AudienceDoc, fn: (qs: ScreenerQuestion[]) => ScreenerQuestion[]): AudienceDoc {
@@ -391,70 +400,74 @@ export function acceptScreener(doc: AudienceDoc, by: string): AudienceDoc {
 
 // ─── sourcing ───────────────────────────────────────────────────────────────
 
-const EMAIL = /^[^\s@,]+@[^\s@,]+\.[^\s@,]+$/
+export const idTypeLabel: Record<IdType, string> = { userId: 'User IDs', phone: 'Phone numbers' }
+export const idExample: Record<IdType, string> = { userId: 'usr_48213', phone: '(415) 555-0142' }
 
-/** Parses "Name, email" lines (or bare emails). Duplicates are matched by email. */
-export function parseContacts(text: string, existing: Contact[]) {
-  const seen = new Set(existing.map((c) => c.email.toLowerCase()))
-  const added: Contact[] = []
-  const invalid: string[] = []
-  const duplicates: string[] = []
-  const at = now()
-  text
-    .split(/\r?\n/)
-    .map((l) => l.trim())
-    .filter(Boolean)
-    .forEach((line, i) => {
-      if (i === 0 && /email/i.test(line) && !EMAIL.test(line.split(/[,;\t]/).pop()!.trim())) return // CSV header
-      const parts = line.split(/[,;\t]/).map((p) => p.trim())
-      const email = parts.find((p) => EMAIL.test(p))
-      if (!email) {
-        invalid.push(line)
-        return
-      }
-      if (seen.has(email.toLowerCase())) {
-        duplicates.push(email)
-        return
-      }
-      seen.add(email.toLowerCase())
-      const name = parts.filter((p) => p !== email).join(' ').trim()
-      added.push({ id: uid('ct'), name, email, addedAt: at })
-    })
-  return { added, invalid, duplicates }
+const USER_ID = /^[A-Za-z0-9_-]{3,}$/
+
+/** Normalizes a US phone number to 10 digits, or returns null. */
+const phoneDigits = (v: string) => {
+  const d = v.replace(/[\s().+-]/g, '')
+  if (!/^\d+$/.test(d)) return null
+  const n = d.length === 11 && d.startsWith('1') ? d.slice(1) : d
+  return n.length === 10 ? n : null
+}
+
+export const formatPhone = (digits: string) => `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`
+
+export type ParsedIds = { valid: string[]; duplicates: number; blanks: number; invalid: { line: string; reason: string }[] }
+
+/** One entry per line. Drops blanks and duplicates (against the list and within the paste) and flags invalid lines. */
+export function parseIds(text: string, idType: IdType, existing: Candidate[]): ParsedIds {
+  const seen = new Set(existing.filter((c) => c.idType === idType).map((c) => c.value.toLowerCase()))
+  const out: ParsedIds = { valid: [], duplicates: 0, blanks: 0, invalid: [] }
+  text.split(/\r?\n/).forEach((raw) => {
+    const line = raw.trim()
+    if (!line) {
+      out.blanks += 1
+      return
+    }
+    let value: string
+    if (idType === 'phone') {
+      const d = phoneDigits(line)
+      if (!d) return void out.invalid.push({ line, reason: 'Not a 10-digit US phone number' })
+      value = formatPhone(d)
+    } else {
+      if (!USER_ID.test(line)) return void out.invalid.push({ line, reason: 'Use 3 or more letters, numbers, _ or -' })
+      value = line
+    }
+    if (seen.has(value.toLowerCase())) {
+      out.duplicates += 1
+      return
+    }
+    seen.add(value.toLowerCase())
+    out.valid.push(value)
+  })
+  // Trailing newline in a textarea is not a "blank line" worth reporting.
+  if (text.endsWith('\n') || text.endsWith('\r\n')) out.blanks = Math.max(0, out.blanks - 1)
+  return out
 }
 
 export function editSourcing(doc: AudienceDoc, fn: (s: Sourcing) => Sourcing): AudienceDoc {
   return { ...doc, sourcing: fn(doc.sourcing) }
 }
 
-export function createLink(doc: AudienceDoc, by: string): AudienceDoc {
-  const code = Math.random().toString(36).slice(2, 8)
-  return editSourcing(doc, (s) => ({ ...s, link: { code, createdAt: now(), createdBy: by } }))
-}
-
-/** Splits pasted panel IDs on commas, spaces or new lines, dropping ones already in the list. */
-export function parsePanelIds(text: string, existing: PanelMember[]) {
-  const seen = new Set(existing.map((m) => m.id))
-  const ids = [...new Set(text.split(/[\s,;]+/).map((t) => t.trim()).filter(Boolean))]
-  const added = ids.filter((id) => !seen.has(id))
-  return { added, duplicates: ids.length - added.length }
-}
-
-export const notInvited = (s: Sourcing) => s.contacts.filter((c) => !c.invitedAt).length + s.panel.members.filter((m) => !m.invitedAt).length
-export const invitedCount = (s: Sourcing) => s.contacts.filter((c) => c.invitedAt).length + s.panel.members.filter((m) => m.invitedAt).length
-
-/** Mock send: invites every contact and panel member not invited yet. */
-export function sendInvites(doc: AudienceDoc): { doc: AudienceDoc; contacts: number; panel: number } {
+export function addCandidates(doc: AudienceDoc, values: string[], idType: IdType, source: SourceTag): AudienceDoc {
   const at = now()
-  const contacts = doc.sourcing.contacts.filter((c) => !c.invitedAt).length
-  const panel = doc.sourcing.panel.members.filter((m) => !m.invitedAt).length
+  return editSourcing(doc, (s) => ({ ...s, candidates: [...s.candidates, ...values.map((value) => ({ id: uid('cd'), value, idType, source, addedAt: at }))] }))
+}
+
+export const notInvited = (s: Sourcing) => s.candidates.filter((c) => !c.invitedAt).length
+export const invitedCount = (s: Sourcing) => s.candidates.filter((c) => c.invitedAt).length
+export const countBySource = (s: Sourcing, source: SourceTag) => s.candidates.filter((c) => c.source === source).length
+
+/** Mock send: invites everyone not invited yet. Phone numbers get a text, user IDs an in-app invite. */
+export function sendInvites(doc: AudienceDoc): { doc: AudienceDoc; phones: number; userIds: number } {
+  const at = now()
+  const open = doc.sourcing.candidates.filter((c) => !c.invitedAt)
   return {
-    doc: editSourcing(doc, (s) => ({
-      ...s,
-      contacts: s.contacts.map((c) => (c.invitedAt ? c : { ...c, invitedAt: at })),
-      panel: { ...s.panel, members: s.panel.members.map((m) => (m.invitedAt ? m : { ...m, invitedAt: at })) },
-    })),
-    contacts,
-    panel,
+    doc: editSourcing(doc, (s) => ({ ...s, candidates: s.candidates.map((c) => (c.invitedAt ? c : { ...c, invitedAt: at })) })),
+    phones: open.filter((c) => c.idType === 'phone').length,
+    userIds: open.filter((c) => c.idType === 'userId').length,
   }
 }

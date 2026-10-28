@@ -1,37 +1,45 @@
-import { useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Banner } from '@/components/Banner'
 import { Button } from '@/components/Button'
 import { Card } from '@/components/Card'
 import { cn } from '@/components/cn'
-import { controlClass, TextArea, TextField } from '@/components/Field'
-import { CloseIcon, PaperclipIcon } from '@/components/icons'
+import { TextArea, TextField } from '@/components/Field'
+import { CheckIcon, CloseIcon } from '@/components/icons'
 import { EmptyState } from '@/components/States'
 import { Table, type Column } from '@/components/Table'
 import { Tooltip } from '@/components/Tooltip'
+import { WizardFooter } from '@/components/WizardFooter'
 import { formatDate } from '@/lib/format'
 import { screenById, studyPath } from '@/routes/screens'
 import {
-  createLink,
+  addCandidates,
+  countBySource,
   editSourcing,
+  idExample,
+  idTypeLabel,
   invitedCount,
   invitesFor,
   notInvited,
-  parseContacts,
-  parsePanelIds,
+  parseIds,
   sendInvites,
-  type Contact,
-  type PanelMember,
+  type Candidate,
+  type IdType,
+  type SourceOption,
+  type SourceTag,
 } from '@/state/audience'
-import { now } from '@/state/brief'
 import { PageHeader } from '../../shared/PageHeader'
 import { AudienceGate } from './AudienceGate'
 import { useAudience } from './useAudience'
 
-const LINK_BASE = 'https://pulseai.example/s/'
+const OPTIONS: { value: SourceOption; title: string; description: string }[] = [
+  { value: 'manual', title: 'Upload or paste participants', description: 'People you already have. Paste their User IDs or phone numbers, one per line.' },
+  { value: 'external', title: 'External upload', description: 'IDs from an external recruitment panel. The panel integration is still to be confirmed.' },
+]
 
 export function Sourcing() {
-  const { studyId, audience, editable, me, update } = useAudience()
+  const { studyId, audience, editable, update } = useAudience()
   const [sent, setSent] = useState<string>()
+  const [showAll, setShowAll] = useState(false)
 
   if (!editable || !audience?.def) return <AudienceGate studyId={studyId} editable={editable} />
 
@@ -46,12 +54,35 @@ export function Sourcing() {
   const gateReason = !audienceReady ? 'Confirm the audience first' : !screenerReady ? 'Accept the screener first' : undefined
 
   const send = () => {
-    const contacts = s.contacts.filter((c) => !c.invitedAt).length
-    const panel = s.panel.members.filter((m) => !m.invitedAt).length
-    const parts = [contacts && `${contacts} ${contacts === 1 ? 'contact' : 'contacts'}`, panel && `${panel} panel ${panel === 1 ? 'member' : 'members'}`].filter(Boolean)
+    const r = sendInvites(audience)
+    const parts = [r.phones && `${r.phones} ${r.phones === 1 ? 'phone number' : 'phone numbers'}`, r.userIds && `${r.userIds} ${r.userIds === 1 ? 'User ID' : 'User IDs'}`].filter(Boolean)
     update((d) => sendInvites(d).doc)
     setSent(`Screener invites sent to ${parts.join(' and ')}.`)
   }
+
+  const columns: Column<Candidate>[] = [
+    { key: 'value', header: 'Participant', cell: (c) => <span className="font-medium tabular-nums">{c.value}</span> },
+    { key: 'type', header: 'Type', cell: (c) => idTypeLabel[c.idType].replace(/s$/, '') },
+    { key: 'source', header: 'Source', cell: (c) => <SourceChip source={c.source} /> },
+    { key: 'invite', header: 'Invite', cell: (c) => (c.invitedAt ? <span className="whitespace-nowrap">Sent {formatDate(c.invitedAt)}</span> : <span className="text-graphite">Not sent</span>) },
+    {
+      key: 'remove',
+      header: <span className="sr-only">Remove</span>,
+      align: 'right',
+      cell: (c) =>
+        c.invitedAt ? null : (
+          <button
+            type="button"
+            onClick={() => update((d) => editSourcing(d, (x) => ({ ...x, candidates: x.candidates.filter((y) => y.id !== c.id) })))}
+            aria-label={`Remove ${c.value}`}
+            className="rounded-sm p-1.5 text-graphite hover:bg-haze hover:text-ink"
+          >
+            <CloseIcon size={14} />
+          </button>
+        ),
+    },
+  ]
+  const rows = showAll ? s.candidates : s.candidates.slice(0, 10)
 
   return (
     <div className="flex flex-col gap-6">
@@ -69,7 +100,7 @@ export function Sourcing() {
               )}
             </li>
             <li className="flex flex-wrap items-center gap-2">
-              {screenerReady ? 'Screener accepted.' : audience.screener ? 'The screener isn’t accepted.' : 'There’s no screener yet.'}
+              {screenerReady ? 'Screener accepted.' : audience.screener ? 'The screener isn’t accepted.' : 'The screener is written once the audience is confirmed.'}
               {!screenerReady && (
                 <Button size="sm" to={studyPath(studyId, screenById.R7)}>
                   Go to screener
@@ -77,13 +108,76 @@ export function Sourcing() {
               )}
             </li>
           </ul>
-          <p className="mt-2">You can collect contacts and panel IDs now. Links and invites are held until both are ready.</p>
+          <p className="mt-2">You can add participants now. Invites are held until both are ready.</p>
         </Banner>
+      )}
+
+      <fieldset>
+        <legend className="mb-2 text-sm font-medium">Where do applicants come from?</legend>
+        <div className="grid gap-3 md:grid-cols-2">
+          {OPTIONS.map((o) => {
+            const on = s.option === o.value
+            return (
+              <label
+                key={o.value}
+                className={cn(
+                  'flex cursor-pointer gap-3 rounded-md border bg-surface p-4 has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-iris-600',
+                  on ? 'border-ink ring-1 ring-ink' : 'border-mist hover:border-graphite',
+                )}
+              >
+                <input type="radio" name="source" value={o.value} checked={on} onChange={() => update((d) => editSourcing(d, (x) => ({ ...x, option: o.value })))} className="sr-only" />
+                <span aria-hidden="true" className={cn('mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border-2', on ? 'border-ink' : 'border-graphite')}>
+                  {on && <span className="size-2 rounded-full bg-ink" />}
+                </span>
+                <span>
+                  <span className="block font-semibold">{o.title}</span>
+                  <span className="mt-0.5 block text-sm text-graphite">{o.description}</span>
+                </span>
+              </label>
+            )
+          })}
+        </div>
+      </fieldset>
+
+      {s.option === 'manual' ? (
+        <PasteCard
+          key="manual"
+          title="Upload or paste participants"
+          source="Manual"
+          fixedType={null}
+          existing={s.candidates}
+          onAdd={(values, type) => update((d) => addCandidates(d, values, type, 'Manual'))}
+        />
+      ) : (
+        <Card title="External upload" description="IDs from an external recruitment panel.">
+          <div className="flex flex-col gap-4">
+            <p className="rounded-sm border border-dashed border-mist-strong px-3 py-2 text-sm text-graphite">
+              Panel integration: to be confirmed (PRD: “subject to integration feasibility”). For now, paste the panel’s member IDs. Invites to them are simulated.
+            </p>
+            <TextField
+              label="Panel name"
+              value={s.panelName}
+              onChange={(e) => update((d) => editSourcing(d, (x) => ({ ...x, panelName: e.target.value })))}
+              placeholder="e.g. Northstar Consumer Panel"
+              containerClassName="max-w-sm"
+            />
+            <PasteCard
+              key="external"
+              bare
+              title="Panel member IDs"
+              source="External"
+              fixedType="userId"
+              existing={s.candidates}
+              onAdd={(values, type) => update((d) => addCandidates(d, values, type, 'External'))}
+            />
+          </div>
+        </Card>
       )}
 
       <Card>
         <div className="flex flex-wrap items-center gap-x-8 gap-y-3">
           <Stat label="People to invite" value={target ?? 'Not set'} hint={target ? `${def.total} interviews + ${def.bufferPct}% buffer` : 'Set in audience definition'} />
+          <Stat label="In the pool" value={s.candidates.length} hint={`${countBySource(s, 'Manual')} Manual, ${countBySource(s, 'External')} External`} />
           <Stat label="Invited" value={invited} />
           <Stat label="Waiting to be invited" value={pending} />
           <span className="flex-1" />
@@ -106,20 +200,30 @@ export function Sourcing() {
         )}
       </Card>
 
-      <LinkCard
-        link={s.link}
-        ready={ready}
-        gateReason={gateReason}
-        onCreate={() => update((d) => createLink(d, me))}
-      />
-      <ContactsCard contacts={s.contacts} onAdd={(added) => update((d) => editSourcing(d, (x) => ({ ...x, contacts: [...x.contacts, ...added] })))} onRemove={(id) => update((d) => editSourcing(d, (x) => ({ ...x, contacts: x.contacts.filter((c) => c.id !== id) })))} />
-      <PanelCard
-        name={s.panel.name}
-        members={s.panel.members}
-        onName={(name) => update((d) => editSourcing(d, (x) => ({ ...x, panel: { ...x.panel, name } })))}
-        onAdd={(ids) => update((d) => editSourcing(d, (x) => ({ ...x, panel: { ...x.panel, members: [...x.panel.members, ...ids.map((id) => ({ id, addedAt: now() }))] } })))}
-        onClearUninvited={() => update((d) => editSourcing(d, (x) => ({ ...x, panel: { ...x.panel, members: x.panel.members.filter((m) => m.invitedAt) } })))}
-      />
+      <Card title="Participants" flush>
+        <Table
+          caption="Participants in the pool"
+          columns={columns}
+          rows={rows}
+          rowKey={(c) => c.id}
+          empty={<EmptyState title="No participants yet" description="Paste User IDs or phone numbers above to build the pool." />}
+        />
+        {s.candidates.length > 10 && (
+          <div className="border-t border-mist px-5 py-3">
+            <Button size="sm" variant="ghost" onClick={() => setShowAll((x) => !x)}>
+              {showAll ? 'Show fewer' : `Show all ${s.candidates.length}`}
+            </Button>
+          </div>
+        )}
+      </Card>
+
+      <WizardFooter previous={{ to: studyPath(studyId, screenById.R7), label: 'Screener' }} message={invited ? `${invited} invited so far.` : undefined}>
+        <Tooltip focusable content="The screening dashboard is built in Phase 2b.">
+          <Button variant="primary" disabled>
+            Continue to screening
+          </Button>
+        </Tooltip>
+      </WizardFooter>
     </div>
   )
 }
@@ -134,199 +238,105 @@ function Stat({ label, value, hint }: { label: string; value: number | string; h
   )
 }
 
-function LinkCard({ link, ready, gateReason, onCreate }: { link: { code: string; createdAt: string; createdBy: string } | null; ready: boolean; gateReason?: string; onCreate: () => void }) {
-  const [copied, setCopied] = useState(false)
-  const url = link ? `${LINK_BASE}${link.code}` : ''
-  return (
-    <Card title="Recruitment link" description="Share it through your own channels. Anyone with the link can apply through the screener.">
-      {link ? (
-        <div className="flex flex-col gap-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <input readOnly value={url} aria-label="Recruitment link" onFocus={(e) => e.target.select()} className={cn(controlClass, 'h-9 max-w-md flex-1 bg-paper')} />
-            <Button
-              onClick={async () => {
-                try {
-                  await navigator.clipboard.writeText(url)
-                } catch {
-                  // Clipboard can be blocked; the field stays selectable.
-                }
-                setCopied(true)
-                setTimeout(() => setCopied(false), 2000)
-              }}
-            >
-              {copied ? 'Copied' : 'Copy link'}
-            </Button>
-            <Button variant="ghost" to={`/p/${link.code}/welcome`}>
-              Open as a participant
-            </Button>
-          </div>
-          <p className="text-xs text-graphite">
-            Created by {link.createdBy}, {formatDate(link.createdAt)}. The participant screens are built in Phase 2b; until then the link opens a placeholder.
-          </p>
-        </div>
-      ) : ready ? (
-        <Button onClick={onCreate}>Create recruitment link</Button>
-      ) : (
-        <Tooltip focusable align="left" content={`${gateReason}.`}>
-          <Button disabled>Create recruitment link</Button>
-        </Tooltip>
-      )}
-    </Card>
-  )
+function SourceChip({ source }: { source: SourceTag }) {
+  return <span className="inline-flex items-center rounded-xs border border-mist-strong bg-haze px-1.5 py-0.5 text-xs font-medium text-ink">{source}</span>
 }
 
-function ContactsCard({ contacts, onAdd, onRemove }: { contacts: Contact[]; onAdd: (c: Contact[]) => void; onRemove: (id: string) => void }) {
-  const [text, setText] = useState('')
-  const [result, setResult] = useState<{ added: number; duplicates: string[]; invalid: string[] }>()
-  const fileRef = useRef<HTMLInputElement>(null)
-
-  const columns: Column<Contact>[] = [
-    { key: 'name', header: 'Name', cell: (c) => c.name || <span className="text-muted">No name</span> },
-    { key: 'email', header: 'Email', cell: (c) => <span className="break-all">{c.email}</span> },
-    {
-      key: 'status',
-      header: 'Invite',
-      cell: (c) => (c.invitedAt ? <span className="whitespace-nowrap">Sent {formatDate(c.invitedAt)}</span> : <span className="text-graphite">Not sent</span>),
-    },
-    {
-      key: 'remove',
-      header: <span className="sr-only">Remove</span>,
-      align: 'right',
-      cell: (c) => (
-        <button type="button" onClick={() => onRemove(c.id)} aria-label={`Remove ${c.email}`} className="rounded-sm p-1.5 text-graphite hover:bg-haze hover:text-ink">
-          <CloseIcon size={14} />
-        </button>
-      ),
-    },
-  ]
-
-  return (
-    <Card title="Upload contacts" description="People the client already knows. Paste them, or upload a CSV with a name and an email on each line." flush>
-      <form
-        className="flex flex-col gap-3 p-5"
-        onSubmit={(e) => {
-          e.preventDefault()
-          const r = parseContacts(text, contacts)
-          if (r.added.length) onAdd(r.added)
-          setResult({ added: r.added.length, duplicates: r.duplicates, invalid: r.invalid })
-          setText(r.invalid.join('\n'))
-        }}
-      >
-        <TextArea label="Contacts" rows={4} value={text} onChange={(e) => setText(e.target.value)} placeholder={'Rachel Kim, rachel.kim@mail.example\nmonica.alvarez@mail.example'} hint="One person per line. Duplicates are matched by email." />
-        <div className="flex flex-wrap gap-2">
-          <Button type="submit" variant="primary" disabled={!text.trim()}>
-            Add contacts
-          </Button>
-          <input
-            ref={fileRef}
-            type="file"
-            accept=".csv,.txt,text/csv,text/plain"
-            className="hidden"
-            onChange={async (e) => {
-              const file = e.target.files?.[0]
-              if (file) {
-                const content = (await file.text()).trim()
-                setText((t) => [t.trim(), content].filter(Boolean).join('\n'))
-              }
-              e.target.value = ''
-            }}
-          />
-          <Button icon={<PaperclipIcon />} onClick={() => fileRef.current?.click()}>
-            Upload CSV
-          </Button>
-        </div>
-        {result && (
-          <div role="status" className="text-sm">
-            <p className={result.added ? 'text-positive-fg' : 'text-graphite'}>
-              Added {result.added} {result.added === 1 ? 'contact' : 'contacts'}.
-            </p>
-            {result.duplicates.length > 0 && <p className="text-pending-fg">Skipped {result.duplicates.length} already in the list: {result.duplicates.join(', ')}.</p>}
-            {result.invalid.length > 0 && (
-              <p className="text-negative-fg">
-                {result.invalid.length} {result.invalid.length === 1 ? 'line has' : 'lines have'} no valid email and {result.invalid.length === 1 ? 'was' : 'were'} left in the box to fix.
-              </p>
-            )}
-          </div>
-        )}
-      </form>
-      <div className="border-t border-mist">
-        <Table
-          caption="Contacts"
-          columns={columns}
-          rows={contacts}
-          rowKey={(c) => c.id}
-          empty={<EmptyState title="No contacts yet" description="Add the people you want to invite to the screener." />}
-        />
-      </div>
-    </Card>
-  )
-}
-
-function PanelCard({
-  name,
-  members,
-  onName,
+function PasteCard({
+  title,
+  source,
+  fixedType,
+  existing,
+  bare,
   onAdd,
-  onClearUninvited,
 }: {
-  name: string
-  members: PanelMember[]
-  onName: (name: string) => void
-  onAdd: (ids: string[]) => void
-  onClearUninvited: () => void
+  title: string
+  source: SourceTag
+  /** Set when the route only takes one kind of ID. */
+  fixedType: IdType | null
+  existing: Candidate[]
+  bare?: boolean
+  onAdd: (values: string[], type: IdType) => void
 }) {
+  const [type, setType] = useState<IdType>(fixedType ?? 'userId')
   const [text, setText] = useState('')
-  const [note, setNote] = useState<string>()
-  const invited = members.filter((m) => m.invitedAt).length
-  return (
-    <Card title="External panel" description="Panel member IDs from a third-party recruitment panel.">
-      <div className="flex flex-col gap-4">
-        <p className="rounded-sm border border-dashed border-mist-strong px-3 py-2 text-sm text-graphite">
-          The panel integration is still to be confirmed (PRD: “subject to integration feasibility”). IDs are kept here, and invites to them are simulated.
-        </p>
-        <TextField label="Panel name" value={name} onChange={(e) => onName(e.target.value)} placeholder="e.g. Northstar Consumer Panel" containerClassName="max-w-sm" />
-        <form
-          className="flex flex-col gap-2"
-          onSubmit={(e) => {
-            e.preventDefault()
-            const r = parsePanelIds(text, members)
-            if (r.added.length) onAdd(r.added)
-            setNote(`Added ${r.added.length} ${r.added.length === 1 ? 'ID' : 'IDs'}.${r.duplicates ? ` Skipped ${r.duplicates} already in the list.` : ''}`)
-            setText('')
-          }}
-        >
-          <TextArea label="Panel member IDs" rows={3} value={text} onChange={(e) => setText(e.target.value)} placeholder="NS-48210, NS-48217, NS-48224" hint="Separate IDs with commas, spaces or new lines." />
-          <div className="flex flex-wrap items-center gap-2">
-            <Button type="submit" disabled={!text.trim()}>
-              Add IDs
-            </Button>
-            {note && (
-              <span role="status" className="text-sm text-graphite">
-                {note}
-              </span>
-            )}
-          </div>
-        </form>
-        {members.length > 0 ? (
-          <div className="flex flex-col gap-2">
-            <p className="text-sm">
-              <span className="font-medium tabular-nums">{members.length}</span> {members.length === 1 ? 'member' : 'members'},{' '}
-              <span className="tabular-nums">{invited}</span> invited
-            </p>
-            <p className="text-sm break-words text-graphite">
-              {members.slice(0, 12).map((m) => m.id).join(', ')}
-              {members.length > 12 && `, and ${members.length - 12} more`}
-            </p>
-            {members.length > invited && (
-              <Button size="sm" variant="ghost" className="self-start" onClick={onClearUninvited}>
-                Remove the {members.length - invited} not yet invited
-              </Button>
-            )}
-          </div>
-        ) : (
-          <p className="text-sm text-graphite">No panel IDs yet.</p>
+  const [added, setAdded] = useState<string>()
+  const check = useMemo(() => parseIds(text, type, existing), [text, type, existing])
+  const touched = text.trim().length > 0
+
+  const body = (
+    <form
+      className="flex flex-col gap-3"
+      onSubmit={(e) => {
+        e.preventDefault()
+        if (!check.valid.length) return
+        onAdd(check.valid, type)
+        setAdded(`Added ${check.valid.length} ${source} ${check.valid.length === 1 ? 'participant' : 'participants'}.`)
+        // Invalid lines stay in the box to be fixed.
+        setText(check.invalid.map((i) => i.line).join('\n'))
+      }}
+    >
+      {fixedType === null && (
+        <div role="radiogroup" aria-label="What are you pasting?" className="inline-flex self-start rounded-sm border border-mist-strong bg-haze p-0.5">
+          {(Object.keys(idTypeLabel) as IdType[]).map((t) => (
+            <button
+              key={t}
+              type="button"
+              role="radio"
+              aria-checked={type === t}
+              onClick={() => {
+                setType(t)
+                setAdded(undefined)
+              }}
+              className={cn('rounded-xs px-3 py-1 text-sm', type === t ? 'bg-surface font-semibold text-ink shadow-raised' : 'text-graphite hover:text-ink')}
+            >
+              {idTypeLabel[t]}
+            </button>
+          ))}
+        </div>
+      )}
+      <TextArea
+        label={`${bare ? title : idTypeLabel[type]}, one per line`}
+        rows={5}
+        value={text}
+        onChange={(e) => {
+          setText(e.target.value)
+          setAdded(undefined)
+        }}
+        placeholder={`${idExample[type]}\n${type === 'phone' ? '415-555-0173' : 'usr_48220'}`}
+        hint={`Example: ${idExample[type]}. Blank lines and duplicates are dropped for you.`}
+      />
+      {touched && (
+        <div role="status" className="flex flex-col gap-1 text-sm">
+          <p className="flex flex-wrap gap-x-4 gap-y-1 tabular-nums">
+            <span className={check.valid.length ? 'font-medium text-positive-fg' : 'text-graphite'}>{check.valid.length} valid</span>
+            <span className="text-graphite">{check.duplicates} {check.duplicates === 1 ? 'duplicate' : 'duplicates'} removed</span>
+            <span className="text-graphite">{check.blanks} blank {check.blanks === 1 ? 'line' : 'lines'} removed</span>
+            <span className={check.invalid.length ? 'font-medium text-negative-fg' : 'text-graphite'}>{check.invalid.length} invalid</span>
+          </p>
+          {check.invalid.length > 0 && (
+            <ul className="text-negative-fg">
+              {check.invalid.slice(0, 5).map((i, n) => (
+                <li key={n}>
+                  <span className="font-medium">{i.line}</span>: {i.reason}
+                </li>
+              ))}
+              {check.invalid.length > 5 && <li>and {check.invalid.length - 5} more</li>}
+            </ul>
+          )}
+        </div>
+      )}
+      <div className="flex flex-wrap items-center gap-3">
+        <Button type="submit" variant="primary" disabled={!check.valid.length}>
+          {check.valid.length ? `Add ${check.valid.length} ${check.valid.length === 1 ? 'participant' : 'participants'}` : 'Add participants'}
+        </Button>
+        {added && (
+          <span role="status" className="flex items-center gap-1 text-sm text-positive-fg">
+            <CheckIcon size={14} /> {added}
+          </span>
         )}
       </div>
-    </Card>
+    </form>
   )
+  return bare ? body : <Card title={title}>{body}</Card>
 }

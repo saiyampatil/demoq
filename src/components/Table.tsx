@@ -22,7 +22,7 @@ type TableProps<T> = {
 
 export function Table<T>({ columns, rows, rowKey, onRowClick, empty, caption, className }: TableProps<T>) {
   return (
-    <div className={cn('overflow-x-auto', className)}>
+    <div className={cn('relative overflow-x-auto', className)}>
       <table className="w-full border-collapse text-left">
         {caption && <caption className="sr-only">{caption}</caption>}
         <thead>

@@ -116,14 +116,6 @@ export function DesignPage() {
     ...s,
     to: '#stepper',
     current: s.key === 'guide',
-    items:
-      s.key === 'guide'
-        ? [
-            { id: 'R12', name: 'Moderator setup', to: '#stepper', active: false },
-            { id: 'R13', name: 'Stimulus library', to: '#stepper', active: false },
-            { id: 'R14', name: 'Discussion guide editor', to: '#stepper', active: true },
-          ]
-        : undefined,
   }))
 
   return (
@@ -408,7 +400,7 @@ export function DesignPage() {
             intro="The study’s spine and the product’s one standout element. Solid thread where work is done, dashed where it’s still ahead or locked."
           >
             <div className="flex flex-wrap items-start gap-8">
-              <div className="w-stepper rounded-md border border-mist bg-paper p-5">
+              <div className="w-full rounded-md border border-mist bg-paper p-5">
                 <Stepper steps={demoSteps} label="Example study steps" />
               </div>
               <div className="flex flex-col gap-3 text-sm text-graphite">

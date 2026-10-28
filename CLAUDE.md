@@ -45,7 +45,7 @@ No backend. Mock data and simulated AI only. We build one module at a time and v
 | End Client | Observer app | Reviews and approves the brief from an emailed review link (client preview page, built separately). Reviews guides off-platform (email). Watches live from the backroom |
 
 ## Researcher study workspace
-Left stepper, unlocked in order by status:
+Horizontal stepper across the top of the workspace (current step highlighted, done steps checked, locked steps with a lock and a hover reason), unlocked in order by status. The left rail is a slim study summary only (name, client, status, mode, release version, Studies link, Study settings), with no step list. Steps that have several screens use a sub-stepper plus Previous / Next in a footer, with a slide-and-fade transition between screens:
 Brief → Audience → Moderator & Guide → Launch → Fieldwork → Review → Analysis (locked, out of scope)
 
 ## Screen inventory
@@ -68,7 +68,7 @@ Brief sections (R4), in order. These replace the earlier ten-section list. Resea
 
 | R6 | Audience definition (AI-filled, editable, one screen) | 2 |
 | R7 | Screener editor (max 7 questions) | 2 |
-| R8 | Participant sourcing (manual add, panel IDs, link TBD) | 2 |
+| R8 | Participant sourcing (two options: upload or paste User IDs / phone numbers, or external panel IDs; each applicant tagged Manual or External; no recruitment link, no CSV) | 2 |
 | R9 | Screening dashboard + R10 applicant drawer | 2 |
 | R11 | Finalize pool | 2 |
 | R12 | Moderator setup (AI agent config OR assign humans; surveys) | 3 |

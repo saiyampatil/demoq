@@ -1,12 +1,15 @@
+import { useEffect, useRef } from 'react'
 import { Link, Navigate, Outlet, useLocation, useParams } from 'react-router'
 import { Button } from '@/components/Button'
 import { cn } from '@/components/cn'
 import { ChevronLeftIcon, GearIcon, LockIcon } from '@/components/icons'
 import { StatusChip } from '@/components/StatusChip'
 import { Stepper, type StepperStep } from '@/components/Stepper'
+import { SubStepper, type SubStep } from '@/components/SubStepper'
 import { ErrorState } from '@/components/States'
 import type { StudyRecord } from '@/mock/types'
-import { screenById, screens, screensForStep, studyPath, type Screen } from '@/routes/screens'
+import { builtScreenIds, screenById, screenOrder, screens, screensForStep, studyPath, wizardLabel, type Screen } from '@/routes/screens'
+import { generateQuestions, invitedCount, setScreener, startScreener } from '@/state/audience'
 import { useStudies } from '@/state/StudyContext'
 import { landingStep, stepInfo, type StepInfo } from '@/state/workflow'
 
@@ -23,8 +26,13 @@ function matchScreen(studyId: string, pathname: string): Screen | undefined {
 export function StudyWorkspace() {
   const { studyId = '' } = useParams()
   const { pathname } = useLocation()
-  const { getStudy } = useStudies()
+  const { getStudy, getAudience } = useStudies()
   const study = getStudy(studyId)
+  const screenIdx = screenOrder(matchScreen(studyId, pathname)?.id ?? '')
+
+  // Slide direction follows the screen order. The first screen shown doesn't animate.
+  const seen = useRef({ idx: screenIdx, dir: 'forward' as 'forward' | 'back', moved: false })
+  if (seen.current.idx !== screenIdx) seen.current = { idx: screenIdx, dir: screenIdx > seen.current.idx ? 'forward' : 'back', moved: true }
 
   if (!study) {
     return (
@@ -47,33 +55,51 @@ export function StudyWorkspace() {
   const currentStep = screen?.step
   const stepperSteps: StepperStep[] = info.map((s) => {
     const items = screensForStep(s.key)
-    return {
-      ...s,
-      to: items[0] ? studyPath(study.id, items[0]) : pathname,
-      current: s.key === currentStep,
-      items: items.map((i) => ({ id: i.id, name: i.name, to: studyPath(study.id, i), active: i.id === screen?.id })),
-    }
+    return { ...s, to: items[0] ? studyPath(study.id, items[0]) : pathname, current: s.key === currentStep }
   })
+  const audience = getAudience(study.id)
+  const subItems: SubStep[] = currentStep
+    ? screensForStep(currentStep).map((i) => ({
+        id: i.id,
+        label: wizardLabel[i.id] ?? i.name,
+        to: builtScreenIds.has(i.id) ? studyPath(study.id, i) : undefined,
+        current: i.id === screen?.id,
+        done:
+          currentStep !== 'audience'
+            ? undefined
+            : i.id === 'R6'
+              ? audience?.status === 'Confirmed'
+              : i.id === 'R7'
+                ? audience?.screener?.status === 'Ready'
+                : i.id === 'R8'
+                  ? !!audience && invitedCount(audience.sourcing) > 0
+                  : undefined,
+      }))
+    : []
   const lockedStep = currentStep ? info.find((s) => s.key === currentStep && s.state === 'locked') : undefined
 
+  const { dir, moved } = seen.current
   return (
-    <div className="flex flex-1 flex-col md:flex-row">
-      <aside className="border-b border-mist bg-paper md:sticky md:top-topbar md:h-[calc(100vh-var(--spacing-topbar))] md:w-stepper md:shrink-0 md:overflow-y-auto md:border-r md:border-b-0">
-        <div className="flex h-full flex-col px-5 py-5">
-          <Link to="/researcher" className="mb-4 inline-flex items-center gap-1 self-start rounded-xs text-sm text-graphite hover:text-ink">
-            <ChevronLeftIcon size={14} />
-            Studies
-          </Link>
-          <StudySummary study={study} />
-          <div className="mt-6">
-            <Stepper steps={stepperSteps} />
-          </div>
-          <div className="mt-auto pt-6">
+    <div className="flex flex-1 flex-col overflow-x-clip">
+      <ScreenerAutomation studyId={study.id} />
+      <div className="border-b border-mist bg-paper px-4 py-4 sm:px-8">
+        <div className="mx-auto max-w-[1400px]">
+          <Stepper steps={stepperSteps} />
+        </div>
+      </div>
+      <div className="flex flex-1 flex-col md:flex-row">
+        <aside className="border-b border-mist bg-paper md:w-stepper md:shrink-0 md:border-r md:border-b-0">
+          <div className="flex flex-col gap-4 px-5 py-4 md:py-5">
+            <Link to="/researcher" className="inline-flex items-center gap-1 self-start rounded-xs text-sm text-graphite hover:text-ink">
+              <ChevronLeftIcon size={14} />
+              Studies
+            </Link>
+            <StudySummary study={study} />
             <Link
               to={studyPath(study.id, screenById.R23)}
               aria-current={screen?.id === 'R23' ? 'page' : undefined}
               className={cn(
-                'flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm',
+                'flex items-center gap-2 self-start rounded-sm px-2 py-1.5 text-sm md:self-stretch',
                 screen?.id === 'R23' ? 'bg-surface font-medium text-ink ring-1 ring-mist' : 'text-graphite hover:bg-haze hover:text-ink',
               )}
             >
@@ -81,15 +107,38 @@ export function StudyWorkspace() {
               Study settings
             </Link>
           </div>
-        </div>
-      </aside>
-      <main className="min-w-0 flex-1 px-4 py-8 sm:px-8">
-        <div className="mx-auto max-w-content">
-          {lockedStep ? <LockedStep step={lockedStep} studyId={study.id} info={info} /> : <Outlet />}
-        </div>
-      </main>
+        </aside>
+        <main className="min-w-0 flex-1 overflow-x-clip px-4 py-8 sm:px-8">
+          <div className="mx-auto max-w-content">
+            {subItems.length > 1 && !lockedStep && <SubStepper items={subItems} />}
+            <div key={screen?.id ?? pathname} className={moved ? (dir === 'forward' ? 'screen-in-forward' : 'screen-in-back') : undefined}>
+              {lockedStep ? <LockedStep step={lockedStep} studyId={study.id} info={info} /> : <Outlet />}
+            </div>
+          </div>
+        </main>
+      </div>
     </div>
   )
+}
+
+/** Writes the screener once the audience is confirmed. It runs here, not on R7, so it finishes whichever screen is open. */
+function ScreenerAutomation({ studyId }: { studyId: string }) {
+  const { getAudience, updateAudience } = useStudies()
+  const audience = getAudience(studyId)
+  const confirmedWithoutScreener = audience?.status === 'Confirmed' && !audience.screener && !audience.screenerPending
+  const pending = !!audience?.screenerPending
+
+  useEffect(() => {
+    if (confirmedWithoutScreener) updateAudience(studyId, startScreener)
+  }, [confirmedWithoutScreener, studyId, updateAudience])
+
+  useEffect(() => {
+    if (!pending) return
+    const t = setTimeout(() => updateAudience(studyId, (d) => (d.def ? setScreener(d, generateQuestions(d.def)) : { ...d, screenerPending: false })), 1300)
+    return () => clearTimeout(t)
+  }, [pending, studyId, updateAudience])
+
+  return null
 }
 
 function StudySummary({ study }: { study: StudyRecord }) {

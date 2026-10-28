@@ -1,4 +1,5 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
+import { useNavigate } from 'react-router'
 import { AIGeneratedTag } from '@/components/AIGenerated'
 import { Banner } from '@/components/Banner'
 import { Button, Spinner } from '@/components/Button'
@@ -7,16 +8,16 @@ import { controlBase, controlClass } from '@/components/Field'
 import { CheckIcon, CloseIcon, PlusIcon } from '@/components/icons'
 import { EmptyState } from '@/components/States'
 import { Tooltip } from '@/components/Tooltip'
+import { WizardFooter } from '@/components/WizardFooter'
 import { formatDateTime } from '@/lib/format'
 import { screenById, studyPath } from '@/routes/screens'
 import {
   acceptScreener,
   editScreener,
-  generateQuestions,
   MAX_QUESTIONS,
   questionTypeLabel,
   screenerBlockers,
-  setScreener,
+  startScreener,
   type QuestionType,
   type ScreenerQuestion,
 } from '@/state/audience'
@@ -30,18 +31,8 @@ const input = cn(controlClass, 'h-9')
 
 export function ScreenerEditor() {
   const { studyId, audience, editable, me, update } = useAudience()
-  const [generating, setGenerating] = useState(false)
+  const navigate = useNavigate()
   const [confirmRegenerate, setConfirmRegenerate] = useState(false)
-
-  useEffect(() => {
-    if (!generating) return
-    const t = setTimeout(() => {
-      update((d) => (d.def ? setScreener(d, generateQuestions(d.def)) : d))
-      setGenerating(false)
-      setConfirmRegenerate(false)
-    }, 1300)
-    return () => clearTimeout(t)
-  }, [generating, update])
 
   if (!editable || !audience?.def) return <AudienceGate studyId={studyId} editable={editable} />
 
@@ -50,27 +41,28 @@ export function ScreenerEditor() {
     <PageHeader id="R7" title="Screener editor" description="The questions applicants answer before they’re screened. Seven at most." meta={meta} />
   )
 
-  if (!s || generating) {
+  if (!s || audience.screenerPending) {
     return (
       <div className="flex flex-col gap-6">
         {header()}
         <div className="rounded-md border border-dashed border-mist-strong bg-surface">
-          {generating ? (
+          {audience.screenerPending ? (
             <div className="flex items-center gap-2 px-6 py-10 text-graphite" role="status">
               <Spinner /> Writing screener questions from the audience…
             </div>
           ) : (
             <EmptyState
-              title="No screener yet"
-              description="The AI writes up to seven questions from the audience’s filters and exclusions. You can edit, reorder or remove any of them."
+              title="The screener is written when you confirm the audience"
+              description="The AI turns the confirmed filters and exclusions into up to seven questions. You then edit and accept them here."
               action={
-                <Button variant="primary" onClick={() => setGenerating(true)}>
-                  Generate screener
+                <Button variant="primary" to={studyPath(studyId, screenById.R6)}>
+                  Go to audience definition
                 </Button>
               }
             />
           )}
         </div>
+        <WizardFooter previous={{ to: studyPath(studyId, screenById.R6), label: 'Audience' }} />
       </div>
     )
   }
@@ -113,7 +105,7 @@ export function ScreenerEditor() {
       )}
       {audience.status !== 'Confirmed' && !s.review && (
         <Banner tone="info" title="The audience isn’t confirmed yet">
-          You can work on the screener now. Sourcing opens once the audience is confirmed and the screener is accepted.
+          Sourcing opens once the audience is confirmed and the screener is accepted.
         </Banner>
       )}
 
@@ -142,39 +134,55 @@ export function ScreenerEditor() {
         {full && <p className="text-sm text-graphite">A screener can have at most {MAX_QUESTIONS} questions. Remove one to add another.</p>}
       </div>
 
-      <div className="sticky bottom-0 z-10 -mx-4 flex flex-wrap items-center gap-3 border-t border-mist bg-paper/95 px-4 py-3 backdrop-blur sm:-mx-8 sm:px-8">
-        {confirmRegenerate ? (
-          <>
-            <span className="text-sm">Replace all {s.questions.length} questions with a fresh AI draft? Your edits are lost.</span>
-            <Button size="sm" variant="danger" onClick={() => setGenerating(true)}>
-              Regenerate
+      <WizardFooter
+        previous={{ to: studyPath(studyId, screenById.R6), label: 'Audience' }}
+        message={
+          confirmRegenerate ? (
+            <span className="flex flex-wrap items-center gap-2">
+              Replace all {s.questions.length} questions with a fresh AI draft? Your edits are lost.
+              <Button
+                size="sm"
+                variant="danger"
+                onClick={() => {
+                  update(startScreener)
+                  setConfirmRegenerate(false)
+                }}
+              >
+                Regenerate
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setConfirmRegenerate(false)}>
+                Keep my questions
+              </Button>
+            </span>
+          ) : (
+            <Button size="sm" variant="ghost" onClick={() => setConfirmRegenerate(true)}>
+              Regenerate from audience
             </Button>
-            <Button size="sm" variant="ghost" onClick={() => setConfirmRegenerate(false)}>
-              Keep my questions
-            </Button>
-          </>
-        ) : (
-          <Button size="sm" variant="ghost" onClick={() => setConfirmRegenerate(true)}>
-            Regenerate from audience
-          </Button>
-        )}
-        <span className="flex-1" />
+          )
+        }
+      >
         {s.status === 'Ready' ? (
           <Button variant="primary" to={studyPath(studyId, screenById.R8)}>
-            Go to sourcing
+            Continue to sourcing
           </Button>
         ) : blockers.length ? (
           <Tooltip focusable content={`${blockers.join('. ')}.`}>
             <Button variant="primary" disabled>
-              Accept screener
+              Accept and continue
             </Button>
           </Tooltip>
         ) : (
-          <Button variant="primary" onClick={() => update((d) => acceptScreener(d, me))}>
-            Accept screener
+          <Button
+            variant="primary"
+            onClick={() => {
+              update((d) => acceptScreener(d, me))
+              navigate(studyPath(studyId, screenById.R8))
+            }}
+          >
+            Accept and continue
           </Button>
         )}
-      </div>
+      </WizardFooter>
     </div>
   )
 }

@@ -122,3 +122,31 @@ export function screenHref(screen: Screen, studyId = sample.studyId) {
 export function screensForStep(step: StepKey) {
   return screens.filter((s) => s.step === step && !s.drawerOf)
 }
+
+/** Researcher screens that are built. The sub-stepper lists the rest as upcoming. */
+export const builtScreenIds = new Set(['R1', 'R4', 'R5', 'R6', 'R7', 'R8'])
+
+/** Short names for the sub-stepper inside a step. */
+export const wizardLabel: Record<string, string> = {
+  R1: 'Intake',
+  R4: 'Editor',
+  R5: 'Share',
+  R6: 'Audience',
+  R7: 'Screener',
+  R8: 'Sourcing',
+  R9: 'Screening',
+  R11: 'Pool',
+  R12: 'Moderator',
+  R13: 'Stimuli',
+  R14: 'Guide',
+  R15: 'Readiness',
+  R16: 'Test runs',
+  R17: 'Preflight',
+  R18: 'Command center',
+  R19: 'Session',
+  R21: 'Queue',
+  R22: 'Session',
+}
+
+/** Position of a screen in the global order, used to pick the slide direction. */
+export const screenOrder = (id: string) => screens.findIndex((s) => s.id === id)

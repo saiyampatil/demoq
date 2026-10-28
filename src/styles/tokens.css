@@ -81,7 +81,7 @@
   /* Spacing: Tailwind's 4px base (p-1 = 4px, p-4 = 16px), plus layout sizes */
   --spacing: 4px;
   --spacing-topbar: 52px;
-  --spacing-stepper: 264px;
+  --spacing-stepper: 232px;
   --container-content: 1120px;
   --container-prose: 68ch;
   --container-drawer: 480px;

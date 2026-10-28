@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { useNavigate } from 'react-router'
 import { Banner } from '@/components/Banner'
 import { Button, Spinner } from '@/components/Button'
 import { Card } from '@/components/Card'
@@ -7,6 +8,7 @@ import { controlBase } from '@/components/Field'
 import { CheckIcon, PlusIcon } from '@/components/icons'
 import { StatusChip } from '@/components/StatusChip'
 import { Tooltip } from '@/components/Tooltip'
+import { WizardFooter } from '@/components/WizardFooter'
 import { formatDate, formatDateTime } from '@/lib/format'
 import { screenById, studyPath } from '@/routes/screens'
 import {
@@ -18,7 +20,6 @@ import {
   discardAudienceChanges,
   draftStepLabel,
   editDef,
-  fillCounts,
   invitesFor,
   newCohort,
   startDraft,
@@ -37,6 +38,7 @@ const input = cn(controlBase, 'h-9 tabular-nums')
 
 export function AudienceDefinition() {
   const { studyId, brief, audience, editable, me, set, update } = useAudience()
+  const navigate = useNavigate()
   const approved = approvedBriefSections(brief)
 
   // The AI drafts the audience the first time R6 opens after the brief is approved.
@@ -62,7 +64,6 @@ export function AudienceDefinition() {
   const edit = (fn: (d: AudienceDef) => AudienceDef) => update((doc) => editDef(doc, me, fn))
   const editCohort = (id: string, fn: (c: Cohort) => Cohort) => edit((d) => ({ ...d, cohorts: d.cohorts.map((c) => (c.id === id ? fn(c) : c)) }))
   const blockers = confirmBlockers(def)
-  const counts = fillCounts(def)
   const reopened = audience.status === 'Draft' && audience.confirmed
   const briefMoved = approved && approved.version !== audience.briefVersion
   const invites = invitesFor(def.total, def.bufferPct)
@@ -105,11 +106,6 @@ export function AudienceDefinition() {
           Version {approved.version} of the brief is now approved. Check the audience still matches it.
         </Banner>
       )}
-      <Banner tone="info" title={`Pulled from your approved brief (version ${audience.briefVersion}).`}>
-        {counts.filled} {counts.filled === 1 ? 'field' : 'fields'} filled by AI. {counts.needInput === 0 ? 'Nothing else needs your input.' : `${counts.needInput} ${counts.needInput === 1 ? 'needs' : 'need'} your input.`}{' '}
-        AI-suggested values stay marked until you confirm the audience.
-      </Banner>
-
       <Card title="Participant count" description="How many completed interviews the study needs, and how many extra people to invite.">
         <div className="flex flex-wrap items-start gap-x-10 gap-y-5">
           <div className="flex flex-col gap-1.5">
@@ -207,35 +203,41 @@ export function AudienceDefinition() {
         onChange={(fn) => edit((d) => ({ ...d, exclusions: fn(d.exclusions) }))}
       />
 
-      <div className="sticky bottom-0 z-10 -mx-4 flex flex-wrap items-center gap-3 border-t border-mist bg-paper/95 px-4 py-3 backdrop-blur sm:-mx-8 sm:px-8">
-        {audience.status === 'Confirmed' && audience.confirmed ? (
-          <>
-            <p className="flex flex-1 items-center gap-1.5 text-sm text-positive-fg">
+      <WizardFooter
+        message={
+          audience.status === 'Confirmed' && audience.confirmed ? (
+            <span className="flex items-center gap-1.5 text-positive-fg">
               <CheckIcon /> Version {audience.confirmed.version} confirmed on {formatDate(audience.confirmed.at)}. Moderator & Guide is unlocked.
-            </p>
-            <Button variant="primary" to={studyPath(studyId, screenById.R7)}>
-              Go to screener
+            </span>
+          ) : blockers.length ? (
+            `Before you confirm: ${blockers[0].charAt(0).toLowerCase()}${blockers[0].slice(1)}.`
+          ) : (
+            'Ready to confirm. This records your name, the time and the version. The AI then writes the screener.'
+          )
+        }
+      >
+        {audience.status === 'Confirmed' && audience.confirmed ? (
+          <Button variant="primary" to={studyPath(studyId, screenById.R7)}>
+            Continue to screener
+          </Button>
+        ) : blockers.length ? (
+          <Tooltip focusable content={`${blockers.join('. ')}.`}>
+            <Button variant="primary" disabled>
+              Confirm and continue
             </Button>
-          </>
+          </Tooltip>
         ) : (
-          <>
-            <p className="min-w-0 flex-1 text-sm text-graphite">
-              {blockers.length ? `Before you confirm: ${blockers[0].charAt(0).toLowerCase()}${blockers[0].slice(1)}.` : 'Ready to confirm. This records your name, the time and the version.'}
-            </p>
-            {blockers.length ? (
-              <Tooltip focusable content={`${blockers.join('. ')}.`}>
-                <Button variant="primary" disabled>
-                  Confirm audience
-                </Button>
-              </Tooltip>
-            ) : (
-              <Button variant="primary" onClick={() => update((d) => confirmAudience(d, me))}>
-                Confirm audience
-              </Button>
-            )}
-          </>
+          <Button
+            variant="primary"
+            onClick={() => {
+              update((d) => confirmAudience(d, me))
+              navigate(studyPath(studyId, screenById.R7))
+            }}
+          >
+            Confirm and continue
+          </Button>
         )}
-      </div>
+      </WizardFooter>
     </div>
   )
 }

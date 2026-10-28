@@ -4,7 +4,7 @@ import { seedApprovedBrief } from '@/mock/brief'
 import { DEFAULT_STAGE, MOISTURIZER_ID, presetStudy, type StagePresetKey } from '@/mock/moisturizerStudy'
 import { otherStudies } from '@/mock/studies'
 import type { StudyRecord } from '@/mock/types'
-import { audienceSummary, type AudienceDoc } from './audience'
+import { audienceSummary, emptySourcing, type AudienceDoc } from './audience'
 import { briefSummary, now, type BriefDoc } from './brief'
 
 const STORAGE_KEY = 'pulseai-qual:v2'
@@ -60,7 +60,11 @@ function load(): Persisted {
       if (parsed?.moisturizer?.id === MOISTURIZER_ID && Array.isArray(parsed.created)) {
         // Briefs saved before emailed approval existed have no review requests.
         const briefs = Object.fromEntries(Object.entries(parsed.briefs ?? {}).map(([id, doc]) => [id, { ...doc, reviewRequests: doc.reviewRequests ?? [] }]))
-        return { ...parsed, briefs, audiences: parsed.audiences ?? {} }
+        // Sourcing saved before the two-option rework used a link, contacts and a panel list.
+        const audiences = Object.fromEntries(
+          Object.entries(parsed.audiences ?? {}).map(([id, doc]) => [id, Array.isArray(doc.sourcing?.candidates) ? doc : { ...doc, sourcing: emptySourcing() }]),
+        )
+        return { ...parsed, briefs, audiences }
       }
     }
   } catch {

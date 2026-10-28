@@ -9,6 +9,7 @@ import {
   generateQuestions,
   STANDARD_EXCLUSIONS,
   type AudienceDef,
+  type Candidate,
   type AudienceDoc,
   type Filter,
 } from '@/state/audience'
@@ -64,15 +65,6 @@ const confirmedDef = (): AudienceDef => ({
   exclusions: STANDARD_EXCLUSIONS.map((e, i) => ({ id: `ex-${i + 1}`, ...e })),
 })
 
-const contacts = [
-  ['Rachel Kim', 'rachel.kim@mail.example'],
-  ['Monica Alvarez', 'monica.alvarez@mail.example'],
-  ['Tasha Greene', 'tasha.greene@mail.example'],
-  ['Priya Natarajan', 'priya.n@mail.example'],
-  ['Lauren Price', 'lauren.price@mail.example'],
-  ['Hannah Okafor', 'hannah.okafor@mail.example'],
-]
-
 export function seedConfirmedAudience(studyId: string): AudienceDoc {
   const def = confirmedDef()
   const invited = '2026-10-18T10:15:00-04:00'
@@ -98,12 +90,12 @@ export function seedConfirmedAudience(studyId: string): AudienceDoc {
       accepted: { by: maya, at: '2026-10-18T09:00:00-04:00' },
     },
     sourcing: {
-      link: { code: 'hv72-moist', createdAt: '2026-10-18T09:10:00-04:00', createdBy: maya },
-      contacts: contacts.map(([name, email], i) => ({ id: `ct-${i + 1}`, name, email, addedAt: '2026-10-18T09:20:00-04:00', invitedAt: invited })),
-      panel: {
-        name: 'Northstar Consumer Panel (mock)',
-        members: Array.from({ length: 22 }, (_, i) => ({ id: `NS-${48210 + i * 7}`, addedAt: '2026-10-18T09:25:00-04:00', invitedAt: invited })),
-      },
+      option: 'external',
+      panelName: 'Northstar Consumer Panel (mock)',
+      candidates: [
+        ...Array.from({ length: 6 }, (_, i): Candidate => ({ id: `cd-m${i + 1}`, value: `usr_${48101 + i * 13}`, idType: 'userId', source: 'Manual', addedAt: '2026-10-18T09:20:00-04:00', invitedAt: invited })),
+        ...Array.from({ length: 22 }, (_, i): Candidate => ({ id: `cd-e${i + 1}`, value: `NS-${48210 + i * 7}`, idType: 'userId', source: 'External', addedAt: '2026-10-18T09:25:00-04:00', invitedAt: invited })),
+      ],
     },
   }
 }
