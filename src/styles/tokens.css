@@ -1,0 +1,101 @@
+/*
+  PulseAI Qual design tokens — the single source for every phase.
+  Each token becomes a Tailwind utility (e.g. --color-iris-600 → bg-iris-600, text-iris-600).
+  Tailwind's default palette, type scale, radii and shadows are cleared so only these exist.
+
+  Three voices:
+    researcher UI  → Public Sans on cool greys
+    participant    → Source Serif 4 (quotes only)
+    AI-generated   → dashed iris border + iris wash + "AI-generated" tag
+  Iris (purple) is reserved for primary actions, focus and AI content. Statuses never use it.
+*/
+
+@theme static {
+  --color-*: initial;
+  --color-white: #ffffff;
+  --color-transparent: transparent;
+  --color-current: currentColor;
+
+  /* Brand: Iris */
+  --color-iris-50: #f1eefd; /* AI wash, selected rows */
+  --color-iris-100: #e3ddfb;
+  --color-iris-300: #a99af0;
+  --color-iris-500: #6e5ae3;
+  --color-iris-600: #5b45d9; /* primary */
+  --color-iris-700: #4a35b8; /* primary hover */
+  --color-iris-800: #3a2a8f;
+
+  /* Neutrals */
+  --color-ink: #1e1d2b; /* text */
+  --color-graphite: #5e5d70; /* secondary text */
+  --color-muted: #75748a; /* tertiary text, placeholders */
+  --color-mist-strong: #cfcedb; /* control borders */
+  --color-mist: #e3e2eb; /* dividers, card borders */
+  --color-haze: #f1f1f6; /* hover fills, table header */
+  --color-paper: #fafafc; /* app background */
+  --color-surface: #ffffff; /* content surfaces */
+
+  /* Status families — every status in every vocabulary maps to one family */
+  --color-neutral-bg: #f0f0f4; /* ○ not started */
+  --color-neutral-fg: #4b4a5c;
+  --color-neutral-line: #d9d8e2;
+  --color-pending-bg: #fdf3e1; /* ◐ waiting on someone */
+  --color-pending-fg: #87560a;
+  --color-pending-line: #eed7a6;
+  --color-progress-bg: #e7f0fd; /* ● in progress */
+  --color-progress-fg: #1d58b0;
+  --color-progress-line: #bcd4f5;
+  --color-positive-bg: #e5f4eb; /* ✓ done */
+  --color-positive-fg: #1b6a3c;
+  --color-positive-line: #b6dec6;
+  --color-negative-bg: #fcebea; /* ✕ stopped or failed */
+  --color-negative-fg: #a52a23;
+  --color-negative-line: #f1c3c0;
+  --color-held-bg: #e4f2f2; /* ◇ set aside but kept */
+  --color-held-fg: #1f5f60;
+  --color-held-line: #b5d9d8;
+
+  /* Type */
+  --font-*: initial;
+  --font-sans: 'Public Sans Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-serif: 'Source Serif 4 Variable', Georgia, 'Times New Roman', serif;
+
+  --text-*: initial;
+  --text-xs: 12px;
+  --text-xs--line-height: 16px;
+  --text-sm: 13px;
+  --text-sm--line-height: 18px;
+  --text-base: 14px;
+  --text-base--line-height: 21px;
+  --text-md: 16px;
+  --text-md--line-height: 24px;
+  --text-lg: 20px;
+  --text-lg--line-height: 28px;
+  --text-lg--letter-spacing: -0.01em;
+  --text-xl: 26px;
+  --text-xl--line-height: 32px;
+  --text-xl--letter-spacing: -0.015em;
+  --text-quote: 17px; /* participant verbatims, serif */
+  --text-quote--line-height: 27px;
+
+  /* Spacing: Tailwind's 4px base (p-1 = 4px, p-4 = 16px), plus layout sizes */
+  --spacing: 4px;
+  --spacing-topbar: 52px;
+  --spacing-stepper: 264px;
+  --container-content: 1120px;
+  --container-prose: 68ch;
+  --container-drawer: 480px;
+  --container-mobile: 375px;
+
+  /* Radii: chips are tighter than controls, controls tighter than surfaces */
+  --radius-*: initial;
+  --radius-xs: 4px; /* chips, tags */
+  --radius-sm: 6px; /* buttons, inputs */
+  --radius-md: 10px; /* cards, drawers, menus */
+  --radius-full: 9999px;
+
+  /* Shadows: only things that float above the page get one */
+  --shadow-*: initial;
+  --shadow-overlay: 0 16px 40px -12px rgb(30 29 43 / 0.22), 0 2px 6px rgb(30 29 43 / 0.08);
+  --shadow-raised: 0 1px 2px rgb(30 29 43 / 0.06);
+}

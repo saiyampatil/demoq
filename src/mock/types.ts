@@ -1,0 +1,44 @@
+import type { ArtifactStatus, AudienceStatus, StudyStatus } from '@/components/status'
+
+export type Person = {
+  id: string
+  name: string
+  role: 'Researcher' | 'Human moderator' | 'End Client'
+  title: string
+  organization: string
+  email: string
+}
+
+/** Who approved or confirmed what, when, and which version. */
+export type Approval = {
+  by: string
+  /** Recorded by the Researcher on someone's behalf, e.g. "Approved by client". */
+  onBehalfOf?: string
+  at: string
+  version: number
+}
+
+export type TrackedArtifact<S> = {
+  /** null until work on it has started. */
+  status: S | null
+  version: number
+  approval?: Approval
+}
+
+export type StudyRecord = {
+  id: string
+  name: string
+  client: string
+  category: string
+  moderatorType: 'AI-led' | 'Human-led'
+  interviewLanguage: string
+  targetCompletes: number
+  completedSessions: number
+  updatedAt: string
+  status: StudyStatus
+  brief: TrackedArtifact<ArtifactStatus>
+  audience: TrackedArtifact<AudienceStatus>
+  guide: TrackedArtifact<ArtifactStatus>
+  /** Set when launch is authorized and the release is locked. */
+  releaseVersion?: string
+}
