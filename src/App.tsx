@@ -15,6 +15,7 @@ import { ScreenPlaceholder } from '@/apps/shared/ScreenPlaceholder'
 import { Button } from '@/components/Button'
 import { EmptyState } from '@/components/States'
 import { DesignPage } from '@/design/DesignPage'
+import { ClientSimulator } from '@/dev/ClientSimulator'
 import { ScreenJump } from '@/dev/ScreenJump'
 import { sample, screens, type AppKey } from '@/routes/screens'
 import { FeaturesProvider } from '@/state/features'
@@ -36,6 +37,7 @@ function Root() {
   return (
     <>
       <Outlet />
+      {import.meta.env.DEV && <ClientSimulator />}
       {import.meta.env.DEV && <ScreenJump />}
     </>
   )

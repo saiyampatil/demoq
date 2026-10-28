@@ -24,24 +24,26 @@ export function ClientReviewTracker({ request, onResend, onCancel }: ClientRevie
     >
       <ul>
         {request.recipients.map((r) => (
-          <li key={r.email} className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-mist px-5 py-3">
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium break-all">{r.email}</p>
+          <li key={r.email} className="border-b border-mist px-5 py-3">
+            <div className="flex items-center justify-between gap-3">
+              <p className="min-w-0 text-sm font-medium break-all">{r.email}</p>
+              <StatusChip status={r.state} size="sm" />
+            </div>
+            <div className="mt-1 flex items-center justify-between gap-3">
               <p className="text-xs text-graphite tabular-nums">
                 {resent === r.email ? 'Link sent again just now' : r.respondedAt ? `${r.state} ${formatDateTime(r.respondedAt)}` : `Sent ${formatDateTime(r.lastSentAt)}`}
               </p>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  onResend(r.email)
+                  setResent(r.email)
+                }}
+              >
+                Resend
+              </Button>
             </div>
-            <StatusChip status={r.state} size="sm" />
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => {
-                onResend(r.email)
-                setResent(r.email)
-              }}
-            >
-              Resend
-            </Button>
           </li>
         ))}
       </ul>
