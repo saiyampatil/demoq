@@ -5,19 +5,19 @@ import { Button } from '@/components/Button'
 import { Card } from '@/components/Card'
 import { cn } from '@/components/cn'
 import { TextArea, TextField } from '@/components/Field'
-import { PrinterIcon } from '@/components/icons'
 import { StatusChip } from '@/components/StatusChip'
-import { Tooltip } from '@/components/Tooltip'
 import { formatDateTime } from '@/lib/format'
 import { MOISTURIZER_ID } from '@/mock/moisturizerStudy'
 import { people } from '@/mock/people'
 import { screenById, studyPath } from '@/routes/screens'
-import { approve, latestVersion, markShared, readiness, requestChanges } from '@/state/brief'
+import { approve, cancelRequest, latestVersion, markShared, openRequest, readiness, requestChanges, resendTo, sendForApproval } from '@/state/brief'
 import { useFeature } from '@/state/features'
 import { PageHeader } from '../../shared/PageHeader'
 import { ApprovalTimeline } from './ApprovalTimeline'
 import { AssumptionLedger } from './AssumptionLedger'
 import { BriefDocument } from './BriefDocument'
+import { ClientReviewTracker } from './ClientReviewTracker'
+import { SendForApprovalCard } from './SendForApprovalCard'
 import { NoBrief } from './NoBrief'
 import { useBrief } from './useBrief'
 
@@ -25,11 +25,13 @@ export function BriefShare() {
   const { studyId, study, doc, editable, me, update } = useBrief()
   const navigate = useNavigate()
   const showLedger = useFeature('assumptionLedger')
+  const [justSent, setJustSent] = useState<string>()
 
   if (!study || !doc?.intakeComplete) return <NoBrief studyId={studyId} editable={editable} />
 
   const latest = latestVersion(doc)!
   const ready = readiness(doc)
+  const request = openRequest(doc)
 
   const download = () => {
     if (!ready.canShare) return
@@ -37,18 +39,17 @@ export function BriefShare() {
     update((d) => markShared(d, me))
   }
 
-  const downloadButton = (
-    <Button variant={doc.status === 'Draft' ? 'primary' : 'secondary'} icon={<PrinterIcon />} disabled={!ready.canShare} onClick={download}>
-      Download PDF
-    </Button>
-  )
+  const sendEmail = (emails: string[], message: string) => {
+    update((d) => sendForApproval(d, me, emails, message))
+    setJustSent(`Emailed version ${latest.number} to ${emails.length === 1 ? emails[0] : `${emails.length} people`}.`)
+  }
 
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
         id="R5"
         title="Share brief and record decision"
-        description="Download the brief, email it to the client, then record what they decided."
+        description="Email the client a review link, or download the PDF and send it yourself."
         meta={
           <>
             <span className="font-medium text-ink tabular-nums">Version {latest.number}</span>
@@ -56,18 +57,9 @@ export function BriefShare() {
           </>
         }
         actions={
-          <>
-            <Button variant="ghost" to={studyPath(studyId, screenById.R4)}>
-              Back to editor
-            </Button>
-            {ready.canShare ? (
-              downloadButton
-            ) : (
-              <Tooltip focusable content={`You can’t share yet: ${ready.blockers.join('. ')}.`}>
-                {downloadButton}
-              </Tooltip>
-            )}
-          </>
+          <Button variant="ghost" to={studyPath(studyId, screenById.R4)}>
+            Back to editor
+          </Button>
         }
       />
 
@@ -89,33 +81,42 @@ export function BriefShare() {
         <BriefDocument study={study} doc={doc} version={latest} />
 
         <aside className="flex flex-col gap-4">
-          {doc.status === 'Approved' && doc.approval ? (
+          {doc.status === 'Approved' && doc.approval && (
             <Card>
               <Banner tone="success" title={`Version ${doc.approval.version} is approved`} className="-m-1">
                 {doc.approval.method === 'Client' ? `Approved by client (${doc.approval.client}). ` : 'Approved directly (solo). '}
-                Recorded by {doc.approval.by}, {formatDateTime(doc.approval.at)}.
+                {doc.approval.via === 'email' ? 'From the emailed review link, ' : `Recorded by ${doc.approval.by}, `}
+                {formatDateTime(doc.approval.at)}.
               </Banner>
               <p className="mt-4 text-sm text-graphite">The Audience step is unlocked. Editing the brief creates a new version that needs approval again.</p>
               <Button className="mt-3 w-full" variant="primary" to={studyPath(studyId, screenById.R6)}>
                 Continue to Audience
               </Button>
             </Card>
-          ) : doc.status === 'In Review' ? (
-            <ClientDecision
-              version={latest.number}
-              defaultClient={studyId === MOISTURIZER_ID ? people.client.name : ''}
-              onApprove={(client) => update((d) => approve(d, me, 'Client', client))}
-              onChanges={(client, feedback) => {
-                update((d) => requestChanges(d, me, client, feedback))
-                navigate(studyPath(studyId, screenById.R4))
-              }}
-            />
-          ) : (
-            <Card title="Send it to the client">
-              <p className="text-sm text-graphite">
-                Download the PDF and email it to the client yourself. Downloading marks version {latest.number} as In Review, and you can then record their decision here.
-              </p>
-            </Card>
+          )}
+
+          {doc.status !== 'Approved' && request && (
+            <>
+              {justSent && <Banner tone="success" title={justSent} />}
+              <ClientReviewTracker request={request} onResend={(email) => update((d) => resendTo(d, me, email))} onCancel={() => update((d) => cancelRequest(d, me))} />
+            </>
+          )}
+
+          {doc.status !== 'Approved' && !request && (
+            <>
+              <SendForApprovalCard version={latest.number} blockers={ready.blockers} onSendEmail={sendEmail} onDownload={download} />
+              {doc.status === 'In Review' && (
+                <ClientDecision
+                  version={latest.number}
+                  defaultClient={studyId === MOISTURIZER_ID ? people.client.name : ''}
+                  onApprove={(client) => update((d) => approve(d, me, 'Client', client))}
+                  onChanges={(client, feedback) => {
+                    update((d) => requestChanges(d, me, client, feedback))
+                    navigate(studyPath(studyId, screenById.R4))
+                  }}
+                />
+              )}
+            </>
           )}
 
           {doc.status !== 'Approved' && <SoloApproval version={latest.number} disabled={!ready.canShare} onApprove={() => update((d) => approve(d, me, 'Solo'))} />}
@@ -148,7 +149,7 @@ function ClientDecision({
   const feedbackError = submitted && decision === 'changes' && !feedback.trim() ? 'Enter the client’s feedback so you can act on it.' : undefined
 
   return (
-    <Card title="Record client decision" description={`What did the client decide about version ${version}?`}>
+    <Card title="Record client decision" description={`You sent version ${version} yourself. What did the client decide?`}>
       <form
         className="flex flex-col gap-4"
         onSubmit={(e) => {

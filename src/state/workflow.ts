@@ -11,9 +11,20 @@ export type StepInfo = {
   version?: number
   lockedReason?: string
   hint?: string
+  /** Extra line under the status chip, e.g. who the step is waiting on. */
+  note?: string
 }
 
 const launched = (s: StudyRecord) => ['Live', 'Paused', 'Terminated', 'Complete'].includes(s.status)
+
+function clientNote(study: StudyRecord) {
+  const r = study.brief.clientReview
+  if (!r) return undefined
+  if (r.state === 'Waiting') return 'Awaiting client approval'
+  if (r.state === 'Commented') return `Client commented (${r.comments}), awaiting decision`
+  if (r.state === 'Declined') return 'Client declined. Edit and send again'
+  return undefined
+}
 
 // Steps unlock in order, driven by status. See CLAUDE.md "Researcher study workspace".
 export function stepInfo(study: StudyRecord): StepInfo[] {
@@ -32,6 +43,7 @@ export function stepInfo(study: StudyRecord): StepInfo[] {
       state: briefApproved ? 'done' : 'open',
       status: study.brief.status ?? undefined,
       version: study.brief.version || undefined,
+      note: clientNote(study),
       hint: 'Start here: add the client’s brief',
     },
     {

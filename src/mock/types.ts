@@ -18,11 +18,19 @@ export type Approval = {
   version: number
 }
 
+/** Where an emailed brief stands with the client. Shown on R0 and in the stepper. */
+export type ClientReviewSummary = {
+  state: 'Waiting' | 'Commented' | 'Approved' | 'Declined'
+  recipients: number
+  comments: number
+}
+
 export type TrackedArtifact<S> = {
   /** null until work on it has started. */
   status: S | null
   version: number
   approval?: Approval
+  clientReview?: ClientReviewSummary
 }
 
 export type StudyRecord = {

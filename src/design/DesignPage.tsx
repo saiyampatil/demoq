@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { AIContent, AIGeneratedTag } from '@/components/AIGenerated'
 import { Button } from '@/components/Button'
 import { Card } from '@/components/Card'
+import { EmailListField } from '@/components/EmailListField'
 import { CheckIcon, PlusIcon } from '@/components/icons'
 import { Quote } from '@/components/Quote'
 import { SideDrawer } from '@/components/SideDrawer'
@@ -110,6 +111,7 @@ const applicantColumns: Column<DemoApplicant>[] = [
 
 export function DesignPage() {
   const [drawer, setDrawer] = useState<DemoApplicant | null>(null)
+  const [emails, setEmails] = useState<string[]>(['erin.walsh@verdane.example'])
   const demoSteps: StepperStep[] = stepInfo(presetStudy('midway')).map((s) => ({
     ...s,
     to: '#stepper',
@@ -339,7 +341,7 @@ export function DesignPage() {
             </div>
           </Section>
 
-          <Section id="surfaces" title="Card, table, drawer">
+          <Section id="surfaces" title="Card, table, drawer, email field">
             <Card
               flush
               title="Screening dashboard"
@@ -347,6 +349,11 @@ export function DesignPage() {
               actions={<Button size="sm">Export CSV</Button>}
             >
               <Table caption="Applicants" columns={applicantColumns} rows={demoApplicants} rowKey={(a) => a.id} onRowClick={setDrawer} />
+            </Card>
+            <Card className="mt-4" title="Email list field" description="Type or paste addresses. Enter, comma or leaving the field turns them into chips.">
+              <div className="max-w-md">
+                <EmailListField label="Client email addresses" value={emails} onChange={setEmails} placeholder="name@company.com" hint="Add everyone who can approve." />
+              </div>
             </Card>
             <SideDrawer
               open={Boolean(drawer)}

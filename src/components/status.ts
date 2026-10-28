@@ -18,6 +18,7 @@ export const vocabularies = {
   ],
   review: ['Under review', 'Accepted', 'Excluded'],
   task: ['Completed', 'Completed with fallback', 'Skipped', 'Incomplete'],
+  clientReview: ['Sent', 'Viewed', 'Approved', 'Declined'],
   // Not in CLAUDE.md's list; see docs/OPEN_QUESTIONS.md #1
   audience: ['Draft', 'Confirmed'],
 } as const
@@ -31,6 +32,7 @@ export const vocabularyLabels: Record<keyof typeof vocabularies, string> = {
   session: 'Session track',
   review: 'Review track',
   task: 'Task',
+  clientReview: 'Client review (per recipient)',
   audience: 'Audience definition',
 }
 
@@ -62,11 +64,13 @@ export const statusFamily: Record<Status, StatusFamily> = {
   Paused: 'pending',
   'Under review': 'pending',
   Rescheduled: 'pending',
+  Sent: 'pending',
 
   Live: 'progress',
   Active: 'progress',
   Opened: 'progress',
   Consented: 'progress',
+  Viewed: 'progress',
   'Ready to Launch': 'progress',
 
   Approved: 'positive',
@@ -78,6 +82,7 @@ export const statusFamily: Record<Status, StatusFamily> = {
   Complete: 'positive',
 
   Ineligible: 'negative',
+  Declined: 'negative',
   Failed: 'negative',
   Terminated: 'negative',
   'Technical Error': 'negative',

@@ -2,9 +2,11 @@
 // Every operation takes a BriefDoc and returns a new one; StudyContext stores and persists it.
 
 import type { ArtifactStatus } from '@/components/status'
-import type { StudyRecord } from '@/mock/types'
+import type { ClientReviewSummary, StudyRecord } from '@/mock/types'
 
 export const AI_NAME = 'PulseAI'
+/** Actor for changes the platform makes itself, e.g. reopening a brief after a client declines. */
+export const SYSTEM_NAME = 'System'
 
 // Seven sections, in this order. See CLAUDE.md and docs/OPEN_QUESTIONS.md #5.
 export const SECTION_KEYS = ['objective', 'brand', 'category', 'audience', 'market', 'sampleSize', 'length'] as const
@@ -123,13 +125,45 @@ export type BriefVersion = {
 }
 
 export type ApprovalMethod = 'Client' | 'Solo'
-export type BriefApproval = { by: string; at: string; version: number; method: ApprovalMethod; client?: string }
+export type BriefApproval = {
+  by: string
+  at: string
+  version: number
+  method: ApprovalMethod
+  client?: string
+  /** Set when the client approved from the emailed review link, so nobody recorded it by hand. */
+  via?: 'email'
+}
+
+export type RecipientState = 'Sent' | 'Viewed' | 'Approved' | 'Declined'
+export type Recipient = { email: string; state: RecipientState; lastSentAt: string; respondedAt?: string; reason?: string }
+export type ClientComment = { id: string; at: string; by: string; text: string }
+export type RequestClosure = 'approved' | 'declined' | 'cancelled' | 'superseded'
+
+/** One emailed approval request for one version of the brief. */
+export type ReviewRequest = {
+  id: string
+  version: number
+  sentBy: string
+  sentAt: string
+  message: string
+  recipients: Recipient[]
+  comments: ClientComment[]
+  closedAs?: RequestClosure
+  closedAt?: string
+}
 
 export type BriefEvent = { id: string; at: string; by: string; version: number } & (
   | { type: 'saved'; note: string }
   | { type: 'shared' }
   | { type: 'changes-requested'; client: string; feedback: string }
-  | { type: 'approved'; method: ApprovalMethod; client?: string }
+  | { type: 'approved'; method: ApprovalMethod; client?: string; via?: 'email' }
+  | { type: 'emailed'; recipients: string[] }
+  | { type: 'resent'; email: string }
+  | { type: 'client-viewed'; email: string }
+  | { type: 'client-declined'; email: string; reason: string }
+  | { type: 'client-commented'; email: string; text: string }
+  | { type: 'request-closed'; reason: 'cancelled' | 'superseded' }
 )
 
 export type SampleKey = 'complete' | 'missing-context' | 'audio'
@@ -150,6 +184,8 @@ export type BriefDoc = {
   versions: BriefVersion[]
   status: ArtifactStatus
   events: BriefEvent[]
+  /** Emailed approval requests, oldest first. Only the last one can be open. */
+  reviewRequests: ReviewRequest[]
   /** The most recent approval, kept after later edits for the record. */
   approval?: BriefApproval
 }
@@ -221,11 +257,30 @@ export const approvedVersions = (doc: BriefDoc) =>
 
 /** The client's latest change request, if the brief hasn't been re-shared since. */
 export function openChangeRequest(doc: BriefDoc) {
-  const lastRequest = doc.events.findLastIndex((e) => e.type === 'changes-requested')
+  const lastRequest = doc.events.findLastIndex((e) => e.type === 'changes-requested' || e.type === 'client-declined')
   if (lastRequest < 0) return undefined
-  const sharedSince = doc.events.slice(lastRequest + 1).some((e) => e.type === 'shared' || e.type === 'approved')
+  const sentSince = doc.events.slice(lastRequest + 1).some((e) => e.type === 'shared' || e.type === 'emailed' || e.type === 'approved')
   const e = doc.events[lastRequest]
-  return !sharedSince && e.type === 'changes-requested' ? e : undefined
+  if (sentSince) return undefined
+  if (e.type === 'changes-requested') return { kind: 'changes' as const, client: e.client, version: e.version, feedback: e.feedback }
+  if (e.type === 'client-declined') return { kind: 'declined' as const, client: e.email, version: e.version, feedback: e.reason }
+  return undefined
+}
+
+/** The emailed request still waiting on the client, if any. */
+export const openRequest = (doc: BriefDoc) => {
+  const last = doc.reviewRequests.at(-1)
+  return last && !last.closedAs ? last : undefined
+}
+
+export function clientReviewSummary(doc: BriefDoc): ClientReviewSummary | undefined {
+  const last = doc.reviewRequests.at(-1)
+  if (!last) return undefined
+  const base = { recipients: last.recipients.length, comments: last.comments.length }
+  if (!last.closedAs) return { state: last.comments.length ? 'Commented' : 'Waiting', ...base }
+  if (last.closedAs === 'approved' && doc.status === 'Approved') return { state: 'Approved', ...base }
+  if (last.closedAs === 'declined' && doc.status === 'Draft') return { state: 'Declined', ...base }
+  return undefined
 }
 
 /** The brief's summary on the study record, which drives the stepper. */
@@ -236,6 +291,7 @@ export function briefSummary(doc: BriefDoc): StudyRecord['brief'] {
   return {
     status: doc.status,
     version: v.number,
+    clientReview: clientReviewSummary(doc),
     approval:
       doc.status === 'Approved' && a
         ? { by: a.by, onBehalfOf: a.method === 'Client' && a.client ? `${a.client} (client)` : undefined, at: a.at, version: a.version }
@@ -279,6 +335,7 @@ export function startIntake(studyId: string, sample: BriefSample, original: Orig
     versions: [],
     status: 'Draft',
     events: [],
+    reviewRequests: [],
   }
 }
 
@@ -505,11 +562,17 @@ export function saveVersion(doc: BriefDoc, by: string): BriefDoc {
     savedAt: at,
     note: changed.length ? `Edited ${listTitles(changed)}` : 'No changes',
   }
+  const open = openRequest(doc)
   return {
     ...doc,
     versions: [...doc.versions, v],
     status: 'Draft',
-    events: [...doc.events, { id: uid('e'), at, by, version: v.number, type: 'saved', note: v.note }],
+    reviewRequests: open ? closeRequest(doc, open.id, 'superseded', at) : doc.reviewRequests,
+    events: [
+      ...doc.events,
+      { id: uid('e'), at, by, version: v.number, type: 'saved', note: v.note },
+      ...(open ? [{ id: uid('e'), at, by, version: open.version, type: 'request-closed' as const, reason: 'superseded' as const }] : []),
+    ],
   }
 }
 
@@ -548,14 +611,151 @@ export function requestChanges(doc: BriefDoc, by: string, client: string, feedba
   }
 }
 
-export function approve(doc: BriefDoc, by: string, method: ApprovalMethod, client?: string): BriefDoc {
+export function approve(doc: BriefDoc, by: string, method: ApprovalMethod, client?: string, via?: 'email'): BriefDoc {
   const v = latestVersion(doc)
   if (!v) return doc
   const at = now()
+  // Approving directly while an emailed request is out closes that request.
+  const open = openRequest(doc)
   return {
     ...doc,
     status: 'Approved',
-    approval: { by, at, version: v.number, method, client },
-    events: [...doc.events, { id: uid('e'), at, by, version: v.number, type: 'approved', method, client }],
+    approval: { by, at, version: v.number, method, client, via },
+    reviewRequests: open ? closeRequest(doc, open.id, 'cancelled', at) : doc.reviewRequests,
+    events: [
+      ...doc.events,
+      ...(open ? [{ id: uid('e'), at, by, version: open.version, type: 'request-closed' as const, reason: 'cancelled' as const }] : []),
+      { id: uid('e'), at, by, version: v.number, type: 'approved', method, client, via },
+    ],
+  }
+}
+
+// ─── emailed approval ───────────────────────────────────────────────────────
+
+function closeRequest(doc: BriefDoc, id: string, closedAs: RequestClosure, at: string): ReviewRequest[] {
+  return doc.reviewRequests.map((r) => (r.id === id ? { ...r, closedAs, closedAt: at } : r))
+}
+
+const patchRecipient = (r: ReviewRequest, email: string, fn: (x: Recipient) => Recipient): ReviewRequest => ({
+  ...r,
+  recipients: r.recipients.map((x) => (x.email === email ? fn(x) : x)),
+})
+
+const swapRequest = (doc: BriefDoc, next: ReviewRequest) => doc.reviewRequests.map((r) => (r.id === next.id ? next : r))
+
+/** Emails a review link for the latest version. The send itself is mocked. */
+export function sendForApproval(doc: BriefDoc, by: string, emails: string[], message: string): BriefDoc {
+  const v = latestVersion(doc)
+  if (!v || openRequest(doc) || emails.length === 0) return doc
+  const at = now()
+  const request: ReviewRequest = {
+    id: uid('rr'),
+    version: v.number,
+    sentBy: by,
+    sentAt: at,
+    message: message.trim(),
+    recipients: emails.map((email) => ({ email, state: 'Sent', lastSentAt: at })),
+    comments: [],
+  }
+  return {
+    ...doc,
+    status: 'In Review',
+    reviewRequests: [...doc.reviewRequests, request],
+    events: [...doc.events, { id: uid('e'), at, by, version: v.number, type: 'emailed', recipients: emails }],
+  }
+}
+
+export function resendTo(doc: BriefDoc, by: string, email: string): BriefDoc {
+  const req = openRequest(doc)
+  if (!req) return doc
+  const at = now()
+  return {
+    ...doc,
+    reviewRequests: swapRequest(doc, patchRecipient(req, email, (x) => ({ ...x, lastSentAt: at }))),
+    events: [...doc.events, { id: uid('e'), at, by, version: req.version, type: 'resent', email }],
+  }
+}
+
+/** The researcher withdraws the request. The brief goes back to Draft. */
+export function cancelRequest(doc: BriefDoc, by: string): BriefDoc {
+  const req = openRequest(doc)
+  if (!req) return doc
+  const at = now()
+  return {
+    ...doc,
+    status: 'Draft',
+    reviewRequests: closeRequest(doc, req.id, 'cancelled', at),
+    events: [...doc.events, { id: uid('e'), at, by, version: req.version, type: 'request-closed', reason: 'cancelled' }],
+  }
+}
+
+export type ClientAction = { type: 'view' } | { type: 'approve' } | { type: 'decline'; reason: string } | { type: 'comment'; text: string }
+
+/**
+ * What the client's review page will call. The first approve or decline closes the request;
+ * a decline reopens the brief as a new Draft version. Views and comments leave the status alone.
+ */
+export function clientRespond(doc: BriefDoc, email: string, action: ClientAction): BriefDoc {
+  const req = openRequest(doc)
+  const recipient = req?.recipients.find((r) => r.email === email)
+  if (!req || !recipient) return doc
+  const at = now()
+  const event = { id: uid('e'), at, by: email, version: req.version }
+
+  switch (action.type) {
+    case 'view':
+      if (recipient.state !== 'Sent') return doc
+      return {
+        ...doc,
+        reviewRequests: swapRequest(doc, patchRecipient(req, email, (x) => ({ ...x, state: 'Viewed', respondedAt: at }))),
+        events: [...doc.events, { ...event, type: 'client-viewed', email }],
+      }
+
+    case 'comment': {
+      const text = action.text.trim()
+      if (!text) return doc
+      const next = patchRecipient({ ...req, comments: [...req.comments, { id: uid('c'), at, by: email, text }] }, email, (x) =>
+        x.state === 'Sent' ? { ...x, state: 'Viewed', respondedAt: at } : x,
+      )
+      return { ...doc, reviewRequests: swapRequest(doc, next), events: [...doc.events, { ...event, type: 'client-commented', email, text }] }
+    }
+
+    case 'approve': {
+      const closed = {
+        ...patchRecipient(req, email, (x) => ({ ...x, state: 'Approved', respondedAt: at })),
+        closedAs: 'approved' as const,
+        closedAt: at,
+      }
+      return approve({ ...doc, reviewRequests: swapRequest(doc, closed) }, email, 'Client', email, 'email')
+    }
+
+    case 'decline': {
+      const reason = action.reason.trim()
+      const v = latestVersion(doc)
+      if (!reason || !v) return doc
+      const closed = {
+        ...patchRecipient(req, email, (x) => ({ ...x, state: 'Declined', respondedAt: at, reason })),
+        closedAs: 'declined' as const,
+        closedAt: at,
+      }
+      const next: BriefVersion = {
+        number: v.number + 1,
+        sections: v.sections,
+        savedBy: SYSTEM_NAME,
+        savedAt: at,
+        note: `Reopened after ${email} declined version ${v.number}`,
+      }
+      return {
+        ...doc,
+        status: 'Draft',
+        versions: [...doc.versions, next],
+        reviewRequests: swapRequest(doc, closed),
+        events: [
+          ...doc.events,
+          { ...event, type: 'client-declined', email, reason },
+          { id: uid('e'), at, by: SYSTEM_NAME, version: next.number, type: 'saved', note: next.note },
+        ],
+      }
+    }
   }
 }

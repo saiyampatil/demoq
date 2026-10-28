@@ -45,7 +45,11 @@ function load(): Persisted {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (raw) {
       const parsed = JSON.parse(raw) as Persisted
-      if (parsed?.moisturizer?.id === MOISTURIZER_ID && Array.isArray(parsed.created)) return parsed
+      if (parsed?.moisturizer?.id === MOISTURIZER_ID && Array.isArray(parsed.created)) {
+        // Briefs saved before emailed approval existed have no review requests.
+        const briefs = Object.fromEntries(Object.entries(parsed.briefs ?? {}).map(([id, doc]) => [id, { ...doc, reviewRequests: doc.reviewRequests ?? [] }]))
+        return { ...parsed, briefs }
+      }
     }
   } catch {
     // Storage blocked or corrupt: fall back to the seed.

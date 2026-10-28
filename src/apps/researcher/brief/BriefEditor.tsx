@@ -13,6 +13,7 @@ import {
   editSection,
   latestVersion,
   openChangeRequest,
+  openRequest,
   readiness,
   resolveFollowUp,
   saveVersion,
@@ -46,6 +47,7 @@ export function BriefEditor() {
   const latest = latestVersion(doc)!
   const ready = readiness(doc)
   const changeRequest = openChangeRequest(doc)
+  const request = openRequest(doc)
   const needsReapproval = doc.status !== 'Approved' && doc.approval && doc.approval.version < latest.number
 
   const jump = (k: SectionKey) => document.getElementById(`section-${k}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -113,8 +115,16 @@ export function BriefEditor() {
           anything built from version {doc.approval.version} will be flagged for review.
         </Banner>
       )}
+      {request && (
+        <Banner tone="info" title={`Version ${request.version} is with the client`}>
+          Emailed to {request.recipients.map((r) => r.email).join(', ')}. Saving a new version cancels that request, and you’ll need to send the new version.
+        </Banner>
+      )}
       {changeRequest && (
-        <Banner tone="info" title={`${changeRequest.client} requested changes to version ${changeRequest.version}`}>
+        <Banner
+          tone={changeRequest.kind === 'declined' ? 'danger' : 'info'}
+          title={`${changeRequest.client} ${changeRequest.kind === 'declined' ? 'declined' : 'requested changes to'} version ${changeRequest.version}`}
+        >
           “{changeRequest.feedback}”
         </Banner>
       )}

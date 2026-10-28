@@ -40,7 +40,7 @@ No backend. Mock data and simulated AI only. We build one module at a time and v
 | Researcher | Researcher app | Builds and runs studies, makes every approval |
 | Participant | Participant app | Opens unique links, never chooses AI vs human |
 | Human moderator | Moderator app | Runs human-led sessions |
-| End Client | Observer app | Reviews briefs and guides off-platform (email), watches live from the backroom |
+| End Client | Observer app | Reviews and approves the brief from an emailed review link (client preview page, built separately). Reviews guides off-platform (email). Watches live from the backroom |
 
 ## Researcher study workspace
 Left stepper, unlocked in order by status:
@@ -53,7 +53,7 @@ Brief → Audience → Moderator & Guide → Launch → Fieldwork → Review →
 | R0 | Studies dashboard | — |
 | R1 | Brief intake (chat: type, upload, voice; processing and follow-ups in chat) | 1 |
 | R4 | Brief editor (7 sections, source tags, original input panel, version, status) | 1 |
-| R5 | Share brief and record client decision | 1 |
+| R5 | Share brief (email a review link, or download) and record client decision | 1 |
 
 Brief sections (R4), in order. These replace the earlier ten-section list. Research objective is the only required section and blocks sharing:
 1. Research objective (required)
@@ -112,6 +112,7 @@ Brief sections (R4), in order. These replace the earlier ten-section list. Resea
 
 ## Status vocabularies (use these names exactly)
 - Brief and guide: Draft, In Review, Approved
+- Client review (per recipient of an emailed brief): Sent, Viewed, Approved, Declined
 - Applicant screening outcome: Eligible, Ineligible, Needs Review, Reserve
 - Applicant verification: Not started, Pending, Passed, Failed (separate column from screening outcome)
 - Study: Not Ready, Ready to Launch, Live, Paused, Terminated, Complete

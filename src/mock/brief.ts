@@ -43,6 +43,7 @@ export function seedApprovedBrief(studyId: string): BriefDoc {
       { number: 3, sections: snapAll(v3), savedBy: maya, savedAt: v3At, note: 'Edited Research objective' },
     ],
     status: 'Approved',
+    reviewRequests: [],
     approval: { by: maya, at: '2026-10-14T16:05:00-04:00', version: 3, method: 'Client', client: erin },
     events: [
       { id: 'e-1', type: 'saved', at: v1At, by: AI_NAME, version: 1, note: 'AI draft from intake' },

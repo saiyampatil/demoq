@@ -10,7 +10,7 @@ import { StatusChip } from '@/components/StatusChip'
 import { EmptyState, ErrorState, LoadingState } from '@/components/States'
 import { Table, type Column } from '@/components/Table'
 import { formatDate } from '@/lib/format'
-import type { StudyRecord } from '@/mock/types'
+import type { ClientReviewSummary, StudyRecord } from '@/mock/types'
 import { screenById, steps, studyPath } from '@/routes/screens'
 import { useStudies } from '@/state/StudyContext'
 import { landingStep } from '@/state/workflow'
@@ -24,6 +24,18 @@ const filters: { key: Filter; label: string; empty: string; match: (s: StudyReco
   { key: 'fieldwork', label: 'In fieldwork', empty: 'No studies in fieldwork', match: (s) => s.status === 'Live' || s.status === 'Paused' },
   { key: 'closed', label: 'Closed', empty: 'No closed studies', match: (s) => s.status === 'Complete' || s.status === 'Terminated' },
 ]
+
+const clientLine: Record<ClientReviewSummary['state'], { text: string; tone: string }> = {
+  Waiting: { text: 'Waiting on client', tone: 'text-pending-fg' },
+  Commented: { text: 'Client commented', tone: 'text-pending-fg' },
+  Approved: { text: 'Client approved the brief', tone: 'text-positive-fg' },
+  Declined: { text: 'Client declined the brief', tone: 'text-negative-fg' },
+}
+
+function ClientLine({ review }: { review: ClientReviewSummary }) {
+  const { text, tone } = clientLine[review.state]
+  return <span className={cn('text-xs whitespace-nowrap', tone)}>{text}</span>
+}
 
 const columns: Column<StudyRecord>[] = [
   {
@@ -42,7 +54,16 @@ const columns: Column<StudyRecord>[] = [
     header: 'Current step',
     cell: (s) => <span className="whitespace-nowrap">{steps.find((x) => x.key === landingStep(s))?.label}</span>,
   },
-  { key: 'status', header: 'Status', cell: (s) => <StatusChip status={s.status} /> },
+  {
+    key: 'status',
+    header: 'Status',
+    cell: (s) => (
+      <div className="flex flex-col items-start gap-1">
+        <StatusChip status={s.status} />
+        {s.brief.clientReview && <ClientLine review={s.brief.clientReview} />}
+      </div>
+    ),
+  },
   {
     key: 'interviews',
     header: 'Interviews',

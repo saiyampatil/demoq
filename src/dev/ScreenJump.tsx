@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router'
+import { Link, matchPath, useLocation, useNavigate } from 'react-router'
 import { Button } from '@/components/Button'
 import { cn } from '@/components/cn'
 import { CloseIcon, SearchIcon } from '@/components/icons'
+import { StatusChip } from '@/components/StatusChip'
 import { stagePresets } from '@/mock/moisturizerStudy'
 import { appLabel, screenHref, screens, type AppKey } from '@/routes/screens'
+import { clientRespond, openRequest, type ClientAction } from '@/state/brief'
 import { featureInfo, useFeatures, type FeatureKey } from '@/state/features'
 import { useStudies } from '@/state/StudyContext'
 
@@ -16,7 +18,8 @@ export function ScreenJump() {
   const [query, setQuery] = useState('')
   const { pathname, search } = useLocation()
   const navigate = useNavigate()
-  const { stage, setStage, resetSeed } = useStudies()
+  const { stage, setStage, resetSeed, getBrief, updateBrief } = useStudies()
+  const [note, setNote] = useState('')
   const { flags, setFlag } = useFeatures()
 
   useEffect(() => {
@@ -32,6 +35,12 @@ export function ScreenJump() {
   }, [query])
 
   const here = pathname + search
+
+  // The client's review page isn't built yet, so this panel calls the same function it will call.
+  const studyId = matchPath('/researcher/studies/:studyId/*', pathname)?.params.studyId
+  const briefDoc = getBrief(studyId)
+  const request = briefDoc ? openRequest(briefDoc) : undefined
+  const respond = (email: string, action: ClientAction) => studyId && updateBrief(studyId, (d) => clientRespond(d, email, action))
 
   return (
     <>
@@ -64,6 +73,46 @@ export function ScreenJump() {
           </header>
 
           <div className="flex-1 overflow-y-auto">
+            {request && (
+              <section aria-label="Simulate client response" className="border-b border-mist bg-iris-50 px-4 py-3">
+                <h3 className="text-sm font-semibold">Simulate client response</h3>
+                <p className="text-xs text-graphite">Version {request.version} is out for approval. These act as the client from the emailed link.</p>
+                <label className="mt-2 flex flex-col gap-1">
+                  <span className="sr-only">Reason or comment</span>
+                  <input
+                    value={note}
+                    onChange={(e) => setNote(e.target.value)}
+                    placeholder="Reason or comment (optional)"
+                    className="h-8 rounded-sm border border-mist-strong bg-surface px-2 text-sm placeholder:text-muted focus:border-iris-600"
+                  />
+                </label>
+                <ul className="mt-2 flex flex-col gap-2">
+                  {request.recipients.map((r) => (
+                    <li key={r.email} className="rounded-sm border border-mist bg-surface p-2">
+                      <div className="flex items-center gap-2">
+                        <span className="min-w-0 flex-1 truncate text-sm">{r.email}</span>
+                        <StatusChip status={r.state} size="sm" />
+                      </div>
+                      <div className="mt-1.5 flex flex-wrap gap-1.5">
+                        <Button size="sm" onClick={() => respond(r.email, { type: 'view' })}>
+                          Viewed
+                        </Button>
+                        <Button size="sm" onClick={() => respond(r.email, { type: 'comment', text: note || 'Can we add the launch date to the brief?' })}>
+                          Comment
+                        </Button>
+                        <Button size="sm" variant="primary" onClick={() => respond(r.email, { type: 'approve' })}>
+                          Approve
+                        </Button>
+                        <Button size="sm" variant="danger" onClick={() => respond(r.email, { type: 'decline', reason: note || 'The audience wording needs another pass.' })}>
+                          Decline
+                        </Button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
             <section className="border-b border-mist px-4 py-3">
               <h3 className="text-sm font-semibold">Study stage</h3>
               <p className="text-xs text-graphite">Moisturizer Concept Study only. Changing it replaces its saved progress; studies you created stay.</p>

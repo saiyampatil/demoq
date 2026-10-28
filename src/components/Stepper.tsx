@@ -21,6 +21,8 @@ export type StepperStep = {
   lockedReason?: string
   /** Shown under an open step that has no status yet. */
   hint?: string
+  /** Extra line under the status chip. */
+  note?: string
   /** Screens inside the step, listed when the step is current. */
   items?: StepperSubItem[]
 }
@@ -100,10 +102,13 @@ function StepMeta({ step }: { step: StepperStep }) {
     meta = <p className="text-xs text-muted">{step.lockedReason}</p>
   } else if (step.status) {
     meta = (
-      <div className="flex items-center gap-2">
-        <StatusChip status={step.status} size="sm" />
-        {step.version ? <span className="text-xs text-graphite tabular-nums">v{step.version}</span> : null}
-      </div>
+      <>
+        <div className="flex items-center gap-2">
+          <StatusChip status={step.status} size="sm" />
+          {step.version ? <span className="text-xs text-graphite tabular-nums">v{step.version}</span> : null}
+        </div>
+        {step.note && <p className="mt-1 text-xs text-pending-fg">{step.note}</p>}
+      </>
     )
   } else if (step.hint) {
     meta = <p className="text-xs text-graphite">{step.hint}</p>
