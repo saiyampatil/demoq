@@ -4,6 +4,9 @@ import { ModeratorShell } from '@/apps/moderator/ModeratorShell'
 import { ObserverShell } from '@/apps/observer/ObserverShell'
 import { ParticipantScreen } from '@/apps/participant/ParticipantScreen'
 import { ParticipantShell } from '@/apps/participant/ParticipantShell'
+import { BriefEditor } from '@/apps/researcher/brief/BriefEditor'
+import { BriefIntake } from '@/apps/researcher/brief/BriefIntake'
+import { BriefShare } from '@/apps/researcher/brief/BriefShare'
 import { ResearcherScreen } from '@/apps/researcher/ResearcherScreen'
 import { ResearcherShell } from '@/apps/researcher/ResearcherShell'
 import { StudiesDashboard } from '@/apps/researcher/StudiesDashboard'
@@ -14,12 +17,20 @@ import { EmptyState } from '@/components/States'
 import { DesignPage } from '@/design/DesignPage'
 import { ScreenJump } from '@/dev/ScreenJump'
 import { sample, screens, type AppKey } from '@/routes/screens'
+import { FeaturesProvider } from '@/state/features'
 import { StudyProvider } from '@/state/StudyContext'
 
 const routesFor = (app: AppKey, render: (id: string) => ReactNode) =>
   screens
     .filter((s) => s.app === app && s.id !== 'R0' && !s.drawerOf)
     .map((s) => ({ path: s.path, element: render(s.id) }))
+
+// Screens built so far. Everything else renders its placeholder.
+const builtResearcher: Record<string, ReactNode> = {
+  R1: <BriefIntake />,
+  R4: <BriefEditor />,
+  R5: <BriefShare />,
+}
 
 function Root() {
   return (
@@ -55,7 +66,7 @@ const router = createBrowserRouter([
           {
             path: 'studies/:studyId',
             element: <StudyWorkspace />,
-            children: [{ index: true, element: <WorkspaceIndex /> }, ...routesFor('researcher', (id) => <ResearcherScreen id={id} />)],
+            children: [{ index: true, element: <WorkspaceIndex /> }, ...routesFor('researcher', (id) => builtResearcher[id] ?? <ResearcherScreen id={id} />)],
           },
         ],
       },
@@ -85,8 +96,10 @@ const router = createBrowserRouter([
 
 export function App() {
   return (
-    <StudyProvider>
-      <RouterProvider router={router} />
-    </StudyProvider>
+    <FeaturesProvider>
+      <StudyProvider>
+        <RouterProvider router={router} />
+      </StudyProvider>
+    </FeaturesProvider>
   )
 }

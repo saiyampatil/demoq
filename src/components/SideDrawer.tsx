@@ -13,20 +13,25 @@ type SideDrawerProps = {
 
 export function SideDrawer({ open, onClose, title, description, children, footer }: SideDrawerProps) {
   const panelRef = useRef<HTMLDivElement>(null)
+  // Kept in a ref so a parent re-render doesn't re-run the focus effect.
+  const onCloseRef = useRef(onClose)
+  useEffect(() => {
+    onCloseRef.current = onClose
+  })
 
   useEffect(() => {
     if (!open) return
     const previous = document.activeElement as HTMLElement | null
     panelRef.current?.focus()
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape') onCloseRef.current()
     }
     document.addEventListener('keydown', onKey)
     return () => {
       document.removeEventListener('keydown', onKey)
       previous?.focus()
     }
-  }, [open, onClose])
+  }, [open])
 
   if (!open) return null
 

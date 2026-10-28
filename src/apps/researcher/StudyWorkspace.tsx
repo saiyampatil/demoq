@@ -129,9 +129,11 @@ function LockedStep({ step, studyId, info }: { step: StepInfo; studyId: string; 
 /** /researcher/studies/:id opens the first step that still needs work. */
 export function WorkspaceIndex() {
   const { studyId = '' } = useParams()
-  const { getStudy } = useStudies()
+  const { getStudy, getBrief } = useStudies()
   const study = getStudy(studyId)
   if (!study) return null
-  const first = screensForStep(landingStep(study))[0]
-  return <Navigate to={studyPath(study.id, first)} replace />
+  const step = landingStep(study)
+  // A drafted brief opens in the editor rather than the intake chat.
+  const target = step === 'brief' && getBrief(study.id)?.intakeComplete ? screenById.R4 : screensForStep(step)[0]
+  return <Navigate to={studyPath(study.id, target)} replace />
 }

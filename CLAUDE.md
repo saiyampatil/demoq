@@ -52,8 +52,18 @@ Brief → Audience → Moderator & Guide → Launch → Fieldwork → Review →
 |---|---|---|
 | R0 | Studies dashboard | — |
 | R1 | Brief intake (chat: type, upload, voice; processing and follow-ups in chat) | 1 |
-| R4 | Brief editor (10 sections, source tags, original input panel, version, status) | 1 |
+| R4 | Brief editor (7 sections, source tags, original input panel, version, status) | 1 |
 | R5 | Share brief and record client decision | 1 |
+
+Brief sections (R4), in order. These replace the earlier ten-section list. Research objective is the only required section and blocks sharing:
+1. Research objective (required)
+2. Brand context
+3. Category context
+4. Target audience
+5. Market (country)
+6. Sample size
+7. Length of interview
+
 | R6 | Audience definition (AI-filled, editable, one screen) | 2 |
 | R7 | Screener editor (max 7 questions) | 2 |
 | R8 | Participant sourcing (manual add, panel IDs, link TBD) | 2 |

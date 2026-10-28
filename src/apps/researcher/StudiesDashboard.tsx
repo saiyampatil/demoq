@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router'
 import { Button } from '@/components/Button'
 import { Card } from '@/components/Card'
+import { TextField } from '@/components/Field'
+import { Modal } from '@/components/Modal'
 import { cn } from '@/components/cn'
 import { PlusIcon } from '@/components/icons'
 import { StatusChip } from '@/components/StatusChip'
@@ -9,7 +11,7 @@ import { EmptyState, ErrorState, LoadingState } from '@/components/States'
 import { Table, type Column } from '@/components/Table'
 import { formatDate } from '@/lib/format'
 import type { StudyRecord } from '@/mock/types'
-import { steps } from '@/routes/screens'
+import { screenById, steps, studyPath } from '@/routes/screens'
 import { useStudies } from '@/state/StudyContext'
 import { landingStep } from '@/state/workflow'
 import { ScreenTag } from '../shared/ScreenTag'
@@ -30,7 +32,7 @@ const columns: Column<StudyRecord>[] = [
     cell: (s) => (
       <div className="min-w-56">
         <div className="font-medium text-ink">{s.name}</div>
-        <div className="text-sm text-graphite">{s.client}</div>
+        <div className={s.client === 'Client not set' ? 'text-sm text-muted' : 'text-sm text-graphite'}>{s.client}</div>
       </div>
     ),
   },
@@ -45,11 +47,14 @@ const columns: Column<StudyRecord>[] = [
     key: 'interviews',
     header: 'Interviews',
     align: 'right',
-    cell: (s) => (
-      <span className="whitespace-nowrap tabular-nums">
-        {s.completedSessions} <span className="text-graphite">of {s.targetCompletes}</span>
-      </span>
-    ),
+    cell: (s) =>
+      s.targetCompletes ? (
+        <span className="whitespace-nowrap tabular-nums">
+          {s.completedSessions} <span className="text-graphite">of {s.targetCompletes}</span>
+        </span>
+      ) : (
+        <span className="text-muted">Not set</span>
+      ),
   },
   {
     key: 'updated',
@@ -65,6 +70,7 @@ export function StudiesDashboard() {
   const [params, setParams] = useSearchParams()
   const [filter, setFilter] = useState<Filter>('all')
   const [loading, setLoading] = useState(true)
+  const [creating, setCreating] = useState(false)
 
   // Simulated fetch so the loading state is visible. ?state=error previews the error state.
   useEffect(() => {
@@ -83,11 +89,8 @@ export function StudiesDashboard() {
           <ScreenTag id="R0" />
           <h1 className="text-xl font-semibold">Studies</h1>
         </div>
-        <div className="ml-auto flex items-center gap-3">
-          <span id="new-study-note" className="text-xs text-muted">
-            Creating a study arrives in Phase 1
-          </span>
-          <Button variant="primary" icon={<PlusIcon />} disabled aria-describedby="new-study-note">
+        <div className="ml-auto">
+          <Button variant="primary" icon={<PlusIcon />} onClick={() => setCreating(true)}>
             New study
           </Button>
         </div>
@@ -145,6 +148,66 @@ export function StudiesDashboard() {
           />
         )}
       </Card>
+
+      <NewStudyModal open={creating} onClose={() => setCreating(false)} />
     </main>
+  )
+}
+
+function NewStudyModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { createStudy } = useStudies()
+  const navigate = useNavigate()
+  const [name, setName] = useState('')
+  const [error, setError] = useState<string>()
+
+  const close = () => {
+    setName('')
+    setError(undefined)
+    onClose()
+  }
+
+  return (
+    <Modal
+      open={open}
+      onClose={close}
+      title="New study"
+      description="Name the study. You’ll add the client’s brief next."
+      footer={
+        <>
+          <Button variant="ghost" onClick={close}>
+            Cancel
+          </Button>
+          <Button variant="primary" type="submit" form="new-study-form">
+            Create study
+          </Button>
+        </>
+      }
+    >
+      <form
+        id="new-study-form"
+        onSubmit={(e) => {
+          e.preventDefault()
+          if (!name.trim()) {
+            setError('Enter a study name.')
+            return
+          }
+          const study = createStudy(name)
+          close()
+          navigate(studyPath(study.id, screenById.R1))
+        }}
+      >
+        <TextField
+          label="Study name"
+          value={name}
+          onChange={(e) => {
+            setName(e.target.value)
+            if (error) setError(undefined)
+          }}
+          placeholder="e.g. Sunscreen Texture Study"
+          error={error}
+          maxLength={80}
+        />
+      </form>
+    </Modal>
   )
 }

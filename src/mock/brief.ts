@@ -1,64 +1,65 @@
-// Seed brief content for the Moisturizer Concept Study.
-// Phase 1 (R1, R4, R5) builds the full 10-section editor on top of this.
+import { AI_NAME, SECTION_KEYS, snapAll, type BriefDoc, type Sections } from '@/state/brief'
+import { completeSections, sampleByKey } from './briefSamples'
+import { people } from './people'
 
-export type SourceTag = 'Client input' | 'AI-generated' | 'Researcher edit'
+// The Moisturizer study's brief for every stage after "New study":
+// v1 AI draft, shared, client asked for changes, v2 reopened, v3 edited, shared, approved by client.
 
-/** The client's original input, kept unchanged beside the generated brief. */
-export const originalInput = {
-  kind: 'Written brief (email)',
-  receivedAt: '2026-10-06T14:12:00-04:00',
-  from: 'Erin Walsh, Verdane Skincare',
-  text: `Hi Maya,
+const maya = people.researcher.name
+const erin = people.client.name
 
-As discussed, we're getting ready to test the next HydraVeil product before we commit to packaging. Working name is HydraVeil 72h, a gel-cream moisturizer with a ceramide + squalane barrier complex. We have three directions we want to put in front of people:
+const v1At = '2026-10-06T14:20:00-04:00'
+const v3At = '2026-10-13T10:05:00-04:00'
 
-A) "Barrier Repair": clinical, dermatologist-developed, 72-hour hydration claim
-B) "Overnight Cushion": sensorial, sleep-mask texture, wake-up-glowing story
-C) "Clean Refill": same formula, refillable glass jar, refill pods at $6 less
+const objectiveV3 =
+  'Find out which of the three HydraVeil 72h concept directions makes women with dry or combination skin want to switch from their current moisturizer, and what would stop them switching. Learn whether the refill format reads as premium or cheap. Findings feed Verdane’s January range review.'
 
-Main thing we need to know: which direction makes dry and combination-skin women actually want to switch from what they use now, and what would stop them. We'd also love to understand whether the refill idea reads as premium or as cheap.
+export function seedApprovedBrief(studyId: string): BriefDoc {
+  const sample = sampleByKey.complete
+  const v1: Sections = Object.fromEntries(
+    SECTION_KEYS.map((k) => [k, { ...completeSections[k], lastEdited: { by: AI_NAME, at: v1At } }]),
+  ) as Sections
+  const v3: Sections = { ...v1, objective: { ...v1.objective, text: objectiveV3, lastEdited: { by: maya, at: v3At } } }
 
-Target is US women roughly 25 to 44 who moisturize daily. We'd like 12 completed interviews, ideally split by skin type. Need findings by mid-December for the January range review.
-
-Thanks!
-Erin`,
-}
-
-export const briefSections = [
-  {
-    key: 'researchQuestion',
-    title: 'Research question',
-    source: 'Client input' as SourceTag,
-    body: 'Which of the three HydraVeil 72h concept directions most motivates US women with dry or combination skin to switch from their current daily moisturizer, and what are the barriers to switching?',
-  },
-  {
-    key: 'objectives',
-    title: 'Research objectives',
-    source: 'Researcher edit' as SourceTag,
-    body: [
-      'Understand current moisturizing routines, product choices and unmet needs for dry and combination skin.',
-      'Capture unprompted reactions to each concept (Barrier Repair, Overnight Cushion, Clean Refill) before any explanation.',
-      'Identify which concept drives the strongest intent to switch, and why.',
-      'Surface barriers to switching, including price, texture and trust in claims.',
-      'Learn whether the refill format reads as premium, practical or cheap.',
+  return {
+    studyId,
+    sampleKey: 'complete',
+    original: sample.original,
+    previousResearch: sample.previousResearch,
+    chat: [
+      { id: 'm-1', at: '2026-10-06T14:14:00-04:00', role: 'researcher', kind: 'text', text: sample.original.text },
+      { id: 'm-2', at: '2026-10-06T14:15:00-04:00', role: 'ai', kind: 'step', step: 'extract', detail: 'Found 7 of 7 sections in the input.', items: ['In the input: all seven sections', 'Previous research is mentioned. It stays in the original input.'] },
+      { id: 'm-3', at: v1At, role: 'ai', kind: 'step', step: 'draft', detail: 'Drafted the brief as version 1.' },
+      { id: 'm-4', at: v1At, role: 'ai', kind: 'drafted' },
     ],
-  },
-  {
-    key: 'brandContext',
-    title: 'Brand and category context',
-    source: 'AI-generated' as SourceTag,
-    body: 'Verdane Skincare is a mid-priced US skincare brand sold through Target, Ulta and its own site. The facial moisturizer category is crowded, with dermatologist-backed brands leading on claims and indie brands leading on texture and sustainability. Refillable formats are growing in prestige skincare but remain rare at mid-price points.',
-  },
-  {
-    key: 'targetAudience',
-    title: 'Target audience',
-    source: 'Client input' as SourceTag,
-    body: 'US women aged 25–44 with self-described dry or combination skin who use a facial moisturizer at least once a day.',
-  },
-  {
-    key: 'previousResearch',
-    title: 'Previous research',
-    source: 'Client input' as SourceTag,
-    body: 'None provided in the input.',
-  },
-]
+    pending: [],
+    extracted: structuredClone(completeSections),
+    followUps: [],
+    intakeComplete: true,
+    draft: v3,
+    versions: [
+      { number: 1, sections: snapAll(v1), savedBy: AI_NAME, savedAt: v1At, note: 'AI draft from intake' },
+      { number: 2, sections: snapAll(v1), savedBy: maya, savedAt: '2026-10-09T11:30:00-04:00', note: `Reopened after ${erin} requested changes to version 1` },
+      { number: 3, sections: snapAll(v3), savedBy: maya, savedAt: v3At, note: 'Edited Research objective' },
+    ],
+    status: 'Approved',
+    approval: { by: maya, at: '2026-10-14T16:05:00-04:00', version: 3, method: 'Client', client: erin },
+    events: [
+      { id: 'e-1', type: 'saved', at: v1At, by: AI_NAME, version: 1, note: 'AI draft from intake' },
+      { id: 'e-2', type: 'shared', at: '2026-10-07T09:10:00-04:00', by: maya, version: 1 },
+      {
+        id: 'e-3',
+        type: 'changes-requested',
+        at: '2026-10-09T11:30:00-04:00',
+        by: maya,
+        version: 1,
+        client: erin,
+        feedback: 'Please say the findings feed the January range review. That’s what my director will ask.',
+      },
+      { id: 'e-4', type: 'saved', at: '2026-10-09T11:30:00-04:00', by: maya, version: 2, note: `Reopened after ${erin} requested changes to version 1` },
+      { id: 'e-5', type: 'saved', at: v3At, by: maya, version: 3, note: 'Edited Research objective' },
+      { id: 'e-6', type: 'shared', at: '2026-10-13T10:20:00-04:00', by: maya, version: 3 },
+      { id: 'e-7', type: 'approved', at: '2026-10-14T16:05:00-04:00', by: maya, version: 3, method: 'Client', client: erin },
+    ],
+  }
+}

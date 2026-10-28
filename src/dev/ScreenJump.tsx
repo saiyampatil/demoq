@@ -5,6 +5,7 @@ import { cn } from '@/components/cn'
 import { CloseIcon, SearchIcon } from '@/components/icons'
 import { stagePresets } from '@/mock/moisturizerStudy'
 import { appLabel, screenHref, screens, type AppKey } from '@/routes/screens'
+import { featureInfo, useFeatures, type FeatureKey } from '@/state/features'
 import { useStudies } from '@/state/StudyContext'
 
 const apps: AppKey[] = ['researcher', 'participant', 'moderator', 'observer']
@@ -16,6 +17,7 @@ export function ScreenJump() {
   const { pathname, search } = useLocation()
   const navigate = useNavigate()
   const { stage, setStage, resetSeed } = useStudies()
+  const { flags, setFlag } = useFeatures()
 
   useEffect(() => {
     if (!open) return
@@ -64,7 +66,7 @@ export function ScreenJump() {
           <div className="flex-1 overflow-y-auto">
             <section className="border-b border-mist px-4 py-3">
               <h3 className="text-sm font-semibold">Study stage</h3>
-              <p className="text-xs text-graphite">Moisturizer Concept Study. Changing it replaces saved progress.</p>
+              <p className="text-xs text-graphite">Moisturizer Concept Study only. Changing it replaces its saved progress; studies you created stay.</p>
               <fieldset className="mt-2 flex flex-col gap-0.5">
                 <legend className="sr-only">Study stage</legend>
                 {stagePresets.map((p) => (
@@ -109,6 +111,27 @@ export function ScreenJump() {
                 >
                   Open /design
                 </Button>
+              </div>
+            </section>
+
+            <section className="border-b border-mist px-4 py-3">
+              <h3 className="text-sm font-semibold">Feature flags</h3>
+              <p className="text-xs text-graphite">Recommended additions, not PRD requirements.</p>
+              <div className="mt-2 flex flex-col gap-1">
+                {(Object.keys(featureInfo) as FeatureKey[]).map((key) => (
+                  <label key={key} className="flex cursor-pointer gap-2.5 rounded-sm px-2 py-1.5 hover:bg-paper">
+                    <input
+                      type="checkbox"
+                      className="mt-1 accent-[var(--color-iris-600)]"
+                      checked={flags[key]}
+                      onChange={(e) => setFlag(key, e.target.checked)}
+                    />
+                    <span>
+                      <span className="block text-sm font-medium">{featureInfo[key].label}</span>
+                      <span className="block text-xs text-graphite">{featureInfo[key].description}</span>
+                    </span>
+                  </label>
+                ))}
               </div>
             </section>
 

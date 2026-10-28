@@ -106,3 +106,55 @@ export const PulseMark = ({ size = 22 }: { size?: number }) => (
     />
   </svg>
 )
+
+export const MicIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <rect x="5.75" y="1.75" width="4.5" height="8" rx="2.25" />
+    <path d="M3.25 7.5a4.75 4.75 0 0 0 9.5 0M8 12.25v2" />
+  </Icon>
+)
+
+export const PaperclipIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="m13.25 7.5-5.4 5.4a3.25 3.25 0 0 1-4.6-4.6l5.6-5.6a2.1 2.1 0 0 1 3 3L6.3 11.2a1 1 0 0 1-1.4-1.4l5-5" />
+  </Icon>
+)
+
+export const FileIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M9.25 1.75H4.5a1 1 0 0 0-1 1v10.5a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1V5L9.25 1.75Z" />
+    <path d="M9.25 1.75V5h3.25" />
+  </Icon>
+)
+
+export const ArrowUpIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M8 13V3M3.75 7.25 8 3l4.25 4.25" />
+  </Icon>
+)
+
+export const PlayIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M5 3.25v9.5L12.5 8 5 3.25Z" />
+  </Icon>
+)
+
+export const StopIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <rect x="4" y="4" width="8" height="8" rx="1.5" />
+  </Icon>
+)
+
+export const HistoryIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M2.25 8a5.75 5.75 0 1 0 1.7-4.1M2.25 2.5v2.75H5" />
+    <path d="M8 5v3.25l2 1.25" />
+  </Icon>
+)
+
+export const PrinterIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M4.5 5.75V2h7v3.75M4.5 11.5h-2V6.25h11v5.25h-2" />
+    <rect x="4.5" y="9.5" width="7" height="4.5" rx="0.5" />
+  </Icon>
+)

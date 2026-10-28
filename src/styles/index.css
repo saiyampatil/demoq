@@ -57,3 +57,24 @@
     background-position: -200% 0;
   }
 }
+
+/* "Download PDF" prints only the formatted brief */
+@media print {
+  @page {
+    margin: 18mm;
+  }
+  body * {
+    visibility: hidden;
+  }
+  .print-area,
+  .print-area * {
+    visibility: visible;
+  }
+  .print-area {
+    position: absolute;
+    inset: 0 auto auto 0;
+    width: 100%;
+    border: none;
+    padding: 0;
+  }
+}
