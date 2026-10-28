@@ -51,7 +51,7 @@ export function FollowUpCard({ followUp: f, onResolve, reopenSkipped }: FollowUp
             rows={2}
             value={answer}
             onChange={(e) => setAnswer(e.target.value)}
-            placeholder={isConflict ? 'e.g. 12 completed interviews' : 'e.g. Decide which concept to take into the January range review'}
+            placeholder={isConflict ? 'e.g. 24 completed interviews' : 'e.g. Decide which concept to take into the January range review'}
           />
           <div className="flex flex-wrap gap-2">
             <Button type="submit" variant="primary" size="sm" disabled={!answer.trim()}>

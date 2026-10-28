@@ -10,7 +10,7 @@ const base: Omit<StudyRecord, 'status' | 'brief' | 'audience' | 'guide' | 'updat
   category: 'Skincare: facial moisturizer',
   moderatorType: 'AI-led',
   interviewLanguage: 'English (US)',
-  targetCompletes: 12,
+  targetCompletes: 24,
   completedSessions: 0,
 }
 

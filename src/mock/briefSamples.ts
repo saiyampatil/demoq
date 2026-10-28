@@ -28,7 +28,7 @@ Who to talk to: women aged 25 to 44 with dry or combination skin who use a facia
 
 Market: United States.
 
-We'd like 12 completed interviews, about 45 minutes each.
+We'd like 24 completed interviews, about 45 minutes each.
 
 For background, our 2025 HydraVeil Night study found that texture was the main reason people stopped using the night cream.
 
@@ -72,7 +72,7 @@ export const completeSections: Record<SectionKey, ExtractedSection> = {
     ],
   ]),
   market: fromClient('United States.', [['United States.', 'Market: United States.']]),
-  sampleSize: fromClient('12 completed interviews.', [['12 completed interviews.', "We'd like 12 completed interviews"]]),
+  sampleSize: fromClient('24 completed interviews.', [['24 completed interviews.', "We'd like 24 completed interviews"]]),
   length: fromClient('45 minutes per interview.', [['45 minutes per interview.', 'about 45 minutes each.']]),
 }
 
@@ -84,7 +84,7 @@ Quick brief for the next HydraVeil test.
 
 We want to find out which of our three HydraVeil 72h concepts (Barrier Repair, Overnight Cushion and Clean Refill) people would actually switch to, and what would hold them back.
 
-Please run it in the United States. We need 12 completed interviews of around 45 minutes.
+Please run it in the United States. We need 24 completed interviews of around 45 minutes.
 
 Erin`
 
@@ -131,7 +131,7 @@ const missingContextSections: Record<SectionKey, ExtractedSection> = {
     aiAccepted: false,
   },
   market: fromClient('United States.', [['United States.', 'Please run it in the United States.']]),
-  sampleSize: fromClient('12 completed interviews.', [['12 completed interviews.', 'We need 12 completed interviews']]),
+  sampleSize: fromClient('24 completed interviews.', [['24 completed interviews.', 'We need 24 completed interviews']]),
   length: fromClient('Around 45 minutes per interview.', [['Around 45 minutes per interview.', 'of around 45 minutes.']]),
 }
 
@@ -143,9 +143,9 @@ const callTranscript = `[00:00] Maya: Thanks for jumping on. Tell me about the H
 [01:40] Erin: The category is really crowded. The derm brands own the claims, and the indie brands own texture.
 [02:32] Erin: We want women about 25 to 44, dry or combination skin, using a moisturizer every day.
 [03:10] Erin: It's US only. Interviews about 45 minutes.
-[04:02] Erin: Let's say 12 completed interviews.
+[04:02] Erin: Let's say 24 completed interviews.
 [06:45] Erin: Honestly, what we want to learn, I need to align with my director first. I'll get back to you.
-[09:30] Erin: Actually, thinking about the range review, we probably need 20 interviews so we can split by skin type.
+[09:30] Erin: Actually, thinking about the range review, we probably need 36 interviews so we can split by skin type.
 [12:40] Maya: Great, I'll draft something and send it over.`
 
 const audioSections: Record<SectionKey, ExtractedSection> = {
@@ -165,8 +165,8 @@ const audioSections: Record<SectionKey, ExtractedSection> = {
     ],
   ]),
   market: fromClient('United States.', [['United States.', "It's US only."]]),
-  sampleSize: fromClient('12 completed interviews (said at 04:02) or 20 completed interviews (said at 09:30).', [
-    ['12 completed interviews (said at 04:02) or 20 completed interviews (said at 09:30).', "Let's say 12 completed interviews."],
+  sampleSize: fromClient('24 completed interviews (said at 04:02) or 36 completed interviews (said at 09:30).', [
+    ['24 completed interviews (said at 04:02) or 36 completed interviews (said at 09:30).', "Let's say 24 completed interviews."],
   ]),
   length: fromClient('45 minutes per interview.', [['45 minutes per interview.', 'Interviews about 45 minutes.']]),
 }
@@ -233,9 +233,9 @@ export const briefSamples: BriefSample[] = [
         kind: 'conflict',
         section: 'sampleSize',
         question: 'How many completed interviews does Verdane need?',
-        detail: 'Erin said 12 completed interviews at 04:02, then 20 at 09:30.',
-        assumption: 'Use 20, the later figure. Erin gave it as the number needed to split results by skin type.',
-        assumedText: '20 completed interviews, so results can split by skin type.',
+        detail: 'Erin said 24 completed interviews at 04:02, then 36 at 09:30.',
+        assumption: 'Use 36, the later figure. Erin gave it as the number needed to split results by skin type.',
+        assumedText: '36 completed interviews, so results can split by skin type.',
       },
     ],
   },
