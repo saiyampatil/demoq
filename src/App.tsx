@@ -4,6 +4,9 @@ import { ModeratorShell } from '@/apps/moderator/ModeratorShell'
 import { ObserverShell } from '@/apps/observer/ObserverShell'
 import { ParticipantScreen } from '@/apps/participant/ParticipantScreen'
 import { ParticipantShell } from '@/apps/participant/ParticipantShell'
+import { AudienceDefinition } from '@/apps/researcher/audience/AudienceDefinition'
+import { ScreenerEditor } from '@/apps/researcher/audience/ScreenerEditor'
+import { Sourcing } from '@/apps/researcher/audience/Sourcing'
 import { BriefEditor } from '@/apps/researcher/brief/BriefEditor'
 import { BriefIntake } from '@/apps/researcher/brief/BriefIntake'
 import { BriefShare } from '@/apps/researcher/brief/BriefShare'
@@ -31,6 +34,9 @@ const builtResearcher: Record<string, ReactNode> = {
   R1: <BriefIntake />,
   R4: <BriefEditor />,
   R5: <BriefShare />,
+  R6: <AudienceDefinition />,
+  R7: <ScreenerEditor />,
+  R8: <Sourcing />,
 }
 
 function Root() {

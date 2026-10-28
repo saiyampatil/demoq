@@ -1,8 +1,10 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { seedConfirmedAudience, seedDraftAudience } from '@/mock/audience'
 import { seedApprovedBrief } from '@/mock/brief'
 import { DEFAULT_STAGE, MOISTURIZER_ID, presetStudy, type StagePresetKey } from '@/mock/moisturizerStudy'
 import { otherStudies } from '@/mock/studies'
 import type { StudyRecord } from '@/mock/types'
+import { audienceSummary, type AudienceDoc } from './audience'
 import { briefSummary, now, type BriefDoc } from './brief'
 
 const STORAGE_KEY = 'pulseai-qual:v2'
@@ -13,6 +15,7 @@ type Persisted = {
   /** Studies created with "New study", newest first. */
   created: StudyRecord[]
   briefs: Record<string, BriefDoc>
+  audiences: Record<string, AudienceDoc>
 }
 
 type StudyContextValue = {
@@ -24,6 +27,9 @@ type StudyContextValue = {
   getBrief: (id: string | undefined) => BriefDoc | undefined
   setBrief: (id: string, doc: BriefDoc) => void
   updateBrief: (id: string, fn: (doc: BriefDoc) => BriefDoc) => void
+  getAudience: (id: string | undefined) => AudienceDoc | undefined
+  setAudience: (id: string, doc: AudienceDoc) => void
+  updateAudience: (id: string, fn: (doc: AudienceDoc) => AudienceDoc) => void
   stage: StagePresetKey
   setStage: (stage: StagePresetKey) => void
   resetSeed: () => void
@@ -31,11 +37,17 @@ type StudyContextValue = {
 
 const StudyContext = createContext<StudyContextValue | null>(null)
 
-function seedStage(stage: StagePresetKey): Pick<Persisted, 'stage' | 'moisturizer' | 'briefs'> {
+function seedStage(stage: StagePresetKey): Pick<Persisted, 'stage' | 'moisturizer' | 'briefs' | 'audiences'> {
   const moisturizer = presetStudy(stage)
-  if (stage === 'new') return { stage, moisturizer, briefs: {} }
+  if (stage === 'new') return { stage, moisturizer, briefs: {}, audiences: {} }
   const brief = seedApprovedBrief(MOISTURIZER_ID)
-  return { stage, moisturizer: { ...moisturizer, brief: briefSummary(brief) }, briefs: { [MOISTURIZER_ID]: brief } }
+  const audience = stage === 'brief-approved' ? seedDraftAudience(MOISTURIZER_ID, brief) : seedConfirmedAudience(MOISTURIZER_ID)
+  return {
+    stage,
+    moisturizer: { ...moisturizer, brief: briefSummary(brief), ...(audience ? { audience: audienceSummary(audience) } : {}) },
+    briefs: { [MOISTURIZER_ID]: brief },
+    audiences: audience ? { [MOISTURIZER_ID]: audience } : {},
+  }
 }
 
 const freshState = (): Persisted => ({ ...seedStage(DEFAULT_STAGE), created: [] })
@@ -48,7 +60,7 @@ function load(): Persisted {
       if (parsed?.moisturizer?.id === MOISTURIZER_ID && Array.isArray(parsed.created)) {
         // Briefs saved before emailed approval existed have no review requests.
         const briefs = Object.fromEntries(Object.entries(parsed.briefs ?? {}).map(([id, doc]) => [id, { ...doc, reviewRequests: doc.reviewRequests ?? [] }]))
-        return { ...parsed, briefs }
+        return { ...parsed, briefs, audiences: parsed.audiences ?? {} }
       }
     }
   } catch {
@@ -81,10 +93,12 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     (stage: StagePresetKey) =>
       setState((prev) => {
         // Changing stage replaces only the seed study; created studies stay.
-        const { [MOISTURIZER_ID]: _seed, ...others } = prev.briefs
-        void _seed
+        const { [MOISTURIZER_ID]: _seedBrief, ...otherBriefs } = prev.briefs
+        const { [MOISTURIZER_ID]: _seedAudience, ...otherAudiences } = prev.audiences
+        void _seedBrief
+        void _seedAudience
         const next = seedStage(stage)
-        return { ...prev, ...next, briefs: { ...others, ...next.briefs } }
+        return { ...prev, ...next, briefs: { ...otherBriefs, ...next.briefs }, audiences: { ...otherAudiences, ...next.audiences } }
       }),
     [],
   )
@@ -118,6 +132,23 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     })
   }, [])
 
+  const writeAudience = useCallback((id: string, fn: (doc: AudienceDoc | undefined) => AudienceDoc) => {
+    setState((prev) => {
+      const doc = fn(prev.audiences[id])
+      const sync = (s: StudyRecord) => (s.id === id ? { ...s, audience: audienceSummary(doc), updatedAt: now() } : s)
+      return { ...prev, audiences: { ...prev.audiences, [id]: doc }, moisturizer: sync(prev.moisturizer), created: prev.created.map(sync) }
+    })
+  }, [])
+  const setAudience = useCallback((id: string, doc: AudienceDoc) => writeAudience(id, () => doc), [writeAudience])
+  const updateAudience = useCallback(
+    (id: string, fn: (doc: AudienceDoc) => AudienceDoc) =>
+      writeAudience(id, (doc) => {
+        if (!doc) throw new Error(`No audience for study ${id}`)
+        return fn(doc)
+      }),
+    [writeAudience],
+  )
+
   const setBrief = useCallback((id: string, doc: BriefDoc) => writeBrief(id, () => doc), [writeBrief])
   const updateBrief = useCallback(
     (id: string, fn: (doc: BriefDoc) => BriefDoc) =>
@@ -139,11 +170,14 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       getBrief: (id) => (id ? state.briefs[id] : undefined),
       setBrief,
       updateBrief,
+      getAudience: (id) => (id ? state.audiences[id] : undefined),
+      setAudience,
+      updateAudience,
       stage: state.stage,
       setStage,
       resetSeed,
     }
-  }, [state, createStudy, setBrief, updateBrief, setStage, resetSeed])
+  }, [state, createStudy, setBrief, updateBrief, setAudience, updateAudience, setStage, resetSeed])
 
   return <StudyContext.Provider value={value}>{children}</StudyContext.Provider>
 }

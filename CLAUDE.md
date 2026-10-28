@@ -6,6 +6,8 @@ No backend. Mock data and simulated AI only. We build one module at a time and v
 
 ## Source of truth
 - `docs/PRD.md` is the primary source. Build from it.
+- `docs/mockups/` holds visual references where they exist. Use them for layout and look; the PRD wins on logic. Numbers shown in a mockup are illustrative, so compute them from the rules instead.
+- When the product owner pastes the founder's original text for a module, treat it as context only. The PRD wins on logic if they differ.
 - `docs/FOUNDER_BRIEF.md` is the original founder brief, for reference only.
 - If PRD.md and FOUNDER_BRIEF.md conflict, follow PRD.md and list the conflict for me.
 - If a diagram and the PRD text disagree, the text wins.
@@ -113,7 +115,7 @@ Brief sections (R4), in order. These replace the earlier ten-section list. Resea
 ## Status vocabularies (use these names exactly)
 - Brief and guide: Draft, In Review, Approved
 - Client review (per recipient of an emailed brief): Sent, Viewed, Approved, Declined
-- Applicant screening outcome: Eligible, Ineligible, Needs Review, Reserve
+- Applicant screening outcome: Eligible, Ineligible, Needs Review, Reserve (Reserve is its own outcome in the same column: eligible, but the applicant's cohort is full)
 - Applicant verification: Not started, Pending, Passed, Failed (separate column from screening outcome)
 - Study: Not Ready, Ready to Launch, Live, Paused, Terminated, Complete
 - Access track: Invited, Opened, Consented, No-show

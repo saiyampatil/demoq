@@ -1,8 +1,10 @@
 import { useId, type InputHTMLAttributes, type ReactNode, type TextareaHTMLAttributes } from 'react'
 import { cn } from './cn'
 
-const control =
-  'w-full rounded-sm border border-mist-strong bg-surface px-3 text-base text-ink placeholder:text-muted hover:border-graphite focus:border-iris-600 disabled:bg-haze disabled:text-graphite'
+/** Input styling without a width, for controls laid out inline. */
+export const controlBase =
+  'rounded-sm border border-mist-strong bg-surface px-3 text-base text-ink placeholder:text-muted hover:border-graphite focus:border-iris-600 disabled:bg-haze disabled:text-graphite'
+export const controlClass = `w-full ${controlBase}`
 
 type FieldShellProps = { id: string; label?: ReactNode; hint?: ReactNode; error?: string; children: ReactNode; className?: string }
 
@@ -41,7 +43,7 @@ export function TextField({ label, hint, error, containerClassName, className, i
         id={fieldId}
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? `${fieldId}-error` : hint ? `${fieldId}-hint` : undefined}
-        className={cn(control, 'h-9', error && 'border-negative-fg', className)}
+        className={cn(controlClass, 'h-9', error && 'border-negative-fg', className)}
         {...rest}
       />
     </FieldShell>
@@ -60,7 +62,7 @@ export function TextArea({ label, hint, error, containerClassName, className, id
         rows={rows}
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? `${fieldId}-error` : hint ? `${fieldId}-hint` : undefined}
-        className={cn(control, 'resize-y py-2 leading-[21px]', error && 'border-negative-fg', className)}
+        className={cn(controlClass, 'resize-y py-2 leading-[21px]', error && 'border-negative-fg', className)}
         {...rest}
       />
     </FieldShell>
