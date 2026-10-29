@@ -3,17 +3,17 @@ import { Link, useParams, useSearchParams } from 'react-router'
 import { Button } from '@/components/Button'
 import { cn } from '@/components/cn'
 import { controlBase } from '@/components/Field'
-import { AlertIcon, ArrowUpIcon, ChevronLeftIcon, ChevronRightIcon, SearchIcon } from '@/components/icons'
+import { ArrowUpIcon, ChevronLeftIcon, ChevronRightIcon, SearchIcon } from '@/components/icons'
 import { EmptyState, LoadingState } from '@/components/States'
 import { StatusChip } from '@/components/StatusChip'
 import { Tooltip } from '@/components/Tooltip'
-import { FLAG_TYPES, MODERATOR_TYPES, REVIEW_STUDY_ID, reviewSessions, reviewSummary, SEGMENTS, scoreBand, type ReviewSession, type ReviewStatus, type ScoreBand } from '@/mock/review'
+import { FLAG_TRACKS, FLAG_TYPES, MODERATOR_TYPES, REVIEW_STUDY_ID, reviewSessions, reviewSummary, scoreBand, trackLabel, type FlagSeverity, type ReviewFlag, type ReviewSession, type ReviewStatus, type ScoreBand } from '@/mock/review'
 import { screenById, studyPath } from '@/routes/screens'
 import { useStudies } from '@/state/StudyContext'
 import { PageHeader } from '../../shared/PageHeader'
 
-type Filters = { status: string; flag: string; integrity: string; quality: string; moderator: string; segment: string }
-const NONE: Filters = { status: '', flag: '', integrity: '', quality: '', moderator: '', segment: '' }
+type Filters = { status: string; track: string; flag: string; integrity: string; quality: string; moderator: string; segment: string }
+const NONE: Filters = { status: '', track: '', flag: '', integrity: '', quality: '', moderator: '', segment: '' }
 const BANDS: ScoreBand[] = ['High', 'Mid', 'Low']
 
 const dayText = (iso: string) => new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/New_York' })
@@ -21,7 +21,10 @@ const clockText = (iso: string) => new Date(iso).toLocaleTimeString('en-US', { h
 
 export function ReviewQueue() {
   const { studyId = '' } = useParams()
-  const { isEditable } = useStudies()
+  const { isEditable, getAudience } = useStudies()
+  // Segments are the audience cohorts, read from the audience so a freed slot can name its quota.
+  const cohorts = getAudience(studyId)?.def?.cohorts ?? []
+  const cohortName = (id: string) => cohorts.find((c) => c.id === id)?.name ?? id
   const [params] = useSearchParams()
   // ?demo=loading|empty|reviewed shows the other queue states.
   const demo = params.get('demo')
@@ -72,12 +75,12 @@ export function ReviewQueue() {
     .filter(
       (s) =>
         (!filters.status || s.status === filters.status) &&
-        (!filters.flag || s.flags.some((f) => f.type === filters.flag)) &&
+        (!filters.flag && !filters.track ? true : s.flags.some((f) => (!filters.flag || f.type === filters.flag) && (!filters.track || f.track === filters.track))) &&
         bandOf(s.integrity, filters.integrity) &&
         bandOf(s.quality, filters.quality) &&
         (!filters.moderator || s.moderatorType === filters.moderator) &&
-        (!filters.segment || s.segment === filters.segment) &&
-        (!q || [s.id, s.segment, s.moderator].some((x) => x.toLowerCase().includes(q))),
+        (!filters.segment || s.cohortId === filters.segment) &&
+        (!q || [s.id, cohortName(s.cohortId), s.moderator].some((x) => x.toLowerCase().includes(q))),
     )
     .sort((a, b) => (asc ? 1 : -1) * (new Date(a.completedAt).getTime() - new Date(b.completedAt).getTime()))
   const pages = Math.max(1, Math.ceil(filtered.length / pageSize))
@@ -98,9 +101,9 @@ export function ReviewQueue() {
       {header}
 
       <section aria-label="Summary" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Card label="Completed interviews" value={sum.total} hint="All arrive as Under review" />
+        <Card label="Completed interviews" value={sum.total} hint="Flagged sessions arrive as Under review" />
         <Card label="Awaiting review" value={sum.underReview} total={sum.total} tone="pending" />
-        <Card label="Reviewed and accepted" value={sum.accepted} total={sum.total} tone="positive" />
+        <Card label="Reviewed and accepted" value={sum.accepted} total={sum.total} tone="positive" note={`${sum.autoAccepted} auto-accepted, ${sum.reviewedAccepted} reviewed`} />
         <Card label="Excluded" value={sum.excluded} total={sum.total} tone="negative" />
       </section>
 
@@ -112,11 +115,12 @@ export function ReviewQueue() {
 
       <section aria-label="Filters" className="flex flex-wrap items-end gap-3">
         <FilterSelect label="Status" value={filters.status} onChange={(v) => setF('status', v)} options={['Under review', 'Accepted', 'Excluded']} />
+        <FilterSelect label="Flag track" value={filters.track} onChange={(v) => setF('track', v)} options={FLAG_TRACKS} labels={trackLabel} />
         <FilterSelect label="Flag type" value={filters.flag} onChange={(v) => setF('flag', v)} options={FLAG_TYPES} />
         <FilterSelect label="Integrity score" value={filters.integrity} onChange={(v) => setF('integrity', v)} options={BANDS} />
         <FilterSelect label="Interview quality" value={filters.quality} onChange={(v) => setF('quality', v)} options={BANDS} />
         <FilterSelect label="Moderator type" value={filters.moderator} onChange={(v) => setF('moderator', v)} options={MODERATOR_TYPES} />
-        <FilterSelect label="Segment" value={filters.segment} onChange={(v) => setF('segment', v)} options={SEGMENTS} />
+        <FilterSelect label="Segment" value={filters.segment} onChange={(v) => setF('segment', v)} options={cohorts.map((c) => c.id)} labels={Object.fromEntries(cohorts.map((c) => [c.id, c.name]))} />
         <label className="flex min-w-48 flex-1 flex-col gap-1 text-sm">
           <span className="text-graphite">Search</span>
           <span className="flex h-9 items-center gap-2 rounded-sm border border-mist-strong bg-surface px-2.5 focus-within:border-iris-600">
@@ -217,7 +221,12 @@ export function ReviewQueue() {
                       <Info text="How well was the interview run? Based on moderator thoroughness and objectivity, such as covering mandatory questions and avoiding leading questions. It says nothing about the participant." />
                     </span>
                   </Th>
-                  <Th>Flags</Th>
+                  <Th>
+                    <span className="flex items-center gap-1">
+                      Flags
+                      <Info text="I = participant integrity flags, Q = interview quality flags. They feed different scores and are listed separately. Hover or select a row’s flags to see each one with its timestamp." />
+                    </span>
+                  </Th>
                   <Th>Status</Th>
                   <Th>
                     <span className="sr-only">Actions</span>
@@ -248,7 +257,11 @@ export function ReviewQueue() {
                         {s.id}
                       </Link>
                     </td>
-                    <td className="px-3 py-2.5 tabular-nums">{s.segment}</td>
+                    <td className="px-3 py-2.5 whitespace-nowrap">
+                      {cohortName(s.cohortId).split(', ').map((part, i) => (
+                        <span key={i} className={cn('block', i > 0 && 'text-xs text-graphite tabular-nums')}>{part}</span>
+                      ))}
+                    </td>
                     <td className="px-3 py-2.5">
                       <span className="block whitespace-nowrap">{s.moderator}</span>
                     </td>
@@ -259,7 +272,7 @@ export function ReviewQueue() {
                     <td className="px-3 py-2.5 whitespace-nowrap tabular-nums">{s.durationMin} min</td>
                     <td className="px-3 py-2.5"><Score value={s.integrity} name="Integrity" /></td>
                     <td className="px-3 py-2.5"><Score value={s.quality} name="Interview quality" /></td>
-                    <td className="px-3 py-2.5"><Flags flags={s.flags} /></td>
+                    <td className="px-3 py-2.5"><Flags id={s.id} flags={s.flags} /></td>
                     <td className="px-3 py-2.5">
                       <span className="flex items-center gap-2">
                         <StatusChip status={s.status} size="sm" />
@@ -349,23 +362,98 @@ function Score({ value, name }: { value: number; name: string }) {
   )
 }
 
-const sevRank = { High: 3, Medium: 2, Low: 1 }
+const sevRank: Record<FlagSeverity, number> = { High: 3, Medium: 2, Low: 1 }
+const sevDot: Record<FlagSeverity, string> = { High: 'bg-negative-fg', Medium: 'bg-pending-fg', Low: 'bg-graphite' }
+const mmss = (sec: number) => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`
 
-function Flags({ flags }: { flags: ReviewSession['flags'] }) {
+/** Count, a severity dot, and which score each flag feeds. The full list, with timestamps, opens on click, hover or focus. */
+function Flags({ id, flags }: { id: string; flags: ReviewFlag[] }) {
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null)
+  const btn = useRef<HTMLButtonElement>(null)
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined)
+  const open = () => {
+    clearTimeout(timer.current)
+    const r = btn.current!.getBoundingClientRect()
+    setPos({ x: Math.min(r.left, window.innerWidth - 340), y: r.bottom + 6 })
+  }
+  const closeSoon = () => {
+    clearTimeout(timer.current)
+    timer.current = setTimeout(() => setPos(null), 150)
+  }
+  useEffect(() => {
+    if (!pos) return
+    const close = () => setPos(null)
+    const key = (e: KeyboardEvent) => e.key === 'Escape' && close()
+    document.addEventListener('keydown', key)
+    window.addEventListener('scroll', close, true)
+    return () => {
+      document.removeEventListener('keydown', key)
+      window.removeEventListener('scroll', close, true)
+    }
+  }, [pos])
   if (flags.length === 0) return <span className="text-muted">None</span>
   const top = [...flags].sort((a, b) => sevRank[b.severity] - sevRank[a.severity])[0]
+  const per = FLAG_TRACKS.map((t) => [t, flags.filter((f) => f.track === t).length] as const).filter(([, n]) => n > 0)
   return (
-    <Tooltip focusable align="right" content={flags.map((f) => `${f.type} (${f.severity})`).join(', ')}>
-      <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-sm">
-        <AlertIcon size={14} className={top.severity === 'High' ? 'text-negative-fg' : top.severity === 'Medium' ? 'text-pending-fg' : 'text-graphite'} />
-        <span className="font-medium tabular-nums">{flags.length}</span>
-        <span className="max-w-24 truncate text-graphite">{top.type}{flags.length > 1 ? ` +${flags.length - 1}` : ''}</span>
-      </span>
-    </Tooltip>
+    <>
+      <button
+        ref={btn}
+        type="button"
+        aria-haspopup="dialog"
+        aria-expanded={!!pos}
+        aria-label={`${flags.length} ${flags.length === 1 ? 'flag' : 'flags'} on ${id}. Highest severity ${top.severity}. ${per.map(([t, n]) => `${n} ${trackLabel[t]}`).join(', ')}.`}
+        onClick={() => (pos ? setPos(null) : open())}
+        onMouseEnter={open}
+        onMouseLeave={closeSoon}
+        onFocus={open}
+        onBlur={closeSoon}
+        className="flex items-center gap-1.5 rounded-sm px-1 py-0.5 text-sm hover:bg-haze"
+      >
+        <span className="font-semibold tabular-nums">{flags.length}</span>
+        <span className={cn('size-2 rounded-full', sevDot[top.severity])} aria-hidden="true" />
+        <span className="text-xs whitespace-nowrap text-graphite" aria-hidden="true">
+          {per.map(([t, n]) => `${t === 'Integrity' ? 'I' : 'Q'}${n}`).join(' ')}
+        </span>
+      </button>
+      {pos && (
+        <div
+          role="dialog"
+          aria-label={`Flags for ${id}`}
+          onMouseEnter={() => clearTimeout(timer.current)}
+          onMouseLeave={closeSoon}
+          style={{ position: 'fixed', top: pos.y, left: pos.x }}
+          className="z-40 w-80 rounded-md border border-mist bg-surface p-3 shadow-overlay"
+        >
+          {FLAG_TRACKS.filter((t) => flags.some((f) => f.track === t)).map((t) => (
+            <section key={t} className="mb-3 last:mb-0">
+              <h4 className="mb-1 text-xs font-semibold text-graphite">
+                {trackLabel[t]}
+                <span className="ml-1 font-normal">flags</span>
+              </h4>
+              <ul className="flex flex-col gap-1.5">
+                {flags
+                  .filter((f) => f.track === t)
+                  .map((f) => (
+                    <li key={f.id} className="flex gap-2 text-sm">
+                      <span className="w-10 shrink-0 text-graphite tabular-nums">{mmss(f.atSec)}</span>
+                      <span className={cn('mt-1.5 size-2 shrink-0 rounded-full', sevDot[f.severity])} aria-label={`${f.severity} severity`} />
+                      <span className="min-w-0">
+                        <span className="font-medium">{f.type}</span>
+                        <span className="block text-xs text-graphite">{f.rationale}</span>
+                      </span>
+                    </li>
+                  ))}
+              </ul>
+            </section>
+          ))}
+          <p className="mt-2 border-t border-mist pt-2 text-xs text-graphite">Flags support your decision. They never exclude a session by themselves.</p>
+        </div>
+      )}
+    </>
   )
 }
 
-function Card({ label, value, total, tone, hint }: { label: string; value: number; total?: number; tone?: 'pending' | 'positive' | 'negative'; hint?: string }) {
+function Card({ label, value, total, tone, hint, note }: { label: string; value: number; total?: number; tone?: 'pending' | 'positive' | 'negative'; hint?: string; note?: string }) {
   const pct = total ? Math.round((value / total) * 100) : 0
   const bar = tone === 'positive' ? 'bg-positive-fg' : tone === 'negative' ? 'bg-negative-fg' : 'bg-pending-fg'
   return (
@@ -380,18 +468,21 @@ function Card({ label, value, total, tone, hint }: { label: string; value: numbe
           <div className={cn('h-full rounded-full', bar)} style={{ width: `${pct}%` }} />
         </div>
       ) : null}
+      {note && <p className="mt-2 text-xs text-graphite">{note}</p>}
     </div>
   )
 }
 
-function FilterSelect({ label, value, onChange, options }: { label: string; value: string; onChange: (v: string) => void; options: string[] }) {
+function FilterSelect({ label, value, onChange, options, labels }: { label: string; value: string; onChange: (v: string) => void; options: string[]; labels?: Record<string, string> }) {
   return (
     <label className="flex flex-col gap-1 text-sm">
       <span className="text-graphite">{label}</span>
       <select value={value} onChange={(e) => onChange(e.target.value)} className={cn(controlBase, 'h-9 min-w-32 pr-7 text-sm')}>
         <option value="">All</option>
         {options.map((o) => (
-          <option key={o}>{o}</option>
+          <option key={o} value={o}>
+            {labels?.[o] ?? o}
+          </option>
         ))}
       </select>
     </label>

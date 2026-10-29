@@ -1,5 +1,6 @@
 // All mock data for Review (4.8) and Evidence and audit (4.9), in one file so it can be swapped for an API.
 // 24 completed sessions: 18 under review, 4 accepted (3 auto-accepted for having no flags), 2 excluded.
+// Moderator type is fixed per study (AI-led here), so every session is run by the AI agent. 12 sessions per cohort, matching the quotas.
 
 export const REVIEW_STUDY_ID = 'moisturizer-concept'
 
@@ -13,12 +14,15 @@ export type FlagType =
   | 'Stimulus not seen'
   | 'Contradictory answer'
 export type FlagSeverity = 'High' | 'Medium' | 'Low'
+/** Which score a flag belongs to. The two tracks are never read as one list. */
+export type FlagTrack = 'Integrity' | 'Quality'
 export type ReviewStatus = 'Under review' | 'Accepted' | 'Excluded'
-export type Segment = '18–24' | '25–34' | '35–45'
+/** Segments are the audience cohorts (Module 2). The names are read from the audience at render time. */
+export type CohortId = 'c-younger' | 'c-older'
 export type ModeratorType = 'AI agent' | 'Human'
 
 /** Decision support only. A flag never excludes a session by itself. */
-export type ReviewFlag = { id: string; type: FlagType; severity: FlagSeverity; rationale: string; atSec: number }
+export type ReviewFlag = { id: string; type: FlagType; track: FlagTrack; severity: FlagSeverity; rationale: string; atSec: number }
 
 export type Decision = { by: string; at: string; note: string; auto?: boolean }
 
@@ -27,7 +31,7 @@ export type SurveyResponse = { question: string; answer: string }
 
 export type ReviewSession = {
   id: string
-  segment: Segment
+  cohortId: CohortId
   moderator: string
   moderatorType: ModeratorType
   release: string
@@ -54,8 +58,21 @@ export const FLAG_TYPES: FlagType[] = [
   'Stimulus not seen',
   'Contradictory answer',
 ]
-export const SEGMENTS: Segment[] = ['18–24', '25–34', '35–45']
 export const MODERATOR_TYPES: ModeratorType[] = ['AI agent', 'Human']
+
+export const FLAG_TRACKS: FlagTrack[] = ['Integrity', 'Quality']
+export const trackLabel: Record<FlagTrack, string> = { Integrity: 'Participant integrity', Quality: 'Interview quality' }
+/** Integrity: eligibility and engagement. Quality: moderator thoroughness and objectivity, and how the interview ran. */
+export const FLAG_TRACK: Record<FlagType, FlagTrack> = {
+  'Low engagement': 'Integrity',
+  'Contradictory answer': 'Integrity',
+  'Off-topic answer': 'Integrity',
+  'Possible duplicate': 'Integrity',
+  'Leading question': 'Quality',
+  'Mandatory question skipped': 'Quality',
+  'Stimulus not seen': 'Quality',
+  'Audio quality': 'Quality',
+}
 
 const LIBRARY: Record<FlagType, { severity: FlagSeverity; rationale: string }> = {
   'Leading question': { severity: 'High', rationale: 'The moderator suggested the answer before the participant gave one.' },
@@ -68,34 +85,34 @@ const LIBRARY: Record<FlagType, { severity: FlagSeverity; rationale: string }> =
   'Contradictory answer': { severity: 'Medium', rationale: 'This answer contradicts what the participant said earlier.' },
 }
 
-type Row = [id: string, seg: Segment, mod: string, type: ModeratorType, at: string, min: number, integ: number, qual: number, flags: FlagType[], status: ReviewStatus]
+type Row = [id: string, cohortId: CohortId, mod: string, type: ModeratorType, at: string, min: number, integ: number, qual: number, flags: FlagType[], status: ReviewStatus]
 
 const AI = 'AI agent (Ava)'
 const ROWS: Row[] = [
-  ['P-2041', '25–34', AI, 'AI agent', '2026-11-03T11:20:00-05:00', 22, 41, 78, ['Low engagement', 'Mandatory question skipped', 'Contradictory answer', 'Stimulus not seen'], 'Under review'],
-  ['P-2042', '35–45', 'Jordan Lee', 'Human', '2026-11-03T14:05:00-05:00', 24, 58, 71, ['Leading question', 'Off-topic answer'], 'Under review'],
-  ['P-2043', '18–24', AI, 'AI agent', '2026-11-03T16:40:00-05:00', 19, 34, 82, ['Low engagement', 'Possible duplicate', 'Audio quality'], 'Under review'],
-  ['P-2044', '25–34', 'Priya Shah', 'Human', '2026-11-04T10:15:00-05:00', 26, 77, 49, ['Leading question'], 'Under review'],
-  ['P-2045', '35–45', AI, 'AI agent', '2026-11-04T12:30:00-05:00', 20, 69, 85, ['Stimulus not seen'], 'Under review'],
-  ['P-2046', '18–24', 'Jordan Lee', 'Human', '2026-11-04T15:10:00-05:00', 23, 52, 38, ['Leading question', 'Off-topic answer', 'Mandatory question skipped'], 'Under review'],
-  ['P-2047', '25–34', AI, 'AI agent', '2026-11-05T09:50:00-05:00', 21, 88, 79, ['Audio quality'], 'Under review'],
-  ['P-2048', '35–45', 'Priya Shah', 'Human', '2026-11-05T11:25:00-05:00', 25, 63, 66, ['Off-topic answer'], 'Under review'],
-  ['P-2049', '25–34', AI, 'AI agent', '2026-11-05T14:00:00-05:00', 18, 29, 74, ['Low engagement', 'Contradictory answer'], 'Under review'],
-  ['P-2050', '18–24', AI, 'AI agent', '2026-11-06T10:35:00-05:00', 22, 47, 90, ['Possible duplicate'], 'Under review'],
-  ['P-2051', '35–45', 'Jordan Lee', 'Human', '2026-11-06T13:20:00-05:00', 27, 81, 55, ['Leading question', 'Mandatory question skipped'], 'Under review'],
-  ['P-2052', '25–34', 'Priya Shah', 'Human', '2026-11-06T16:05:00-05:00', 24, 72, 43, ['Leading question', 'Off-topic answer', 'Low engagement'], 'Under review'],
-  ['P-2053', '18–24', AI, 'AI agent', '2026-11-07T09:30:00-05:00', 20, 55, 76, ['Stimulus not seen'], 'Under review'],
-  ['P-2054', '35–45', AI, 'AI agent', '2026-11-07T12:10:00-05:00', 21, 91, 83, ['Audio quality'], 'Under review'],
-  ['P-2055', '25–34', 'Jordan Lee', 'Human', '2026-11-07T15:45:00-05:00', 25, 36, 61, ['Contradictory answer', 'Off-topic answer'], 'Under review'],
-  ['P-2056', '18–24', AI, 'AI agent', '2026-11-08T10:00:00-05:00', 19, 66, 88, ['Mandatory question skipped'], 'Under review'],
-  ['P-2057', '35–45', 'Priya Shah', 'Human', '2026-11-08T13:15:00-05:00', 26, 79, 51, ['Leading question'], 'Under review'],
-  ['P-2058', '25–34', AI, 'AI agent', '2026-11-09T09:40:00-05:00', 22, 44, 69, ['Low engagement', 'Stimulus not seen'], 'Under review'],
-  ['P-2059', '25–34', AI, 'AI agent', '2026-11-03T12:00:00-05:00', 21, 92, 90, [], 'Accepted'],
-  ['P-2060', '35–45', 'Jordan Lee', 'Human', '2026-11-04T11:00:00-05:00', 24, 87, 84, [], 'Accepted'],
-  ['P-2061', '18–24', AI, 'AI agent', '2026-11-05T10:20:00-05:00', 20, 85, 92, [], 'Accepted'],
-  ['P-2062', '25–34', 'Priya Shah', 'Human', '2026-11-06T11:40:00-05:00', 25, 74, 77, ['Audio quality'], 'Accepted'],
-  ['P-2063', '18–24', AI, 'AI agent', '2026-11-04T16:30:00-05:00', 17, 22, 64, ['Possible duplicate', 'Low engagement', 'Contradictory answer'], 'Excluded'],
-  ['P-2064', '35–45', 'Jordan Lee', 'Human', '2026-11-07T11:30:00-05:00', 15, 31, 33, ['Leading question', 'Off-topic answer', 'Low engagement', 'Mandatory question skipped'], 'Excluded'],
+  ['P-2041', 'c-younger', AI, 'AI agent', '2026-11-03T11:20:00-05:00', 22, 41, 78, ['Low engagement', 'Mandatory question skipped', 'Contradictory answer', 'Stimulus not seen'], 'Under review'],
+  ['P-2042', 'c-older', AI, 'AI agent', '2026-11-03T14:05:00-05:00', 24, 58, 71, ['Leading question', 'Off-topic answer'], 'Under review'],
+  ['P-2043', 'c-younger', AI, 'AI agent', '2026-11-03T16:40:00-05:00', 19, 34, 82, ['Low engagement', 'Possible duplicate', 'Audio quality'], 'Under review'],
+  ['P-2044', 'c-younger', AI, 'AI agent', '2026-11-04T10:15:00-05:00', 26, 77, 49, ['Leading question'], 'Under review'],
+  ['P-2045', 'c-older', AI, 'AI agent', '2026-11-04T12:30:00-05:00', 20, 69, 85, ['Stimulus not seen'], 'Under review'],
+  ['P-2046', 'c-younger', AI, 'AI agent', '2026-11-04T15:10:00-05:00', 23, 52, 38, ['Leading question', 'Off-topic answer', 'Mandatory question skipped'], 'Under review'],
+  ['P-2047', 'c-younger', AI, 'AI agent', '2026-11-05T09:50:00-05:00', 21, 88, 79, ['Audio quality'], 'Under review'],
+  ['P-2048', 'c-older', AI, 'AI agent', '2026-11-05T11:25:00-05:00', 25, 63, 66, ['Off-topic answer'], 'Under review'],
+  ['P-2049', 'c-younger', AI, 'AI agent', '2026-11-05T14:00:00-05:00', 18, 29, 74, ['Low engagement', 'Contradictory answer'], 'Under review'],
+  ['P-2050', 'c-younger', AI, 'AI agent', '2026-11-06T10:35:00-05:00', 22, 47, 90, ['Possible duplicate'], 'Under review'],
+  ['P-2051', 'c-older', AI, 'AI agent', '2026-11-06T13:20:00-05:00', 27, 81, 55, ['Leading question', 'Mandatory question skipped'], 'Under review'],
+  ['P-2052', 'c-younger', AI, 'AI agent', '2026-11-06T16:05:00-05:00', 24, 72, 43, ['Leading question', 'Off-topic answer', 'Low engagement'], 'Under review'],
+  ['P-2053', 'c-older', AI, 'AI agent', '2026-11-07T09:30:00-05:00', 20, 55, 76, ['Stimulus not seen'], 'Under review'],
+  ['P-2054', 'c-older', AI, 'AI agent', '2026-11-07T12:10:00-05:00', 21, 91, 83, ['Audio quality'], 'Under review'],
+  ['P-2055', 'c-younger', AI, 'AI agent', '2026-11-07T15:45:00-05:00', 25, 36, 61, ['Contradictory answer', 'Off-topic answer'], 'Under review'],
+  ['P-2056', 'c-older', AI, 'AI agent', '2026-11-08T10:00:00-05:00', 19, 66, 88, ['Mandatory question skipped'], 'Under review'],
+  ['P-2057', 'c-older', AI, 'AI agent', '2026-11-08T13:15:00-05:00', 26, 79, 51, ['Leading question'], 'Under review'],
+  ['P-2058', 'c-younger', AI, 'AI agent', '2026-11-09T09:40:00-05:00', 22, 44, 69, ['Low engagement', 'Stimulus not seen'], 'Under review'],
+  ['P-2059', 'c-younger', AI, 'AI agent', '2026-11-03T12:00:00-05:00', 21, 92, 90, [], 'Accepted'],
+  ['P-2060', 'c-older', AI, 'AI agent', '2026-11-04T11:00:00-05:00', 24, 87, 84, [], 'Accepted'],
+  ['P-2061', 'c-older', AI, 'AI agent', '2026-11-05T10:20:00-05:00', 20, 85, 92, [], 'Accepted'],
+  ['P-2062', 'c-younger', AI, 'AI agent', '2026-11-06T11:40:00-05:00', 25, 74, 77, ['Audio quality'], 'Accepted'],
+  ['P-2063', 'c-older', AI, 'AI agent', '2026-11-04T16:30:00-05:00', 17, 22, 64, ['Possible duplicate', 'Low engagement', 'Contradictory answer'], 'Excluded'],
+  ['P-2064', 'c-older', AI, 'AI agent', '2026-11-07T11:30:00-05:00', 15, 31, 33, ['Leading question', 'Off-topic answer', 'Low engagement', 'Mandatory question skipped'], 'Excluded'],
 ]
 
 const DECISIONS: Record<string, Decision> = {
@@ -114,18 +131,19 @@ const STIMULI: Omit<StimulusCard, 'shownAtSec'>[] = [
 ]
 
 function build(r: Row): ReviewSession {
-  const [id, segment, moderator, moderatorType, completedAt, durationMin, integrity, quality, flagTypes, status] = r
+  const [id, cohortId, moderator, moderatorType, completedAt, durationMin, integrity, quality, flagTypes, status] = r
   const total = durationMin * 60
   const flags: ReviewFlag[] = flagTypes.map((type, i) => ({
     id: `${id}-f${i + 1}`,
     type,
+    track: FLAG_TRACK[type],
     severity: LIBRARY[type].severity,
     rationale: LIBRARY[type].rationale,
     atSec: Math.round(((i + 1) * total) / (flagTypes.length + 1)),
   }))
   return {
     id,
-    segment,
+    cohortId,
     moderator,
     moderatorType,
     release: 'Release 1',
@@ -186,5 +204,6 @@ export const scoreBand = (v: number): ScoreBand => (v >= 75 ? 'High' : v >= 50 ?
 
 export function reviewSummary(list: ReviewSession[]) {
   const n = (s: ReviewStatus) => list.filter((x) => x.status === s).length
-  return { total: list.length, underReview: n('Under review'), accepted: n('Accepted'), excluded: n('Excluded') }
+  const auto = list.filter((x) => x.status === 'Accepted' && x.decision?.auto).length
+  return { total: list.length, underReview: n('Under review'), accepted: n('Accepted'), excluded: n('Excluded'), autoAccepted: auto, reviewedAccepted: n('Accepted') - auto }
 }
