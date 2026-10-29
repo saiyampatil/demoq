@@ -37,6 +37,8 @@ export type FWProps = {
   me: string
   update: (fn: (d: FieldworkDoc) => FieldworkDoc) => void
   goTab: (tab: string) => void
+  /** Example data for a study that hasn't launched: nothing can be changed. */
+  readOnly?: boolean
 }
 
 export const sessionPath = (id: string) => `fieldwork/sessions/${id}`

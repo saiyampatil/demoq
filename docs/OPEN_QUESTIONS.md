@@ -67,6 +67,7 @@ PRD gaps and conflicts found while building. Each entry says what the prototype 
 | 61 | 7 | Which technical issues can a session hit, and which block it? | R18 lists 16 issue types in two stages (before and during the interview), with area, severity (Blocking, Degraded, Minor), a suggested action, and a Mark resolved action that needs a note and is logged. AI agent timeout is AI-led only, and Moderator disconnected is human-led only. | Prototype decision, confirm the list |
 | 62 | 7 | Consent log contents. | Per session: when, wording version, and each item agreed to (recording, AI moderator, data use, optional recontact, 18 or older), device, and a withdrawal with time and reason. A withdrawal stops the session. Exportable as CSV. | Prototype decision, confirm the items |
 | 63 | 7 | Pace is judged against the fieldwork window from study setup, on the prototype clock (Nov 8 2026). | Straight-line expectation (quota times days elapsed over window days), and a projection at the current rate. | Prototype decision |
+| 64 | 7 | Fieldwork and Review are normally unlocked by launch. The product owner wants to open them without having done the earlier steps. | Both are always open in the stepper. Before launch, R18 and R19 show example sessions (the same mock as the Live stage, never saved, read-only, with a "Sample data" banner), and R21 shows its own mock. Analysis stays locked. R18 has "Continue to review" and R21 has Previous and a disabled "Continue to analysis". | Prototype decision |
 
 ## Future ideas (not built)
 

@@ -75,16 +75,16 @@ export function stepInfo(study: StudyRecord): StepInfo[] {
     {
       key: 'fieldwork',
       label: label('fieldwork'),
-      state: !isLaunched ? 'locked' : fieldworkClosed ? 'done' : 'open',
+      // Fieldwork and Review can always be opened in the prototype; before launch they show sample data.
+      state: isLaunched && fieldworkClosed ? 'done' : 'open',
       status: isLaunched ? study.status : undefined,
-      lockedReason: 'Unlocks when the study is launched',
+      hint: 'Sample data until the study launches',
     },
     {
       key: 'review',
       label: label('review'),
-      state: isLaunched ? 'open' : 'locked',
-      lockedReason: 'Unlocks when the study is launched',
-      hint: 'Sessions arrive here after they finish',
+      state: 'open',
+      hint: isLaunched ? 'Sessions arrive here after they finish' : 'Sample data until the study launches',
     },
     {
       key: 'analysis',

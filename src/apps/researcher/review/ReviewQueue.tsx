@@ -6,8 +6,9 @@ import { controlBase } from '@/components/Field'
 import { ArrowUpIcon, ChevronLeftIcon, ChevronRightIcon, SearchIcon } from '@/components/icons'
 import { EmptyState, LoadingState } from '@/components/States'
 import { StatusChip } from '@/components/StatusChip'
+import { WizardFooter } from '@/components/WizardFooter'
 import { Tooltip } from '@/components/Tooltip'
-import { FLAG_TRACKS, FLAG_TYPES, MODERATOR_TYPES, REVIEW_STUDY_ID, reviewSessions, reviewSummary, scoreBand, trackLabel, type FlagSeverity, type ReviewFlag, type ReviewSession, type ReviewStatus, type ScoreBand } from '@/mock/review'
+import { FLAG_TRACKS, FLAG_TYPES, MODERATOR_TYPES, reviewSessions, reviewSummary, scoreBand, trackLabel, type FlagSeverity, type ReviewFlag, type ReviewSession, type ReviewStatus, type ScoreBand } from '@/mock/review'
 import { screenById, studyPath } from '@/routes/screens'
 import { useStudies } from '@/state/StudyContext'
 import { PageHeader } from '../../shared/PageHeader'
@@ -23,7 +24,10 @@ export function ReviewQueue() {
   const { studyId = '' } = useParams()
   const { isEditable, getAudience } = useStudies()
   // Segments are the audience cohorts, read from the audience so a freed slot can name its quota.
-  const cohorts = getAudience(studyId)?.def?.cohorts ?? []
+  const cohorts = getAudience(studyId)?.def?.cohorts ?? [
+    { id: 'c-younger', name: 'Younger, 25–34' },
+    { id: 'c-older', name: 'Older, 35–44' },
+  ]
   const cohortName = (id: string) => cohorts.find((c) => c.id === id)?.name ?? id
   const [params] = useSearchParams()
   // ?demo=loading|empty|reviewed shows the other queue states.
@@ -42,7 +46,7 @@ export function ReviewQueue() {
   }, [])
 
   const all: ReviewSession[] = useMemo(() => {
-    if (demo === 'empty' || !isEditable(studyId) || studyId !== REVIEW_STUDY_ID) return []
+    if (demo === 'empty' || !isEditable(studyId)) return []
     return demo === 'reviewed' ? reviewSessions.map((s) => (s.status === 'Under review' ? { ...s, status: 'Accepted' as ReviewStatus } : s)) : reviewSessions
   }, [demo, studyId, isEditable])
 
@@ -326,6 +330,14 @@ export function ReviewQueue() {
           </footer>
         )}
       </div>
+
+      <WizardFooter previous={{ to: studyPath(studyId, screenById.R18), label: 'Fieldwork' }} message={sum.underReview ? `${sum.underReview} sessions are still awaiting review.` : 'Every session is reviewed.'}>
+        <Tooltip focusable content="Analysis is out of scope for this prototype.">
+          <Button variant="primary" disabled>
+            Continue to analysis
+          </Button>
+        </Tooltip>
+      </WizardFooter>
     </div>
   )
 }

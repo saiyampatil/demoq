@@ -46,7 +46,7 @@ No backend. Mock data and simulated AI only. We build one module at a time and v
 
 ## Researcher study workspace
 Horizontal stepper across the top of the workspace (current step highlighted, done steps checked, locked steps with a lock and a hover reason), unlocked in order by status. The left rail is a slim study summary only (name, client, status, mode, release version, Studies link, Study settings), with no step list. Steps that have several screens use a sub-stepper plus Previous / Next in a footer, with a slide-and-fade transition between screens:
-Brief → Audience → Moderator & Guide → Launch → Fieldwork → Review → Analysis (locked, out of scope)
+Brief → Audience → Moderator & Guide → Launch → Fieldwork → Review → Analysis (locked, out of scope). Fieldwork and Review are always viewable; before launch they show sample data.
 
 ## Screen inventory
 ### Researcher

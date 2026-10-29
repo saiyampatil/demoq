@@ -6,6 +6,7 @@ import { cn } from '@/components/cn'
 import { TextArea } from '@/components/Field'
 import { Modal } from '@/components/Modal'
 import { StatusChip } from '@/components/StatusChip'
+import { WizardFooter } from '@/components/WizardFooter'
 import { formatDateTime } from '@/lib/format'
 import { screenById, studyPath } from '@/routes/screens'
 import { consentSummary, fieldworkSummary, issueSummary, pauseFieldwork, resumeFieldwork } from '@/state/fieldwork'
@@ -22,7 +23,7 @@ const TABS = ['overview', 'sessions', 'quotas', 'issues', 'consent'] as const
 type Tab = (typeof TABS)[number]
 
 export function CommandCenter() {
-  const { studyId, study, editable, audience, doc, me, update } = useFieldwork()
+  const { studyId, study, editable, audience, doc, me, update, preview } = useFieldwork()
   const [params, setParams] = useSearchParams()
   const [pausing, setPausing] = useState(false)
   const [reason, setReason] = useState('')
@@ -36,7 +37,7 @@ export function CommandCenter() {
   const consent = consentSummary(doc)
   const target = audience?.def?.total ?? study.targetCompletes
   const pausedForVersion = study.status === 'Paused' && !doc.paused
-  const props: FWProps = { doc, audience, target, studyId, me, update, goTab }
+  const props: FWProps = { doc, audience, target, studyId, me, update, goTab, readOnly: preview }
 
   const labels: Record<Tab, { label: string; badge?: string; alert?: boolean }> = {
     overview: { label: 'Overview' },
@@ -54,13 +55,13 @@ export function CommandCenter() {
         description="Sessions for this study as they happen: progress, quotas, technical problems and consent."
         meta={
           <>
-            <StatusChip status={study.status} size="sm" />
-            <span>{doc.releaseVersion}, guide v{doc.plan.guideVersion}</span>
+            <StatusChip status={preview ? 'Not Ready' : study.status} size="sm" />
+            <span>{preview ? 'Sample data' : `${doc.releaseVersion}, guide v${doc.plan.guideVersion}`}</span>
             <span className="tabular-nums">{sum.completed} of {target} interviews completed</span>
           </>
         }
         actions={
-          study.status === 'Live' && !doc.paused ? (
+          preview ? undefined : study.status === 'Live' && !doc.paused ? (
             <Button onClick={() => setPausing(true)}>Pause fieldwork</Button>
           ) : doc.paused ? (
             <Button variant="primary" onClick={() => update((d) => resumeFieldwork(d, me))}>
@@ -70,6 +71,11 @@ export function CommandCenter() {
         }
       />
 
+      {preview && (
+        <Banner tone="info" title="Sample data: this study hasn’t launched" actions={<Button size="sm" to={studyPath(studyId, screenById.R17)}>Go to launch</Button>}>
+          You’re looking at example sessions so you can see how fieldwork works. Nothing here can be changed. Real sessions appear once the study is Live.
+        </Banner>
+      )}
       {doc.paused && (
         <Banner tone="warning" title="Fieldwork is paused">
           {doc.paused.by} paused it, {formatDateTime(doc.paused.at)}: “{doc.paused.reason}”. No new sessions start while it’s paused. Pausing doesn’t change the guide.
@@ -129,6 +135,12 @@ export function CommandCenter() {
         {tab === 'issues' && <IssuesTab {...props} />}
         {tab === 'consent' && <ConsentTab {...props} />}
       </div>
+
+      <WizardFooter previous={{ to: studyPath(studyId, screenById.R17), label: 'Launch' }} message={`${sum.completed} of ${target} interviews completed. You can move on to review at any time.`}>
+        <Button variant="primary" to={studyPath(studyId, screenById.R21)}>
+          Continue to review
+        </Button>
+      </WizardFooter>
 
       <Modal
         open={pausing}

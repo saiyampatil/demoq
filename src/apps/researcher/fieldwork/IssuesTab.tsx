@@ -14,7 +14,7 @@ import type { FWProps } from './FieldworkBits'
 const dot: Record<IssueSeverity, string> = { Blocking: 'bg-negative-fg', Degraded: 'bg-pending-fg', Minor: 'bg-graphite' }
 const sessionHref = (studyId: string, id: string) => studyPath(studyId, { ...screenById.R19, path: screenById.R19.path.replace(':sessionId', id) })
 
-export function IssuesTab({ doc, studyId, me, update }: FWProps) {
+export function IssuesTab({ doc, studyId, me, update, readOnly }: FWProps) {
   const [status, setStatus] = useState('Open')
   const [severity, setSeverity] = useState('')
   const [resolving, setResolving] = useState<{ sessionId: string; id: string; type: string }>()
@@ -121,12 +121,12 @@ export function IssuesTab({ doc, studyId, me, update }: FWProps) {
                     </p>
                   )}
                 </div>
-                {x.status === 'Open' ? (
+                {x.status === 'Open' && !readOnly ? (
                   <Button size="sm" onClick={() => setResolving({ sessionId: x.sessionId, id: x.id, type: x.type })}>
                     Mark resolved
                   </Button>
                 ) : (
-                  <span className="text-xs text-graphite">Resolved</span>
+                  <span className="text-xs text-graphite">{x.status === 'Resolved' ? 'Resolved' : 'Sample data'}</span>
                 )}
               </li>
             ))}
