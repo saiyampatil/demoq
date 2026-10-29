@@ -3,7 +3,7 @@ import { Banner } from '@/components/Banner'
 import { Button, Spinner } from '@/components/Button'
 import { Card } from '@/components/Card'
 import { cn } from '@/components/cn'
-import { controlBase, TextArea, TextField } from '@/components/Field'
+import { controlBase, TextArea } from '@/components/Field'
 import { AIGeneratedTag } from '@/components/AIGenerated'
 import { ArrowUpIcon, CheckIcon, CloseIcon, HistoryIcon, PlusIcon } from '@/components/icons'
 import { Modal } from '@/components/Modal'
@@ -12,7 +12,6 @@ import { StatusChip } from '@/components/StatusChip'
 import { Tooltip } from '@/components/Tooltip'
 import { WizardFooter } from '@/components/WizardFooter'
 import { formatDateTime } from '@/lib/format'
-import { people } from '@/mock/people'
 import { screenById, studyPath } from '@/routes/screens'
 import {
   allQuestions,
@@ -26,29 +25,26 @@ import {
   fixCoverage,
   fixDuration,
   flaggedQuestions,
-  guideAsText,
   moveQuestion,
   moveSection,
   newQuestion,
   newSection,
   overrideCheck,
   pruneBranches,
-  recordChangesRequested,
-  recordClientApproved,
   regenerateGuide,
-  shareGuide,
   startGuide,
+  studyHasClient,
   totalMinutes,
   touchQuestion,
   type Check,
   type Guide,
-  type GuideDoc,
   type GuideEvent,
   type GuideSection,
 } from '@/state/guide'
 import { uid } from '@/state/brief'
 import { OriginTag } from '../audience/OriginTag'
 import { PageHeader } from '../../shared/PageHeader'
+import { ClientReviewBar } from './ClientReviewBar'
 import { GuideGate, ReplaceGuideModal, VersionBanner } from './GuideBits'
 import { QuestionCard } from './QuestionCard'
 import { useGuide } from './useGuide'
@@ -122,15 +118,17 @@ export function GuideEditor() {
 
   const coverage = coverageCheck(g)
   const duration = durationCheck(g, target)
-  const approveBlockers = approvalBlockers(doc)
-  const clientOk = clientApprovedVersion(doc)
+  const hasClient = studyHasClient(study?.client)
+  const approveBlockers = approvalBlockers(doc, hasClient)
 
   return (
     <div className="flex flex-col gap-6">
       {header(
         <>
-          <StatusChip status={doc.status} size="sm" />
-          <span className="font-medium text-ink tabular-nums">Version {doc.version}</span>
+          <span className="flex items-center gap-1.5">
+            <StatusChip status={doc.status} size="sm" />
+            <span className="font-medium text-ink tabular-nums">v{doc.version}</span>
+          </span>
           <span>{ai ? 'AI moderator' : 'Human moderator'}</span>
           <span>Built from brief version {g.builtFrom.briefVersion}, audience version {g.builtFrom.audienceVersion}</span>
         </>,
@@ -145,6 +143,8 @@ export function GuideEditor() {
       )}
 
       <VersionBanner doc={doc} />
+
+      <ClientReviewBar doc={doc} studyName={study?.name ?? 'Study'} client={study?.client ?? ''} me={me} update={update} />
 
       <section aria-label="AI checks" className="flex flex-col gap-3">
         <CheckBanner
@@ -292,8 +292,6 @@ export function GuideEditor() {
         </Button>
       </Card>
 
-      <ReviewCard doc={doc} studyName={study?.name ?? 'Study'} me={me} update={update} clientOk={clientOk} />
-
       <WizardFooter
         previous={back}
         message={
@@ -315,12 +313,12 @@ export function GuideEditor() {
         ) : approveBlockers.length ? (
           <Tooltip focusable content={`${approveBlockers.join('. ')}.`}>
             <Button variant="primary" disabled>
-              Approve this version
+              Approve version {doc.version}
             </Button>
           </Tooltip>
         ) : (
-          <Button variant="primary" onClick={() => update((d) => approveGuide(d, me, clientApprovedVersion(d) ? `${people.client.name} (client)` : undefined))}>
-            Approve this version
+          <Button variant="primary" onClick={() => update((d) => approveGuide(d, me, clientApprovedVersion(d) ? `${study?.client ?? 'Client'} (client)` : undefined, hasClient))}>
+            Approve version {doc.version}
           </Button>
         )}
       </WizardFooter>
@@ -401,93 +399,6 @@ function CheckBanner({ title, check, onFix, fixLabel, onOverride }: { title: str
     >
       {title === 'Duration' ? 'Fix the section times, or override with a reason.' : `${check.message} Fix it, or override with a reason.`}
     </Banner>
-  )
-}
-
-function ReviewCard({ doc, studyName, me, update, clientOk }: { doc: GuideDoc; studyName: string; me: string; update: (fn: (d: GuideDoc) => GuideDoc) => void; clientOk: boolean }) {
-  const client = people.client.name
-  const [decision, setDecision] = useState<'approved' | 'changes'>('approved')
-  const [feedback, setFeedback] = useState('')
-  const [name, setName] = useState(client)
-
-  const download = () => {
-    const blob = new Blob([guideAsText(doc, studyName)], { type: 'text/plain' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${studyName.replace(/\s+/g, '-').toLowerCase()}-guide-v${doc.version}.txt`
-    a.click()
-    URL.revokeObjectURL(url)
-  }
-
-  return (
-    <Card title="Client review" description="Optional. Download the guide, email it to the client outside PulseAI, then record what they decided.">
-      <div className="flex flex-col gap-4">
-        {doc.status === 'Draft' && (
-          <div className="flex flex-wrap items-center gap-3">
-            <Button
-              onClick={() => {
-                download()
-                update((d) => shareGuide(d, me))
-              }}
-            >
-              Share with client
-            </Button>
-            <p className="text-sm text-graphite">Downloads version {doc.version} and sets it to In Review. No client review? Approve it directly below.</p>
-          </div>
-        )}
-        {doc.status === 'In Review' && (
-          <form
-            className="flex flex-col gap-3 rounded-sm border border-mist bg-paper p-4"
-            onSubmit={(e) => {
-              e.preventDefault()
-              if (decision === 'changes') {
-                if (!feedback.trim()) return
-                update((d) => recordChangesRequested(d, me, name.trim() || client, feedback))
-                setFeedback('')
-              } else update((d) => recordClientApproved(d, me, name.trim() || client))
-            }}
-          >
-            <p className="text-sm text-graphite">Version {doc.version} is with the client. Record their decision.</p>
-            <TextField label="Client" value={name} onChange={(e) => setName(e.target.value)} containerClassName="max-w-xs" />
-            <fieldset className="flex flex-wrap gap-4 text-sm">
-              <legend className="mb-1 font-medium">Decision</legend>
-              {(
-                [
-                  ['approved', 'Approved'],
-                  ['changes', 'Changes requested'],
-                ] as const
-              ).map(([v, l]) => (
-                <label key={v} className="flex items-center gap-1.5">
-                  <input type="radio" name="decision" checked={decision === v} onChange={() => setDecision(v)} className="accent-[var(--color-iris-600)]" />
-                  {l}
-                </label>
-              ))}
-            </fieldset>
-            {decision === 'changes' && <TextArea label="Their feedback (required)" rows={3} value={feedback} onChange={(e) => setFeedback(e.target.value)} hint={`Recording this creates version ${doc.version + 1} as a draft for you to edit.`} />}
-            <div className="flex gap-2">
-              <Button type="submit" variant="primary" disabled={decision === 'changes' && !feedback.trim()}>
-                Record decision
-              </Button>
-              <Button variant="ghost" onClick={download}>
-                Download again
-              </Button>
-            </div>
-          </form>
-        )}
-        {clientOk && doc.status !== 'Approved' && (
-          <p className="flex items-center gap-1.5 text-sm text-positive-fg">
-            <CheckIcon size={14} /> The client approved version {doc.version}. Approve it below to lock it.
-          </p>
-        )}
-        {doc.status === 'Approved' && doc.approved && (
-          <p className="text-sm text-graphite">
-            Approved by {doc.approved.by}
-            {doc.approved.onBehalfOf ? ` for ${doc.approved.onBehalfOf}` : ''}, {formatDateTime(doc.approved.at)}. Any later edit to the guide, stimuli or moderator setup creates a new version.
-          </p>
-        )}
-      </div>
-    </Card>
   )
 }
 

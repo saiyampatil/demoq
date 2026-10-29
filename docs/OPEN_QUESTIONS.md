@@ -59,6 +59,8 @@ PRD gaps and conflicts found while building. Each entry says what the prototype 
 | 52 | 8 | Zero-flag sessions auto-accept (rule 8). | 3 of the 4 accepted sessions are auto-accepted, shown with an "auto" marker, and can be reopened. Every Under review session has at least one flag. | Prototype decision |
 | 53 | 8 | "Analysis is step 7 and stays locked until Review is Completed." Analysis is out of scope for the prototype. | It stays locked with the existing hover reason. Nothing unlocks it yet. | Open |
 | 54 | 8 | Score bands on R21. | Green 75 and above, amber 50 to 74, red below 50, each with the band word beside the number so colour isn't the only signal. | Prototype decision |
+| 56 | 3 | Client review of the guide (PRD Module 3 Steps 5 and 6). | R14 has a client review bar above the guide. A study with a client downloads a PDF (a plain-text-based PDF in the prototype) and moves to In Review. The researcher records Changes requested (feedback required, creates the next draft version, feedback kept as a note on it) or Client approved (who, when, version). Approve needs the client's approval. A study with "Client not set" says so and approves directly. | Prototype decision |
+| 57 | 3 | "Until approval, the last approved version stays in effect" versus Launch re-locking after an edit. | Both: the banner says "Version 4 is in draft. Version 3 remains the approved version." The approved version stays on record and in effect for sessions already run. Launch stays locked until the new version is approved (confirmed earlier with the product owner). | Open: confirm |
 
 ## Future ideas (not built)
 
