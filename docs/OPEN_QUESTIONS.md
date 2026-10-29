@@ -41,6 +41,15 @@ PRD gaps and conflicts found while building. Each entry says what the prototype 
 | 35 | 3 | What files can be uploaded as stimuli, and what is an invalid file? | Images (PNG, JPG, WebP, GIF), videos (MP4, MOV, WebM) and PDF concept cards, up to 200 MB. Anything else shows an error and asks to upload again. Concept cards can also be written in the app. The upload is simulated. | Open: depends on the media pipeline |
 | 36 | 3 | Interview language: the brief has no language section (see #7). | R12 starts at English (US) and offers a short mock list. | Open |
 | 37 | 3 | Survey items keep fixed wording and options once created (PRD criterion 4). | Surveys can only be added or removed in R12, never edited. | Prototype decision |
+| 38 | 4 | Which device profiles does a study support at launch? | Mobile and Desktop, as mock values. | Open |
+| 39 | 4 | Is viewing the compiled study plan mandatory before authorizing? | No. It's optional and one click away on R15. | Open: default chosen |
+| 40 | 4 | Who can authorize a launch and override a non-critical preflight check? | The researcher. Every override and the authorization record who and when. | Open: default chosen |
+| 41 | 4 | Where are consent wording, supported languages and the fieldwork window set? No earlier module owns them. | A "Study setup" drawer on R15 and R17, with mock values. **R23 (Study settings, Phase 9) takes these over.** | Open: moves to R23 |
+| 42 | 4 | The R16 gate: "every cell Completed" conflicts with "Issues found feeds R17". | The gate needs every combination run (Completed or Issues found). An Issues found cell feeds the matching preflight check, where a non-critical issue can be fixed or overridden. Test runs are tied to the guide version, so a new version resets them. | Resolved with the product owner |
+| 43 | 4 | When is a study Ready to Launch? | Derived, not stored: the entry contract passes, the study plan compiles, and the preflight checks pass or are overridden. Test runs gate R17 but aren't part of the status. Live and Paused are stored. | Prototype decision |
+| 44 | 4 | Editing the guide, stimuli or moderator setup on a Live study. | It pauses the study (PRD: pause, new version, approval). After approval the study is relaunched as the next release through R15 to R17, and the earlier release stays on record. | Prototype decision |
+| 45 | 4 | Fixing a stimulus that fails to render. | Replacing the file is an edit to the active set, so it creates a new guide version that needs re-approval (the PRD loop). Override avoids it for a non-critical check. | Resolved with the product owner |
+| 46 | 4 | R16 Run is simulated from the compiled plan. | `startTestRun` in `state/testRunner.ts` is the single hook. Phase 5 changes it to open the participant interview (P14) in Test mode. | Hook for Phase 5 |
 
 ## Future ideas (not built)
 

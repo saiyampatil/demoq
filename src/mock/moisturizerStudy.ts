@@ -31,7 +31,7 @@ const audienceConfirmed = {
   approval: { by: people.researcher.name, at: '2026-10-17T11:20:00-04:00', version: 2 },
 } as const
 
-export type StagePresetKey = 'new' | 'brief-approved' | 'midway' | 'ready' | 'live'
+export type StagePresetKey = 'new' | 'brief-approved' | 'midway' | 'ready' | 'ready-media-issue' | 'compile-error' | 'live'
 
 export type StagePreset = { key: StagePresetKey; label: string; description: string; study: StudyRecord }
 
@@ -78,8 +78,8 @@ export const stagePresets: StagePreset[] = [
   },
   {
     key: 'ready',
-    label: 'Guide approved',
-    description: 'Guide Approved v3. Launch unlocked, study Ready to Launch.',
+    label: 'Ready to launch (all green)',
+    description: 'Guide Approved v3, pool confirmed. Walk Launch readiness, Test runs, then Authorize.',
     study: {
       ...base,
       status: 'Ready to Launch',
@@ -96,6 +96,32 @@ export const stagePresets: StagePreset[] = [
           version: 3,
         },
       },
+    },
+  },
+  {
+    key: 'ready-media-issue',
+    label: 'Ready, one non-critical failure',
+    description: 'Like Ready, but Concept B fails to render. Try Override with a reason on Preflight.',
+    study: {
+      ...base,
+      status: 'Ready to Launch',
+      updatedAt: '2026-10-27T13:10:00-04:00',
+      brief: briefApproved,
+      audience: audienceConfirmed,
+      guide: { status: 'Approved', version: 3, approval: { by: people.researcher.name, onBehalfOf: `${people.client.name} (client)`, at: '2026-10-27T12:55:00-04:00', version: 3 } },
+    },
+  },
+  {
+    key: 'compile-error',
+    label: 'Compile error',
+    description: 'The approved guide has a question showing a deselected stimulus. Launch readiness is blocked.',
+    study: {
+      ...base,
+      status: 'Not Ready',
+      updatedAt: '2026-10-27T13:10:00-04:00',
+      brief: briefApproved,
+      audience: audienceConfirmed,
+      guide: { status: 'Approved', version: 3, approval: { by: people.researcher.name, onBehalfOf: `${people.client.name} (client)`, at: '2026-10-27T12:55:00-04:00', version: 3 } },
     },
   },
   {

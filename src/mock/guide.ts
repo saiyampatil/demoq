@@ -24,9 +24,10 @@ export const seedStimuli: Stimulus[] = [
 ]
 
 /** A configured AI study with a drafted guide. `approved` also records the approval and the history behind it. */
-export function seedGuideDoc(studyId: string, brief: BriefDoc, kind: 'in-review' | 'approved'): GuideDoc {
+export function seedGuideDoc(studyId: string, brief: BriefDoc, kind: 'in-review' | 'approved', variant?: 'media-issue' | 'compile-error'): GuideDoc {
   const moderator = { ...emptyModerator('English (US)'), mode: 'ai' as const, agentId: 'ava', style: 'warm' as const, durationMin: 20, surveys: seedSurveys }
   const stimuli = { items: structuredClone(seedStimuli), skipped: false }
+  if (variant === 'media-issue') stimuli.items = stimuli.items.map((s) => (s.id === 'st-b' ? { ...s, renderOk: false } : s))
   const sections = approvedBriefSections(brief)?.sections
   const guide = draftGuide({
     study: { client: 'Verdane Skincare', category: 'Skincare: facial moisturizer' },
@@ -37,6 +38,11 @@ export function seedGuideDoc(studyId: string, brief: BriefDoc, kind: 'in-review'
     stimuli,
   })
   guide.generatedAt = '2026-10-21T14:00:00-04:00'
+  // A defect that slipped past approval: a question shows a stimulus that was deselected afterwards.
+  if (variant === 'compile-error') {
+    const q = guide.sections.flatMap((x) => x.questions).find((x) => x.stimulusId)
+    if (q) q.stimulusId = 'st-v'
+  }
   const ev = (at: string, by: string, version: number, type: GuideDocEventType, extra: { note?: string; feedback?: string } = {}) => ({ id: uid('ge'), at, by, version, type, ...extra })
   const base: GuideDoc = {
     studyId,

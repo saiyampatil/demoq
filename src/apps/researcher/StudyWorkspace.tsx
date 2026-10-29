@@ -11,6 +11,7 @@ import type { StudyRecord } from '@/mock/types'
 import { builtScreenIds, screenById, screenOrder, screens, screensForStep, studyPath, wizardLabel, type Screen } from '@/routes/screens'
 import { approvedBriefSections, generateQuestions, invitedCount, setScreener, startScreener } from '@/state/audience'
 import { applyDraft, configBlockers, draftGuide } from '@/state/guide'
+import { readiness } from '@/state/launch'
 import { useStudies } from '@/state/StudyContext'
 import { landingStep, stepInfo, type StepInfo } from '@/state/workflow'
 
@@ -27,7 +28,7 @@ function matchScreen(studyId: string, pathname: string): Screen | undefined {
 export function StudyWorkspace() {
   const { studyId = '' } = useParams()
   const { pathname } = useLocation()
-  const { getStudy, getAudience, getGuide } = useStudies()
+  const { getStudy, getAudience, getGuide, getLaunch } = useStudies()
   const study = getStudy(studyId)
   const screenIdx = screenOrder(matchScreen(studyId, pathname)?.id ?? '')
 
@@ -60,6 +61,7 @@ export function StudyWorkspace() {
   })
   const audience = getAudience(study.id)
   const guideDoc = getGuide(study.id)
+  const launchState = currentStep === 'launch' ? readiness({ study, audience, guide: guideDoc, launch: getLaunch(study.id) }) : undefined
   const subItems: SubStep[] = currentStep
     ? screensForStep(currentStep).map((i) => ({
         id: i.id,
@@ -67,7 +69,13 @@ export function StudyWorkspace() {
         to: builtScreenIds.has(i.id) ? studyPath(study.id, i) : undefined,
         current: i.id === screen?.id,
         done:
-          currentStep === 'guide'
+          currentStep === 'launch' && launchState
+            ? i.id === 'R15'
+              ? launchState.entryOk && launchState.compile.state === 'ok'
+              : i.id === 'R16'
+                ? launchState.progress.all
+                : study.status === 'Live'
+            : currentStep === 'guide'
             ? i.id === 'R12'
               ? !!guideDoc && configBlockers(guideDoc.moderator).length === 0
               : i.id === 'R13'

@@ -60,7 +60,17 @@ export const humanName = (id: string) => HUMAN_MODERATORS.find((h) => h.id === i
 // ─── stimuli ────────────────────────────────────────────────────────────────
 
 export type StimulusKind = 'image' | 'video' | 'concept'
-export type Stimulus = { id: string; name: string; kind: StimulusKind; detail: string; active: boolean; addedAt: string; addedBy: string }
+export type Stimulus = {
+  id: string
+  name: string
+  kind: StimulusKind
+  detail: string
+  active: boolean
+  addedAt: string
+  addedBy: string
+  /** Mock: false when the file fails to render. Launch preflight checks it. */
+  renderOk?: boolean
+}
 export type StimuliState = { items: Stimulus[]; skipped: boolean }
 
 export const kindLabel: Record<StimulusKind, string> = { image: 'Image', video: 'Video', concept: 'Concept card' }

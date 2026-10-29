@@ -31,7 +31,8 @@ export function stepInfo(study: StudyRecord): StepInfo[] {
   const briefApproved = study.brief.status === 'Approved'
   const audienceConfirmed = briefApproved && study.audience.status === 'Confirmed'
   const guideApproved = audienceConfirmed && study.guide.status === 'Approved'
-  const isLaunched = guideApproved && launched(study)
+  // A Paused study has still launched: Fieldwork stays open while a new version is approved.
+  const isLaunched = launched(study)
   const fieldworkClosed = isLaunched && (study.status === 'Complete' || study.status === 'Terminated')
 
   const label = (key: StepKey) => steps.find((s) => s.key === key)!.label
@@ -67,8 +68,8 @@ export function stepInfo(study: StudyRecord): StepInfo[] {
     {
       key: 'launch',
       label: label('launch'),
-      state: !guideApproved ? 'locked' : isLaunched ? 'done' : 'open',
-      status: isLaunched ? undefined : guideApproved ? study.status : undefined,
+      state: !guideApproved ? 'locked' : isLaunched && study.status !== 'Paused' ? 'done' : 'open',
+      status: isLaunched && study.status !== 'Paused' ? undefined : guideApproved ? study.status : undefined,
       lockedReason: 'Unlocks when the guide is Approved',
     },
     {

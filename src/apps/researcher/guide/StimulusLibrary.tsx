@@ -19,6 +19,8 @@ import { useGuide } from './useGuide'
 export function StimulusLibrary() {
   const { studyId, editable, doc, me, update, ensure, stale } = useGuide()
   const fileRef = useRef<HTMLInputElement>(null)
+  const replaceRef = useRef<HTMLInputElement>(null)
+  const [replacing, setReplacing] = useState<string>()
   const [uploading, setUploading] = useState<string[]>([])
   const [errors, setErrors] = useState<string[]>([])
   const [card, setCard] = useState(false)
@@ -56,6 +58,18 @@ export function StimulusLibrary() {
     })
   }
 
+  // Mock: a replaced file renders. Replacing a file on an active stimulus is an edit to the active set.
+  const replaceFile = (s: Stimulus, f: File | undefined) => {
+    if (!f) return
+    const r = classifyFile(f.name, f.size)
+    if ('error' in r) return setErrors((e) => [...e, r.error])
+    setUploading((u) => [...u, f.name])
+    setTimeout(() => {
+      edit((x) => ({ ...x, items: x.items.map((i) => (i.id === s.id ? { ...i, renderOk: true, detail: r.detail } : i)) }), `Replaced the file for “${s.name}”`)
+      setUploading((u) => u.filter((n) => n !== f.name))
+    }, 900)
+  }
+
   const toggle = (s: Stimulus, on: boolean) => edit((x) => ({ ...x, items: x.items.map((i) => (i.id === s.id ? { ...i, active: on } : i)) }), `${on ? 'Activated' : 'Deactivated'} “${s.name}”`)
 
   return (
@@ -80,6 +94,7 @@ export function StimulusLibrary() {
           description="Switch an item off to keep it in the library without letting the moderator use it. Items are never deleted before launch."
           actions={
             <>
+              <input ref={replaceRef} type="file" aria-label="Choose a replacement file" className="hidden" onChange={(e) => { const s = items.find((i) => i.id === replacing); if (s) replaceFile(s, e.target.files?.[0]); e.target.value = '' }} />
               <input ref={fileRef} type="file" multiple aria-label="Choose files to upload" className="hidden" onChange={(e) => { upload(e.target.files); e.target.value = '' }} />
               <Button size="sm" icon={<PaperclipIcon />} onClick={() => fileRef.current?.click()}>
                 Upload files
@@ -139,8 +154,14 @@ export function StimulusLibrary() {
                         {kindLabel[s.kind]} · {s.detail}
                         {used > 0 && ` · used by ${used} guide ${used === 1 ? 'question' : 'questions'}`}
                       </p>
+                      {s.renderOk === false && <p className="text-sm text-negative-fg">This file fails to render. Replace it so participants can see it.</p>}
                       {!s.active && used > 0 && <p className="text-sm text-pending-fg">The guide question{used === 1 ? '' : 's'} using it will be flagged.</p>}
                     </div>
+                    {s.renderOk === false && (
+                      <Button size="sm" onClick={() => { setReplacing(s.id); replaceRef.current?.click() }}>
+                        Replace file
+                      </Button>
+                    )}
                     {!s.active && <span className="inline-flex h-6 items-center rounded-xs border border-mist-strong bg-surface px-1.5 text-xs font-medium text-graphite">In library, not active</span>}
                     <div className="flex items-center gap-2">
                       <span className="w-6 text-right text-sm text-graphite">{s.active ? 'On' : 'Off'}</span>

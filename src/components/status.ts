@@ -19,6 +19,9 @@ export const vocabularies = {
   review: ['Under review', 'Accepted', 'Excluded'],
   task: ['Completed', 'Completed with fallback', 'Skipped', 'Incomplete'],
   clientReview: ['Sent', 'Viewed', 'Approved', 'Declined'],
+  // Launch (4.1): test runs and preflight checks. Not in CLAUDE.md's list.
+  testRun: ['Not run', 'In progress', 'Completed', 'Issues found'],
+  preflight: ['Passed', 'Failed', 'Overridden'],
   // Not in CLAUDE.md's list; see docs/OPEN_QUESTIONS.md #1
   audience: ['Draft', 'Confirmed'],
 } as const
@@ -33,6 +36,8 @@ export const vocabularyLabels: Record<keyof typeof vocabularies, string> = {
   review: 'Review track',
   task: 'Task',
   clientReview: 'Client review (per recipient)',
+  testRun: 'Test run (launch)',
+  preflight: 'Preflight check (launch)',
   audience: 'Audience definition',
 }
 
@@ -57,6 +62,7 @@ export const statusFamily: Record<Status, StatusFamily> = {
   'Not started': 'neutral',
   'Not Ready': 'neutral',
   Invited: 'neutral',
+  'Not run': 'neutral',
 
   'In Review': 'pending',
   Pending: 'pending',
@@ -71,6 +77,7 @@ export const statusFamily: Record<Status, StatusFamily> = {
   Opened: 'progress',
   Consented: 'progress',
   Viewed: 'progress',
+  'In progress': 'progress',
   'Ready to Launch': 'progress',
 
   Approved: 'positive',
@@ -88,11 +95,13 @@ export const statusFamily: Record<Status, StatusFamily> = {
   'Technical Error': 'negative',
   Excluded: 'negative',
   Withdrawn: 'negative',
+  'Issues found': 'negative',
   'No-show': 'negative',
   Incomplete: 'negative',
 
   Reserve: 'held',
   'Incomplete (resumable)': 'held',
   Skipped: 'held',
+  Overridden: 'held',
   'Completed with fallback': 'held',
 }

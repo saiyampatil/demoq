@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { seedConfirmedAudience, seedDraftAudience } from '@/mock/audience'
+import { seedAudienceWithPool, seedConfirmedAudience, seedDraftAudience } from '@/mock/audience'
 import { seedGuideDoc } from '@/mock/guide'
+import { seedLaunchDoc } from '@/mock/launch'
 import { seedApprovedBrief } from '@/mock/brief'
 import { DEFAULT_STAGE, MOISTURIZER_ID, presetStudy, type StagePresetKey } from '@/mock/moisturizerStudy'
 import { otherStudies } from '@/mock/studies'
@@ -8,6 +9,7 @@ import type { StudyRecord } from '@/mock/types'
 import { audienceSummary, emptySourcing, type AudienceDoc } from './audience'
 import { briefSummary, now, type BriefDoc } from './brief'
 import { guideSummary, type GuideDoc } from './guide'
+import { emptyLaunchDoc, readiness, type LaunchDoc } from './launch'
 
 const STORAGE_KEY = 'pulseai-qual:v2'
 
@@ -19,6 +21,7 @@ type Persisted = {
   briefs: Record<string, BriefDoc>
   audiences: Record<string, AudienceDoc>
   guides: Record<string, GuideDoc>
+  launches: Record<string, LaunchDoc>
 }
 
 type StudyContextValue = {
@@ -36,6 +39,8 @@ type StudyContextValue = {
   getGuide: (id: string | undefined) => GuideDoc | undefined
   setGuide: (id: string, doc: GuideDoc) => void
   updateGuide: (id: string, fn: (doc: GuideDoc) => GuideDoc) => void
+  getLaunch: (id: string | undefined) => LaunchDoc | undefined
+  updateLaunch: (id: string, fn: (doc: LaunchDoc) => LaunchDoc) => void
   stage: StagePresetKey
   setStage: (stage: StagePresetKey) => void
   resetSeed: () => void
@@ -43,18 +48,30 @@ type StudyContextValue = {
 
 const StudyContext = createContext<StudyContextValue | null>(null)
 
-function seedStage(stage: StagePresetKey): Pick<Persisted, 'stage' | 'moisturizer' | 'briefs' | 'audiences' | 'guides'> {
+function seedStage(stage: StagePresetKey): Pick<Persisted, 'stage' | 'moisturizer' | 'briefs' | 'audiences' | 'guides' | 'launches'> {
   const moisturizer = presetStudy(stage)
-  if (stage === 'new') return { stage, moisturizer, briefs: {}, audiences: {}, guides: {} }
+  if (stage === 'new') return { stage, moisturizer, briefs: {}, audiences: {}, guides: {}, launches: {} }
   const brief = seedApprovedBrief(MOISTURIZER_ID)
-  const audience = stage === 'brief-approved' ? seedDraftAudience(MOISTURIZER_ID, brief) : seedConfirmedAudience(MOISTURIZER_ID)
-  const guide = stage === 'midway' ? seedGuideDoc(MOISTURIZER_ID, brief, 'in-review') : stage === 'ready' || stage === 'live' ? seedGuideDoc(MOISTURIZER_ID, brief, 'approved') : undefined
+  const launchStage = stage === 'ready' || stage === 'ready-media-issue' || stage === 'compile-error' || stage === 'live'
+  const audience = stage === 'brief-approved' ? seedDraftAudience(MOISTURIZER_ID, brief) : launchStage ? seedAudienceWithPool(MOISTURIZER_ID) : seedConfirmedAudience(MOISTURIZER_ID)
+  const guide =
+    stage === 'midway'
+      ? seedGuideDoc(MOISTURIZER_ID, brief, 'in-review')
+      : stage === 'ready' || stage === 'live'
+        ? seedGuideDoc(MOISTURIZER_ID, brief, 'approved')
+        : stage === 'ready-media-issue'
+          ? seedGuideDoc(MOISTURIZER_ID, brief, 'approved', 'media-issue')
+          : stage === 'compile-error'
+            ? seedGuideDoc(MOISTURIZER_ID, brief, 'approved', 'compile-error')
+            : undefined
+  const launch = launchStage ? seedLaunchDoc(MOISTURIZER_ID, stage === 'live' ? 'live' : 'ready', moisturizer.client) : undefined
   return {
     stage,
     moisturizer: { ...moisturizer, brief: briefSummary(brief), ...(audience ? { audience: audienceSummary(audience) } : {}), ...(guide ? { guide: guideSummary(guide) } : {}) },
     briefs: { [MOISTURIZER_ID]: brief },
     audiences: audience ? { [MOISTURIZER_ID]: audience } : {},
     guides: guide ? { [MOISTURIZER_ID]: guide } : {},
+    launches: launch ? { [MOISTURIZER_ID]: launch } : {},
   }
 }
 
@@ -72,7 +89,7 @@ function load(): Persisted {
         const audiences = Object.fromEntries(
           Object.entries(parsed.audiences ?? {}).map(([id, doc]) => [id, Array.isArray(doc.sourcing?.candidates) ? doc : { ...doc, sourcing: emptySourcing() }]),
         )
-        return { ...parsed, briefs, audiences, guides: parsed.guides ?? {} }
+        return { ...parsed, briefs, audiences, guides: parsed.guides ?? {}, launches: parsed.launches ?? {} }
       }
     }
   } catch {
@@ -108,11 +125,13 @@ export function StudyProvider({ children }: { children: ReactNode }) {
         const { [MOISTURIZER_ID]: _seedBrief, ...otherBriefs } = prev.briefs
         const { [MOISTURIZER_ID]: _seedAudience, ...otherAudiences } = prev.audiences
         const { [MOISTURIZER_ID]: _seedGuide, ...otherGuides } = prev.guides
+        const { [MOISTURIZER_ID]: _seedLaunch, ...otherLaunches } = prev.launches
         void _seedBrief
         void _seedAudience
         void _seedGuide
+        void _seedLaunch
         const next = seedStage(stage)
-        return { ...prev, ...next, briefs: { ...otherBriefs, ...next.briefs }, audiences: { ...otherAudiences, ...next.audiences }, guides: { ...otherGuides, ...next.guides } }
+        return { ...prev, ...next, briefs: { ...otherBriefs, ...next.briefs }, audiences: { ...otherAudiences, ...next.audiences }, guides: { ...otherGuides, ...next.guides }, launches: { ...otherLaunches, ...next.launches } }
       }),
     [],
   )
@@ -167,8 +186,18 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     setState((prev) => {
       const doc = fn(prev.guides[id])
       // Choosing AI or human in R12 sets the study's moderator type.
+      // Editing what a Live study runs from pauses it: the new version needs approval, then a new release.
+      const reopened = prev.guides[id]?.status === 'Approved' && doc.status !== 'Approved'
       const sync = (s: StudyRecord): StudyRecord =>
-        s.id === id ? { ...s, guide: guideSummary(doc), moderatorType: doc.moderator.mode ? (doc.moderator.mode === 'ai' ? 'AI-led' : 'Human-led') : s.moderatorType, updatedAt: now() } : s
+        s.id === id
+          ? {
+              ...s,
+              guide: guideSummary(doc),
+              moderatorType: doc.moderator.mode ? (doc.moderator.mode === 'ai' ? 'AI-led' : 'Human-led') : s.moderatorType,
+              status: reopened && s.status === 'Live' ? 'Paused' : s.status,
+              updatedAt: now(),
+            }
+          : s
       return { ...prev, guides: { ...prev.guides, [id]: doc }, moisturizer: sync(prev.moisturizer), created: prev.created.map(sync) }
     })
   }, [])
@@ -182,6 +211,20 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     [writeGuide],
   )
 
+  const writeLaunch = useCallback((id: string, fn: (doc: LaunchDoc | undefined) => LaunchDoc) => {
+    setState((prev) => {
+      const doc = fn(prev.launches[id])
+      // Authorizing locks a release and sets the study Live.
+      const newRelease = doc.release && doc.release.at !== prev.launches[id]?.release?.at
+      const sync = (s: StudyRecord): StudyRecord => (s.id === id ? { ...s, status: newRelease ? 'Live' : s.status, releaseVersion: newRelease ? doc.release!.version : s.releaseVersion, updatedAt: now() } : s)
+      return { ...prev, launches: { ...prev.launches, [id]: doc }, moisturizer: sync(prev.moisturizer), created: prev.created.map(sync) }
+    })
+  }, [])
+  const updateLaunch = useCallback(
+    (id: string, fn: (doc: LaunchDoc) => LaunchDoc) => writeLaunch(id, (doc) => fn(doc ?? emptyLaunchDoc(id))),
+    [writeLaunch],
+  )
+
   const setBrief = useCallback((id: string, doc: BriefDoc) => writeBrief(id, () => doc), [writeBrief])
   const updateBrief = useCallback(
     (id: string, fn: (doc: BriefDoc) => BriefDoc) =>
@@ -193,7 +236,13 @@ export function StudyProvider({ children }: { children: ReactNode }) {
   )
 
   const value = useMemo<StudyContextValue>(() => {
-    const studies = [...state.created, state.moisturizer, ...otherStudies]
+    // Not Ready and Ready to Launch are worked out from the launch checks; Live, Paused and the rest are stored.
+    const derive = (s: StudyRecord): StudyRecord => {
+      if (s.status !== 'Not Ready' && s.status !== 'Ready to Launch') return s
+      const r = readiness({ study: s, audience: state.audiences[s.id], guide: state.guides[s.id], launch: state.launches[s.id] })
+      return r.ready === (s.status === 'Ready to Launch') ? s : { ...s, status: r.ready ? 'Ready to Launch' : 'Not Ready' }
+    }
+    const studies = [...state.created.map(derive), derive(state.moisturizer), ...otherStudies]
     const editable = new Set([state.moisturizer.id, ...state.created.map((s) => s.id)])
     return {
       studies,
@@ -209,11 +258,13 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       getGuide: (id) => (id ? state.guides[id] : undefined),
       setGuide,
       updateGuide,
+      getLaunch: (id) => (id ? state.launches[id] : undefined),
+      updateLaunch,
       stage: state.stage,
       setStage,
       resetSeed,
     }
-  }, [state, createStudy, setBrief, updateBrief, setAudience, updateAudience, setGuide, updateGuide, setStage, resetSeed])
+  }, [state, createStudy, setBrief, updateBrief, setAudience, updateAudience, setGuide, updateGuide, updateLaunch, setStage, resetSeed])
 
   return <StudyContext.Provider value={value}>{children}</StudyContext.Provider>
 }

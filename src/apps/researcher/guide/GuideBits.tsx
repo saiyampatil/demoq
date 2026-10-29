@@ -35,12 +35,15 @@ export function GuideGate({ reason }: { reason: 'readonly' | 'stale' }) {
 
 /** Explains that a frozen version has moved on to a new draft, and what that means for Launch. */
 export function VersionBanner({ doc }: { doc: GuideDoc }) {
+  const { study } = useGuide()
   if (!doc.guide || doc.status !== 'Draft') return null
   const lastApproved = [...doc.events].reverse().find((e) => e.type === 'approved' && e.version < doc.version)
   if (!lastApproved) return null
+  const paused = study?.status === 'Paused'
   return (
     <Banner tone="warning" title={`You’re editing version ${doc.version}, a draft`}>
       Version {lastApproved.version} stays in the history, but Launch is locked until version {doc.version} is approved. Sessions built from version {lastApproved.version} will be flagged as built from an older version.
+      {paused && ` The study is Paused until version ${doc.version} is approved and relaunched${study?.releaseVersion ? `. ${study.releaseVersion} stays on record` : ''}.`}
     </Banner>
   )
 }

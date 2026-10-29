@@ -13,6 +13,7 @@ import {
   type AudienceDoc,
   type Filter,
 } from '@/state/audience'
+import { mockApplicants, poolView } from '@/state/screening'
 import { people } from './people'
 
 // Module 2 seeds for the Study stage picker.
@@ -98,4 +99,13 @@ export function seedConfirmedAudience(studyId: string): AudienceDoc {
       ],
     },
   }
+}
+
+/** The confirmed audience with its pool confirmed, for the launch stages. */
+export function seedAudienceWithPool(studyId: string): AudienceDoc {
+  const doc = seedConfirmedAudience(studyId)
+  const view = poolView(mockApplicants(doc), doc)
+  const members = view.flatMap((v) => v.members.map((m) => ({ applicantId: m.id, cohort: v.cohort.name })))
+  const shortfalls = view.filter((v) => v.members.length < v.need).map((v) => ({ cohort: v.cohort.name, have: v.members.length, need: v.need }))
+  return { ...doc, pool: { at: '2026-10-26T16:20:00-04:00', by: maya, members, shortfalls } }
 }

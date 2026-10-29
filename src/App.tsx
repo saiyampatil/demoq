@@ -7,6 +7,9 @@ import { ParticipantShell } from '@/apps/participant/ParticipantShell'
 import { AudienceDefinition } from '@/apps/researcher/audience/AudienceDefinition'
 import { ScreenerEditor } from '@/apps/researcher/audience/ScreenerEditor'
 import { ScreeningDashboard } from './apps/researcher/audience/ScreeningDashboard'
+import { LaunchReadiness } from '@/apps/researcher/launch/LaunchReadiness'
+import { PreflightLaunch } from '@/apps/researcher/launch/PreflightLaunch'
+import { TestRuns } from '@/apps/researcher/launch/TestRuns'
 import { GuideEditor } from '@/apps/researcher/guide/GuideEditor'
 import { ModeratorSetup } from '@/apps/researcher/guide/ModeratorSetup'
 import { StimulusLibrary } from '@/apps/researcher/guide/StimulusLibrary'
@@ -47,6 +50,9 @@ const builtResearcher: Record<string, ReactNode> = {
   R12: <ModeratorSetup />,
   R13: <StimulusLibrary />,
   R14: <GuideEditor />,
+  R15: <LaunchReadiness />,
+  R16: <TestRuns />,
+  R17: <PreflightLaunch />,
 }
 
 function Root() {

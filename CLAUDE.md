@@ -74,9 +74,9 @@ Brief sections (R4), in order. These replace the earlier ten-section list. Resea
 | R12 | Moderator setup (AI agent, language, style, duration, surveys OR assign humans; one duration value; human mode hides all AI config and surveys) | 3 |
 | R13 | Stimulus library (active set, deselect never delete) | 3 |
 | R14 | Discussion guide editor (auto-drafted; sections with minutes; per-question mandatory, probes, stimulus/survey, collapsed Advanced for banned phrasing, max follow-ups, branching; coverage and duration checks; share, approve, versions) | 3 |
-| R15 | Launch readiness (entry checklist, compiled study plan) | 4.1 |
-| R16 | Test runs (language × device matrix) | 4.1 |
-| R17 | Preflight and authorize launch | 4.1 |
+| R15 | Launch readiness (live entry-contract checklist, compiled read-only study plan, study setup drawer) | 4.1 |
+| R16 | Test runs (language × device matrix; simulated until Phase 5, one hook) | 4.1 |
+| R17 | Preflight (2 critical, 4 overridable) and authorize launch (locks the release, sets Live) | 4.1 |
 | R18 | Fieldwork command center | 4.6 |
 | R19 | Session record | 4.6 / 4.7 |
 | R21 | Review queue | 4.8 |
