@@ -8,7 +8,8 @@ import { Modal } from '@/components/Modal'
 import { EmptyState } from '@/components/States'
 import { formatStamp } from '@/lib/format'
 import { screenById, studyPath } from '@/routes/screens'
-import { ISSUE_META, issueSummary, resolveIssue, type IssueSeverity } from '@/state/fieldwork'
+import { ISSUE_META, issueSummary, resolveIssue, sessionCountOf, type IssueSeverity } from '@/state/fieldwork'
+import { SessionTag } from '../SessionTag'
 import type { FWProps } from './FieldworkBits'
 
 const dot: Record<IssueSeverity, string> = { Blocking: 'bg-negative-fg', Degraded: 'bg-pending-fg', Minor: 'bg-graphite' }
@@ -109,7 +110,7 @@ export function IssuesTab({ doc, studyId, me, update, readOnly }: FWProps) {
                   <p className="font-medium">
                     {x.type}{' '}
                     <Link to={sessionHref(studyId, x.sessionId)} className="font-normal text-iris-700 hover:underline">
-                      {x.sessionId}
+                      <SessionTag participantId={x.participantId} no={x.no} count={sessionCountOf(doc, x)} />
                     </Link>
                   </p>
                   <p className="text-sm text-graphite">

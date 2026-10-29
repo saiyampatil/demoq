@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate, useParams, useSearchParams } from 'react-router'
+import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router'
 import { Breadcrumb } from '@/components/Breadcrumb'
 import { Button } from '@/components/Button'
 import { cn } from '@/components/cn'
@@ -12,7 +12,9 @@ import { transcriptFor, type ReviewFlag, type ReviewSession } from '@/mock/revie
 import { screenById, studyPath } from '@/routes/screens'
 import { DEFAULT_COHORT_NAMES, DEFAULT_QUEUE, loadQueue, queueOrder } from '@/state/reviewQueue'
 import { PageHeader } from '../../shared/PageHeader'
+import { resolveSession, sessionsOfParticipant } from '@/state/fieldwork'
 import { SampleDataBanner } from '../SampleDataBanner'
+import { sessionText } from '../SessionTag'
 import { useStudySessions } from '../useStudySessions'
 import { FlagsPanel } from './FlagsPanel'
 import { ScorePair } from './ScorePanel'
@@ -33,7 +35,7 @@ const TAB_LABEL: Record<Tab, string> = {
 
 export function SessionReview() {
   const { sessionId = '' } = useParams()
-  const { studyId, audience, review, preview } = useStudySessions()
+  const { studyId, audience, review, preview, doc } = useStudySessions()
   const [params] = useSearchParams()
   const demo = params.get('demo')
   const [loaded, setLoaded] = useState(false)
@@ -48,10 +50,19 @@ export function SessionReview() {
   const cohortName = (id: string) => cohorts.find((c) => c.id === id)?.name ?? DEFAULT_COHORT_NAMES[id] ?? id
   const all = review
   const session = all.find((s) => s.id === sessionId)
+  const href = (screen: typeof screenById.R22, id: string) => studyPath(studyId, { ...screen, path: screen.path.replace(':sessionId', id) })
+  if (!session && demo !== 'notfound') {
+    // A participant ID (no session number) means the session of theirs that is in Review.
+    const reviewable = review.find((r) => r.participantId === sessionId)
+    if (reviewable) return <Navigate replace to={`${href(screenById.R22, reviewable.id)}${params.toString() ? `?${params}` : ''}`} />
+    // Someone who exists but hasn't finished isn't "not found": send them to their fieldwork record.
+    const found = doc ? resolveSession(doc, sessionId) : undefined
+    if (found) return <Navigate replace to={`${href(screenById.R19, found.session.id)}?from=review`} />
+  }
 
   const crumbs = (
     <>
-      <Breadcrumb parent={{ to: studyPath(studyId, screenById.R21), label: 'Review queue' }} current={sessionId} />
+      <Breadcrumb parent={{ to: studyPath(studyId, screenById.R21), label: 'Review queue' }} current={session ? sessionText(session.participantId, session.sessionNo, session.sessionCount) : sessionId} />
       {preview && (
         <div className="mb-4">
           <SampleDataBanner studyId={studyId} />
@@ -80,10 +91,13 @@ export function SessionReview() {
       </div>
     )
 
-  return <Loaded key={session.id} session={session} all={all} cohortName={cohortName} studyId={studyId} crumbs={crumbs} demo={demo} />
+  const history: History = doc ? sessionsOfParticipant(doc, session.participantId).map((x) => ({ id: x.id, no: x.no, status: x.status, href: href(screenById.R19, x.id) })) : []
+  return <Loaded key={session.id} session={session} all={all} cohortName={cohortName} studyId={studyId} crumbs={crumbs} demo={demo} history={history} />
 }
 
-function Loaded({ session, all, cohortName, studyId, crumbs, demo }: { session: ReviewSession; all: ReviewSession[]; cohortName: (id: string) => string; studyId: string; crumbs: React.ReactNode; demo: string | null }) {
+type History = { id: string; no: number; status: string; href: string }[]
+
+function Loaded({ session, all, cohortName, studyId, crumbs, demo, history }: { session: ReviewSession; all: ReviewSession[]; cohortName: (id: string) => string; studyId: string; crumbs: React.ReactNode; demo: string | null; history: History }) {
   const navigate = useNavigate()
   const [tab, setTab] = useState<Tab>('workspace')
   const [focus, setFocus] = useState<Focus>()
@@ -120,10 +134,11 @@ function Loaded({ session, all, cohortName, studyId, crumbs, demo }: { session: 
         {crumbs}
         <PageHeader
           id="R22"
-          title={session.id}
+          title={session.participantId}
           meta={
             <>
               <StatusChip status={session.status} size="sm" />
+              {session.sessionCount > 1 && <span className="font-medium text-ink">Session {session.sessionNo} of {session.sessionCount}</span>}
               <span>{cohortName(session.cohortId)}</span>
               <span>{session.moderator}</span>
               <span>{session.release}</span>
@@ -172,7 +187,7 @@ function Loaded({ session, all, cohortName, studyId, crumbs, demo }: { session: 
         {tab === 'workspace' && (
           <>
             <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
-              <VideoPlayer player={player} id={session.id} flags={session.flags} turns={turns} onJumpFlag={jumpFlag} />
+              <VideoPlayer player={player} id={session.participantId} flags={session.flags} turns={turns} onJumpFlag={jumpFlag} />
               <FlagsPanel flags={session.flags} onJump={jumpFlag} highlighted={flagOn} />
             </div>
             <TranscriptView session={session} currentSec={player.t} focus={focus} empty={demo === 'notranscript'} onSeek={(s) => player.seek(s)} />
@@ -196,7 +211,7 @@ function Loaded({ session, all, cohortName, studyId, crumbs, demo }: { session: 
         )}
         {tab === 'details' && (
           <Panel title="Session details">
-            <SessionDetails session={session} segment={cohortName(session.cohortId)} />
+            <SessionDetails session={session} segment={cohortName(session.cohortId)} history={history} />
           </Panel>
         )}
       </div>

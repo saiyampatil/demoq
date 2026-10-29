@@ -7,7 +7,7 @@ import { controlBase } from '@/components/Field'
 import { StatusChip } from '@/components/StatusChip'
 import { formatStamp } from '@/lib/format'
 import { screenById, studyPath } from '@/routes/screens'
-import { consentSummary, type Session } from '@/state/fieldwork'
+import { consentSummary, participantsOf, type Session } from '@/state/fieldwork'
 import type { FWProps } from './FieldworkBits'
 
 const yes = (b: boolean) => (b ? 'Yes' : 'No')
@@ -16,13 +16,14 @@ const stateOf = (s: Session) => (s.consent?.withdrawn ? 'Withdrawn' : s.consent 
 export function ConsentTab({ doc, studyId }: FWProps) {
   const [filter, setFilter] = useState('')
   const sum = consentSummary(doc)
-  const rows = doc.sessions.filter((s) => !filter || stateOf(s) === filter)
+  // Consent is given once per participant, in their first session.
+  const rows = participantsOf(doc).map((p) => p.first).filter((s) => !filter || stateOf(s) === filter)
 
   const exportCsv = () => {
-    const head = ['Session', 'Participant', 'State', 'Consented at', 'Wording', 'Recording', 'AI moderator', 'Data use', 'Recontact', '18 or older', 'Device', 'Withdrawn at', 'Withdrawal reason']
-    const lines = doc.sessions.map((s) => {
+    const head = ['Participant', 'Contact', 'State', 'Consented at', 'Wording', 'Recording', 'AI moderator', 'Data use', 'Recontact', '18 or older', 'Device', 'Withdrawn at', 'Withdrawal reason']
+    const lines = participantsOf(doc).map((p) => p.first).map((s) => {
       const c = s.consent
-      return [s.id, s.ref, stateOf(s), c?.at ?? '', c?.wording ?? '', c ? yes(c.recording) : '', c ? yes(c.aiModerator) : '', c ? yes(c.dataUse) : '', c ? yes(c.recontact) : '', c ? yes(c.over18) : '', c?.device ?? '', c?.withdrawn?.at ?? '', c?.withdrawn?.reason ?? '']
+      return [s.participantId, s.ref, stateOf(s), c?.at ?? '', c?.wording ?? '', c ? yes(c.recording) : '', c ? yes(c.aiModerator) : '', c ? yes(c.dataUse) : '', c ? yes(c.recontact) : '', c ? yes(c.over18) : '', c?.device ?? '', c?.withdrawn?.at ?? '', c?.withdrawn?.reason ?? '']
     })
     const csv = [head, ...lines].map((r) => r.map((x) => `"${String(x).replace(/"/g, '""')}"`).join(',')).join('\n')
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
@@ -80,7 +81,7 @@ export function ConsentTab({ doc, studyId }: FWProps) {
             <caption className="sr-only">Consent records</caption>
             <thead>
               <tr className="border-b border-mist bg-haze text-graphite">
-                {['Session', 'Participant', 'Consent', 'When', 'Recording', 'AI moderator', 'Data use', 'Recontact', '18+', 'Device'].map((h) => (
+                {['Participant', 'Contact', 'Consent', 'When', 'Recording', 'AI moderator', 'Data use', 'Recontact', '18+', 'Device'].map((h) => (
                   <th key={h} scope="col" className="h-9 px-3 font-medium whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -92,7 +93,7 @@ export function ConsentTab({ doc, studyId }: FWProps) {
                   <tr key={s.id} className="border-b border-mist align-top last:border-0">
                     <td className="px-3 py-2.5">
                       <Link to={studyPath(studyId, { ...screenById.R19, path: screenById.R19.path.replace(':sessionId', s.id) })} className="font-medium tabular-nums text-iris-700 hover:underline">
-                        {s.id}
+                        {s.participantId}
                       </Link>
                     </td>
                     <td className="px-3 py-2.5 whitespace-nowrap tabular-nums">{s.ref}</td>

@@ -24,6 +24,8 @@ export type StepperStep = {
   note?: string
   /** A count shown as a neutral chip, e.g. "18 awaiting". */
   badge?: string
+  /** In progress right now, though not the screen you're on. Fieldwork and Review run in parallel, so both are active. */
+  active?: boolean
 }
 
 // The study's spine, laid out across the top: a solid thread where work is done,
@@ -44,7 +46,7 @@ export function Stepper({ steps, label = 'Study steps' }: { steps: StepperStep[]
               aria-label={`${step.label}${step.state === 'locked' ? ' (locked)' : step.state === 'done' ? ' (done)' : ''}`}
               className="relative z-10 rounded-full"
             >
-              <StepNode state={step.state} current={step.current} />
+              <StepNode state={step.state} current={step.current} active={step.active} />
             </Link>
           )
           return (
@@ -125,7 +127,7 @@ function StepMeta({ step }: { step: StepperStep }) {
   return meta ? <div className="mt-1">{meta}</div> : null
 }
 
-function StepNode({ state, current }: { state: StepState; current: boolean }) {
+function StepNode({ state, current, active }: { state: StepState; current: boolean; active?: boolean }) {
   if (state === 'done') {
     return (
       <span
@@ -149,10 +151,10 @@ function StepNode({ state, current }: { state: StepState; current: boolean }) {
     <span
       className={cn(
         'flex size-6 shrink-0 items-center justify-center rounded-full border-2 bg-surface',
-        current ? 'border-ink ring-4 ring-mist' : 'border-graphite',
+        current || active ? 'border-ink ring-4 ring-mist' : 'border-graphite',
       )}
     >
-      {current && <span className="size-2 rounded-full bg-ink" />}
+      {(current || active) && <span className="size-2 rounded-full bg-ink" />}
     </span>
   )
 }

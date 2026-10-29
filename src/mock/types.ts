@@ -42,6 +42,8 @@ export type StudyRecord = {
   interviewLanguage: string
   targetCompletes: number
   completedSessions: number
+  /** IANA time zone every timestamp is shown in. Edited in Study settings (R23). Defaults to Eastern. */
+  timeZone?: string
   updatedAt: string
   status: StudyStatus
   brief: TrackedArtifact<ArtifactStatus>

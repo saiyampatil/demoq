@@ -3,10 +3,13 @@
 // The participant and moderator runtime (4.2 to 4.5) writes through the same actions.
 
 import type { AudienceDoc } from './audience'
+import { formatDate, formatSlot } from '@/lib/format'
+import { studyTimeZone } from '@/lib/timeZone'
+import type { ReviewStatus } from '@/mock/review'
 import { now, uid } from './brief'
 import type { GuideDoc } from './guide'
 import type { LaunchDoc, PlanItem, StudyPlan } from './launch'
-import { DEFAULT_COHORT_NAMES, SEED_SESSIONS } from '@/mock/sessions'
+import { DEFAULT_COHORT_NAMES, SEED_SESSIONS, sessionIdOf } from '@/mock/sessions'
 import { regionOf } from './screening'
 
 export type AccessStatus = 'Invited' | 'Opened' | 'Consented' | 'No-show'
@@ -90,7 +93,12 @@ export type ConsentRecord = {
 }
 
 export type Session = {
+  /** The session's ID, e.g. P-2041-1. A participant who comes back (resume, retry, reschedule) gets P-2041-2. */
   id: string
+  /** The person, e.g. P-2041. The main label on every screen. */
+  participantId: string
+  /** Which of the participant's sessions this is. */
+  no: number
   applicantId: string
   ref: string
   cohort: string | null
@@ -115,6 +123,8 @@ export type Session = {
   notes: Notes | null
   issues: TechIssue[]
   consent: ConsentRecord | null
+  /** Set when the Researcher acted on it from Needs you. A handled session leaves that list. */
+  handled?: { action: string; at: string; by: string }
 }
 
 export type LogEntry = { id: string; at: string; by: string; text: string }
@@ -166,7 +176,7 @@ export type GenInput = {
 }
 
 /** Bumped when the seed session list changes, so saved fieldwork is rebuilt from it. */
-export const SESSION_SEED = 2
+export const SESSION_SEED = 3
 
 const DEVICES = ['Mobile · iOS Safari', 'Mobile · Android Chrome', 'Desktop · Chrome', 'Desktop · Safari', 'Desktop · Edge']
 
@@ -187,7 +197,7 @@ export function generateFieldwork(i: GenInput): FieldworkDoc {
   const options = (text: string) => i.guide.moderator.surveys.find((s) => s.text === text)?.options ?? ['Yes', 'No']
   const lang = i.guide.moderator.language
   const consentAt = i.launch?.setup.consent[lang]?.at
-  const wording = `${lang}, approved ${new Date(consentAt ?? '2026-10-26T15:00:00-04:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'America/New_York' })}`
+  const wording = `${lang}, approved ${formatDate(consentAt ?? '2026-10-26T15:00:00-04:00')}`
 
   const sessions = SEED_SESSIONS.map((r, n): Session => {
     const modId = human ? (mods[n % mods.length] ?? null) : null
@@ -216,7 +226,9 @@ export function generateFieldwork(i: GenInput): FieldworkDoc {
 
     const region = (regionOf(r.state) as Region | undefined) ?? null
     const device = DEVICES[(n * 3 + 1) % DEVICES.length]
-    const consented = access === 'Consented' || v === 'noshow'
+    // A second session reuses the consent the participant gave in their first one.
+    const later = (r.no ?? 1) > 1
+    const consented = !later && (access === 'Consented' || v === 'noshow')
     const consent: ConsentRecord | null = consented
       ? {
           at: at(t0, v === 'consented' || v === 'noshow' ? 0 : -300),
@@ -232,8 +244,8 @@ export function generateFieldwork(i: GenInput): FieldworkDoc {
       : null
 
     const invitedAt = at(FIELDWORK_START, -60 + (n % 6) * 15)
-    const events: SessionEvent[] = [ev(invitedAt, 'system', 'Invited to the study')]
-    if (access !== 'Invited') events.push(ev(v === 'opened' ? r.at : at(consent?.at ?? t0, -10), 'participant', 'Opened the invite link'))
+    const events: SessionEvent[] = later ? [ev(at(t0, -5), 'participant', `Came back on a new link. This is session ${r.no}; consent from session 1 still applies.`)] : [ev(invitedAt, 'system', 'Invited to the study')]
+    if (!later && access !== 'Invited') events.push(ev(v === 'opened' ? r.at : at(consent?.at ?? t0, -10), 'participant', 'Opened the invite link'))
     if (consent) events.push(ev(consent.at, 'participant', human ? 'Consented to recording' : 'Consented to recording and to an AI moderator'))
     if (human && slot && !started) events.push(ev(at(consent?.at ?? t0, 5), 'system', `Booked a slot with ${moderator}`))
     if (v === 'noshow') events.push(ev(at(t0, 1440), 'system', human ? 'Did not join at the booked slot. Sent to rescheduling (4.7).' : 'Consented but has not started the interview.'))
@@ -260,14 +272,16 @@ export function generateFieldwork(i: GenInput): FieldworkDoc {
         // Human-led sessions have a moderator who can drop, not an AI agent that can time out.
         const t = (human && type === 'AI agent timeout' ? 'Moderator disconnected' : type) as IssueType
         const when = at(t0, started ? 3 + j * 4 : 20)
-        return { id: `${r.id}-ti${j + 1}`, type: t, severity, at: when, status: st, resolution, resolvedBy: st === 'Resolved' ? 'Maya Ortiz' : undefined, resolvedAt: st === 'Resolved' ? at(when, 25) : undefined }
+        return { id: `${sessionIdOf(r)}-ti${j + 1}`, type: t as IssueType, severity, at: when, status: st, resolution, resolvedBy: st === 'Resolved' ? 'Maya Ortiz' : undefined, resolvedAt: st === 'Resolved' ? at(when, 25) : undefined }
       })
       .filter((x) => !ISSUE_META[x.type].only || ISSUE_META[x.type].only === (human ? 'Human-led' : 'AI-led'))
 
     return {
-      id: r.id,
-      applicantId: `A-${r.id.slice(2)}`,
-      ref: refOf(r.id),
+      id: sessionIdOf(r),
+      participantId: r.participant,
+      no: r.no ?? 1,
+      applicantId: `A-${r.participant.slice(2)}`,
+      ref: refOf(r.participant),
       cohort: cohortName(r.cohortId),
       region,
       state: r.state,
@@ -312,6 +326,7 @@ export function generateFieldwork(i: GenInput): FieldworkDoc {
 }
 
 /** Names of the human moderators the mock data can assign. */
+export const HUMAN_MODERATOR_IDS = ['u-priya', 'u-jordan', 'u-sam', 'u-elena']
 const HUMAN_NAMES: Record<string, string> = { 'u-jordan': 'Jordan Lee', 'u-priya': 'Priya Shah', 'u-sam': 'Sam Okafor', 'u-elena': 'Elena Brooks' }
 /** The same name Review shows for the session's moderator. */
 export const moderatorName = (id: string | null) => (id ? (HUMAN_NAMES[id] ?? id) : 'AI agent (Ava)')
@@ -320,43 +335,69 @@ export const moderatorName = (id: string | null) => (id ? (HUMAN_NAMES[id] ?? id
 
 export const planItems = (plan: StudyPlan): (PlanItem & { section: string })[] => plan.sections.flatMap((s) => s.items.map((x) => ({ ...x, section: s.title })))
 
-export function fieldworkSummary(doc: FieldworkDoc) {
-  const s = doc.sessions
-  const n = (f: (x: Session) => boolean) => s.filter(f).length
-  return {
-    invited: s.length,
-    consented: n((x) => x.access === 'Consented'),
-    inProgress: n((x) => x.status === 'Active' || x.status === 'Paused'),
-    completed: n((x) => x.status === 'Completed'),
-    noShow: n((x) => x.access === 'No-show'),
-    rescheduled: n((x) => x.status === 'Rescheduled'),
-    attention: s.filter(needsAttention).length,
-  }
+// ─── participants and sessions ──────────────────────────────────────────────
+
+/** A person and every session they have had. Counts of people always use `latest`; counts of sessions use `sessions`. */
+export type Participant = { id: string; sessions: Session[]; first: Session; latest: Session }
+
+export function participantsOf(doc: FieldworkDoc): Participant[] {
+  const by = new Map<string, Session[]>()
+  doc.sessions.forEach((s) => by.set(s.participantId, [...(by.get(s.participantId) ?? []), s]))
+  return [...by.entries()].map(([id, list]) => {
+    const sessions = [...list].sort((a, b) => a.no - b.no)
+    return { id, sessions, first: sessions[0], latest: sessions[sessions.length - 1] }
+  })
 }
 
-export const needsAttention = (x: Session) =>
-  x.status === 'Technical Error' || x.status === 'Incomplete (resumable)' || x.status === 'Rescheduled' || x.status === 'Withdrawn' || x.access === 'No-show'
+export const latestSessions = (doc: FieldworkDoc) => participantsOf(doc).map((p) => p.latest)
+export const sessionCountOf = (doc: FieldworkDoc, s: Pick<Session, 'participantId'>) => doc.sessions.filter((x) => x.participantId === s.participantId).length
+export const sessionsOfParticipant = (doc: FieldworkDoc, participantId: string) => doc.sessions.filter((x) => x.participantId === participantId).sort((a, b) => a.no - b.no)
 
-export function attentionReason(x: Session): string {
-  if (x.status === 'Technical Error') return 'Technical error. Needs a retry or a new slot.'
-  if (x.status === 'Incomplete (resumable)') return 'Left part-way. The participant can resume.'
-  if (x.access === 'No-show') return x.mode === 'human' ? 'Missed the booked slot. Needs rescheduling.' : 'Has not started inside the invitation window.'
-  if (x.status === 'Rescheduled') return 'Moved to a new slot.'
-  return 'Withdrew from the study.'
+/** A URL can name a session (P-2041-2) or just the participant (P-2041), which means their latest session. */
+export function resolveSession(doc: FieldworkDoc, param: string): { session: Session; exact: boolean } | undefined {
+  const exact = doc.sessions.find((x) => x.id === param)
+  if (exact) return { session: exact, exact: true }
+  const mine = sessionsOfParticipant(doc, param)
+  return mine.length ? { session: mine[mine.length - 1], exact: false } : undefined
 }
 
-/** Completed sessions that count toward quota: Excluded sessions stay visible but are out of quotas. */
-export const countsTowardQuota = (x: Session, excluded: ReadonlySet<string>) => x.status === 'Completed' && !x.reserve && !excluded.has(x.id)
+// ─── progress: confirmed and pending ────────────────────────────────────────
 
-export function quotaFill(doc: FieldworkDoc, audience: AudienceDoc | undefined, excluded: ReadonlySet<string> = new Set()) {
-  return (audience?.def?.cohorts ?? []).map((c) => ({
-    id: c.id,
-    name: c.name,
-    target: c.participants ?? 0,
-    completed: doc.sessions.filter((x) => x.cohort === c.name && countsTowardQuota(x, excluded)).length,
-    inProgress: doc.sessions.filter((x) => x.cohort === c.name && (x.status === 'Active' || x.status === 'Paused')).length,
-    reserve: doc.sessions.filter((x) => x.cohort === c.name && x.reserve).length,
-  }))
+/** Review outcomes by session ID. A completed session with no review record yet is waiting in the queue. */
+export type Outcomes = ReadonlyMap<string, ReviewStatus>
+const outcomeOf = (outcomes: Outcomes, s: Session): ReviewStatus => outcomes.get(s.id) ?? 'Under review'
+
+/** Completed sessions that count toward the target: Accepted (confirmed) or Under review (pending). Excluded ones are out of quotas. */
+export const countsToward = (x: Session, outcomes: Outcomes) => x.status === 'Completed' && !x.reserve && outcomeOf(outcomes, x) !== 'Excluded'
+
+/** Two numbers wherever progress appears: confirmed (Accepted) and pending (Under review). Excluded are removed. */
+export function progress(doc: FieldworkDoc, outcomes: Outcomes) {
+  const done = doc.sessions.filter((x) => x.status === 'Completed' && !x.reserve)
+  const n = (st: ReviewStatus) => done.filter((x) => outcomeOf(outcomes, x) === st).length
+  const confirmed = n('Accepted')
+  const pending = n('Under review')
+  return { completed: done.length, confirmed, pending, excluded: n('Excluded'), toward: confirmed + pending }
+}
+
+export function quotaFill(doc: FieldworkDoc, audience: AudienceDoc | undefined, outcomes: Outcomes) {
+  return (audience?.def?.cohorts ?? []).map((c) => {
+    const mine = doc.sessions.filter((x) => x.cohort === c.name && x.status === 'Completed' && !x.reserve)
+    const n = (st: ReviewStatus) => mine.filter((x) => outcomeOf(outcomes, x) === st).length
+    const accepted = n('Accepted')
+    const pending = n('Under review')
+    return {
+      id: c.id,
+      name: c.name,
+      target: c.participants ?? 0,
+      accepted,
+      pending,
+      excluded: n('Excluded'),
+      /** Toward the quota: accepted plus pending. */
+      completed: accepted + pending,
+      inProgress: doc.sessions.filter((x) => x.cohort === c.name && (x.status === 'Active' || x.status === 'Paused')).length,
+      reserve: doc.sessions.filter((x) => x.cohort === c.name && x.reserve).length,
+    }
+  })
 }
 
 export function findSession(all: Record<string, FieldworkDoc>, id: string): { doc: FieldworkDoc; session: Session } | undefined {
@@ -372,6 +413,7 @@ export const sessionEnded = (s: Session) => s.status === 'Completed' || s.status
 
 const patch = (doc: FieldworkDoc, id: string, fn: (s: Session) => Session): FieldworkDoc => ({ ...doc, sessions: doc.sessions.map((s) => (s.id === id ? fn(s) : s)) })
 const addEvent = (s: Session, kind: EventKind, text: string): Session => ({ ...s, events: [...s.events, ev(now(), kind, text)] })
+const addEventAt = (when: string, s: Session, kind: EventKind, text: string): Session => ({ ...s, events: [...s.events, ev(when, kind, text)] })
 const addTurn = (s: Session, speaker: string, ai: boolean, text: string): Session => ({ ...s, transcript: [...s.transcript, { at: now(), speaker, ai, text }] })
 
 export function startSession(doc: FieldworkDoc, id: string, by: string): FieldworkDoc {
@@ -414,11 +456,22 @@ export const recordAnswer = (doc: FieldworkDoc, id: string, item: PlanItem, answ
 
 export const submitNotes = (doc: FieldworkDoc, id: string, notes: Notes) => patch(doc, id, (s) => (sessionEnded(s) && !s.notes ? addEvent({ ...s, notes }, 'moderator', `${notes.by} submitted post-session notes`) : s))
 
-export const pauseFieldwork = (doc: FieldworkDoc, reason: string, by: string): FieldworkDoc =>
-  doc.paused ? doc : { ...doc, paused: { reason: reason.trim(), by, at: now() }, log: [...doc.log, { id: uid('fl'), at: now(), by, text: `Paused fieldwork: ${reason.trim()}` }] }
+/**
+ * The time for a new fieldwork event: the prototype's fieldwork clock, or just after the latest thing already
+ * recorded, so new entries always come after the seeded ones.
+ */
+export function tick(doc: FieldworkDoc): string {
+  const latest = [FIELDWORK_NOW, ...doc.log.map((l) => l.at), ...doc.sessions.flatMap((s) => s.events.map((e) => e.at))].reduce((m, x) => Math.max(m, new Date(x).getTime()), 0)
+  return new Date(latest + MIN).toISOString()
+}
+
+export const pauseFieldwork = (doc: FieldworkDoc, reason: string, by: string): FieldworkDoc => {
+  const when = tick(doc)
+  return doc.paused ? doc : { ...doc, paused: { reason: reason.trim(), by, at: when }, log: [...doc.log, { id: uid('fl'), at: when, by, text: `Paused fieldwork: ${reason.trim()}` }] }
+}
 
 export const resumeFieldwork = (doc: FieldworkDoc, by: string): FieldworkDoc =>
-  doc.paused ? { ...doc, paused: null, log: [...doc.log, { id: uid('fl'), at: now(), by, text: 'Resumed fieldwork' }] } : doc
+  doc.paused ? { ...doc, paused: null, log: [...doc.log, { id: uid('fl'), at: tick(doc), by, text: 'Resumed fieldwork' }] } : doc
 
 // ─── monitoring figures (R18) ───────────────────────────────────────────────
 
@@ -446,9 +499,9 @@ export function durationStats(doc: FieldworkDoc) {
 }
 
 /** Pace against the fieldwork window, on the prototype clock. */
-export function pacing(doc: FieldworkDoc, target: number, excluded: ReadonlySet<string> = new Set()) {
+export function pacing(doc: FieldworkDoc, target: number, outcomes: Outcomes) {
   const w = doc.window
-  const completed = doc.sessions.filter((x) => countsTowardQuota(x, excluded)).length
+  const completed = doc.sessions.filter((x) => countsToward(x, outcomes)).length
   if (!w) return { completed, target, days: 0, day: 0, expected: 0, projected: completed, left: 0 }
   const day0 = new Date(`${w.start}T00:00:00-05:00`).getTime()
   const end = new Date(`${w.end}T23:59:59-05:00`).getTime()
@@ -459,9 +512,9 @@ export function pacing(doc: FieldworkDoc, target: number, excluded: ReadonlySet<
   return { completed, target, days, day, expected, projected, left: days - day }
 }
 
-export function regionMatrix(doc: FieldworkDoc, audience: AudienceDoc | undefined, excluded: ReadonlySet<string> = new Set()) {
+export function regionMatrix(doc: FieldworkDoc, audience: AudienceDoc | undefined, outcomes: Outcomes) {
   const cohorts = audience?.def?.cohorts ?? []
-  const done = doc.sessions.filter((x) => countsTowardQuota(x, excluded))
+  const done = doc.sessions.filter((x) => countsToward(x, outcomes))
   const rows = cohorts.map((c) => {
     const mine = done.filter((x) => x.cohort === c.name)
     return { id: c.id, name: c.name, target: c.participants ?? 0, completed: mine.length, byRegion: Object.fromEntries(REGIONS.map((r) => [r, mine.filter((x) => x.region === r).length])) as Record<Region, number> }
@@ -470,8 +523,21 @@ export function regionMatrix(doc: FieldworkDoc, audience: AudienceDoc | undefine
   return { rows, totals, total: done.length, unplaced: done.filter((x) => !x.region).length }
 }
 
+/**
+ * Says so only when the regions are skewed: with at least six interviews counted, one region holds more than half
+ * of them, or (with ten or more) a region has none. Otherwise there is nothing to alert on.
+ */
+export function regionSkew(totals: Record<Region, number>, total: number): string | undefined {
+  if (total < 6) return undefined
+  const top = REGIONS.reduce((a, r) => (totals[r] > totals[a] ? r : a), REGIONS[0])
+  if (totals[top] / total > 0.5) return `${top} holds ${totals[top]} of the ${total} interviews counted (${Math.round((totals[top] / total) * 100)}%). Recruit more from the other regions if the client needs a spread.`
+  const empty = REGIONS.filter((r) => totals[r] === 0)
+  if (total >= 10 && empty.length) return `No interviews counted from ${empty.join(' or ')} yet, out of ${total}.`
+  return undefined
+}
+
 export function issueSummary(doc: FieldworkDoc) {
-  const all = doc.sessions.flatMap((s) => s.issues.map((i) => ({ ...i, sessionId: s.id, ref: s.ref })))
+  const all = doc.sessions.flatMap((s) => s.issues.map((i) => ({ ...i, sessionId: s.id, participantId: s.participantId, no: s.no, ref: s.ref })))
   return {
     all,
     open: all.filter((x) => x.status === 'Open').length,
@@ -485,20 +551,114 @@ export function issueSummary(doc: FieldworkDoc) {
   }
 }
 
+/** Consent is given once per participant, in their first session; later sessions reuse it. */
 export function consentSummary(doc: FieldworkDoc) {
-  const s = doc.sessions
-  const given = s.filter((x) => x.consent && !x.consent.withdrawn)
-  const withdrawn = s.filter((x) => x.consent?.withdrawn)
-  const pending = s.filter((x) => !x.consent)
-  const recontact = given.filter((x) => x.consent!.recontact).length
-  return { given: given.length, withdrawn: withdrawn.length, pending: pending.length, recontact, recontactPct: given.length ? Math.round((recontact / given.length) * 100) : 0, total: s.length }
+  const ps = participantsOf(doc)
+  const given = ps.filter((p) => p.first.consent && !p.first.consent.withdrawn)
+  const withdrawn = ps.filter((p) => p.first.consent?.withdrawn)
+  const pending = ps.filter((p) => !p.first.consent)
+  const recontact = given.filter((p) => p.first.consent!.recontact).length
+  return { given: given.length, withdrawn: withdrawn.length, pending: pending.length, recontact, recontactPct: given.length ? Math.round((recontact / given.length) * 100) : 0, total: ps.length }
 }
 
 export const resolveIssue = (doc: FieldworkDoc, sessionId: string, issueId: string, by: string, resolution: string): FieldworkDoc => {
-  const when = now()
+  const when = tick(doc)
   const type = doc.sessions.find((s) => s.id === sessionId)?.issues.find((x) => x.id === issueId)?.type
   return {
-    ...patch(doc, sessionId, (s) => addEvent({ ...s, issues: s.issues.map((x) => (x.id === issueId && x.status === 'Open' ? { ...x, status: 'Resolved' as const, resolution: resolution.trim(), resolvedBy: by, resolvedAt: when } : x)) }, 'system', `${type} marked resolved by ${by}`)),
+    ...patch(doc, sessionId, (s) => addEventAt(when, { ...s, issues: s.issues.map((x) => (x.id === issueId && x.status === 'Open' ? { ...x, status: 'Resolved' as const, resolution: resolution.trim(), resolvedBy: by, resolvedAt: when } : x)) }, 'system', `${type} marked resolved by ${by}`)),
     log: [...doc.log, { id: uid('fl'), at: when, by, text: `Resolved “${type}” on ${sessionId}: ${resolution.trim()}` }],
   }
+}
+
+// ─── Needs you: what the Researcher can do about a session ──────────────────
+
+const logged = (doc: FieldworkDoc, when: string, by: string, text: string): FieldworkDoc => ({ ...doc, log: [...doc.log, { id: uid('fl'), at: when, by, text }] })
+const handledBy = (s: Session, when: string, by: string, action: string): Session => ({ ...s, handled: { action, at: when, by } })
+
+/** Sends the participant their link again (a resume link if they left part-way). */
+export function resendLink(doc: FieldworkDoc, sessionId: string, by: string): FieldworkDoc {
+  const when = tick(doc)
+  const s = doc.sessions.find((x) => x.id === sessionId)
+  if (!s) return doc
+  const resume = s.status === 'Incomplete (resumable)'
+  return logged(
+    patch(doc, sessionId, (x) => handledBy(addEventAt(when, x, 'system', `${by} resent the ${resume ? 'resume ' : ''}link`), when, by, 'Resend link')),
+    when,
+    by,
+    `Resent the ${resume ? 'resume ' : ''}link to ${s.participantId}`,
+  )
+}
+
+/** A retry is a new session for the same participant: P-2048-1 stays as it was and P-2048-2 begins. */
+export function retrySession(doc: FieldworkDoc, sessionId: string, by: string): FieldworkDoc {
+  const when = tick(doc)
+  const s = doc.sessions.find((x) => x.id === sessionId)
+  if (!s) return doc
+  const no = Math.max(...sessionsOfParticipant(doc, s.participantId).map((x) => x.no)) + 1
+  const next: Session = {
+    id: `${s.participantId}-${no}`,
+    participantId: s.participantId,
+    no,
+    applicantId: s.applicantId,
+    ref: s.ref,
+    cohort: s.cohort,
+    region: s.region,
+    state: s.state,
+    device: s.device,
+    reserve: s.reserve,
+    mode: s.mode,
+    access: 'Consented',
+    status: 'Not started',
+    moderatorId: s.moderatorId,
+    slot: null,
+    startedAt: null,
+    durationMin: null,
+    events: [ev(when, 'system', `${by} sent a retry link. Session ${no} starts when the participant opens it. Consent from session 1 still applies.`)],
+    stimuli: [],
+    answers: [],
+    asked: [],
+    covered: [],
+    followUps: {},
+    transcript: [],
+    notes: null,
+    issues: [],
+    consent: null,
+  }
+  const marked = patch(doc, sessionId, (x) => handledBy(addEventAt(when, x, 'system', `${by} sent a retry link. Session ${no} was created.`), when, by, 'Retry'))
+  return logged({ ...marked, sessions: [...marked.sessions, next] }, when, by, `Sent a retry link to ${s.participantId}. Session ${no} created`)
+}
+
+/** A replacement for someone who withdrew comes from the reserve. */
+export function approveReplacement(doc: FieldworkDoc, sessionId: string, by: string): FieldworkDoc {
+  const when = tick(doc)
+  const s = doc.sessions.find((x) => x.id === sessionId)
+  if (!s) return doc
+  return logged(patch(doc, sessionId, (x) => handledBy(addEventAt(when, x, 'system', `${by} approved a replacement from the reserve`), when, by, 'Approve replacement')), when, by, `Approved a replacement for ${s.participantId} from the reserve`)
+}
+
+/** Books the next free slot, two days out at 10:00, for a participant who missed or moved theirs. */
+export function rescheduleSession(doc: FieldworkDoc, sessionId: string, by: string): FieldworkDoc {
+  const when = tick(doc)
+  const s = doc.sessions.find((x) => x.id === sessionId)
+  if (!s) return doc
+  const day = new Date(new Date(when).getTime() + 2 * 1440 * MIN).toLocaleDateString('en-CA', { timeZone: studyTimeZone() })
+  const slot = new Date(`${day}T10:00:00-05:00`).toISOString()
+  return logged(
+    patch(doc, sessionId, (x) => handledBy(addEventAt(when, { ...x, slot, status: 'Booked' }, 'system', `${by} rescheduled the session to ${formatSlot(slot)}`), when, by, 'Reschedule')),
+    when,
+    by,
+    `Rescheduled ${s.participantId} to ${formatSlot(slot)}`,
+  )
+}
+
+export function assignModerator(doc: FieldworkDoc, sessionId: string, moderatorId: string, by: string): FieldworkDoc {
+  const when = tick(doc)
+  const s = doc.sessions.find((x) => x.id === sessionId)
+  if (!s) return doc
+  return logged(
+    patch(doc, sessionId, (x) => handledBy(addEventAt(when, { ...x, moderatorId }, 'system', `${by} assigned ${moderatorName(moderatorId)}`), when, by, 'Assign moderator')),
+    when,
+    by,
+    `Assigned ${moderatorName(moderatorId)} to ${s.participantId}`,
+  )
 }

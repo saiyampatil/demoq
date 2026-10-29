@@ -11,16 +11,18 @@ import { Tooltip } from '@/components/Tooltip'
 import { FLAG_TRACKS, FLAG_TYPES, MODERATOR_TYPES, reviewSummary, scoreBand, trackLabel, type FlagSeverity, type ReviewFlag, type ReviewSession, type ReviewStatus, type ScoreBand } from '@/mock/review'
 import { screenById, studyPath } from '@/routes/screens'
 import { DEFAULT_COHORT_NAMES, loadQueue, NO_FILTERS, queueOrder, saveQueue, type QueueFilters } from '@/state/reviewQueue'
+import { formatClock, formatDay } from '@/lib/format'
 import { PageHeader } from '../../shared/PageHeader'
 import { SampleDataBanner } from '../SampleDataBanner'
+import { SessionTag, sessionText } from '../SessionTag'
 import { useStudySessions } from '../useStudySessions'
 
 type Filters = QueueFilters
 const NONE: Filters = NO_FILTERS
 const BANDS: ScoreBand[] = ['High', 'Mid', 'Low']
 
-const dayText = (iso: string) => new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/New_York' })
-const clockText = (iso: string) => new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' })
+const dayText = formatDay
+const clockText = formatClock
 
 export function ReviewQueue() {
   const { studyId, audience, review, preview } = useStudySessions()
@@ -236,7 +238,7 @@ export function ReviewQueue() {
                     <td className="px-3 py-2.5">
                       <input
                         type="checkbox"
-                        aria-label={`Select ${s.id}`}
+                        aria-label={`Select ${sessionText(s.participantId, s.sessionNo, s.sessionCount)}`}
                         checked={selected.has(s.id)}
                         onChange={(e) =>
                           setSelected((p) => {
@@ -251,7 +253,7 @@ export function ReviewQueue() {
                     </td>
                     <td className="px-3 py-2.5">
                       <Link to={href(s.id)} className="font-medium tabular-nums text-iris-700 underline-offset-2 hover:underline">
-                        {s.id}
+                        <SessionTag participantId={s.participantId} no={s.sessionNo} count={s.sessionCount} />
                       </Link>
                     </td>
                     <td className="px-3 py-2.5 whitespace-nowrap">
@@ -269,7 +271,7 @@ export function ReviewQueue() {
                     <td className="px-3 py-2.5 whitespace-nowrap tabular-nums">{s.durationMin} min</td>
                     <td className="px-3 py-2.5"><Score value={s.integrity} name="Integrity" /></td>
                     <td className="px-3 py-2.5"><Score value={s.quality} name="Interview quality" /></td>
-                    <td className="px-3 py-2.5"><Flags id={s.id} flags={s.flags} /></td>
+                    <td className="px-3 py-2.5"><Flags id={sessionText(s.participantId, s.sessionNo, s.sessionCount)} flags={s.flags} /></td>
                     <td className="px-3 py-2.5">
                       <span className="flex items-center gap-2">
                         <StatusChip status={s.status} size="sm" />
@@ -281,7 +283,7 @@ export function ReviewQueue() {
                         <Button size="sm" to={href(s.id)}>
                           {s.status === 'Under review' ? 'Review' : 'View'}
                         </Button>
-                        <RowMenu id={s.id} to={href(s.id)} />
+                        <RowMenu id={sessionText(s.participantId, s.sessionNo, s.sessionCount)} participantId={s.participantId} to={href(s.id)} />
                       </span>
                     </td>
                   </tr>
@@ -494,7 +496,7 @@ function FilterSelect({ label, value, onChange, options, labels }: { label: stri
   )
 }
 
-function RowMenu({ id, to }: { id: string; to: string }) {
+function RowMenu({ id, participantId, to }: { id: string; participantId: string; to: string }) {
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null)
   const [copied, setCopied] = useState(false)
   const btn = useRef<HTMLButtonElement>(null)
@@ -543,7 +545,7 @@ function RowMenu({ id, to }: { id: string; to: string }) {
             className="block w-full rounded-sm px-3 py-1.5 text-left text-sm hover:bg-haze"
             onClick={async () => {
               try {
-                await navigator.clipboard.writeText(id)
+                await navigator.clipboard.writeText(participantId)
               } catch {
                 // Clipboard can be blocked.
               }

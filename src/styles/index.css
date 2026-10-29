@@ -40,6 +40,11 @@
     animation: screen-in-back 240ms cubic-bezier(0.22, 1, 0.36, 1);
   }
 
+  /* Pending progress: diagonal hatching in the same ink as confirmed progress, so the two read as one bar */
+  .hatched {
+    background-image: repeating-linear-gradient(45deg, var(--color-ink) 0 2px, transparent 2px 5px);
+  }
+
   /* The AI-generated voice: used by <AIContent> and anywhere AI output is shown */
   .ai-surface {
     border: 1.5px dashed var(--color-iris-300);

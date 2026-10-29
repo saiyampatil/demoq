@@ -1,131 +1,179 @@
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
+import { Banner } from '@/components/Banner'
 import { Button } from '@/components/Button'
 import { Card } from '@/components/Card'
 import { cn } from '@/components/cn'
+import { AlertIcon } from '@/components/icons'
+import { SplitBar } from '@/components/ProgressBar'
+import { Tooltip } from '@/components/Tooltip'
 import { formatStamp } from '@/lib/format'
 import { screenById, studyPath } from '@/routes/screens'
-import { fmtDay } from '@/state/launch'
-import { attentionReason, consentSummary, durationStats, issueSummary, needsAttention, pacing, quotaFill } from '@/state/fieldwork'
-import { slotText, type FWProps } from './FieldworkBits'
+import { approveReplacement, assignModerator, durationStats, HUMAN_MODERATOR_IDS, progress, quotaFill, rescheduleSession, resendLink, retrySession } from '@/state/fieldwork'
+import { ago, funnel, needsYou, verdict, type NeedsRow, type VerdictLevel } from '@/state/monitor'
+import { SessionTag } from '../SessionTag'
+import type { FWProps } from './FieldworkBits'
 
-const sessionHref = (studyId: string, id: string) => studyPath(studyId, { ...screenById.R19, path: screenById.R19.path.replace(':sessionId', id) })
+const r19 = (studyId: string, id: string) => studyPath(studyId, { ...screenById.R19, path: screenById.R19.path.replace(':sessionId', id) })
 
-export function Overview({ doc, audience, target, studyId, goTab, excluded }: FWProps) {
-  const pace = pacing(doc, target, excluded)
+const TONE: Record<VerdictLevel, { box: string; word: string }> = {
+  'At risk': { box: 'border-negative-line bg-negative-bg', word: 'text-negative-fg' },
+  'Behind pace': { box: 'border-pending-line bg-pending-bg', word: 'text-pending-fg' },
+  'On track': { box: 'border-positive-line bg-positive-bg', word: 'text-positive-fg' },
+}
+
+export function Overview(p: FWProps) {
+  const { doc, audience, target, studyId, outcomes, reserve, awaiting } = p
+  const needs = needsYou(doc, reserve)
+  const v = verdict(doc, target, outcomes, reserve, needs.length)
+  const prog = progress(doc, outcomes)
+  const fill = quotaFill(doc, audience, outcomes)
   const dur = durationStats(doc)
-  const fill = quotaFill(doc, audience, excluded)
-  const issues = issueSummary(doc)
-  const consent = consentSummary(doc)
-  const attention = doc.sessions.filter(needsAttention)
-  const behind = pace.expected - pace.completed
-  const topOpen = issues.all.filter((x) => x.status === 'Open').sort((a, b) => (a.severity === 'Blocking' ? -1 : 1) - (b.severity === 'Blocking' ? -1 : 1)).slice(0, 4)
+  const flow = funnel(doc)
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card title="Pace" description={doc.window ? `Fieldwork runs ${fmtDay(doc.window.start)} to ${fmtDay(doc.window.end)}.` : 'No fieldwork window is set.'}>
-          <div className="flex flex-col gap-3">
-            <p className="flex items-baseline gap-2">
-              <span className="text-xl font-semibold tabular-nums">{pace.completed}</span>
-              <span className="text-graphite tabular-nums">of {pace.target} count toward the target, day {pace.day} of {pace.days}</span>
+      <section aria-label="Verdict" className={cn('flex flex-wrap items-start gap-x-6 gap-y-3 rounded-md border px-5 py-4', TONE[v.level].box)}>
+        <div className="min-w-0 flex-1 basis-80">
+          <p className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <span className={cn('text-xl font-semibold', TONE[v.level].word)}>{v.level}</span>
+            <span className="text-base text-ink tabular-nums">{v.sentence}</span>
+          </p>
+          {v.warning && (
+            <p className="mt-2 flex items-start gap-2 text-sm text-pending-fg">
+              <AlertIcon size={14} className="mt-0.5 shrink-0" />
+              {v.warning}
             </p>
-            <div className="relative h-2 rounded-full bg-haze" role="img" aria-label={`${pace.completed} completed, ${pace.expected} expected by now`}>
-              <div className="h-full rounded-full bg-ink" style={{ width: `${Math.min(100, (pace.completed / pace.target) * 100)}%` }} />
-              <div className="absolute top-[-3px] h-[14px] w-0.5 bg-graphite" style={{ left: `${Math.min(100, (pace.expected / pace.target) * 100)}%` }} title={`Expected by now: ${pace.expected}`} />
-            </div>
-            <p className={cn('text-sm', behind > 0 ? 'text-pending-fg' : 'text-positive-fg')}>
-              {behind > 0 ? `${behind} behind pace.` : 'On pace.'} About {pace.expected} would be done by now. At this rate the study ends with about {pace.projected} of {pace.target}.
-            </p>
-            <p className="text-xs text-graphite">{behind > 0 ? `${pace.left} days left. ` : ''}Booked and in-progress sessions count once they complete. Sessions excluded in Review don’t count.</p>
-          </div>
-        </Card>
-
-        <Card title="Interview length" description={`Completed interviews against the ${dur.target} minute target.`}>
-          {dur.n === 0 ? (
-            <p className="text-sm text-graphite">No completed interviews yet.</p>
-          ) : (
-            <div className="flex flex-col gap-3">
-              <div className="flex flex-wrap items-baseline gap-x-6 gap-y-2">
-                <p>
-                  <span className="text-xl font-semibold tabular-nums">{dur.avg}</span> <span className="text-graphite">min average</span>
-                </p>
-                <p className="text-sm text-graphite tabular-nums">Median {dur.median}, shortest {dur.min}, longest {dur.max}</p>
-              </div>
-              <p className={cn('text-sm', (dur.avg ?? 0) > dur.target ? 'text-pending-fg' : 'text-graphite')}>
-                {(dur.avg ?? 0) > dur.target ? `Averaging ${Math.round(((dur.avg ?? 0) - dur.target) * 10) / 10} min over target.` : `Averaging ${Math.round((dur.target - (dur.avg ?? 0)) * 10) / 10} min under target.`} {dur.over} of {dur.n} ran over.
-              </p>
-              <ul className="flex flex-col gap-1 text-sm">
-                {dur.byCohort.map((c) => (
-                  <li key={c.name} className="flex gap-2">
-                    <span className="flex-1">{c.name}</span>
-                    <span className="tabular-nums">{c.avg} min <span className="text-graphite">({c.n})</span></span>
-                  </li>
-                ))}
-              </ul>
-              {dur.partial > 0 && <p className="text-xs text-graphite">{dur.partial} partial or ended-early sessions aren’t counted.</p>}
-            </div>
           )}
-        </Card>
-      </div>
+          <p className="mt-2 text-xs text-graphite">{v.basis}</p>
+        </div>
+        <div className="shrink-0">
+          {v.action.to === 'sourcing' && (
+            <Button variant="primary" to={studyPath(studyId, screenById.R8)}>
+              {v.action.label}
+            </Button>
+          )}
+          {v.action.to === 'needs' && (
+            <Button variant="primary" onClick={() => document.getElementById('needs-you')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>
+              {v.action.label}
+            </Button>
+          )}
+          {v.action.to === 'review' && (
+            <Button variant="primary" to={studyPath(studyId, screenById.R21)}>
+              {v.action.label}
+            </Button>
+          )}
+        </div>
+      </section>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <Card title="Quota by segment" actions={<Button size="sm" variant="ghost" onClick={() => goTab('quotas')}>Segments and regions</Button>}>
-          <ul className="flex flex-col gap-3">
+      <NeedsYou {...p} rows={needs} />
+
+      <Card title="Participant funnel" description="Every invited participant is counted once, at the furthest stage they reached.">
+        <div className="flex flex-col gap-5">
+          {v.coverage.short > 0 && (
+            <Banner
+              tone="danger"
+              title={`Invited ${v.coverage.invited} for a target of ${v.coverage.target}, ${v.coverage.reserve} in reserve.`}
+              actions={
+                <Button size="sm" to={studyPath(studyId, screenById.R8)}>
+                  Invite more
+                </Button>
+              }
+            >
+              {v.coverage.dropped.excluded + v.coverage.dropped.withdrawn > 0 && (
+                <>
+                  {v.coverage.dropped.excluded + v.coverage.dropped.withdrawn} have dropped out ({[v.coverage.dropped.excluded && `${v.coverage.dropped.excluded} excluded`, v.coverage.dropped.withdrawn && `${v.coverage.dropped.withdrawn} withdrew`].filter(Boolean).join(', ')}), so at most {v.coverage.canFinish} can finish.{' '}
+                </>
+              )}
+              You can’t finish without inviting more.
+            </Banner>
+          )}
+          <ol className="flex flex-col gap-3" aria-label="Funnel stages">
+            {flow.stages.map((st) => (
+              <li key={st.key} className="grid items-center gap-x-4 gap-y-1 sm:grid-cols-[7rem_minmax(0,1fr)_3rem]">
+                <span className="text-sm font-medium">{st.label}</span>
+                <div className="h-3 overflow-hidden rounded-xs bg-haze" aria-hidden="true">
+                  <div className="h-full rounded-xs bg-ink" style={{ width: `${flow.total ? (st.reached / flow.total) * 100 : 0}%` }} />
+                </div>
+                <span className="text-right font-semibold tabular-nums max-sm:text-left">{st.reached}</span>
+                {(st.left.length > 0 || st.waiting.length > 0 || st.key === 'completed') && (
+                  <ul className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-graphite sm:col-start-2 sm:col-span-2">
+                    {st.left.map((x) => (
+                      <li key={x.label} className="text-pending-fg tabular-nums">
+                        {x.n} {x.label.toLowerCase()}, left the study
+                      </li>
+                    ))}
+                    {st.waiting.map((x) => (
+                      <li key={x.label} className="tabular-nums">
+                        {x.n} {x.label.toLowerCase()}
+                      </li>
+                    ))}
+                    {st.key === 'completed' && (
+                      <li className="tabular-nums">
+                        {prog.confirmed} accepted, {prog.pending} under review{prog.excluded ? `, ${prog.excluded} excluded` : ''}
+                      </li>
+                    )}
+                  </ul>
+                )}
+              </li>
+            ))}
+          </ol>
+          <p className="border-t border-mist pt-3 text-sm text-graphite tabular-nums" data-testid="funnel-total">
+            {flow.total} invited = {flow.completed} completed + {flow.left} left the study + {flow.waiting} still in progress
+            {flow.accounted === flow.total ? '.' : `. ${flow.total - flow.accounted} unaccounted for.`}
+          </p>
+        </div>
+      </Card>
+
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+        <Card title="Quota by segment" actions={<Button size="sm" variant="ghost" onClick={() => p.goTab('quotas')}>Segments and regions</Button>}>
+          <ul className="flex flex-col gap-4">
             {fill.map((f) => (
               <li key={f.id}>
-                <div className="flex items-baseline gap-2 text-sm">
+                <div className="flex flex-wrap items-baseline gap-x-3 text-sm">
                   <span className="flex-1 font-medium">{f.name}</span>
-                  <span className="tabular-nums"><span className="font-semibold">{f.completed}</span> of {f.target}</span>
+                  <span className="tabular-nums">
+                    <span className="font-semibold">{f.completed}</span> of {f.target}
+                  </span>
                 </div>
-                <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-haze" aria-hidden="true">
-                  <div className="h-full bg-ink" style={{ width: `${f.target ? Math.min(100, (f.completed / f.target) * 100) : 0}%` }} />
-                </div>
+                <SplitBar className="mt-1.5" confirmed={f.accepted} pending={f.pending} total={f.target} label={`${f.name}: ${f.accepted} accepted, ${f.pending} under review, of ${f.target}`} />
+                <p className="mt-1 text-xs text-graphite tabular-nums">
+                  {f.accepted} confirmed, {f.pending} pending review{f.excluded ? `. ${f.excluded} excluded, not counted` : ''}
+                </p>
               </li>
             ))}
           </ul>
-        </Card>
-
-        <Card title="Technical issues" actions={<Button size="sm" variant="ghost" onClick={() => goTab('issues')}>All issues</Button>}>
-          <p className="text-sm">
-            <span className={cn('text-xl font-semibold tabular-nums', issues.blocking > 0 && 'text-negative-fg')}>{issues.open}</span> <span className="text-graphite">open, {issues.blocking} blocking. {issues.resolved} resolved.</span>
+          <p className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-mist pt-3 text-xs text-graphite">
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block h-2 w-4 rounded-xs bg-ink" /> Accepted
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="hatched inline-block h-2 w-4 rounded-xs bg-haze" /> Under review
+            </span>
           </p>
-          <ul className="mt-3 flex flex-col gap-2 text-sm">
-            {topOpen.map((x) => (
-              <li key={x.id} className="flex gap-2">
-                <span className={cn('mt-1.5 size-2 shrink-0 rounded-full', x.severity === 'Blocking' ? 'bg-negative-fg' : x.severity === 'Degraded' ? 'bg-pending-fg' : 'bg-graphite')} aria-hidden="true" />
-                <span className="min-w-0 flex-1">
-                  {x.type} <Link to={sessionHref(studyId, x.sessionId)} className="text-iris-700 hover:underline">{x.sessionId}</Link>
-                </span>
-              </li>
-            ))}
-          </ul>
         </Card>
 
-        <Card title="Consent" actions={<Button size="sm" variant="ghost" onClick={() => goTab('consent')}>Consent log</Button>}>
-          <dl className="grid grid-cols-3 gap-2 text-sm">
-            <div><dt className="text-graphite">On record</dt><dd className="text-xl font-semibold tabular-nums">{consent.given}</dd></div>
-            <div><dt className="text-graphite">Withdrawn</dt><dd className={cn('text-xl font-semibold tabular-nums', consent.withdrawn > 0 && 'text-pending-fg')}>{consent.withdrawn}</dd></div>
-            <div><dt className="text-graphite">Not yet</dt><dd className="text-xl font-semibold tabular-nums">{consent.pending}</dd></div>
+        <Card title="At a glance">
+          <dl className="flex flex-col gap-4 text-sm">
+            <div>
+              <dt className="font-medium">Interview length</dt>
+              <dd className="mt-0.5 text-graphite tabular-nums">
+                {dur.n === 0
+                  ? 'No completed interviews yet.'
+                  : `Averaging ${dur.avg} min against the ${dur.target} min target. ${dur.over} of ${dur.n} ran over.`}
+              </dd>
+            </div>
+            <div>
+              <dt className="font-medium">Review</dt>
+              <dd className="mt-0.5">
+                <Link to={studyPath(studyId, screenById.R21)} className="text-iris-700 hover:underline tabular-nums">
+                  {awaiting} {awaiting === 1 ? 'session' : 'sessions'} awaiting review
+                </Link>
+              </dd>
+            </div>
           </dl>
-          <p className="mt-3 text-sm text-graphite">{consent.recontactPct}% of consenting participants agreed to be contacted again.</p>
         </Card>
       </div>
-
-      <Card title="Needs attention" description="Sessions that need a decision or a retry.">
-        {attention.length === 0 ? (
-          <p className="text-sm text-graphite">Nothing needs attention.</p>
-        ) : (
-          <ul className="flex flex-col divide-y divide-mist">
-            {attention.map((s) => (
-              <li key={s.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 first:pt-0 last:pb-0">
-                <Link to={sessionHref(studyId, s.id)} className="font-medium tabular-nums text-iris-700 hover:underline">{s.id}</Link>
-                <span className="min-w-0 flex-1 basis-56 text-sm text-graphite">{attentionReason(s)}</span>
-                <span className="text-xs text-graphite">{slotText(s.slot ?? s.startedAt)}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Card>
 
       {doc.log.length > 0 && (
         <Card title="Activity">
@@ -141,3 +189,94 @@ export function Overview({ doc, audience, target, studyId, goTab, excluded }: FW
     </div>
   )
 }
+
+const FIRST_SHOWN = 5
+
+function NeedsYou({ doc, rows, studyId, me, update, readOnly }: FWProps & { rows: NeedsRow[] }) {
+  const [all, setAll] = useState(false)
+  const [notice, setNotice] = useState<string>()
+  useEffect(() => {
+    if (!notice) return
+    const t = setTimeout(() => setNotice(undefined), 5000)
+    return () => clearTimeout(t)
+  }, [notice])
+
+  const shown = all ? rows : rows.slice(0, FIRST_SHOWN)
+
+  const run = (row: NeedsRow) => {
+    const id = row.session.id
+    const who = row.session.participantId
+    if (row.action === 'Resend link') {
+      update((d) => resendLink(d, id, me))
+      setNotice(`Link resent to ${who}.`)
+    } else if (row.action === 'Retry') {
+      update((d) => retrySession(d, id, me))
+      setNotice(`Retry link sent to ${who}. A new session was created.`)
+    } else if (row.action === 'Approve replacement') {
+      update((d) => approveReplacement(d, id, me))
+      setNotice(`Replacement approved for ${who}.`)
+    } else if (row.action === 'Reschedule') {
+      update((d) => rescheduleSession(d, id, me))
+      setNotice(`${who} rescheduled.`)
+    } else {
+      update((d) => assignModerator(d, id, HUMAN_MODERATOR_IDS[0], me))
+      setNotice(`Moderator assigned to ${who}.`)
+    }
+  }
+
+  return (
+    <section id="needs-you" aria-label="Needs you" className="scroll-mt-4 rounded-md border border-mist bg-surface">
+      <header className="flex items-start gap-4 border-b border-mist px-5 py-3.5">
+        <div className="min-w-0 flex-1">
+          <h2 className="text-md font-semibold">
+            Needs you <span className="ml-1 rounded-full bg-haze px-2 text-sm font-medium tabular-nums text-graphite">{rows.length}</span>
+          </h2>
+          <p className="mt-0.5 text-sm text-graphite">Unfinished sessions only, most urgent first. Finished interviews are in Review.</p>
+        </div>
+      </header>
+      {notice && (
+        <p role="status" className="border-b border-positive-line bg-positive-bg px-5 py-2 text-sm text-positive-fg">
+          {notice}
+        </p>
+      )}
+      {rows.length === 0 ? (
+        <p className="px-5 py-6 text-sm text-graphite">Nothing needs you. Everyone unfinished is in progress or waiting on the participant.</p>
+      ) : (
+        <>
+          <ul className="divide-y divide-mist">
+            {shown.map((row) => (
+              <li key={row.key} className="grid items-center gap-x-4 gap-y-1 px-5 py-3 sm:grid-cols-[minmax(0,11rem)_minmax(0,1fr)_5.5rem_auto]">
+                <Link to={r19(studyId, row.session.id)} className="font-medium text-iris-700 hover:underline">
+                  <SessionTag participantId={row.session.participantId} no={row.session.no} count={doc.sessions.filter((x) => x.participantId === row.session.participantId).length} />
+                </Link>
+                <span className="min-w-0 text-sm">{row.what}</span>
+                <span className="text-sm text-graphite tabular-nums sm:text-right">{ago(row.since)}</span>
+                <span className="sm:justify-self-end">
+                  {row.blocked || readOnly ? (
+                    <Tooltip content={readOnly ? 'This is sample data. Nothing can be changed.' : row.blocked!} focusable>
+                      <Button size="sm" disabled>
+                        {row.action}
+                      </Button>
+                    </Tooltip>
+                  ) : (
+                    <Button size="sm" onClick={() => run(row)} aria-label={`${row.action}: ${row.session.participantId}`}>
+                      {row.action}
+                    </Button>
+                  )}
+                </span>
+              </li>
+            ))}
+          </ul>
+          {rows.length > FIRST_SHOWN && (
+            <div className="border-t border-mist px-5 py-2.5">
+              <Button size="sm" variant="ghost" onClick={() => setAll((x) => !x)}>
+                {all ? 'Show fewer' : `Show all ${rows.length}`}
+              </Button>
+            </div>
+          )}
+        </>
+      )}
+    </section>
+  )
+}
+

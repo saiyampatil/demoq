@@ -12,6 +12,7 @@ const base: Omit<StudyRecord, 'status' | 'brief' | 'audience' | 'guide' | 'updat
   interviewLanguage: 'English (US)',
   targetCompletes: 24,
   completedSessions: 0,
+  timeZone: 'America/New_York',
 }
 
 const briefApproved = {

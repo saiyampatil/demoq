@@ -1,11 +1,11 @@
 import type { AudienceDoc } from '@/state/audience'
-import type { FieldworkDoc } from '@/state/fieldwork'
+import type { FieldworkDoc, Outcomes } from '@/state/fieldwork'
 import { Button } from '@/components/Button'
+import { formatSlot } from '@/lib/format'
 import { EmptyState } from '@/components/States'
 import { screenById, studyPath } from '@/routes/screens'
 
-export const slotText = (iso: string | null) =>
-  iso ? new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' }) : '—'
+export const slotText = (iso: string | null) => (iso ? formatSlot(iso) : '—')
 
 export function FieldworkGate({ studyId, editable }: { studyId: string; editable: boolean }) {
   return (
@@ -39,8 +39,12 @@ export type FWProps = {
   goTab: (tab: string) => void
   /** Example data for a study that hasn't launched: nothing can be changed. */
   readOnly?: boolean
-  /** Sessions excluded in Review: still listed, but out of quotas and pace. */
-  excluded: ReadonlySet<string>
+  /** Review status by session: what separates confirmed progress (Accepted) from pending (Under review). */
+  outcomes: Outcomes
+  /** Reserve candidates not yet invited. */
+  reserve: number
+  /** Sessions awaiting review, for the link to the queue. */
+  awaiting: number
 }
 
 export const sessionPath = (id: string) => `fieldwork/sessions/${id}`

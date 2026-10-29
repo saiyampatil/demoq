@@ -15,6 +15,8 @@ export type StepInfo = {
   badge?: string
   /** Extra line under the status chip, e.g. who the step is waiting on. */
   note?: string
+  /** In progress right now: Fieldwork and Review run in parallel while a study is Live. */
+  active?: boolean
 }
 
 const launched = (s: StudyRecord) => ['Live', 'Paused', 'Terminated', 'Complete'].includes(s.status)
@@ -80,6 +82,7 @@ export function stepInfo(study: StudyRecord, sessions?: { awaitingReview: number
       label: label('fieldwork'),
       // Fieldwork and Review can always be opened in the prototype; before launch they show sample data.
       state: isLaunched && fieldworkClosed ? 'done' : 'open',
+      active: isLaunched && !fieldworkClosed,
       status: isLaunched ? study.status : undefined,
       hint: 'Sample data until the study launches',
     },
@@ -87,6 +90,7 @@ export function stepInfo(study: StudyRecord, sessions?: { awaitingReview: number
       key: 'review',
       label: label('review'),
       state: 'open',
+      active: isLaunched && !fieldworkClosed,
       badge: sessions ? `${sessions.awaitingReview} awaiting` : undefined,
       hint: isLaunched ? 'Sessions arrive here after they finish' : 'Sample data until the study launches',
     },

@@ -1,6 +1,6 @@
 // Review (4.8) and Evidence and audit (4.9) data. The sessions come from the study's one session list
 // (mock/sessions.ts): every completed session is here, and nothing else is. Moderator type is fixed per study.
-import { DEFAULT_COHORT_NAMES, SEED_SESSIONS, type CohortId, type SeedSession } from './sessions'
+import { DEFAULT_COHORT_NAMES, SEED_SESSIONS, sessionIdOf, type CohortId, type SeedSession } from './sessions'
 
 export const REVIEW_STUDY_ID = 'moisturizer-concept'
 
@@ -57,7 +57,13 @@ export type SurveyResponse = {
 export type ReviewedMeta = { version: number; editedBy: string; editedAt: string; summary: string; edits: { index: number; text: string }[] }
 
 export type ReviewSession = {
+  /** The session's ID, e.g. P-2041-1. It is what the review routes use. */
   id: string
+  /** The person, e.g. P-2041. This is the main label on every screen. */
+  participantId: string
+  /** Which of the participant's sessions this is, and how many they have. The suffix shows only when there is more than one. */
+  sessionNo: number
+  sessionCount: number
   cohortId: CohortId
   moderator: string
   moderatorType: ModeratorType
@@ -145,10 +151,11 @@ const SURVEY_Q = 'After seeing the concept, how likely would you be to buy it?'
 const SURVEY_OPTIONS = ['Definitely would not', 'Probably would not', 'Might or might not', 'Probably would', 'Definitely would']
 
 /** The full sample is P-2041 at 2,400 turns. Other sessions get a shorter transcript. */
-const turnsFor = (id: string) => (id === 'P-2041' ? 2400 : 160)
+const turnsFor = (id: string) => (id === 'P-2041-1' ? 2400 : 160)
 
 function build(seed: SeedSession): ReviewSession {
-  const { id, cohortId, at: completedAt, durationMin = 20 } = seed
+  const { participant, cohortId, at: completedAt, durationMin = 20 } = seed
+  const id = sessionIdOf(seed)
   const { integrity, quality, status } = seed.review!
   const flagTypes = seed.review!.flags as FlagType[]
   const moderator = AI
@@ -165,7 +172,7 @@ function build(seed: SeedSession): ReviewSession {
 
   const hasStimFlag = flagTypes.includes('Incorrect stimulus presentation')
   const stimuli: StimulusCard[] = STIMULI.map((s, i) => ({ ...s, shownAtSec: atOf(idxFor(total * (0.3 + i * 0.2), 'AI')), status: 'Loaded' as StimulusStatus }))
-  if (hasStimFlag) stimuli[1].status = id === 'P-2041' ? 'Fallback used' : parseInt(id.slice(2), 10) % 2 ? 'Failed' : 'Fallback used'
+  if (hasStimFlag) stimuli[1].status = id === 'P-2041-1' ? 'Fallback used' : parseInt(id.slice(2), 10) % 2 ? 'Failed' : 'Fallback used'
 
   // The other flags sit at fixed points in the interview, clear of the stimulus (at about half way).
   const spots = [0.18, 0.34, 0.72, 0.88]
@@ -183,6 +190,9 @@ function build(seed: SeedSession): ReviewSession {
   const answer = SURVEY_OPTIONS[id.charCodeAt(5) % 5]
   return {
     id,
+    participantId: participant,
+    sessionNo: seed.no ?? 1,
+    sessionCount: SEED_SESSIONS.filter((x) => x.participant === participant).length,
     cohortId,
     moderator,
     moderatorType,
@@ -194,7 +204,7 @@ function build(seed: SeedSession): ReviewSession {
     quality,
     flags,
     status,
-    decision: DECISIONS[id],
+    decision: DECISIONS[participant],
     stimuli,
     survey: [
       {
@@ -202,7 +212,7 @@ function build(seed: SeedSession): ReviewSession {
         options: SURVEY_OPTIONS,
         answer,
         answeredAtSec: Math.round(total * 0.84),
-        probe: id === 'P-2041' ? { question: `You said “${answer}”. What would make it a definite yes?`, answer: 'If it really lasted all day and the jar felt solid. The answer above stays as I chose it.' } : undefined,
+        probe: id === 'P-2041-1' ? { question: `You said “${answer}”. What would make it a definite yes?`, answer: 'If it really lasted all day and the jar felt solid. The answer above stays as I chose it.' } : undefined,
       },
     ],
     aiNotes: [
@@ -212,7 +222,7 @@ function build(seed: SeedSession): ReviewSession {
     ],
     turnCount: count,
     reviewed:
-      id === 'P-2041'
+      id === 'P-2041-1'
         ? {
             version: 2,
             editedBy: 'Maya Ortiz',

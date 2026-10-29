@@ -11,7 +11,7 @@ import { SideDrawer } from '@/components/SideDrawer'
 import { StatusChip } from '@/components/StatusChip'
 import { Tooltip } from '@/components/Tooltip'
 import { WizardFooter } from '@/components/WizardFooter'
-import { formatDateTime } from '@/lib/format'
+import { formatDateTime, formatDay } from '@/lib/format'
 import { screenById, studyPath } from '@/routes/screens'
 import {
   allQuestions,
@@ -129,7 +129,7 @@ export function GuideEditor() {
   // Draft on a study with a client: the next step is sharing, not approving.
   const needsShare = hasClient && doc.status === 'Draft' && !clientEvent
   const shareWithClient = () => setSharing(true)
-  const shortDate = (iso: string) => new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/New_York' })
+  const shortDate = formatDay
   const guideBlockers = approvalBlockers(doc, false)
   const footerMessage =
     doc.status === 'Approved' ? (

@@ -8,30 +8,33 @@ import { EmptyState } from '@/components/States'
 import { StatusChip } from '@/components/StatusChip'
 import { Table, type Column } from '@/components/Table'
 import { screenById, studyPath } from '@/routes/screens'
-import { moderatorName, needsAttention, type Session } from '@/state/fieldwork'
+import { moderatorName, sessionCountOf, type Session } from '@/state/fieldwork'
+import { needsYou } from '@/state/monitor'
+import { SessionTag } from '../SessionTag'
 import { slotText, type FWProps } from './FieldworkBits'
 
-type Filter = 'All' | 'In progress' | 'Completed' | 'Needs attention' | 'Not started' | 'Has open issues'
-const FILTERS: Filter[] = ['All', 'In progress', 'Completed', 'Needs attention', 'Not started', 'Has open issues']
-const match: Record<Filter, (s: Session) => boolean> = {
+type Filter = 'All' | 'In progress' | 'Completed' | 'Needs you' | 'Not started' | 'Has open issues'
+const FILTERS: Filter[] = ['All', 'In progress', 'Completed', 'Needs you', 'Not started', 'Has open issues']
+const match: Record<Exclude<Filter, 'Needs you'>, (s: Session) => boolean> = {
   All: () => true,
   'In progress': (s) => s.status === 'Active' || s.status === 'Paused',
   Completed: (s) => s.status === 'Completed',
-  'Needs attention': needsAttention,
   'Not started': (s) => s.status === 'Not started' || s.status === 'Booked',
   'Has open issues': (s) => s.issues.some((i) => i.status === 'Open'),
 }
 
-export function SessionsTab({ doc, studyId }: FWProps) {
+export function SessionsTab({ doc, studyId, reserve }: FWProps) {
   const navigate = useNavigate()
   const [filter, setFilter] = useState<Filter>('All')
   const [q, setQ] = useState('')
-  const rows = doc.sessions.filter((s) => match[filter](s) && (!q.trim() || [s.id, s.ref, s.cohort ?? '', s.region ?? ''].some((x) => x.toLowerCase().includes(q.trim().toLowerCase()))))
+  const needing = new Set(needsYou(doc, reserve).map((r) => r.session.id))
+  const test = (s: Session) => (filter === 'Needs you' ? needing.has(s.id) : match[filter](s))
+  const rows = doc.sessions.filter((s) => test(s) && (!q.trim() || [s.id, s.participantId, s.ref, s.cohort ?? '', s.region ?? ''].some((x) => x.toLowerCase().includes(q.trim().toLowerCase()))))
   const open = (s: Session) => navigate(studyPath(studyId, { ...screenById.R19, path: screenById.R19.path.replace(':sessionId', s.id) }))
 
   const columns: Column<Session>[] = [
-    { key: 'id', header: 'Session', cell: (s) => <span className="font-medium whitespace-nowrap tabular-nums">{s.id}</span> },
-    { key: 'ref', header: 'Participant', cell: (s) => <span className="whitespace-nowrap tabular-nums">{s.ref}</span> },
+    { key: 'id', header: 'Participant', cell: (s) => <SessionTag className="font-medium" participantId={s.participantId} no={s.no} count={sessionCountOf(doc, s)} /> },
+    { key: 'ref', header: 'Contact', cell: (s) => <span className="whitespace-nowrap tabular-nums">{s.ref}</span> },
     { key: 'cohort', header: 'Segment', cell: (s) => (<span className="whitespace-nowrap">{s.cohort ?? <span className="text-muted">None</span>}{s.reserve && <span className="ml-2 text-xs text-graphite">Reserve</span>}</span>) },
     { key: 'region', header: 'Region', cell: (s) => s.region ?? <span className="text-muted">Unknown</span> },
     { key: 'mode', header: 'Moderator', cell: (s) => <span className="whitespace-nowrap">{moderatorName(s.moderatorId)}</span> },
@@ -50,7 +53,7 @@ export function SessionsTab({ doc, studyId }: FWProps) {
         <div className="flex flex-wrap items-center gap-2">
           <span className="flex h-8 items-center gap-2 rounded-sm border border-mist-strong bg-surface px-2 focus-within:border-iris-600">
             <SearchIcon size={14} className="text-graphite" />
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search session, participant, region" aria-label="Search sessions" className="w-52 bg-transparent text-sm outline-none" />
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search participant, contact, region" aria-label="Search sessions" className="w-52 bg-transparent text-sm outline-none" />
           </span>
           <label className="flex items-center gap-2 text-sm">
             <span className="text-graphite">Show</span>

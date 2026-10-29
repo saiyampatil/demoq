@@ -1,3 +1,4 @@
+import { setStudyTimeZone } from '@/lib/timeZone'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router'
 import { Button } from '@/components/Button'
@@ -12,7 +13,9 @@ import { Table, type Column } from '@/components/Table'
 import { formatDate } from '@/lib/format'
 import type { ClientReviewSummary, StudyRecord } from '@/mock/types'
 import { screenById, steps, studyPath } from '@/routes/screens'
+import { progress } from '@/state/fieldwork'
 import { useStudies } from '@/state/StudyContext'
+import { outcomesOf, reviewList } from '@/state/studySessions'
 import { landingStep } from '@/state/workflow'
 import { ScreenTag } from '../shared/ScreenTag'
 
@@ -37,7 +40,9 @@ function ClientLine({ review }: { review: ClientReviewSummary }) {
   return <span className={cn('text-xs whitespace-nowrap', tone)}>{text}</span>
 }
 
-const columns: Column<StudyRecord>[] = [
+type StudyProgress = { confirmed: number; pending: number }
+
+const makeColumns = (progressOf: (s: StudyRecord) => StudyProgress | undefined): Column<StudyRecord>[] => [
   {
     key: 'study',
     header: 'Study',
@@ -68,14 +73,25 @@ const columns: Column<StudyRecord>[] = [
     key: 'interviews',
     header: 'Interviews',
     align: 'right',
-    cell: (s) =>
-      s.targetCompletes ? (
+    cell: (s) => {
+      const p = progressOf(s)
+      // Two numbers wherever progress appears: confirmed (Accepted) and pending (Under review).
+      return s.targetCompletes ? (
         <span className="whitespace-nowrap tabular-nums">
-          {s.completedSessions} <span className="text-graphite">of {s.targetCompletes}</span>
+          {p ? (
+            <>
+              {p.confirmed} confirmed, {p.pending} pending <span className="text-graphite">of {s.targetCompletes}</span>
+            </>
+          ) : (
+            <>
+              {s.completedSessions} <span className="text-graphite">of {s.targetCompletes}</span>
+            </>
+          )}
         </span>
       ) : (
         <span className="text-muted">Not set</span>
-      ),
+      )
+    },
   },
   {
     key: 'updated',
@@ -86,7 +102,19 @@ const columns: Column<StudyRecord>[] = [
 ]
 
 export function StudiesDashboard() {
-  const { studies } = useStudies()
+  // Outside a study the default zone applies.
+  setStudyTimeZone()
+  const { studies, getFieldwork } = useStudies()
+  const columns = useMemo(
+    () =>
+      makeColumns((s) => {
+        const fw = getFieldwork(s.id)
+        if (!fw) return undefined
+        const p = progress(fw, outcomesOf(reviewList(fw)))
+        return { confirmed: p.confirmed, pending: p.pending }
+      }),
+    [getFieldwork],
+  )
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
   const [filter, setFilter] = useState<Filter>('all')

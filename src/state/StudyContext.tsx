@@ -9,6 +9,7 @@ import type { StudyRecord } from '@/mock/types'
 import { audienceSummary, emptySourcing, type AudienceDoc } from './audience'
 import { briefSummary, now, type BriefDoc } from './brief'
 import { guideSummary, type GuideDoc } from './guide'
+import { DEFAULT_TIME_ZONE } from '@/lib/timeZone'
 import { generateFieldwork, SESSION_SEED, type FieldworkDoc } from './fieldwork'
 import { compileStudyPlan, emptyLaunchDoc, readiness, type LaunchDoc } from './launch'
 
@@ -175,6 +176,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       interviewLanguage: 'Not set',
       targetCompletes: 0,
       completedSessions: 0,
+      timeZone: DEFAULT_TIME_ZONE,
       updatedAt: now(),
       status: 'Not Ready',
       brief: { status: null, version: 0 },

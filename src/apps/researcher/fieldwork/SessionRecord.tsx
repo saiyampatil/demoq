@@ -1,4 +1,4 @@
-import { Link, useParams } from 'react-router'
+import { Link, Navigate, useParams, useSearchParams } from 'react-router'
 import { AIGeneratedTag } from '@/components/AIGenerated'
 import { Breadcrumb } from '@/components/Breadcrumb'
 import { Button } from '@/components/Button'
@@ -9,21 +9,28 @@ import { StatusChip } from '@/components/StatusChip'
 import { Tooltip } from '@/components/Tooltip'
 import { formatStamp } from '@/lib/format'
 import { screenById, studyPath } from '@/routes/screens'
-import { ISSUE_META, moderatorName } from '@/state/fieldwork'
+import { ISSUE_META, moderatorName, resolveSession, sessionCountOf, sessionsOfParticipant } from '@/state/fieldwork'
 import { PageHeader } from '../../shared/PageHeader'
 import { FieldworkGate, slotText } from './FieldworkBits'
+import { Banner } from '@/components/Banner'
 import { SampleDataBanner } from '../SampleDataBanner'
+import { sessionText } from '../SessionTag'
 import { useStudySessions } from '../useStudySessions'
 
 export function SessionRecord() {
   const { sessionId = '' } = useParams()
+  const [params] = useSearchParams()
   const { studyId, study, editable, doc, review, preview } = useStudySessions()
   if (!editable || !study || !doc) return <FieldworkGate studyId={studyId} editable={editable} />
   const back = { to: studyPath(studyId, screenById.R18), label: 'Fieldwork command center' }
-  const s = doc.sessions.find((x) => x.id === sessionId)
+  const found = resolveSession(doc, sessionId)
+  // A participant ID with no session number means their latest session. Send it to the canonical address.
+  if (found && !found.exact) return <Navigate replace to={`${studyPath(studyId, { ...screenById.R19, path: screenById.R19.path.replace(':sessionId', found.session.id) })}${params.toString() ? `?${params}` : ''}`} />
+  const s = found?.session
+  const count = s ? sessionCountOf(doc, s) : 1
   const crumbs = (
     <>
-      <Breadcrumb parent={back} current={sessionId} className="-mb-2" />
+      <Breadcrumb parent={back} current={s ? sessionText(s.participantId, s.no, count) : sessionId} className="-mb-2" />
       {preview && <SampleDataBanner studyId={studyId} />}
     </>
   )
@@ -46,10 +53,11 @@ export function SessionRecord() {
       {crumbs}
       <PageHeader
         id="R19"
-        title={`Session ${s.id}`}
+        title={`Session ${s.participantId}`}
         description={`${s.ref}${s.cohort ? `, ${s.cohort}` : ''}${s.reserve ? ' (reserve)' : ''}`}
         meta={
           <>
+            {count > 1 && <span className="font-medium text-ink">Session {s.no} of {count}</span>}
             <StatusChip status={s.access} size="sm" />
             <StatusChip status={s.status} size="sm" />
             <span>{s.mode === 'ai' ? moderatorName(null) : `Human: ${moderatorName(s.moderatorId)}`}</span>
@@ -68,6 +76,12 @@ export function SessionRecord() {
         }
       />
 
+      {params.get('from') === 'review' && (
+        <Banner tone="info" title="Still in fieldwork, not ready for review.">
+          {s.participantId} {count > 1 ? `has an unfinished session ${s.no}` : 'hasn’t finished the interview'}. It reaches the review queue once the interview is completed.
+        </Banner>
+      )}
+
       {reviewed ? (
         <p className="flex flex-wrap items-center gap-2 text-sm text-graphite">
           This session has ended and is in Review: <StatusChip status={reviewed.status} size="sm" />
@@ -80,12 +94,33 @@ export function SessionRecord() {
         <p className="text-sm text-graphite">This session is still in fieldwork. It moves to Review when the interview is completed.</p>
       )}
 
+      {count > 1 && (
+        <Card title={`All sessions for ${s.participantId}`} description="A participant keeps one ID. Each time they come back (a retry, a resume, a new slot) it’s a new session.">
+          <ol className="flex flex-col divide-y divide-mist">
+            {sessionsOfParticipant(doc, s.participantId).map((x) => (
+              <li key={x.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 first:pt-0 last:pb-0">
+                <span className="w-24 text-sm font-medium tabular-nums">Session {x.no} of {count}</span>
+                <StatusChip status={x.status} size="sm" />
+                <span className="min-w-0 flex-1 text-sm text-graphite">{x.durationMin ? `${x.durationMin} min. ` : ''}{slotText(x.startedAt ?? x.slot ?? x.events[0]?.at ?? null)}</span>
+                {x.id === s.id ? (
+                  <span className="text-xs text-graphite">This session</span>
+                ) : (
+                  <Link to={studyPath(studyId, { ...screenById.R19, path: screenById.R19.path.replace(':sessionId', x.id) })} className="text-sm font-medium text-iris-700 hover:underline">
+                    Open session {x.no}
+                  </Link>
+                )}
+              </li>
+            ))}
+          </ol>
+        </Card>
+      )}
+
       <div className="grid gap-6 lg:grid-cols-2">
         <Card title="Timeline">
           <ol className="flex flex-col gap-2.5">
             {s.events.map((e) => (
               <li key={e.id} className="flex gap-3 text-sm">
-                <span className="w-28 shrink-0 text-graphite tabular-nums">{slotText(e.at)}</span>
+                <span className="w-40 shrink-0 text-graphite tabular-nums">{slotText(e.at)}</span>
                 <span>{e.text}</span>
               </li>
             ))}
