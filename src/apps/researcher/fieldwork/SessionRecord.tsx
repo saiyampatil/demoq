@@ -1,0 +1,158 @@
+import { useParams } from 'react-router'
+import { AIGeneratedTag } from '@/components/AIGenerated'
+import { Button } from '@/components/Button'
+import { Card } from '@/components/Card'
+import { CheckIcon, CloseIcon } from '@/components/icons'
+import { EmptyState } from '@/components/States'
+import { StatusChip } from '@/components/StatusChip'
+import { Tooltip } from '@/components/Tooltip'
+import { WizardFooter } from '@/components/WizardFooter'
+import { formatDateTime } from '@/lib/format'
+import { screenById, studyPath } from '@/routes/screens'
+import { moderatorName } from '@/state/fieldwork'
+import { PageHeader } from '../../shared/PageHeader'
+import { FieldworkGate, slotText } from './FieldworkBits'
+import { useFieldwork } from './useFieldwork'
+
+export function SessionRecord() {
+  const { sessionId = '' } = useParams()
+  const { studyId, study, editable, doc } = useFieldwork()
+  if (!editable || !study || !doc) return <FieldworkGate studyId={studyId} editable={editable} />
+  const back = { to: studyPath(studyId, screenById.R18), label: 'Command center' }
+  const s = doc.sessions.find((x) => x.id === sessionId)
+  if (!s)
+    return (
+      <div className="flex flex-col gap-6">
+        <div className="rounded-md border border-dashed border-mist-strong bg-surface">
+          <EmptyState title="Session not found" description={`There’s no session “${sessionId}” in this study.`} action={<Button to={back.to}>Back to command center</Button>} />
+        </div>
+      </div>
+    )
+
+  const target = doc.plan.durationMin
+  const mandatory = doc.plan.mandatoryCount
+
+  return (
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        id="R19"
+        title={`Session ${s.id}`}
+        description={`${s.ref}${s.cohort ? `, ${s.cohort}` : ''}${s.reserve ? ' (reserve)' : ''}`}
+        meta={
+          <>
+            <StatusChip status={s.access} size="sm" />
+            <StatusChip status={s.status} size="sm" />
+            <span>{s.mode === 'ai' ? 'AI moderator' : `Human: ${moderatorName(s.moderatorId)}`}</span>
+            <span>{doc.releaseVersion}, guide v{doc.plan.guideVersion}</span>
+            {s.slot && <span>Slot {slotText(s.slot)}</span>}
+          </>
+        }
+        actions={
+          s.mode === 'human' ? (
+            <Tooltip content="Rescheduling (4.7) isn’t built in the prototype yet.">
+              <Button disabled>Reschedule</Button>
+            </Tooltip>
+          ) : undefined
+        }
+      />
+
+      <p className="flex flex-wrap items-center gap-2 text-sm text-graphite">
+        Review: <StatusChip status="Under review" size="sm" />
+        <span>Completed means the interview ended. It doesn’t mean the session is accepted. That decision is made in Review.</span>
+      </p>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card title="Timeline">
+          <ol className="flex flex-col gap-2.5">
+            {s.events.map((e) => (
+              <li key={e.id} className="flex gap-3 text-sm">
+                <span className="w-28 shrink-0 text-graphite tabular-nums">{slotText(e.at)}</span>
+                <span>{e.text}</span>
+              </li>
+            ))}
+          </ol>
+        </Card>
+
+        <div className="flex flex-col gap-6">
+          <Card title="Coverage and duration">
+            <dl className="grid gap-3 text-sm sm:grid-cols-2">
+              <div>
+                <dt className="text-graphite">Mandatory questions covered</dt>
+                <dd className="font-medium tabular-nums">{s.covered.length} of {mandatory}</dd>
+              </div>
+              <div>
+                <dt className="text-graphite">Duration against target</dt>
+                <dd className="font-medium tabular-nums">{s.durationMin !== null ? `${s.durationMin} min, target ${target}` : `In progress or not started, target ${target}`}</dd>
+              </div>
+            </dl>
+          </Card>
+
+          <Card title="Stimuli" description="A stimulus that failed to load counts as not seen.">
+            {s.stimuli.length === 0 ? (
+              <p className="text-sm text-graphite">None shown yet.</p>
+            ) : (
+              <ul className="flex flex-col gap-1.5 text-sm">
+                {s.stimuli.map((x) => (
+                  <li key={x.name} className="flex items-center gap-2">
+                    {x.result === 'Shown' ? <CheckIcon size={14} className="text-positive-fg" /> : x.result === 'Failed to load' ? <CloseIcon size={14} className="text-negative-fg" /> : <span className="size-3.5" />}
+                    <span className="flex-1">{x.name}</span>
+                    <span className={x.result === 'Failed to load' ? 'font-medium text-negative-fg' : 'text-graphite'}>{x.result === 'Failed to load' ? 'Failed to load, not seen' : x.result}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
+
+          <Card title="Survey answers" description="Locked once recorded. Follow-up probes never change them.">
+            {s.answers.length === 0 ? (
+              <p className="text-sm text-graphite">No survey answers recorded.</p>
+            ) : (
+              <dl className="flex flex-col divide-y divide-mist">
+                {s.answers.map((a) => (
+                  <div key={a.questionId} className="py-2 first:pt-0 last:pb-0">
+                    <dt className="text-sm text-graphite">{a.question}</dt>
+                    <dd className="font-medium">{a.answer} <span className="text-xs font-normal text-graphite">Locked {formatDateTime(a.lockedAt)}</span></dd>
+                  </div>
+                ))}
+              </dl>
+            )}
+          </Card>
+        </div>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card title="Transcript excerpt" actions={s.mode === 'ai' ? <AIGeneratedTag /> : undefined}>
+          {s.transcript.length === 0 ? (
+            <p className="text-sm text-graphite">No transcript yet.</p>
+          ) : (
+            <ul className="flex flex-col gap-3">
+              {s.transcript.map((t, i) => (
+                <li key={i} className="text-sm">
+                  <p className="text-xs text-graphite">{t.speaker}</p>
+                  <p className={t.speaker === 'Participant' ? 'font-serif text-quote' : ''}>{t.text}</p>
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="mt-3 text-xs text-graphite">An excerpt. The recording isn’t part of this prototype.</p>
+        </Card>
+
+        <Card title="Moderator notes">
+          {s.notes ? (
+            <dl className="flex flex-col gap-3 text-sm">
+              <div><dt className="text-graphite">Key takeaways</dt><dd>{s.notes.takeaways}</dd></div>
+              <div><dt className="text-graphite">Guide friction</dt><dd>{s.notes.friction}</dd></div>
+              <div><dt className="text-graphite">Missing coverage</dt><dd>{s.notes.missing}</dd></div>
+              <div><dt className="text-graphite">Recontact</dt><dd>{s.notes.recontact}{s.notes.recontactNote ? `. ${s.notes.recontactNote}` : ''}</dd></div>
+              <p className="text-xs text-graphite">{s.notes.by}, {formatDateTime(s.notes.at)}</p>
+            </dl>
+          ) : (
+            <p className="text-sm text-graphite">{s.mode === 'ai' ? 'AI-led sessions have no moderator notes.' : 'The moderator hasn’t submitted notes yet.'}</p>
+          )}
+        </Card>
+      </div>
+
+      <WizardFooter previous={back} />
+    </div>
+  )
+}

@@ -9,7 +9,8 @@ import type { StudyRecord } from '@/mock/types'
 import { audienceSummary, emptySourcing, type AudienceDoc } from './audience'
 import { briefSummary, now, type BriefDoc } from './brief'
 import { guideSummary, type GuideDoc } from './guide'
-import { emptyLaunchDoc, readiness, type LaunchDoc } from './launch'
+import { generateFieldwork, type FieldworkDoc } from './fieldwork'
+import { compileStudyPlan, emptyLaunchDoc, readiness, type LaunchDoc } from './launch'
 
 const STORAGE_KEY = 'pulseai-qual:v2'
 
@@ -22,6 +23,7 @@ type Persisted = {
   audiences: Record<string, AudienceDoc>
   guides: Record<string, GuideDoc>
   launches: Record<string, LaunchDoc>
+  fieldworks: Record<string, FieldworkDoc>
 }
 
 type StudyContextValue = {
@@ -41,6 +43,11 @@ type StudyContextValue = {
   updateGuide: (id: string, fn: (doc: GuideDoc) => GuideDoc) => void
   getLaunch: (id: string | undefined) => LaunchDoc | undefined
   updateLaunch: (id: string, fn: (doc: LaunchDoc) => LaunchDoc) => void
+  fieldworks: Record<string, FieldworkDoc>
+  getFieldwork: (id: string | undefined) => FieldworkDoc | undefined
+  updateFieldwork: (id: string, fn: (doc: FieldworkDoc) => FieldworkDoc) => void
+  /** Dev only: switches the seed study between an AI and a human moderator. */
+  devSetModerator: (mode: 'ai' | 'human') => void
   stage: StagePresetKey
   setStage: (stage: StagePresetKey) => void
   resetSeed: () => void
@@ -48,9 +55,9 @@ type StudyContextValue = {
 
 const StudyContext = createContext<StudyContextValue | null>(null)
 
-function seedStage(stage: StagePresetKey): Pick<Persisted, 'stage' | 'moisturizer' | 'briefs' | 'audiences' | 'guides' | 'launches'> {
+function seedStage(stage: StagePresetKey): Pick<Persisted, 'stage' | 'moisturizer' | 'briefs' | 'audiences' | 'guides' | 'launches' | 'fieldworks'> {
   const moisturizer = presetStudy(stage)
-  if (stage === 'new') return { stage, moisturizer, briefs: {}, audiences: {}, guides: {}, launches: {} }
+  if (stage === 'new') return { stage, moisturizer, briefs: {}, audiences: {}, guides: {}, launches: {}, fieldworks: {} }
   const brief = seedApprovedBrief(MOISTURIZER_ID)
   const launchStage = stage === 'ready' || stage === 'ready-media-issue' || stage === 'compile-error' || stage === 'live'
   const audience = stage === 'brief-approved' ? seedDraftAudience(MOISTURIZER_ID, brief) : launchStage ? seedAudienceWithPool(MOISTURIZER_ID) : seedConfirmedAudience(MOISTURIZER_ID)
@@ -64,6 +71,11 @@ function seedStage(stage: StagePresetKey): Pick<Persisted, 'stage' | 'moisturize
           : stage === 'compile-error'
             ? seedGuideDoc(MOISTURIZER_ID, brief, 'approved', 'compile-error')
             : undefined
+  const plan = guide ? compileStudyPlan(guide) : undefined
+  const fieldwork =
+    stage === 'live' && guide && audience && plan?.state === 'ok'
+      ? generateFieldwork({ studyId: MOISTURIZER_ID, audience, guide, plan: plan.plan, releaseNumber: 1, releaseVersion: 'Release 1', prefix: 'S-' })
+      : undefined
   const launch = launchStage ? seedLaunchDoc(MOISTURIZER_ID, stage === 'live' ? 'live' : 'ready', moisturizer.client) : undefined
   return {
     stage,
@@ -72,6 +84,7 @@ function seedStage(stage: StagePresetKey): Pick<Persisted, 'stage' | 'moisturize
     audiences: audience ? { [MOISTURIZER_ID]: audience } : {},
     guides: guide ? { [MOISTURIZER_ID]: guide } : {},
     launches: launch ? { [MOISTURIZER_ID]: launch } : {},
+    fieldworks: fieldwork ? { [MOISTURIZER_ID]: fieldwork } : {},
   }
 }
 
@@ -89,7 +102,7 @@ function load(): Persisted {
         const audiences = Object.fromEntries(
           Object.entries(parsed.audiences ?? {}).map(([id, doc]) => [id, Array.isArray(doc.sourcing?.candidates) ? doc : { ...doc, sourcing: emptySourcing() }]),
         )
-        return { ...parsed, briefs, audiences, guides: parsed.guides ?? {}, launches: parsed.launches ?? {} }
+        return { ...parsed, briefs, audiences, guides: parsed.guides ?? {}, launches: parsed.launches ?? {}, fieldworks: parsed.fieldworks ?? {} }
       }
     }
   } catch {
@@ -126,12 +139,14 @@ export function StudyProvider({ children }: { children: ReactNode }) {
         const { [MOISTURIZER_ID]: _seedAudience, ...otherAudiences } = prev.audiences
         const { [MOISTURIZER_ID]: _seedGuide, ...otherGuides } = prev.guides
         const { [MOISTURIZER_ID]: _seedLaunch, ...otherLaunches } = prev.launches
+        const { [MOISTURIZER_ID]: _seedFieldwork, ...otherFieldworks } = prev.fieldworks
         void _seedBrief
         void _seedAudience
         void _seedGuide
         void _seedLaunch
+        void _seedFieldwork
         const next = seedStage(stage)
-        return { ...prev, ...next, briefs: { ...otherBriefs, ...next.briefs }, audiences: { ...otherAudiences, ...next.audiences }, guides: { ...otherGuides, ...next.guides }, launches: { ...otherLaunches, ...next.launches } }
+        return { ...prev, ...next, briefs: { ...otherBriefs, ...next.briefs }, audiences: { ...otherAudiences, ...next.audiences }, guides: { ...otherGuides, ...next.guides }, launches: { ...otherLaunches, ...next.launches }, fieldworks: { ...otherFieldworks, ...next.fieldworks } }
       }),
     [],
   )
@@ -217,7 +232,57 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       // Authorizing locks a release and sets the study Live.
       const newRelease = doc.release && doc.release.at !== prev.launches[id]?.release?.at
       const sync = (s: StudyRecord): StudyRecord => (s.id === id ? { ...s, status: newRelease ? 'Live' : s.status, releaseVersion: newRelease ? doc.release!.version : s.releaseVersion, updatedAt: now() } : s)
-      return { ...prev, launches: { ...prev.launches, [id]: doc }, moisturizer: sync(prev.moisturizer), created: prev.created.map(sync) }
+      // A new release starts fieldwork. Earlier sessions stay tied to the release they ran on.
+      let fieldworks = prev.fieldworks
+      if (newRelease) {
+        const guide = prev.guides[id]
+        const audience = prev.audiences[id]
+        const plan = compileStudyPlan(guide)
+        const existing = prev.fieldworks[id]
+        if (existing) fieldworks = { ...fieldworks, [id]: { ...existing, releaseNumber: doc.release!.number, releaseVersion: doc.release!.version, paused: null, ...(plan.state === 'ok' ? { plan: plan.plan } : {}) } }
+        else if (guide && audience && plan.state === 'ok')
+          fieldworks = { ...fieldworks, [id]: generateFieldwork({ studyId: id, audience, guide, plan: plan.plan, releaseNumber: doc.release!.number, releaseVersion: doc.release!.version, prefix: id === MOISTURIZER_ID ? 'S-' : `S-${id.slice(-4)}-` }) }
+      }
+      return { ...prev, launches: { ...prev.launches, [id]: doc }, fieldworks, moisturizer: sync(prev.moisturizer), created: prev.created.map(sync) }
+    })
+  }, [])
+  const writeFieldwork = useCallback((id: string, fn: (doc: FieldworkDoc | undefined) => FieldworkDoc) => {
+    setState((prev) => {
+      const before = prev.fieldworks[id]
+      const doc = fn(before)
+      const paused = !before?.paused && !!doc.paused
+      const resumed = !!before?.paused && !doc.paused
+      const completed = doc.sessions.filter((x) => x.status === 'Completed').length
+      const sync = (s: StudyRecord): StudyRecord => (s.id === id ? { ...s, completedSessions: completed, status: paused ? 'Paused' : resumed ? 'Live' : s.status, updatedAt: now() } : s)
+      return { ...prev, fieldworks: { ...prev.fieldworks, [id]: doc }, moisturizer: sync(prev.moisturizer), created: prev.created.map(sync) }
+    })
+  }, [])
+  const updateFieldwork = useCallback(
+    (id: string, fn: (doc: FieldworkDoc) => FieldworkDoc) =>
+      writeFieldwork(id, (doc) => {
+        if (!doc) throw new Error(`No fieldwork for study ${id}`)
+        return fn(doc)
+      }),
+    [writeFieldwork],
+  )
+  const devSetModerator = useCallback((mode: 'ai' | 'human') => {
+    setState((prev) => {
+      const guide = prev.guides[MOISTURIZER_ID]
+      if (!guide) return prev
+      const next: GuideDoc = {
+        ...guide,
+        moderator: { ...guide.moderator, mode, agentId: mode === 'ai' ? 'ava' : null, style: mode === 'ai' ? 'warm' : null, humanIds: mode === 'human' ? ['u-jordan', 'u-priya'] : [] },
+      }
+      const plan = compileStudyPlan(next)
+      const old = prev.fieldworks[MOISTURIZER_ID]
+      const audience = prev.audiences[MOISTURIZER_ID]
+      const fieldwork = old && audience && plan.state === 'ok' ? { ...generateFieldwork({ studyId: MOISTURIZER_ID, audience, guide: next, plan: plan.plan, releaseNumber: old.releaseNumber, releaseVersion: old.releaseVersion, prefix: 'S-' }), paused: old.paused, log: old.log } : old
+      return {
+        ...prev,
+        guides: { ...prev.guides, [MOISTURIZER_ID]: next },
+        fieldworks: fieldwork ? { ...prev.fieldworks, [MOISTURIZER_ID]: fieldwork } : prev.fieldworks,
+        moisturizer: { ...prev.moisturizer, moderatorType: mode === 'ai' ? 'AI-led' : 'Human-led' },
+      }
     })
   }, [])
   const updateLaunch = useCallback(
@@ -260,11 +325,15 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       updateGuide,
       getLaunch: (id) => (id ? state.launches[id] : undefined),
       updateLaunch,
+      fieldworks: state.fieldworks,
+      getFieldwork: (id) => (id ? state.fieldworks[id] : undefined),
+      updateFieldwork,
+      devSetModerator,
       stage: state.stage,
       setStage,
       resetSeed,
     }
-  }, [state, createStudy, setBrief, updateBrief, setAudience, updateAudience, setGuide, updateGuide, updateLaunch, setStage, resetSeed])
+  }, [state, createStudy, setBrief, updateBrief, setAudience, updateAudience, setGuide, updateGuide, updateLaunch, updateFieldwork, devSetModerator, setStage, resetSeed])
 
   return <StudyContext.Provider value={value}>{children}</StudyContext.Provider>
 }

@@ -50,6 +50,9 @@ PRD gaps and conflicts found while building. Each entry says what the prototype 
 | 44 | 4 | Editing the guide, stimuli or moderator setup on a Live study. | It pauses the study (PRD: pause, new version, approval). After approval the study is relaunched as the next release through R15 to R17, and the earlier release stays on record. | Prototype decision |
 | 45 | 4 | Fixing a stimulus that fails to render. | Replacing the file is an edit to the active set, so it creates a new guide version that needs re-approval (the PRD loop). Override avoids it for a non-critical check. | Resolved with the product owner |
 | 46 | 4 | R16 Run is simulated from the compiled plan. | `startTestRun` in `state/testRunner.ts` is the single hook. Phase 5 changes it to open the participant interview (P14) in Test mode. | Hook for Phase 5 |
+| 47 | 7 | The session vocabulary has no status for a booked slot that hasn't started, or for an invitee who hasn't started. | R18/R19 show "Booked" and "Not started", added to the session vocabulary. | Open: confirm names |
+| 48 | 7 | Phase order changed by the product owner: the participant interview (Phase 5) is deferred. Fieldwork runs on mock sessions built from the confirmed pool. | R18 and R19 read mock session records. A new release keeps earlier sessions tied to the release they ran on; no new sessions are simulated for it. | Prototype decision |
+| 49 | 7 | Reschedule (4.7) on R19. | A disabled button with an explanation. Pause and resume are built; each logs a required reason, who and when. | Open: 4.7 rules |
 
 ## Future ideas (not built)
 

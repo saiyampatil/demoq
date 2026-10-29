@@ -8,6 +8,8 @@ export const vocabularies = {
   study: ['Not Ready', 'Ready to Launch', 'Live', 'Paused', 'Terminated', 'Complete'],
   access: ['Invited', 'Opened', 'Consented', 'No-show'],
   session: [
+    'Not started',
+    'Booked',
     'Active',
     'Paused',
     'Incomplete (resumable)',
@@ -70,6 +72,7 @@ export const statusFamily: Record<Status, StatusFamily> = {
   Paused: 'pending',
   'Under review': 'pending',
   Rescheduled: 'pending',
+  Booked: 'pending',
   Sent: 'pending',
 
   Live: 'progress',

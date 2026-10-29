@@ -7,6 +7,8 @@ import { ParticipantShell } from '@/apps/participant/ParticipantShell'
 import { AudienceDefinition } from '@/apps/researcher/audience/AudienceDefinition'
 import { ScreenerEditor } from '@/apps/researcher/audience/ScreenerEditor'
 import { ScreeningDashboard } from './apps/researcher/audience/ScreeningDashboard'
+import { CommandCenter } from '@/apps/researcher/fieldwork/CommandCenter'
+import { SessionRecord } from '@/apps/researcher/fieldwork/SessionRecord'
 import { LaunchReadiness } from '@/apps/researcher/launch/LaunchReadiness'
 import { PreflightLaunch } from '@/apps/researcher/launch/PreflightLaunch'
 import { TestRuns } from '@/apps/researcher/launch/TestRuns'
@@ -53,6 +55,8 @@ const builtResearcher: Record<string, ReactNode> = {
   R15: <LaunchReadiness />,
   R16: <TestRuns />,
   R17: <PreflightLaunch />,
+  R18: <CommandCenter />,
+  R19: <SessionRecord />,
 }
 
 function Root() {
