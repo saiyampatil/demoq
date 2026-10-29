@@ -6,6 +6,7 @@ export const featureDefaults = {
   readinessPanel: true,
   assumptionLedger: true,
   aiDraftDiff: true,
+  proofRequired: true,
 }
 
 export type FeatureKey = keyof typeof featureDefaults
@@ -14,6 +15,7 @@ export const featureInfo: Record<FeatureKey, { label: string; description: strin
   readinessPanel: { label: 'Readiness panel', description: 'R4: explains each blocker and what every section feeds.' },
   assumptionLedger: { label: 'Assumption ledger', description: 'R4 and R5: every skipped item and accepted assumption in one list.' },
   aiDraftDiff: { label: 'AI draft vs your edit', description: 'R4: compare an AI section with the original AI text.' },
+  proofRequired: { label: 'Study requires proof of purchase', description: 'Mock study setting. R10 shows a proof thumbnail, or “No proof required for this study” when off.' },
 }
 
 const STORAGE_KEY = 'pulseai-qual:features'

@@ -5,22 +5,23 @@ import { Button } from '@/components/Button'
 import { Card } from '@/components/Card'
 import { controlBase } from '@/components/Field'
 import { EmptyState } from '@/components/States'
-import { SideDrawer } from '@/components/SideDrawer'
 import { StatusChip } from '@/components/StatusChip'
 import { Table, type Column } from '@/components/Table'
+import { Tooltip } from '@/components/Tooltip'
 import { WizardFooter } from '@/components/WizardFooter'
-import { formatDate, formatDateTime } from '@/lib/format'
+import { formatDate } from '@/lib/format'
 import { screenById, studyPath } from '@/routes/screens'
 import { invitedCount } from '@/state/audience'
-import { cohortFill, mockApplicants, type Applicant, type ScreeningOutcome } from '@/state/screening'
+import { cohortFill, inPool, mockApplicants, type Applicant, type ScreeningOutcome } from '@/state/screening'
 import { PageHeader } from '../../shared/PageHeader'
+import { ApplicantDrawer } from './ApplicantDrawer'
 import { AudienceGate } from './AudienceGate'
 import { useAudience } from './useAudience'
 
 const OUTCOMES: ScreeningOutcome[] = ['Eligible', 'Ineligible', 'Needs Review', 'Reserve']
 
 export function ScreeningDashboard() {
-  const { studyId, audience, editable } = useAudience()
+  const { studyId, audience, editable, me, update } = useAudience()
   const [params, setParams] = useSearchParams()
   const [filter, setFilter] = useState<ScreeningOutcome | ''>('')
   const applicants = useMemo(() => (audience?.def ? mockApplicants(audience) : []), [audience])
@@ -28,10 +29,10 @@ export function ScreeningDashboard() {
   if (!editable || !audience?.def) return <AudienceGate studyId={studyId} editable={editable} />
 
   const invited = invitedCount(audience.sourcing)
-  const header = <PageHeader id="R9" title="Screening dashboard" description="Who has applied, how they screened, and whether they passed verification." />
+  const header = <PageHeader id="R9" title="Screening dashboard" description="The system marks each applicant from their screener answers. You resolve Needs Review and fix anything it got wrong." />
   const back = { to: studyPath(studyId, screenById.R8), label: 'Sourcing' }
 
-  if (invited === 0) {
+  if (invited === 0 || !audience.screener) {
     return (
       <div className="flex flex-col gap-6">
         {header}
@@ -52,17 +53,38 @@ export function ScreeningDashboard() {
   }
 
   const fill = cohortFill(applicants, audience)
+  const fullCohorts = new Set(fill.filter((f) => f.target !== null && f.eligible >= f.target).map((f) => f.id))
   const count = (o: ScreeningOutcome) => applicants.filter((a) => a.outcome === o).length
+  const needsReview = count('Needs Review')
+  const ready = applicants.filter(inPool).length
   const rows = filter ? applicants.filter((a) => a.outcome === filter) : applicants
   const open = applicants.find((a) => a.id === params.get('applicant'))
 
   const columns: Column<Applicant>[] = [
     { key: 'id', header: 'Applicant', cell: (a) => <span className="font-medium tabular-nums">{a.id}</span> },
-    { key: 'contact', header: 'Invited as', cell: (a) => <span className="tabular-nums">{a.contact}</span> },
+    { key: 'contact', header: 'Invited as', cell: (a) => <span className="whitespace-nowrap tabular-nums">{a.contact}</span> },
     { key: 'source', header: 'Source', cell: (a) => a.source },
     { key: 'cohort', header: 'Cohort', cell: (a) => a.cohort ?? <span className="text-muted">None</span> },
-    { key: 'outcome', header: 'Screening', cell: (a) => <StatusChip status={a.outcome} size="sm" /> },
-    { key: 'verification', header: 'Verification', cell: (a) => <StatusChip status={a.verification} size="sm" /> },
+    {
+      key: 'outcome',
+      header: 'Screening',
+      cell: (a) => (
+        <span className="flex items-center gap-2">
+          <StatusChip status={a.outcome} size="sm" />
+          {a.outcomeEdited && <span className="text-xs text-graphite">edited</span>}
+        </span>
+      ),
+    },
+    {
+      key: 'verification',
+      header: 'Verification',
+      cell: (a) => (
+        <span className="flex items-center gap-2">
+          <StatusChip status={a.verification} size="sm" />
+          {a.verificationEdited && <span className="text-xs text-graphite">edited</span>}
+        </span>
+      ),
+    },
     { key: 'at', header: 'Submitted', cell: (a) => <span className="whitespace-nowrap">{formatDate(a.submittedAt)}</span> },
   ]
 
@@ -71,8 +93,22 @@ export function ScreeningDashboard() {
       {header}
 
       <Banner tone="info" title={`${invited} invited, ${applicants.length} have answered the screener`}>
-        In the prototype, invitees are simulated as having accepted and answered. The results below are mock data.
+        In the prototype, invitees are simulated as having accepted and answered, and verification is simulated too. Outcomes come from the real rules, applied to mock answers.
       </Banner>
+
+      {needsReview > 0 && (
+        <Banner
+          tone="warning"
+          title={`${needsReview} ${needsReview === 1 ? 'applicant needs' : 'applicants need'} your action`}
+          actions={
+            <Button size="sm" onClick={() => setFilter('Needs Review')}>
+              Show Needs Review
+            </Button>
+          }
+        >
+          An answer was missing, contradictory or couldn’t be read, so the system didn’t guess. Open each one and decide.
+        </Banner>
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {OUTCOMES.map((o) => (
@@ -89,13 +125,13 @@ export function ScreeningDashboard() {
         ))}
       </div>
 
-      <Card title="Cohort fill" description="Eligible applicants against each cohort’s quota. Extra eligible people become Reserve.">
+      <Card title="Cohort fill" description="Eligible applicants against each cohort’s quota. Once a cohort is full, further eligible applicants go to Reserve.">
         <ul className="grid gap-3 md:grid-cols-2">
           {fill.map((f) => (
             <li key={f.id} className="rounded-sm border border-mist px-4 py-3">
               <p className="font-medium">{f.name}</p>
               <p className="tabular-nums">
-                <span className="text-lg font-semibold">{f.eligible}</span> / {f.target ?? 'not set'} eligible
+                <span className="text-lg font-semibold">{f.eligible}</span> of {f.target ?? 'not set'} eligible
                 <span className="ml-2 text-sm text-graphite">{f.reserve} in reserve</span>
               </p>
             </li>
@@ -107,15 +143,20 @@ export function ScreeningDashboard() {
         title="Applicants"
         flush
         actions={
-          <label className="flex items-center gap-2 text-sm">
-            <span className="text-graphite">Screening</span>
-            <select value={filter} onChange={(e) => setFilter(e.target.value as ScreeningOutcome | '')} className={`${controlBase} h-8 pr-7 text-sm`}>
-              <option value="">All</option>
-              {OUTCOMES.map((o) => (
-                <option key={o}>{o}</option>
-              ))}
-            </select>
-          </label>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button size="sm" variant={filter === 'Needs Review' ? 'primary' : 'secondary'} onClick={() => setFilter(filter === 'Needs Review' ? '' : 'Needs Review')}>
+              Needs Review ({needsReview})
+            </Button>
+            <label className="flex items-center gap-2 text-sm">
+              <span className="text-graphite">Screening</span>
+              <select value={filter} onChange={(e) => setFilter(e.target.value as ScreeningOutcome | '')} className={`${controlBase} h-8 pr-7 text-sm`}>
+                <option value="">All</option>
+                {OUTCOMES.map((o) => (
+                  <option key={o}>{o}</option>
+                ))}
+              </select>
+            </label>
+          </div>
         }
       >
         <Table
@@ -128,55 +169,24 @@ export function ScreeningDashboard() {
         />
       </Card>
 
-      <WizardFooter previous={back} message="Select an applicant to see their answers.">
-        <Button variant="primary" disabled title="Finalize pool is built in Phase 2b">
-          Continue to pool
-        </Button>
+      <WizardFooter
+        previous={back}
+        message={ready ? `${ready} ${ready === 1 ? 'applicant is' : 'applicants are'} Eligible and verified.` : 'Select an applicant to see their answers. You need at least one who is Eligible and has Passed verification.'}
+      >
+        {ready ? (
+          <Button variant="primary" to={studyPath(studyId, screenById.R11)}>
+            Continue to pool
+          </Button>
+        ) : (
+          <Tooltip focusable content="At least one applicant must be Eligible and have Passed verification.">
+            <Button variant="primary" disabled>
+              Continue to pool
+            </Button>
+          </Tooltip>
+        )}
       </WizardFooter>
 
-      <SideDrawer
-        open={!!open}
-        onClose={() => setParams({})}
-        title={open?.id ?? ''}
-        description={open ? `Invited as ${open.contact}, ${open.source}` : undefined}
-      >
-        {open && (
-          <div className="flex flex-col gap-5">
-            <div className="flex flex-wrap gap-2">
-              <StatusChip status={open.outcome} />
-              <StatusChip status={open.verification} />
-            </div>
-            <p className="text-sm">
-              <span className="font-medium">Why: </span>
-              {open.reason}
-            </p>
-            {open.cohort && (
-              <p className="text-sm">
-                <span className="font-medium">Cohort: </span>
-                {open.cohort}
-              </p>
-            )}
-            {open.lastResearch && (
-              <p className="text-sm">
-                <span className="font-medium">Last took part in research: </span>
-                {open.lastResearch} (panel history, mock)
-              </p>
-            )}
-            <p className="text-sm text-graphite">Submitted {formatDateTime(open.submittedAt)}</p>
-            <div>
-              <h3 className="mb-2 text-md font-semibold">Screener answers</h3>
-              <dl className="flex flex-col divide-y divide-mist rounded-sm border border-mist">
-                {open.answers.map((a, i) => (
-                  <div key={i} className="px-3 py-2">
-                    <dt className="text-sm text-graphite">{a.question}</dt>
-                    <dd className="font-medium">{a.answer}</dd>
-                  </div>
-                ))}
-              </dl>
-            </div>
-          </div>
-        )}
-      </SideDrawer>
+      <ApplicantDrawer applicant={open} fullCohorts={fullCohorts} me={me} update={update} onClose={() => setParams({})} />
     </div>
   )
 }

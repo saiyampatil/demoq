@@ -69,8 +69,8 @@ Brief sections (R4), in order. These replace the earlier ten-section list. Resea
 | R6 | Audience definition (AI-filled, editable, one screen) | 2 |
 | R7 | Screener editor (max 7 questions) | 2 |
 | R8 | Participant sourcing (two options: upload or paste User IDs / phone numbers, or external panel IDs; each applicant tagged Manual or External; no recruitment link, no CSV) | 2 |
-| R9 | Screening dashboard + R10 applicant drawer | 2 |
-| R11 | Finalize pool | 2 |
+| R9 | Screening dashboard + R10 applicant drawer (auto-marked from the rules; drawer shows rule-by-rule why, answers, verification confirmations, proof, activity log, reason-required actions) | 2 |
+| R11 | Finalize pool (Eligible + Passed only, Reserve as replacements, under-quota warning) | 2 |
 | R12 | Moderator setup (AI agent config OR assign humans; surveys) | 3 |
 | R13 | Stimulus library (active set, deselect never delete) | 3 |
 | R14 | Discussion guide editor (draft, flags, share, approve, versions) | 3 |
@@ -90,7 +90,7 @@ Brief sections (R4), in order. These replace the earlier ten-section list. Resea
 | P2 | Screener (one question per screen) | 2 |
 | P3 | Screening result | 2 |
 | P4 | Verification intro and permissions | 2 |
-| P5 | Video verification | 2 |
+| P5 | Verification checks: consent to record, language, human (no video) | 2 |
 | P6 | Proof upload (if required) | 2 |
 | P7 | Verification result | 2 |
 | P8 | Link unavailable | 4.2 |
@@ -124,6 +124,8 @@ Brief sections (R4), in order. These replace the earlier ten-section list. Resea
 - Task (4.4): Completed, Completed with fallback, Skipped, Incomplete
 
 ## Product rules the UI must respect
+- Verification has no video. It records three confirmations: consent to record, language ability and human (not a bot).
+- Screening outcomes are set by the rules from the applicant's answers. A missing, contradictory or uninterpretable answer is Needs Review, never Eligible. People only resolve Needs Review or override a wrong auto-decision, with a reason, logged with who and when.
 - AI suggests; the Researcher (or human moderator) decides. Nothing AI-generated is final until accepted.
 - Every approval records who, when and which version.
 - Editing anything approved creates a new version that needs fresh approval.

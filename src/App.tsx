@@ -7,6 +7,7 @@ import { ParticipantShell } from '@/apps/participant/ParticipantShell'
 import { AudienceDefinition } from '@/apps/researcher/audience/AudienceDefinition'
 import { ScreenerEditor } from '@/apps/researcher/audience/ScreenerEditor'
 import { ScreeningDashboard } from './apps/researcher/audience/ScreeningDashboard'
+import { PoolFinalize } from '@/apps/researcher/audience/PoolFinalize'
 import { Sourcing } from '@/apps/researcher/audience/Sourcing'
 import { BriefEditor } from '@/apps/researcher/brief/BriefEditor'
 import { BriefIntake } from '@/apps/researcher/brief/BriefIntake'
@@ -39,6 +40,7 @@ const builtResearcher: Record<string, ReactNode> = {
   R7: <ScreenerEditor />,
   R8: <Sourcing />,
   R9: <ScreeningDashboard />,
+  R11: <PoolFinalize />,
 }
 
 function Root() {

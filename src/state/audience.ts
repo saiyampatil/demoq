@@ -4,6 +4,7 @@
 import type { AudienceStatus } from '@/components/status'
 import { US_STATES } from '@/mock/usStates'
 import type { StudyRecord } from '@/mock/types'
+import type { PoolRecord, ScreeningState } from './screening'
 import { AI_NAME, now, uid, type BriefDoc, type SectionKey, type SectionSnapshot } from './brief'
 
 // ─── filters ────────────────────────────────────────────────────────────────
@@ -75,7 +76,16 @@ export const questionTypeLabel: Record<QuestionType, string> = {
   text: 'Short text',
 }
 
-export type ScreenerQuestion = { id: string; text: string; type: QuestionType; options: string[]; purpose: string; origin: Origin }
+export type ScreenerQuestion = {
+  id: string
+  text: string
+  type: QuestionType
+  options: string[]
+  purpose: string
+  origin: Origin
+  /** Which audience filter or exclusion this question checks. Used by the screening rules. */
+  field?: FilterField | 'industry' | 'brands'
+}
 
 export type Screener = {
   status: 'Draft' | 'Ready'
@@ -124,6 +134,10 @@ export type AudienceDoc = {
   /** Set when the AI is writing the screener. Confirming the audience starts it; regenerating restarts it. */
   screenerPending?: boolean
   sourcing: Sourcing
+  /** Manual screening decisions and verification overrides, with who, when and why. */
+  screening?: ScreeningState
+  /** The confirmed pool, once R11 is confirmed. */
+  pool?: PoolRecord
 }
 
 export const emptySourcing = (): Sourcing => ({ option: 'manual', panelName: '', candidates: [] })
@@ -347,21 +361,22 @@ export function generateQuestions(def: AudienceDef): ScreenerQuestion[] {
     if (qs.length < MAX_QUESTIONS) qs.push({ ...q, id: uid('q'), origin: 'ai' })
   }
 
-  if (fields.has('age')) add({ text: 'What is your age?', type: 'number', options: [], purpose: `Checks age against each cohort (${[...new Set(range)].join(', ')}).` })
+  if (fields.has('age')) add({ field: 'age', text: 'What is your age?', type: 'number', options: [], purpose: `Checks age against each cohort (${[...new Set(range)].join(', ')}).` })
   if (fields.has('country') || fields.has('state') || fields.has('region') || fields.has('city'))
-    add({ text: 'Which US state do you live in?', type: 'single', options: US_STATES, purpose: 'Checks location and places the applicant in a region.' })
-  if (fields.has('zip')) add({ text: 'What is your ZIP code?', type: 'text', options: [], purpose: 'Checks the ZIP code filter.' })
+    add({ field: 'state', text: 'Which US state do you live in?', type: 'single', options: US_STATES, purpose: 'Checks location and places the applicant in a region.' })
+  if (fields.has('zip')) add({ field: 'zip', text: 'What is your ZIP code?', type: 'text', options: [], purpose: 'Checks the ZIP code filter.' })
   if (fields.has('gender'))
-    add({ text: 'How do you describe your gender?', type: 'single', options: ['Female', 'Male', 'Non-binary', 'Prefer to self-describe', 'Prefer not to say'], purpose: 'Checks the gender filter.' })
+    add({ field: 'gender', text: 'How do you describe your gender?', type: 'single', options: ['Female', 'Male', 'Non-binary', 'Prefer to self-describe', 'Prefer not to say'], purpose: 'Checks the gender filter.' })
   if (fields.has('skinType'))
-    add({ text: 'How would you describe your skin type?', type: 'single', options: ['Dry', 'Combination', 'Oily', 'Normal', 'Not sure'], purpose: 'Checks the skin type filter and places the applicant in a cohort.' })
+    add({ field: 'skinType', text: 'How would you describe your skin type?', type: 'single', options: ['Dry', 'Combination', 'Oily', 'Normal', 'Not sure'], purpose: 'Checks the skin type filter and places the applicant in a cohort.' })
   if (fields.has('productUsage'))
-    add({ text: 'How often do you use a facial moisturizer?', type: 'single', options: ['Every day', 'A few times a week', 'About once a week', 'Rarely', 'Never'], purpose: 'Checks product usage.' })
+    add({ field: 'productUsage', text: 'How often do you use a facial moisturizer?', type: 'single', options: ['Every day', 'A few times a week', 'About once a week', 'Rarely', 'Never'], purpose: 'Checks product usage.' })
   if (fields.has('purchaseFrequency'))
-    add({ text: 'When did you last buy a facial moisturizer?', type: 'single', options: ['In the last month', '1–3 months ago', '4–6 months ago', 'More than 6 months ago', 'Someone else buys it for me'], purpose: 'Checks purchase frequency.' })
+    add({ field: 'purchaseFrequency', text: 'When did you last buy a facial moisturizer?', type: 'single', options: ['In the last month', '1–3 months ago', '4–6 months ago', 'More than 6 months ago', 'Someone else buys it for me'], purpose: 'Checks purchase frequency.' })
   if (def.exclusions.some((e) => e.kind === 'industry'))
-    add({ text: 'Do you or anyone in your household work in market research, advertising or skincare?', type: 'single', options: ['Yes', 'No'], purpose: 'Applies the “works in market research or advertising” exclusion.' })
+    add({ field: 'industry', text: 'Do you or anyone in your household work in market research, advertising or skincare?', type: 'single', options: ['Yes', 'No'], purpose: 'Applies the “works in market research or advertising” exclusion.' })
   add({
+    field: 'brands',
     text: 'Which facial moisturizer brands have you used in the last 3 months?',
     type: 'multi',
     options: ['CeraVe', 'Neutrogena', 'Olay', 'La Roche-Posay', 'Cetaphil', 'Verdane', 'Other', 'None'],

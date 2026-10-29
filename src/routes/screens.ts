@@ -54,7 +54,7 @@ export const screens: Screen[] = [
   { id: 'P2', name: 'Screener', app: 'participant', module: '2', phase: 2, path: 'screener' },
   { id: 'P3', name: 'Screening result', app: 'participant', module: '2', phase: 2, path: 'screening-result' },
   { id: 'P4', name: 'Verification intro and permissions', app: 'participant', module: '2', phase: 2, path: 'verify' },
-  { id: 'P5', name: 'Video verification', app: 'participant', module: '2', phase: 2, path: 'verify/video' },
+  { id: 'P5', name: 'Verification checks', app: 'participant', module: '2', phase: 2, path: 'verify/video' },
   { id: 'P6', name: 'Proof upload', app: 'participant', module: '2', phase: 2, path: 'verify/proof' },
   { id: 'P7', name: 'Verification result', app: 'participant', module: '2', phase: 2, path: 'verify/result' },
   { id: 'P8', name: 'Link unavailable', app: 'participant', module: '4.2', phase: 5, path: 'unavailable' },
@@ -124,7 +124,7 @@ export function screensForStep(step: StepKey) {
 }
 
 /** Researcher screens that are built. The sub-stepper lists the rest as upcoming. */
-export const builtScreenIds = new Set(['R1', 'R4', 'R5', 'R6', 'R7', 'R8', 'R9'])
+export const builtScreenIds = new Set(['R1', 'R4', 'R5', 'R6', 'R7', 'R8', 'R9', 'R11'])
 
 /** Short names for the sub-stepper inside a step. */
 export const wizardLabel: Record<string, string> = {

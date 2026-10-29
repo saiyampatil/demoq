@@ -116,8 +116,8 @@ export function ScreenJump() {
             </section>
 
             <section className="border-b border-mist px-4 py-3">
-              <h3 className="text-sm font-semibold">Feature flags</h3>
-              <p className="text-xs text-graphite">Recommended additions, not PRD requirements.</p>
+              <h3 className="text-sm font-semibold">Feature flags and mock switches</h3>
+              <p className="text-xs text-graphite">Recommended additions (not PRD requirements) and mock study settings.</p>
               <div className="mt-2 flex flex-col gap-1">
                 {(Object.keys(featureInfo) as FeatureKey[]).map((key) => (
                   <label key={key} className="flex cursor-pointer gap-2.5 rounded-sm px-2 py-1.5 hover:bg-paper">
