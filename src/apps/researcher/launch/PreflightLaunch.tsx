@@ -9,7 +9,7 @@ import { Tooltip } from '@/components/Tooltip'
 import { WizardFooter } from '@/components/WizardFooter'
 import { formatDateTime } from '@/lib/format'
 import { screenById, studyPath } from '@/routes/screens'
-import { authorizeBlockers, authorizeLaunch, fmtDay, moderatorLabel, overrideCheck, supportedLanguages, type Check } from '@/state/launch'
+import { authorizeBlockers, authorizeLaunch, fmtDay, moderatorLabel, overrideCheck, releaseLabel, supportedLanguages, type Check } from '@/state/launch'
 import { PageHeader } from '../../shared/PageHeader'
 import { LaunchGate, ResultMark } from './LaunchBits'
 import { SetupDrawer } from './SetupDrawer'
@@ -89,12 +89,12 @@ export function PreflightLaunch() {
       </section>
 
       <section aria-label="Authorize launch" className="rounded-md border border-mist bg-surface p-5">
-        <h2 className="mb-3 text-md font-semibold">{live ? `${study.releaseVersion} is live` : study.status === 'Paused' ? `Relaunch as Release ${nextRelease}` : 'Authorize launch'}</h2>
+        <h2 className="mb-3 text-md font-semibold">{live ? `${study.releaseVersion} is live` : study.status === 'Paused' ? `Relaunch as ${releaseLabel(nextRelease)}` : 'Authorize launch'}</h2>
         <dl className="grid gap-x-8 gap-y-3 text-sm sm:grid-cols-2">
           <Item label="Study" value={study.name} />
           <Item label="Client" value={study.client} />
           <Item label="Moderator" value={guide ? `${guide.moderator.mode === 'ai' ? 'AI' : 'Human'}: ${moderatorLabel(guide)}` : '—'} />
-          <Item label="Release" value={live ? (study.releaseVersion ?? '') : `Release ${nextRelease}, guide v${guide?.version ?? '—'}`} />
+          <Item label="Release" value={live ? (study.releaseVersion ?? '') : `${releaseLabel(nextRelease)}, guide v${guide?.version ?? '—'}`} />
           <Item label="Participants" value={audience?.def?.total ? `${audience.def.total} interviews` : '—'} />
           <Item label="Languages" value={langs.join(', ')} />
           <Item label="Fieldwork window" value={fw ? `${fmtDay(fw.start)} to ${fmtDay(fw.end)}` : 'Not set'} />
@@ -126,7 +126,7 @@ export function PreflightLaunch() {
                 </Tooltip>
               ) : (
                 <Button variant="primary" onClick={authorize}>
-                  {study.status === 'Paused' ? `Authorize Release ${nextRelease}` : 'Authorize launch'}
+                  {study.status === 'Paused' ? `Authorize ${releaseLabel(nextRelease)}` : 'Authorize launch'}
                 </Button>
               )}
             </div>

@@ -10,11 +10,12 @@ import { WizardFooter } from '@/components/WizardFooter'
 import { Tooltip } from '@/components/Tooltip'
 import { FLAG_TRACKS, FLAG_TYPES, MODERATOR_TYPES, reviewSessions, reviewSummary, scoreBand, trackLabel, type FlagSeverity, type ReviewFlag, type ReviewSession, type ReviewStatus, type ScoreBand } from '@/mock/review'
 import { screenById, studyPath } from '@/routes/screens'
+import { DEFAULT_COHORT_NAMES, loadQueue, NO_FILTERS, queueOrder, saveQueue, type QueueFilters } from '@/state/reviewQueue'
 import { useStudies } from '@/state/StudyContext'
 import { PageHeader } from '../../shared/PageHeader'
 
-type Filters = { status: string; track: string; flag: string; integrity: string; quality: string; moderator: string; segment: string }
-const NONE: Filters = { status: '', track: '', flag: '', integrity: '', quality: '', moderator: '', segment: '' }
+type Filters = QueueFilters
+const NONE: Filters = NO_FILTERS
 const BANDS: ScoreBand[] = ['High', 'Mid', 'Low']
 
 const dayText = (iso: string) => new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/New_York' })
@@ -24,20 +25,20 @@ export function ReviewQueue() {
   const { studyId = '' } = useParams()
   const { isEditable, getAudience } = useStudies()
   // Segments are the audience cohorts, read from the audience so a freed slot can name its quota.
-  const cohorts = getAudience(studyId)?.def?.cohorts ?? [
-    { id: 'c-younger', name: 'Younger, 25–34' },
-    { id: 'c-older', name: 'Older, 35–44' },
-  ]
-  const cohortName = (id: string) => cohorts.find((c) => c.id === id)?.name ?? id
+  const cohorts = getAudience(studyId)?.def?.cohorts ?? Object.entries(DEFAULT_COHORT_NAMES).map(([id, name]) => ({ id, name }))
+  const cohortName = (id: string) => cohorts.find((c) => c.id === id)?.name ?? DEFAULT_COHORT_NAMES[id] ?? id
   const [params] = useSearchParams()
   // ?demo=loading|empty|reviewed shows the other queue states.
   const demo = params.get('demo')
   const [loaded, setLoaded] = useState(false)
-  const [filters, setFilters] = useState<Filters>(NONE)
-  const [search, setSearch] = useState('')
-  const [asc, setAsc] = useState(false)
+  // Filters survive a trip into a session and back (and are what Previous and Next follow there).
+  const [saved] = useState(loadQueue)
+  const [filters, setFilters] = useState<Filters>(saved.filters)
+  const [search, setSearch] = useState(saved.search)
+  const [asc, setAsc] = useState(saved.asc)
   const [page, setPage] = useState(0)
-  const [pageSize, setPageSize] = useState(10)
+  const [pageSize, setPageSize] = useState(saved.pageSize)
+  useEffect(() => saveQueue({ filters, search, asc, pageSize }), [filters, search, asc, pageSize])
   const [selected, setSelected] = useState<Set<string>>(new Set())
 
   useEffect(() => {
@@ -73,24 +74,11 @@ export function ReviewQueue() {
     )
 
   const sum = reviewSummary(all)
-  const bandOf = (v: number, f: string) => !f || scoreBand(v) === f
-  const q = search.trim().toLowerCase()
-  const filtered = all
-    .filter(
-      (s) =>
-        (!filters.status || s.status === filters.status) &&
-        (!filters.flag && !filters.track ? true : s.flags.some((f) => (!filters.flag || f.type === filters.flag) && (!filters.track || f.track === filters.track))) &&
-        bandOf(s.integrity, filters.integrity) &&
-        bandOf(s.quality, filters.quality) &&
-        (!filters.moderator || s.moderatorType === filters.moderator) &&
-        (!filters.segment || s.cohortId === filters.segment) &&
-        (!q || [s.id, cohortName(s.cohortId), s.moderator].some((x) => x.toLowerCase().includes(q))),
-    )
-    .sort((a, b) => (asc ? 1 : -1) * (new Date(a.completedAt).getTime() - new Date(b.completedAt).getTime()))
+  const filtered = queueOrder(all, { filters, search, asc, pageSize }, cohortName)
   const pages = Math.max(1, Math.ceil(filtered.length / pageSize))
   const pageNo = Math.min(page, pages - 1)
   const rows = filtered.slice(pageNo * pageSize, pageNo * pageSize + pageSize)
-  const anyFilter = Object.values(filters).some(Boolean) || !!q
+  const anyFilter = Object.values(filters).some(Boolean) || !!search.trim()
   const setF = (k: keyof Filters, v: string) => {
     setFilters((f) => ({ ...f, [k]: v }))
     setPage(0)

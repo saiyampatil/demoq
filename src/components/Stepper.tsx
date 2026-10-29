@@ -22,6 +22,8 @@ export type StepperStep = {
   hint?: string
   /** Extra line under the status chip. */
   note?: string
+  /** A count shown as a neutral chip, e.g. "18 awaiting". */
+  badge?: string
 }
 
 // The study's spine, laid out across the top: a solid thread where work is done,
@@ -94,6 +96,7 @@ export function Stepper({ steps, label = 'Study steps' }: { steps: StepperStep[]
           </span>
           <span className="font-semibold">{current.label}</span>
           {current.status && <StatusChip status={current.status} size="sm" />}
+          {current.badge && <span className="inline-flex h-5 items-center rounded-xs border border-mist-strong bg-haze px-1.5 text-xs font-medium tabular-nums">{current.badge}</span>}
         </p>
       )}
     </nav>
@@ -114,6 +117,8 @@ function StepMeta({ step }: { step: StepperStep }) {
         {step.note && <p className="mt-1 hidden text-xs text-pending-fg lg:block">{step.note}</p>}
       </>
     )
+  } else if (step.badge) {
+    meta = <span className="inline-flex h-5 items-center rounded-xs border border-mist-strong bg-haze px-1.5 text-xs font-medium tabular-nums text-ink">{step.badge}</span>
   } else if (step.hint && step.current) {
     meta = <p className="hidden text-xs text-graphite lg:block">{step.hint}</p>
   }

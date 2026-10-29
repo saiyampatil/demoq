@@ -75,7 +75,7 @@ function seedStage(stage: StagePresetKey): Pick<Persisted, 'stage' | 'moisturize
   const launch = launchStage ? seedLaunchDoc(MOISTURIZER_ID, stage === 'live' ? 'live' : 'ready', moisturizer.client) : undefined
   const fieldwork =
     stage === 'live' && guide && audience && plan?.state === 'ok'
-      ? generateFieldwork({ studyId: MOISTURIZER_ID, audience, guide, plan: plan.plan, releaseNumber: 1, releaseVersion: 'Release 1', prefix: 'S-', launch })
+      ? generateFieldwork({ studyId: MOISTURIZER_ID, audience, guide, plan: plan.plan, releaseNumber: 1, releaseVersion: 'Release v1.0', prefix: 'S-', launch })
       : undefined
   return {
     stage,

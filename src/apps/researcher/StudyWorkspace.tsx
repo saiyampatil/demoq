@@ -127,7 +127,7 @@ export function StudyWorkspace() {
         </aside>
         <main className="min-w-0 flex-1 overflow-x-clip px-4 py-8 sm:px-8">
           <div className="mx-auto max-w-content">
-            {subItems.length > 1 && !lockedStep && <SubStepper items={subItems} />}
+            {subItems.length > 1 && !lockedStep && currentStep !== 'review' && <SubStepper items={subItems} />}
             <div key={screen?.id ?? pathname} className={moved ? (dir === 'forward' ? 'screen-in-forward' : 'screen-in-back') : undefined}>
               {lockedStep ? <LockedStep step={lockedStep} studyId={study.id} info={info} /> : <Outlet />}
             </div>

@@ -33,7 +33,7 @@ export function seedLaunchDoc(studyId: string, kind: 'ready' | 'live', client: s
   })
   const release: Release = {
     number: 1,
-    version: 'Release 1',
+    version: 'Release v1.0',
     by: maya,
     at,
     guideVersion: 3,

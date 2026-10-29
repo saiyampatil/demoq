@@ -131,7 +131,7 @@ export const stagePresets: StagePreset[] = [
     study: {
       ...base,
       status: 'Live',
-      releaseVersion: 'Release 1',
+      releaseVersion: 'Release v1.0',
       completedSessions: 5,
       updatedAt: '2026-11-03T09:40:00-05:00',
       brief: briefApproved,

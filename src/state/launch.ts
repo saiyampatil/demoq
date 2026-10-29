@@ -485,7 +485,7 @@ export function authorizeLaunch(doc: LaunchDoc, i: Inputs & { plan: StudyPlan },
   const number = doc.releases.length + 1
   const release: Release = {
     number,
-    version: `Release ${number}`,
+    version: releaseLabel(number),
     by,
     at: now(),
     guideVersion: g.version,
@@ -496,5 +496,8 @@ export function authorizeLaunch(doc: LaunchDoc, i: Inputs & { plan: StudyPlan },
   }
   return { ...doc, release, releases: [...doc.releases, release] }
 }
+
+/** Release versions read "Release v1.0". Artifact versions (Brief v2, Guide v3) are a separate scheme. */
+export const releaseLabel = (n: number) => `Release v${n}.0`
 
 export const launched = (s: StudyRecord) => ['Live', 'Paused', 'Terminated', 'Complete'].includes(s.status)

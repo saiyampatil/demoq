@@ -9,7 +9,7 @@ import { WizardFooter } from '@/components/WizardFooter'
 import { formatDateTime } from '@/lib/format'
 import { screenById, studyPath, type Screen } from '@/routes/screens'
 import { now } from '@/state/brief'
-import type { Row, RowOwner } from '@/state/launch'
+import { releaseLabel, type Row, type RowOwner } from '@/state/launch'
 import { PageHeader } from '../../shared/PageHeader'
 import { LaunchGate, ResultMark } from './LaunchBits'
 import { PlanPreview } from './PlanPreview'
@@ -75,7 +75,7 @@ export function LaunchReadiness() {
           <>
             <StatusChip status={study.status} size="sm" />
             <span className="tabular-nums">{passing} of {r.rows.length} entry checks pass</span>
-            {paused && <span>Paused. Relaunching as Release {(launch?.releases.length ?? 0) + 1}.</span>}
+            {paused && <span>Paused. Relaunching as {releaseLabel((launch?.releases.length ?? 0) + 1)}.</span>}
           </>
         }
       />

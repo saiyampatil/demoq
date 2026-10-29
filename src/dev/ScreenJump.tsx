@@ -40,7 +40,7 @@ export function ScreenJump() {
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        className="fixed right-4 bottom-20 z-50 flex h-8 items-center rounded-full bg-ink px-3.5 text-xs font-medium text-white shadow-overlay hover:bg-graphite"
+        className="fixed bottom-4 left-4 z-50 flex h-8 max-md:top-[60px] max-md:right-2 max-md:bottom-auto max-md:left-auto items-center rounded-full bg-ink px-3.5 text-xs font-medium text-white shadow-overlay hover:bg-graphite"
       >
         Screen jump
       </button>

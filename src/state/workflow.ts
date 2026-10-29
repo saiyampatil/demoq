@@ -1,6 +1,7 @@
 import type { StepState } from '@/components/Stepper'
 import type { Status } from '@/components/status'
 import type { StudyRecord } from '@/mock/types'
+import { reviewSessions, reviewSummary } from '@/mock/review'
 import { steps, type StepKey } from '@/routes/screens'
 
 export type StepInfo = {
@@ -11,6 +12,8 @@ export type StepInfo = {
   version?: number
   lockedReason?: string
   hint?: string
+  /** A count shown as a neutral chip, e.g. sessions awaiting review. */
+  badge?: string
   /** Extra line under the status chip, e.g. who the step is waiting on. */
   note?: string
 }
@@ -84,6 +87,7 @@ export function stepInfo(study: StudyRecord): StepInfo[] {
       key: 'review',
       label: label('review'),
       state: 'open',
+      badge: `${reviewSummary(reviewSessions).underReview} awaiting`,
       hint: isLaunched ? 'Sessions arrive here after they finish' : 'Sample data until the study launches',
     },
     {
