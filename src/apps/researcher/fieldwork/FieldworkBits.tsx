@@ -1,3 +1,5 @@
+import type { AudienceDoc } from '@/state/audience'
+import type { FieldworkDoc } from '@/state/fieldwork'
 import { Button } from '@/components/Button'
 import { EmptyState } from '@/components/States'
 import { screenById, studyPath } from '@/routes/screens'
@@ -24,3 +26,17 @@ export function FieldworkGate({ studyId, editable }: { studyId: string; editable
     </div>
   )
 }
+
+
+export type FWProps = {
+  doc: FieldworkDoc
+  audience: AudienceDoc | undefined
+  /** Completed interviews the study needs. */
+  target: number
+  studyId: string
+  me: string
+  update: (fn: (d: FieldworkDoc) => FieldworkDoc) => void
+  goTab: (tab: string) => void
+}
+
+export const sessionPath = (id: string) => `fieldwork/sessions/${id}`

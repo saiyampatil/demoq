@@ -9,7 +9,7 @@ import { Tooltip } from '@/components/Tooltip'
 import { WizardFooter } from '@/components/WizardFooter'
 import { formatDateTime } from '@/lib/format'
 import { screenById, studyPath } from '@/routes/screens'
-import { moderatorName } from '@/state/fieldwork'
+import { ISSUE_META, moderatorName } from '@/state/fieldwork'
 import { PageHeader } from '../../shared/PageHeader'
 import { FieldworkGate, slotText } from './FieldworkBits'
 import { useFieldwork } from './useFieldwork'
@@ -45,6 +45,8 @@ export function SessionRecord() {
             <span>{s.mode === 'ai' ? 'AI moderator' : `Human: ${moderatorName(s.moderatorId)}`}</span>
             <span>{doc.releaseVersion}, guide v{doc.plan.guideVersion}</span>
             {s.slot && <span>Slot {slotText(s.slot)}</span>}
+            {s.region && <span>{s.state}, {s.region}</span>}
+            <span>{s.device}</span>
           </>
         }
         actions={
@@ -118,6 +120,49 @@ export function SessionRecord() {
             )}
           </Card>
         </div>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card title="Consent record">
+          {s.consent ? (
+            <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
+              <div className="sm:col-span-2">
+                <dt className="text-graphite">Agreed to</dt>
+                <dd className="font-medium">{s.consent.wording}, {formatDateTime(s.consent.at)}</dd>
+              </div>
+              <div><dt className="text-graphite">Recording</dt><dd className="font-medium">{s.consent.recording ? 'Yes' : 'No'}</dd></div>
+              <div><dt className="text-graphite">AI moderator</dt><dd className="font-medium">{s.consent.aiModerator ? 'Yes' : 'Not used'}</dd></div>
+              <div><dt className="text-graphite">Data use</dt><dd className="font-medium">{s.consent.dataUse ? 'Yes' : 'No'}</dd></div>
+              <div><dt className="text-graphite">Contact again</dt><dd className="font-medium">{s.consent.recontact ? 'Yes' : 'No'}</dd></div>
+              <div><dt className="text-graphite">18 or older</dt><dd className="font-medium">{s.consent.over18 ? 'Confirmed' : 'No'}</dd></div>
+              <div><dt className="text-graphite">Device</dt><dd className="font-medium">{s.consent.device}</dd></div>
+              {s.consent.withdrawn && (
+                <p className="rounded-sm border border-pending-line bg-pending-bg px-3 py-2 text-pending-fg sm:col-span-2">
+                  Withdrawn {formatDateTime(s.consent.withdrawn.at)}. {s.consent.withdrawn.reason}
+                </p>
+              )}
+            </dl>
+          ) : (
+            <p className="text-sm text-graphite">No consent on record yet. The participant consents before booking or starting.</p>
+          )}
+        </Card>
+
+        <Card title="Technical issues">
+          {s.issues.length === 0 ? (
+            <p className="text-sm text-graphite">No technical issues on this session.</p>
+          ) : (
+            <ul className="flex flex-col gap-3 text-sm">
+              {s.issues.map((x) => (
+                <li key={x.id}>
+                  <p className="font-medium">
+                    {x.type} <span className="font-normal text-graphite">({x.severity}, {x.status})</span>
+                  </p>
+                  <p className="text-graphite">{x.status === 'Resolved' ? `Resolved by ${x.resolvedBy}: ${x.resolution}` : ISSUE_META[x.type].action}</p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">

@@ -1,68 +1,62 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router'
+import { useSearchParams } from 'react-router'
 import { Banner } from '@/components/Banner'
 import { Button } from '@/components/Button'
-import { Card } from '@/components/Card'
 import { cn } from '@/components/cn'
-import { controlBase, TextArea } from '@/components/Field'
+import { TextArea } from '@/components/Field'
 import { Modal } from '@/components/Modal'
-import { EmptyState } from '@/components/States'
 import { StatusChip } from '@/components/StatusChip'
-import { Table, type Column } from '@/components/Table'
 import { formatDateTime } from '@/lib/format'
 import { screenById, studyPath } from '@/routes/screens'
-import { attentionReason, fieldworkSummary, moderatorName, needsAttention, pauseFieldwork, quotaFill, resumeFieldwork, type Session } from '@/state/fieldwork'
+import { consentSummary, fieldworkSummary, issueSummary, pauseFieldwork, resumeFieldwork } from '@/state/fieldwork'
 import { PageHeader } from '../../shared/PageHeader'
-import { FieldworkGate, slotText } from './FieldworkBits'
+import { ConsentTab } from './ConsentTab'
+import { FieldworkGate, type FWProps } from './FieldworkBits'
+import { IssuesTab } from './IssuesTab'
+import { Overview } from './Overview'
+import { QuotasTab } from './QuotasTab'
+import { SessionsTab } from './SessionsTab'
 import { useFieldwork } from './useFieldwork'
 
-type Filter = 'All' | 'In progress' | 'Completed' | 'Needs attention' | 'Not started'
-const FILTERS: Filter[] = ['All', 'In progress', 'Completed', 'Needs attention', 'Not started']
-const match: Record<Filter, (s: Session) => boolean> = {
-  All: () => true,
-  'In progress': (s) => s.status === 'Active' || s.status === 'Paused',
-  Completed: (s) => s.status === 'Completed',
-  'Needs attention': needsAttention,
-  'Not started': (s) => s.status === 'Not started' || s.status === 'Booked',
-}
+const TABS = ['overview', 'sessions', 'quotas', 'issues', 'consent'] as const
+type Tab = (typeof TABS)[number]
 
 export function CommandCenter() {
   const { studyId, study, editable, audience, doc, me, update } = useFieldwork()
-  const navigate = useNavigate()
-  const [filter, setFilter] = useState<Filter>('All')
+  const [params, setParams] = useSearchParams()
   const [pausing, setPausing] = useState(false)
   const [reason, setReason] = useState('')
 
   if (!editable || !study || !doc) return <FieldworkGate studyId={studyId} editable={editable} />
 
+  const tab: Tab = (TABS as readonly string[]).includes(params.get('tab') ?? '') ? (params.get('tab') as Tab) : 'overview'
+  const goTab = (t: string) => setParams(t === 'overview' ? {} : { tab: t })
   const sum = fieldworkSummary(doc)
-  const fill = quotaFill(doc, audience)
-  const attention = doc.sessions.filter(needsAttention)
-  const rows = doc.sessions.filter(match[filter])
-  const open = (s: Session) => navigate(studyPath(studyId, { ...screenById.R19, path: screenById.R19.path.replace(':sessionId', s.id) }))
+  const issues = issueSummary(doc)
+  const consent = consentSummary(doc)
+  const target = audience?.def?.total ?? study.targetCompletes
   const pausedForVersion = study.status === 'Paused' && !doc.paused
+  const props: FWProps = { doc, audience, target, studyId, me, update, goTab }
 
-  const columns: Column<Session>[] = [
-    { key: 'id', header: 'Session', cell: (s) => <span className="font-medium tabular-nums">{s.id}</span> },
-    { key: 'ref', header: 'Participant', cell: (s) => <span className="whitespace-nowrap tabular-nums">{s.ref}</span> },
-    { key: 'cohort', header: 'Cohort', cell: (s) => (<span>{s.cohort ?? <span className="text-muted">None</span>}{s.reserve && <span className="ml-2 text-xs text-graphite">Reserve</span>}</span>) },
-    { key: 'mode', header: 'Moderator', cell: (s) => moderatorName(s.moderatorId) },
-    { key: 'access', header: 'Access', cell: (s) => <StatusChip status={s.access} size="sm" /> },
-    { key: 'status', header: 'Session', cell: (s) => <StatusChip status={s.status} size="sm" /> },
-    { key: 'when', header: 'Slot or start', cell: (s) => <span className="whitespace-nowrap">{slotText(s.slot ?? s.startedAt)}</span> },
-  ]
+  const labels: Record<Tab, { label: string; badge?: string; alert?: boolean }> = {
+    overview: { label: 'Overview' },
+    sessions: { label: 'Sessions', badge: String(doc.sessions.length) },
+    quotas: { label: 'Quotas' },
+    issues: { label: 'Technical issues', badge: issues.open ? String(issues.open) : undefined, alert: issues.blocking > 0 },
+    consent: { label: 'Consent log', badge: consent.withdrawn ? `${consent.withdrawn} withdrawn` : undefined },
+  }
 
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
         id="R18"
         title="Fieldwork command center"
-        description="Sessions for this study as they happen. Open one to see its full record."
+        description="Sessions for this study as they happen: progress, quotas, technical problems and consent."
         meta={
           <>
             <StatusChip status={study.status} size="sm" />
             <span>{doc.releaseVersion}, guide v{doc.plan.guideVersion}</span>
-            <span className="tabular-nums">{sum.completed} of {study.targetCompletes} interviews completed</span>
+            <span className="tabular-nums">{sum.completed} of {target} interviews completed</span>
           </>
         }
         actions={
@@ -87,13 +81,14 @@ export function CommandCenter() {
         </Banner>
       )}
 
-      <section aria-label="Summary" className="grid grid-cols-2 gap-x-6 gap-y-4 rounded-md border border-mist bg-surface p-5 sm:grid-cols-4 xl:grid-cols-7">
+      <section aria-label="Summary" className="grid grid-cols-2 gap-x-6 gap-y-4 rounded-md border border-mist bg-surface p-5 sm:grid-cols-4 xl:grid-cols-8">
         {(
           [
             ['Invited', sum.invited],
             ['Consented', sum.consented],
             ['In progress', sum.inProgress],
             ['Completed', sum.completed],
+            ['Withdrawn', doc.sessions.filter((s) => s.status === 'Withdrawn').length],
             ['No-show', sum.noShow],
             ['Rescheduled', sum.rescheduled],
             ['Needs attention', sum.attention],
@@ -106,60 +101,34 @@ export function CommandCenter() {
         ))}
       </section>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card title="Quota fill" description="Completed interviews against each cohort’s quota. Reserve people are replacements.">
-          <ul className="flex flex-col gap-3">
-            {fill.length === 0 && <li className="text-sm text-graphite">No cohorts.</li>}
-            {fill.map((f) => (
-              <li key={f.id}>
-                <div className="flex items-baseline gap-2">
-                  <span className="flex-1 font-medium">{f.name}</span>
-                  <span className="tabular-nums"><span className="font-semibold">{f.completed}</span> of {f.target}</span>
-                </div>
-                <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-haze" aria-hidden="true">
-                  <div className="h-full bg-ink" style={{ width: `${f.target ? Math.min(100, (f.completed / f.target) * 100) : 0}%` }} />
-                </div>
-                <p className="mt-1 text-xs text-graphite tabular-nums">{f.inProgress} in progress, {f.reserve} in reserve</p>
-              </li>
-            ))}
-          </ul>
-        </Card>
-
-        <Card title="Needs attention" description="Sessions that need a decision or a retry.">
-          {attention.length === 0 ? (
-            <p className="text-sm text-graphite">Nothing needs attention.</p>
-          ) : (
-            <ul className="flex flex-col divide-y divide-mist">
-              {attention.slice(0, 6).map((s) => (
-                <li key={s.id} className="flex flex-wrap items-center gap-2 py-2 first:pt-0 last:pb-0">
-                  <span className="font-medium tabular-nums">{s.id}</span>
-                  <span className="min-w-0 flex-1 basis-40 text-sm text-graphite">{attentionReason(s)}</span>
-                  <Button size="sm" variant="ghost" onClick={() => open(s)}>
-                    Open
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
+      <div role="tablist" aria-label="Fieldwork views" className="flex flex-wrap gap-1 border-b border-mist">
+        {TABS.map((t) => {
+          const on = t === tab
+          return (
+            <button
+              key={t}
+              role="tab"
+              type="button"
+              id={`tab-${t}`}
+              aria-selected={on}
+              aria-controls="fw-panel"
+              onClick={() => goTab(t)}
+              className={cn('-mb-px flex items-center gap-2 border-b-2 px-3 py-2 text-sm font-medium', on ? 'border-ink text-ink' : 'border-transparent text-graphite hover:text-ink')}
+            >
+              {labels[t].label}
+              {labels[t].badge && <span className={cn('rounded-full px-1.5 text-xs tabular-nums', labels[t].alert ? 'bg-negative-bg text-negative-fg' : 'bg-haze text-graphite')}>{labels[t].badge}</span>}
+            </button>
+          )
+        })}
       </div>
 
-      <Card
-        title="Sessions"
-        flush
-        actions={
-          <label className="flex items-center gap-2 text-sm">
-            <span className="text-graphite">Show</span>
-            <select value={filter} onChange={(e) => setFilter(e.target.value as Filter)} className={cn(controlBase, 'h-8 pr-7 text-sm')}>
-              {FILTERS.map((f) => (
-                <option key={f}>{f}</option>
-              ))}
-            </select>
-          </label>
-        }
-      >
-        <Table caption="Fieldwork sessions" columns={columns} rows={rows} rowKey={(s) => s.id} onRowClick={open} empty={<EmptyState title="No sessions match" description="Choose another filter." />} />
-      </Card>
+      <div id="fw-panel" role="tabpanel" aria-labelledby={`tab-${tab}`}>
+        {tab === 'overview' && <Overview {...props} />}
+        {tab === 'sessions' && <SessionsTab {...props} />}
+        {tab === 'quotas' && <QuotasTab {...props} />}
+        {tab === 'issues' && <IssuesTab {...props} />}
+        {tab === 'consent' && <ConsentTab {...props} />}
+      </div>
 
       <Modal
         open={pausing}
