@@ -13,7 +13,9 @@ import { approvedBriefSections, generateQuestions, invitedCount, setScreener, st
 import { applyDraft, configBlockers, draftGuide } from '@/state/guide'
 import { readiness } from '@/state/launch'
 import { useStudies } from '@/state/StudyContext'
+import { awaitingReview } from '@/state/studySessions'
 import { landingStep, stepInfo, type StepInfo } from '@/state/workflow'
+import { useSessionsDoc } from './useStudySessions'
 
 /** Which researcher screen the current URL is on, if any. */
 function matchScreen(studyId: string, pathname: string): Screen | undefined {
@@ -30,6 +32,7 @@ export function StudyWorkspace() {
   const { pathname } = useLocation()
   const { getStudy, getAudience, getGuide, getLaunch } = useStudies()
   const study = getStudy(studyId)
+  const { doc: sessionsDoc } = useSessionsDoc(studyId)
   const screenIdx = screenOrder(matchScreen(studyId, pathname)?.id ?? '')
 
   // Slide direction follows the screen order. The first screen shown doesn't animate.
@@ -52,7 +55,7 @@ export function StudyWorkspace() {
     )
   }
 
-  const info = stepInfo(study)
+  const info = stepInfo(study, { awaitingReview: awaitingReview(sessionsDoc) })
   const screen = matchScreen(study.id, pathname)
   const currentStep = screen?.step
   const stepperSteps: StepperStep[] = info.map((s) => {
@@ -127,7 +130,8 @@ export function StudyWorkspace() {
         </aside>
         <main className="min-w-0 flex-1 overflow-x-clip px-4 py-8 sm:px-8">
           <div className="mx-auto max-w-content">
-            {subItems.length > 1 && !lockedStep && currentStep !== 'review' && <SubStepper items={subItems} />}
+            {/* Fieldwork and Review use a breadcrumb inside the screen instead of a sub-stepper. */}
+            {subItems.length > 1 && !lockedStep && currentStep !== 'review' && currentStep !== 'fieldwork' && <SubStepper items={subItems} />}
             <div key={screen?.id ?? pathname} className={moved ? (dir === 'forward' ? 'screen-in-forward' : 'screen-in-back') : undefined}>
               {lockedStep ? <LockedStep step={lockedStep} studyId={study.id} info={info} /> : <Outlet />}
             </div>

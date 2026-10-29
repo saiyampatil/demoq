@@ -104,7 +104,7 @@ export const steps: { key: StepKey; label: string }[] = [
 /** Sample IDs used to fill route params in links and the Screen jump menu. */
 export const sample = {
   studyId: 'moisturizer-concept',
-  sessionId: 'S-014',
+  sessionId: 'P-2041',
   inviteId: 'inv-7f3k2q',
 }
 

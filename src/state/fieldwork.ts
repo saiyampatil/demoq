@@ -6,7 +6,8 @@ import type { AudienceDoc } from './audience'
 import { now, uid } from './brief'
 import type { GuideDoc } from './guide'
 import type { LaunchDoc, PlanItem, StudyPlan } from './launch'
-import { inPool, inviteRef, mockApplicants, regionOf } from './screening'
+import { DEFAULT_COHORT_NAMES, SEED_SESSIONS } from '@/mock/sessions'
+import { regionOf } from './screening'
 
 export type AccessStatus = 'Invited' | 'Opened' | 'Consented' | 'No-show'
 /** "Not started" and "Booked" are additions to the session vocabulary; see docs/OPEN_QUESTIONS.md. */
@@ -120,6 +121,8 @@ export type LogEntry = { id: string; at: string; by: string; text: string }
 
 export type FieldworkDoc = {
   studyId: string
+  /** Which seed session list built this doc. See SESSION_SEED. */
+  seed?: number
   releaseNumber: number
   releaseVersion: string
   /** The plan this release runs from. Sessions stay tied to it. */
@@ -137,7 +140,7 @@ export type FieldworkDoc = {
 // ─── mock generation ────────────────────────────────────────────────────────
 
 /** The prototype's clock for fieldwork data. */
-export const FIELDWORK_NOW = '2026-11-08T17:00:00-05:00'
+export const FIELDWORK_NOW = '2026-11-11T17:00:00-05:00'
 const FIELDWORK_START = '2026-11-03T09:00:00-05:00'
 const MIN = 60000
 const at = (iso: string, minutes: number) => new Date(new Date(iso).getTime() + minutes * MIN).toISOString()
@@ -152,10 +155,6 @@ const PARTICIPANT = [
   'My skin gets tight in winter, so hydration matters most.',
 ]
 
-type Variant = 'done' | 'active' | 'incomplete' | 'error' | 'withdrawn' | 'booked' | 'rescheduled' | 'noshow' | 'invited' | 'opened'
-
-type Row = { ref: string; applicantId: string; cohort: string | null; state: string | null; reserve: boolean; variant: Variant; k: number }
-
 export type GenInput = {
   studyId: string
   audience: AudienceDoc
@@ -163,57 +162,22 @@ export type GenInput = {
   plan: StudyPlan
   releaseNumber: number
   releaseVersion: string
-  prefix: string
   launch?: LaunchDoc
 }
 
+/** Bumped when the seed session list changes, so saved fieldwork is rebuilt from it. */
+export const SESSION_SEED = 2
+
 const DEVICES = ['Mobile · iOS Safari', 'Mobile · Android Chrome', 'Desktop · Chrome', 'Desktop · Safari', 'Desktop · Edge']
-const SPREAD_STATES = ['New York', 'Texas', 'California', 'Illinois', 'Georgia', 'Washington', 'Massachusetts', 'Florida', 'Ohio', 'Colorado']
 
-// What goes wrong, in the order it is handed out. Pre-session problems land on people who haven't started; the rest on interviews.
-const BEFORE: [IssueType, IssueSeverity, 'Open' | 'Resolved', string?][] = [
-  ['Microphone permission denied', 'Blocking', 'Open'],
-  ['Link expired or invalid', 'Blocking', 'Open'],
-  ['Camera not detected', 'Blocking', 'Resolved', 'Joined in audio-only access mode'],
-  ['Unsupported browser or device', 'Blocking', 'Resolved', 'Sent a link to open in Chrome'],
-  ['Consent capture failed', 'Blocking', 'Resolved', 'Participant consented again and it was saved'],
-]
-const DURING: [IssueType, IssueSeverity, 'Open' | 'Resolved', string?][] = [
-  ['Connection lost', 'Blocking', 'Open'],
-  ['Audio dropped', 'Degraded', 'Resolved', 'Participant rejoined and the answer was repeated'],
-  ['Video stream interrupted', 'Degraded', 'Resolved', 'Stream restarted after 40 seconds'],
-  ['Stimulus failed to load', 'Degraded', 'Open'],
-  ['Survey answer not saved', 'Degraded', 'Resolved', 'Answer re-entered and locked'],
-  ['Recording failed to start', 'Blocking', 'Open'],
-  ['Recording upload incomplete', 'Degraded', 'Resolved', 'Upload retried and verified'],
-  ['Transcription delayed', 'Minor', 'Open'],
-  ['AI agent timeout', 'Degraded', 'Resolved', 'Session resumed'],
-  ['Moderator disconnected', 'Degraded', 'Resolved', 'Moderator rejoined and the session continued'],
-  ['Echo or background noise', 'Minor', 'Resolved', 'Noted for the reviewer'],
-]
+/** The participant's reference as the Researcher sourced it, masked like the sourcing list. */
+const refOf = (id: string) => `Phone · (212) ••• ${id.slice(2)}`
 
+/** Builds the study's sessions from the one seed list (mock/sessions.ts), so Fieldwork and Review always agree. */
 export function generateFieldwork(i: GenInput): FieldworkDoc {
   const human = i.guide.moderator.mode === 'human'
   const mods = human ? i.guide.moderator.humanIds : []
-  const apps = mockApplicants(i.audience)
-  const pool = apps.filter(inPool).sort((a, b) => a.id.localeCompare(b.id))
-  const rest = apps.filter((a) => !inPool(a) && a.outcome !== 'Ineligible').sort((a, b) => a.id.localeCompare(b.id))
-  const known = new Set(apps.map((a) => a.contact))
-  const pads = i.audience.sourcing.candidates.filter((c) => c.invitedAt && !known.has(inviteRef(c)))
-  const stateOf = (a: { answers: { question: string; answer: string }[] }) => a.answers.find((x) => /state/i.test(x.question))?.answer || null
-
-  const poolVariant = (k: number): Variant =>
-    (human
-      ? (['done', 'done', 'noshow', 'active', 'booked', 'booked', 'rescheduled', 'withdrawn'] as Variant[])
-      : (['done', 'done', 'active', 'incomplete', 'error', 'done', 'withdrawn', 'done'] as Variant[]))[k] ?? (human ? 'booked' : 'done')
-  const restVariant = (k: number): Variant => (['opened', 'invited', 'noshow', 'invited', 'opened', 'invited'] as Variant[])[k % 6]
-
-  const rows: Row[] = [
-    ...pool.map((a, k): Row => ({ ref: a.contact, applicantId: a.id, cohort: a.cohort, state: stateOf(a), reserve: false, variant: poolVariant(k), k })),
-    ...rest.slice(0, 10).map((a, k): Row => ({ ref: a.contact, applicantId: a.id, cohort: a.cohort, state: stateOf(a), reserve: a.outcome === 'Reserve', variant: restVariant(k), k })),
-  ]
-  // Invitees who never answered the screener still hold a session, so the list is never thin.
-  pads.slice(0, Math.max(0, 20 - rows.length)).forEach((c, k) => rows.push({ ref: inviteRef(c), applicantId: `A-x${k + 1}`, cohort: null, state: SPREAD_STATES[k % SPREAD_STATES.length], reserve: false, variant: 'opened', k }))
+  const cohortName = (id: string) => i.audience.def?.cohorts.find((c) => c.id === id)?.name ?? DEFAULT_COHORT_NAMES[id as keyof typeof DEFAULT_COHORT_NAMES] ?? id
 
   const items = i.plan.sections.flatMap((s) => s.items)
   const mandatory = items.filter((x) => x.core).map((x) => x.id)
@@ -225,43 +189,40 @@ export function generateFieldwork(i: GenInput): FieldworkDoc {
   const consentAt = i.launch?.setup.consent[lang]?.at
   const wording = `${lang}, approved ${new Date(consentAt ?? '2026-10-26T15:00:00-04:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'America/New_York' })}`
 
-  const sessions = rows.map((r, n): Session => {
-    const id = `${i.prefix}${String(n + 1).padStart(3, '0')}`
-    const humanSession = human
-    const modId = humanSession ? mods[n % mods.length] ?? null : null
-    const moderator = modId ? HUMAN_NAMES[modId] ?? 'Moderator' : 'AI moderator'
+  const sessions = SEED_SESSIONS.map((r, n): Session => {
+    const modId = human ? (mods[n % mods.length] ?? null) : null
+    const moderator = moderatorName(modId)
     const v = r.variant
     const started = v === 'done' || v === 'active' || v === 'incomplete' || v === 'error' || v === 'withdrawn'
-
-    // Past sessions are spread across the days since launch; booked ones are still ahead.
-    const pastAt = at(FIELDWORK_START, Math.floor(r.k / 2) * 1440 + (r.k % 2) * 300 + 75)
-    const nowish = at(FIELDWORK_NOW, -22)
-    const aheadAt = at(FIELDWORK_NOW, (1 + (r.k % 5)) * 1440 - 7 * 60 + (r.k % 3) * 120)
-    const hasSlot = humanSession && v !== 'invited' && v !== 'opened'
-    const slot = hasSlot ? (v === 'active' ? nowish : v === 'booked' ? aheadAt : v === 'rescheduled' ? at(FIELDWORK_NOW, 2 * 1440 - 180) : pastAt) : null
-    const t0 = (humanSession ? slot : v === 'active' ? nowish : started || v === 'noshow' ? pastAt : at(FIELDWORK_NOW, -(r.k + 1) * 300)) ?? pastAt
+    const duration = started && v !== 'active' ? (r.durationMin ?? i.plan.durationMin) : null
+    // For a completed session the seed time is when it ended; for the rest it is the person's latest step.
+    const t0 = v === 'done' ? at(r.at, -(duration ?? 0)) : r.at
+    // Human-led: people who consented book a slot, and a missed slot is sent to rescheduling.
+    const slot = human ? (v === 'consented' ? at(FIELDWORK_NOW, (1 + (n % 4)) * 1440 - 6 * 60) : v === 'noshow' ? at(FIELDWORK_NOW, 2 * 1440 - 180) : started ? t0 : null) : null
 
     const access: AccessStatus = v === 'noshow' ? 'No-show' : v === 'invited' ? 'Invited' : v === 'opened' ? 'Opened' : 'Consented'
     const status: SessionStatus =
-      v === 'done' ? 'Completed' : v === 'active' ? 'Active' : v === 'incomplete' ? 'Incomplete (resumable)' : v === 'error' ? 'Technical Error' : v === 'withdrawn' ? 'Withdrawn' : v === 'booked' ? 'Booked' : v === 'rescheduled' || (v === 'noshow' && humanSession) ? 'Rescheduled' : 'Not started'
+      v === 'done' ? 'Completed' : v === 'active' ? 'Active' : v === 'incomplete' ? 'Incomplete (resumable)' : v === 'error' ? 'Technical Error' : v === 'withdrawn' ? 'Withdrawn' : human && v === 'consented' ? 'Booked' : human && v === 'noshow' ? 'Rescheduled' : 'Not started'
 
-    const askedCount = v === 'done' ? items.length : v === 'active' ? 3 : v === 'incomplete' ? 2 : v === 'error' ? 1 : v === 'withdrawn' ? 1 : 0
+    const askedCount = v === 'done' ? items.length : v === 'active' ? 3 : v === 'incomplete' ? 2 : v === 'error' || v === 'withdrawn' ? 1 : 0
     const asked = items.slice(0, askedCount).map((x) => x.id)
     const covered = v === 'done' ? mandatory : v === 'active' ? mandatory.slice(0, 2) : v === 'incomplete' ? mandatory.slice(0, 1) : []
     const shownCount = v === 'done' ? stimNames.length : v === 'active' || v === 'incomplete' ? Math.min(1, stimNames.length) : 0
+    // A session whose seed has a stimulus problem lost the second concept card, as its review record shows.
+    const stimFault = r.issues?.some(([t]) => t === 'Stimulus failed to load')
     const stimuli: StimulusResult[] = started
-      ? stimNames.map((name, j) => ({ name, result: v === 'error' && j === 0 ? 'Failed to load' : j < shownCount ? (failed.includes(name) ? 'Failed to load' : 'Shown') : 'Not shown' }))
+      ? stimNames.map((name, j) => ({ name, result: j < shownCount ? (failed.includes(name) || (stimFault && j === 1) ? 'Failed to load' : 'Shown') : 'Not shown' }))
       : []
 
-    const region = (regionOf(r.state ?? '') as Region | undefined) ?? null
+    const region = (regionOf(r.state) as Region | undefined) ?? null
     const device = DEVICES[(n * 3 + 1) % DEVICES.length]
-    const consented = access === 'Consented' || (v === 'noshow' && humanSession)
+    const consented = access === 'Consented' || v === 'noshow'
     const consent: ConsentRecord | null = consented
       ? {
-          at: at(t0, v === 'booked' ? -1500 : -300),
+          at: at(t0, v === 'consented' || v === 'noshow' ? 0 : -300),
           wording,
           recording: true,
-          aiModerator: !humanSession,
+          aiModerator: !human,
           dataUse: true,
           recontact: n % 3 !== 0,
           over18: true,
@@ -270,98 +231,74 @@ export function generateFieldwork(i: GenInput): FieldworkDoc {
         }
       : null
 
-    const events: SessionEvent[] = [ev(at(t0, -1440 * 2), 'system', 'Invited to the study')]
-    if (access !== 'Invited') events.push(ev(at(t0, -1500), 'participant', 'Opened the invite link'))
-    if (consent) events.push(ev(consent.at, 'participant', humanSession ? 'Consented to recording' : 'Consented to recording and to an AI moderator'))
-    if (humanSession && slot) events.push(ev(at(t0, -1490), 'system', `Booked a slot with ${moderator}`))
-    if (v === 'noshow') events.push(ev(at(t0, 10), 'system', humanSession ? 'Did not join at the booked slot. Sent to rescheduling (4.7).' : 'The invitation window is still open. No interview started.'))
-    if (v === 'rescheduled') events.push(ev(at(t0, -60), 'participant', 'Asked to move the slot. Sent to rescheduling (4.7).'))
-    if (started) events.push(ev(t0, 'system', humanSession ? `${moderator} joined at the booked slot` : 'Interview started'))
+    const invitedAt = at(FIELDWORK_START, -60 + (n % 6) * 15)
+    const events: SessionEvent[] = [ev(invitedAt, 'system', 'Invited to the study')]
+    if (access !== 'Invited') events.push(ev(v === 'opened' ? r.at : at(consent?.at ?? t0, -10), 'participant', 'Opened the invite link'))
+    if (consent) events.push(ev(consent.at, 'participant', human ? 'Consented to recording' : 'Consented to recording and to an AI moderator'))
+    if (human && slot && !started) events.push(ev(at(consent?.at ?? t0, 5), 'system', `Booked a slot with ${moderator}`))
+    if (v === 'noshow') events.push(ev(at(t0, 1440), 'system', human ? 'Did not join at the booked slot. Sent to rescheduling (4.7).' : 'Consented but has not started the interview.'))
+    if (started) events.push(ev(t0, 'system', human ? `${moderator} joined at the booked slot` : 'Interview started'))
     stimuli.forEach((s, j) => {
       const w = at(t0, 4 + j * 3)
       if (s.result === 'Shown') events.push(ev(w, 'stimulus', `Shown: ${s.name}`))
       if (s.result === 'Failed to load') events.push(ev(w, 'stimulus', `Could not load: ${s.name}. Counted as not seen.`))
     })
-    const answers: Answer[] = v === 'done' ? surveyItems.map((x) => ({ questionId: x.id, question: x.survey!, answer: options(x.survey!)[(n + r.k) % options(x.survey!).length], lockedAt: at(t0, 12) })) : []
+    const answers: Answer[] = v === 'done' ? surveyItems.map((x) => ({ questionId: x.id, question: x.survey!, answer: options(x.survey!)[n % options(x.survey!).length], lockedAt: at(t0, 12) })) : []
     answers.forEach((a) => events.push(ev(a.lockedAt, 'survey', `Answered and locked: ${a.question}`)))
     if (v === 'incomplete') events.push(ev(at(t0, 9), 'system', 'The participant left. The session can be resumed.'))
     if (v === 'error') events.push(ev(at(t0, 3), 'system', 'Technical error: the connection dropped before the session could continue.'))
     if (v === 'withdrawn') events.push(ev(at(t0, 6), 'participant', 'Withdrew from the study. Consent for the recording was withdrawn.'))
-    const duration = v === 'done' ? i.plan.durationMin - 3 + ((n * 7) % 9) : v === 'incomplete' ? 9 : v === 'error' ? 3 : v === 'withdrawn' ? 6 : null
-    if (v === 'done') events.push(ev(at(t0, duration ?? 0), 'system', 'Interview completed'))
+    if (v === 'done') events.push(ev(r.at, 'system', 'Interview completed'))
 
     const transcript: TranscriptTurn[] = items.slice(0, Math.min(askedCount, 3)).flatMap((x, j) => [
-      { at: at(t0, j * 3), speaker: moderator, ai: !humanSession, text: x.text },
+      { at: at(t0, j * 3), speaker: moderator, ai: !human, text: x.text },
       { at: at(t0, j * 3 + 1), speaker: 'Participant', ai: false, text: PARTICIPANT[(n + j) % PARTICIPANT.length] },
     ])
 
+    const issues: TechIssue[] = (r.issues ?? [])
+      .map(([type, severity, st, resolution], j): TechIssue => {
+        // Human-led sessions have a moderator who can drop, not an AI agent that can time out.
+        const t = (human && type === 'AI agent timeout' ? 'Moderator disconnected' : type) as IssueType
+        const when = at(t0, started ? 3 + j * 4 : 20)
+        return { id: `${r.id}-ti${j + 1}`, type: t, severity, at: when, status: st, resolution, resolvedBy: st === 'Resolved' ? 'Maya Ortiz' : undefined, resolvedAt: st === 'Resolved' ? at(when, 25) : undefined }
+      })
+      .filter((x) => !ISSUE_META[x.type].only || ISSUE_META[x.type].only === (human ? 'Human-led' : 'AI-led'))
+
     return {
-      id,
-      applicantId: r.applicantId,
-      ref: r.ref,
-      cohort: r.cohort,
+      id: r.id,
+      applicantId: `A-${r.id.slice(2)}`,
+      ref: refOf(r.id),
+      cohort: cohortName(r.cohortId),
       region,
       state: r.state,
       device,
-      reserve: r.reserve,
-      mode: humanSession ? 'human' : 'ai',
+      reserve: false,
+      mode: human ? 'human' : 'ai',
       access,
       status,
       moderatorId: modId,
       slot,
       startedAt: started ? t0 : null,
       durationMin: duration,
-      events,
+      events: events.sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime()),
       stimuli,
       answers,
       asked,
       covered,
       followUps: {},
       transcript,
-      issues: [],
+      issues,
       consent,
       notes:
-        humanSession && v === 'done' && r.k === 0
-          ? { takeaways: 'Hydration matters most. Concept A’s 72-hour claim was doubted until she heard the test method.', friction: 'The refill question came late and felt rushed.', missing: 'None.', recontact: 'Yes', recontactNote: 'Open to a follow-up on the refill pouch.', by: moderator, at: at(t0, 40) }
+        human && v === 'done' && n === 0
+          ? { takeaways: 'Hydration matters most. Concept A’s 72-hour claim was doubted until she heard the test method.', friction: 'The refill question came late and felt rushed.', missing: 'None.', recontact: 'Yes', recontactNote: 'Open to a follow-up on the refill pouch.', by: moderator, at: at(r.at, 20) }
           : null,
     }
   })
 
-  // Hand out the technical issues: before-interview ones to people who haven't started, the rest to interviews.
-  const mk = (t0: string, spec: [IssueType, IssueSeverity, 'Open' | 'Resolved', string?], by: string): TechIssue => ({
-    id: uid('ti'),
-    type: spec[0],
-    severity: spec[1],
-    at: t0,
-    status: spec[2],
-    resolution: spec[3],
-    resolvedBy: spec[2] === 'Resolved' ? by : undefined,
-    resolvedAt: spec[2] === 'Resolved' ? at(t0, 25) : undefined,
-  })
-  const notStarted = sessions.filter((x) => !x.startedAt)
-  BEFORE.forEach((spec, j) => {
-    const s = notStarted[j]
-    if (s) s.issues.push(mk(at(s.slot ?? s.events[0].at, 30), spec, 'Maya Ortiz'))
-  })
-  const ran = sessions.filter((x) => x.startedAt)
-  const doneRan = ran.filter((x) => x.status === 'Completed')
-  const during = DURING.filter(([t]) => (human ? t !== 'AI agent timeout' : t !== 'Moderator disconnected'))
-  // Interviews that ended on an error carry the open blocking problem.
-  const errored = ran.find((x) => x.status === 'Technical Error')
-  if (errored) errored.issues.push(mk(at(errored.startedAt!, 3), ['Connection lost', 'Blocking', 'Open'], 'Maya Ortiz'))
-  during
-    .filter(([t]) => t !== 'Connection lost')
-    .forEach((spec, j) => {
-      const pickFrom = doneRan.length ? doneRan : ran
-      const s = pickFrom[j % pickFrom.length]
-      if (s && s.issues.length < 3) s.issues.push(mk(at(s.startedAt!, 5 + j), spec, 'Maya Ortiz'))
-    })
-  // The "Recording failed" case belongs on an interview that can't be used.
-  const wd = ran.find((x) => x.status === 'Withdrawn')
-  if (wd && !wd.issues.some((x) => x.type === 'Recording failed to start')) wd.issues.push(mk(at(wd.startedAt!, 1), ['Recording failed to start', 'Blocking', 'Open'], 'Maya Ortiz'))
-
   return {
     studyId: i.studyId,
+    seed: SESSION_SEED,
     releaseNumber: i.releaseNumber,
     releaseVersion: i.releaseVersion,
     plan: i.plan,
@@ -376,7 +313,8 @@ export function generateFieldwork(i: GenInput): FieldworkDoc {
 
 /** Names of the human moderators the mock data can assign. */
 const HUMAN_NAMES: Record<string, string> = { 'u-jordan': 'Jordan Lee', 'u-priya': 'Priya Shah', 'u-sam': 'Sam Okafor', 'u-elena': 'Elena Brooks' }
-export const moderatorName = (id: string | null) => (id ? (HUMAN_NAMES[id] ?? id) : 'AI moderator')
+/** The same name Review shows for the session's moderator. */
+export const moderatorName = (id: string | null) => (id ? (HUMAN_NAMES[id] ?? id) : 'AI agent (Ava)')
 
 // ─── reading ────────────────────────────────────────────────────────────────
 
@@ -407,12 +345,15 @@ export function attentionReason(x: Session): string {
   return 'Withdrew from the study.'
 }
 
-export function quotaFill(doc: FieldworkDoc, audience: AudienceDoc | undefined) {
+/** Completed sessions that count toward quota: Excluded sessions stay visible but are out of quotas. */
+export const countsTowardQuota = (x: Session, excluded: ReadonlySet<string>) => x.status === 'Completed' && !x.reserve && !excluded.has(x.id)
+
+export function quotaFill(doc: FieldworkDoc, audience: AudienceDoc | undefined, excluded: ReadonlySet<string> = new Set()) {
   return (audience?.def?.cohorts ?? []).map((c) => ({
     id: c.id,
     name: c.name,
     target: c.participants ?? 0,
-    completed: doc.sessions.filter((x) => x.cohort === c.name && x.status === 'Completed' && !x.reserve).length,
+    completed: doc.sessions.filter((x) => x.cohort === c.name && countsTowardQuota(x, excluded)).length,
     inProgress: doc.sessions.filter((x) => x.cohort === c.name && (x.status === 'Active' || x.status === 'Paused')).length,
     reserve: doc.sessions.filter((x) => x.cohort === c.name && x.reserve).length,
   }))
@@ -505,9 +446,9 @@ export function durationStats(doc: FieldworkDoc) {
 }
 
 /** Pace against the fieldwork window, on the prototype clock. */
-export function pacing(doc: FieldworkDoc, target: number) {
+export function pacing(doc: FieldworkDoc, target: number, excluded: ReadonlySet<string> = new Set()) {
   const w = doc.window
-  const completed = doc.sessions.filter((x) => x.status === 'Completed').length
+  const completed = doc.sessions.filter((x) => countsTowardQuota(x, excluded)).length
   if (!w) return { completed, target, days: 0, day: 0, expected: 0, projected: completed, left: 0 }
   const day0 = new Date(`${w.start}T00:00:00-05:00`).getTime()
   const end = new Date(`${w.end}T23:59:59-05:00`).getTime()
@@ -518,9 +459,9 @@ export function pacing(doc: FieldworkDoc, target: number) {
   return { completed, target, days, day, expected, projected, left: days - day }
 }
 
-export function regionMatrix(doc: FieldworkDoc, audience: AudienceDoc | undefined) {
+export function regionMatrix(doc: FieldworkDoc, audience: AudienceDoc | undefined, excluded: ReadonlySet<string> = new Set()) {
   const cohorts = audience?.def?.cohorts ?? []
-  const done = doc.sessions.filter((x) => x.status === 'Completed' && !x.reserve)
+  const done = doc.sessions.filter((x) => countsTowardQuota(x, excluded))
   const rows = cohorts.map((c) => {
     const mine = done.filter((x) => x.cohort === c.name)
     return { id: c.id, name: c.name, target: c.participants ?? 0, completed: mine.length, byRegion: Object.fromEntries(REGIONS.map((r) => [r, mine.filter((x) => x.region === r).length])) as Record<Region, number> }

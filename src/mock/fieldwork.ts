@@ -25,7 +25,6 @@ export function sampleFieldwork(): FieldworkDoc | undefined {
     plan: plan.plan,
     releaseNumber: 1,
     releaseVersion: 'Release v1.0',
-    prefix: 'S-',
     launch: seedLaunchDoc(MOISTURIZER_ID, 'live', 'Verdane Skincare'),
   })
   return cached

@@ -1,6 +1,6 @@
-// All mock data for Review (4.8) and Evidence and audit (4.9), in one file so it can be swapped for an API.
-// 24 completed sessions: 18 under review, 4 accepted (3 auto-accepted for having no flags), 2 excluded.
-// Moderator type is fixed per study (AI-led here), so every session is run by the AI agent. 12 sessions per cohort, matching the quotas.
+// Review (4.8) and Evidence and audit (4.9) data. The sessions come from the study's one session list
+// (mock/sessions.ts): every completed session is here, and nothing else is. Moderator type is fixed per study.
+import { DEFAULT_COHORT_NAMES, SEED_SESSIONS, type CohortId, type SeedSession } from './sessions'
 
 export const REVIEW_STUDY_ID = 'moisturizer-concept'
 
@@ -24,7 +24,8 @@ export type FlagSeverity = 'High' | 'Medium' | 'Low'
 export type FlagTrack = 'Integrity' | 'Quality'
 export type ReviewStatus = 'Under review' | 'Accepted' | 'Excluded'
 /** Segments are the audience cohorts (Module 2). The names are read from the audience at render time. */
-export type CohortId = 'c-younger' | 'c-older'
+export type { CohortId }
+export { DEFAULT_COHORT_NAMES }
 export type ModeratorType = 'AI agent' | 'Human'
 
 /** Decision support only. A flag never excludes a session by itself. */
@@ -123,35 +124,7 @@ const LIBRARY: Record<FlagType, { severity: FlagSeverity; rationale: string; sid
 /** Points a flag takes off its score. Scaled down so the flags never take off more than the score has lost. */
 export const SEVERITY_WEIGHT: Record<FlagSeverity, number> = { High: 20, Medium: 12, Low: 6 }
 
-type Row = [id: string, cohortId: CohortId, mod: string, type: ModeratorType, at: string, min: number, integ: number, qual: number, flags: FlagType[], status: ReviewStatus]
-
 const AI = 'AI agent (Ava)'
-const ROWS: Row[] = [
-  ['P-2041', 'c-younger', AI, 'AI agent', '2026-11-03T11:20:00-05:00', 22, 41, 78, ['Screener contradiction', 'Extended silence', 'Incorrect stimulus presentation'], 'Under review'],
-  ['P-2042', 'c-older', AI, 'AI agent', '2026-11-03T14:05:00-05:00', 24, 58, 71, ['Leading question', 'Repetitive or canned answers'], 'Under review'],
-  ['P-2043', 'c-younger', AI, 'AI agent', '2026-11-03T16:40:00-05:00', 19, 34, 82, ['Rushed response', 'Duplicate entry', 'Audio-transcript mismatch'], 'Under review'],
-  ['P-2044', 'c-younger', AI, 'AI agent', '2026-11-04T10:15:00-05:00', 26, 77, 49, ['Insufficient probing'], 'Under review'],
-  ['P-2045', 'c-older', AI, 'AI agent', '2026-11-04T12:30:00-05:00', 20, 69, 85, ['Incorrect stimulus presentation'], 'Under review'],
-  ['P-2046', 'c-younger', AI, 'AI agent', '2026-11-04T15:10:00-05:00', 23, 52, 38, ['Leading question', 'Repetitive or canned answers', 'Missed core theme'], 'Under review'],
-  ['P-2047', 'c-younger', AI, 'AI agent', '2026-11-05T09:50:00-05:00', 21, 88, 79, ['Audio-transcript mismatch'], 'Under review'],
-  ['P-2048', 'c-older', AI, 'AI agent', '2026-11-05T11:25:00-05:00', 25, 63, 66, ['Repetitive or canned answers'], 'Under review'],
-  ['P-2049', 'c-younger', AI, 'AI agent', '2026-11-05T14:00:00-05:00', 18, 29, 74, ['Rushed response', 'Screener contradiction'], 'Under review'],
-  ['P-2050', 'c-younger', AI, 'AI agent', '2026-11-06T10:35:00-05:00', 22, 47, 90, ['Duplicate entry'], 'Under review'],
-  ['P-2051', 'c-older', AI, 'AI agent', '2026-11-06T13:20:00-05:00', 27, 81, 55, ['Leading question', 'Missed core theme'], 'Under review'],
-  ['P-2052', 'c-younger', AI, 'AI agent', '2026-11-06T16:05:00-05:00', 24, 72, 43, ['Leading question', 'Repetitive or canned answers', 'Rushed response'], 'Under review'],
-  ['P-2053', 'c-older', AI, 'AI agent', '2026-11-07T09:30:00-05:00', 20, 55, 76, ['Incorrect stimulus presentation'], 'Under review'],
-  ['P-2054', 'c-older', AI, 'AI agent', '2026-11-07T12:10:00-05:00', 21, 91, 83, ['Guide deviation'], 'Under review'],
-  ['P-2055', 'c-younger', AI, 'AI agent', '2026-11-07T15:45:00-05:00', 25, 36, 61, ['Identity mismatch', 'Repetitive or canned answers'], 'Under review'],
-  ['P-2056', 'c-older', AI, 'AI agent', '2026-11-08T10:00:00-05:00', 19, 66, 88, ['Missed core theme'], 'Under review'],
-  ['P-2057', 'c-older', AI, 'AI agent', '2026-11-08T13:15:00-05:00', 26, 79, 51, ['Repetitive AI prompt'], 'Under review'],
-  ['P-2058', 'c-younger', AI, 'AI agent', '2026-11-09T09:40:00-05:00', 22, 44, 69, ['Rushed response', 'Incorrect stimulus presentation'], 'Under review'],
-  ['P-2059', 'c-younger', AI, 'AI agent', '2026-11-03T12:00:00-05:00', 21, 92, 90, [], 'Accepted'],
-  ['P-2060', 'c-older', AI, 'AI agent', '2026-11-04T11:00:00-05:00', 24, 87, 84, [], 'Accepted'],
-  ['P-2061', 'c-older', AI, 'AI agent', '2026-11-05T10:20:00-05:00', 20, 85, 92, [], 'Accepted'],
-  ['P-2062', 'c-younger', AI, 'AI agent', '2026-11-06T11:40:00-05:00', 25, 74, 77, ['Technical error'], 'Accepted'],
-  ['P-2063', 'c-older', AI, 'AI agent', '2026-11-04T16:30:00-05:00', 17, 22, 64, ['Duplicate entry', 'Rushed response', 'Screener contradiction'], 'Excluded'],
-  ['P-2064', 'c-older', AI, 'AI agent', '2026-11-07T11:30:00-05:00', 15, 31, 33, ['Leading question', 'Repetitive or canned answers', 'Rushed response', 'Missed core theme'], 'Excluded'],
-]
 
 const DECISIONS: Record<string, Decision> = {
   'P-2059': { by: 'PulseAI (auto)', at: '2026-11-03T12:22:00-05:00', note: 'Auto-accepted: no flags raised.', auto: true },
@@ -174,8 +147,12 @@ const SURVEY_OPTIONS = ['Definitely would not', 'Probably would not', 'Might or 
 /** The full sample is P-2041 at 2,400 turns. Other sessions get a shorter transcript. */
 const turnsFor = (id: string) => (id === 'P-2041' ? 2400 : 160)
 
-function build(r: Row): ReviewSession {
-  const [id, cohortId, moderator, moderatorType, completedAt, durationMin, integrity, quality, flagTypes, status] = r
+function build(seed: SeedSession): ReviewSession {
+  const { id, cohortId, at: completedAt, durationMin = 20 } = seed
+  const { integrity, quality, status } = seed.review!
+  const flagTypes = seed.review!.flags as FlagType[]
+  const moderator = AI
+  const moderatorType: ModeratorType = 'AI agent'
   const total = durationMin * 60
   const count = turnsFor(id)
   const atOf = (idx: number) => Math.floor((idx * total) / count)
@@ -251,7 +228,7 @@ function build(r: Row): ReviewSession {
   }
 }
 
-export const reviewSessions: ReviewSession[] = ROWS.map(build)
+export const reviewSessions: ReviewSession[] = SEED_SESSIONS.filter((x) => x.variant === 'done' && x.review).map(build)
 
 // ─── transcripts ────────────────────────────────────────────────────────────
 

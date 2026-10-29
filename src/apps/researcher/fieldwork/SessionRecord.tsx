@@ -1,28 +1,36 @@
-import { useParams } from 'react-router'
+import { Link, useParams } from 'react-router'
 import { AIGeneratedTag } from '@/components/AIGenerated'
+import { Breadcrumb } from '@/components/Breadcrumb'
 import { Button } from '@/components/Button'
 import { Card } from '@/components/Card'
 import { CheckIcon, CloseIcon } from '@/components/icons'
 import { EmptyState } from '@/components/States'
 import { StatusChip } from '@/components/StatusChip'
 import { Tooltip } from '@/components/Tooltip'
-import { WizardFooter } from '@/components/WizardFooter'
-import { formatDateTime } from '@/lib/format'
+import { formatStamp } from '@/lib/format'
 import { screenById, studyPath } from '@/routes/screens'
 import { ISSUE_META, moderatorName } from '@/state/fieldwork'
 import { PageHeader } from '../../shared/PageHeader'
 import { FieldworkGate, slotText } from './FieldworkBits'
-import { useFieldwork } from './useFieldwork'
+import { SampleDataBanner } from '../SampleDataBanner'
+import { useStudySessions } from '../useStudySessions'
 
 export function SessionRecord() {
   const { sessionId = '' } = useParams()
-  const { studyId, study, editable, doc } = useFieldwork()
+  const { studyId, study, editable, doc, review, preview } = useStudySessions()
   if (!editable || !study || !doc) return <FieldworkGate studyId={studyId} editable={editable} />
-  const back = { to: studyPath(studyId, screenById.R18), label: 'Command center' }
+  const back = { to: studyPath(studyId, screenById.R18), label: 'Fieldwork command center' }
   const s = doc.sessions.find((x) => x.id === sessionId)
+  const crumbs = (
+    <>
+      <Breadcrumb parent={back} current={sessionId} className="-mb-2" />
+      {preview && <SampleDataBanner studyId={studyId} />}
+    </>
+  )
   if (!s)
     return (
       <div className="flex flex-col gap-6">
+        {crumbs}
         <div className="rounded-md border border-dashed border-mist-strong bg-surface">
           <EmptyState title="Session not found" description={`There’s no session “${sessionId}” in this study.`} action={<Button to={back.to}>Back to command center</Button>} />
         </div>
@@ -31,9 +39,11 @@ export function SessionRecord() {
 
   const target = doc.plan.durationMin
   const mandatory = doc.plan.mandatoryCount
+  const reviewed = review.find((r) => r.id === s.id)
 
   return (
     <div className="flex flex-col gap-6">
+      {crumbs}
       <PageHeader
         id="R19"
         title={`Session ${s.id}`}
@@ -42,7 +52,7 @@ export function SessionRecord() {
           <>
             <StatusChip status={s.access} size="sm" />
             <StatusChip status={s.status} size="sm" />
-            <span>{s.mode === 'ai' ? 'AI moderator' : `Human: ${moderatorName(s.moderatorId)}`}</span>
+            <span>{s.mode === 'ai' ? moderatorName(null) : `Human: ${moderatorName(s.moderatorId)}`}</span>
             <span>{doc.releaseVersion}, guide v{doc.plan.guideVersion}</span>
             {s.slot && <span>Slot {slotText(s.slot)}</span>}
             {s.region && <span>{s.state}, {s.region}</span>}
@@ -58,10 +68,17 @@ export function SessionRecord() {
         }
       />
 
-      <p className="flex flex-wrap items-center gap-2 text-sm text-graphite">
-        Review: <StatusChip status="Under review" size="sm" />
-        <span>Completed means the interview ended. It doesn’t mean the session is accepted. That decision is made in Review.</span>
-      </p>
+      {reviewed ? (
+        <p className="flex flex-wrap items-center gap-2 text-sm text-graphite">
+          This session has ended and is in Review: <StatusChip status={reviewed.status} size="sm" />
+          <Link to={studyPath(studyId, { ...screenById.R22, path: screenById.R22.path.replace(':sessionId', s.id) })} className="font-medium text-iris-700 hover:underline">
+            Open in review
+          </Link>
+          <span>Completed means the interview ended. It doesn’t mean the session is accepted.</span>
+        </p>
+      ) : (
+        <p className="text-sm text-graphite">This session is still in fieldwork. It moves to Review when the interview is completed.</p>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card title="Timeline">
@@ -113,7 +130,7 @@ export function SessionRecord() {
                 {s.answers.map((a) => (
                   <div key={a.questionId} className="py-2 first:pt-0 last:pb-0">
                     <dt className="text-sm text-graphite">{a.question}</dt>
-                    <dd className="font-medium">{a.answer} <span className="text-xs font-normal text-graphite">Locked {formatDateTime(a.lockedAt)}</span></dd>
+                    <dd className="font-medium">{a.answer} <span className="text-xs font-normal text-graphite">Locked {formatStamp(a.lockedAt)}</span></dd>
                   </div>
                 ))}
               </dl>
@@ -128,7 +145,7 @@ export function SessionRecord() {
             <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
               <div className="sm:col-span-2">
                 <dt className="text-graphite">Agreed to</dt>
-                <dd className="font-medium">{s.consent.wording}, {formatDateTime(s.consent.at)}</dd>
+                <dd className="font-medium">{s.consent.wording}, {formatStamp(s.consent.at)}</dd>
               </div>
               <div><dt className="text-graphite">Recording</dt><dd className="font-medium">{s.consent.recording ? 'Yes' : 'No'}</dd></div>
               <div><dt className="text-graphite">AI moderator</dt><dd className="font-medium">{s.consent.aiModerator ? 'Yes' : 'Not used'}</dd></div>
@@ -138,7 +155,7 @@ export function SessionRecord() {
               <div><dt className="text-graphite">Device</dt><dd className="font-medium">{s.consent.device}</dd></div>
               {s.consent.withdrawn && (
                 <p className="rounded-sm border border-pending-line bg-pending-bg px-3 py-2 text-pending-fg sm:col-span-2">
-                  Withdrawn {formatDateTime(s.consent.withdrawn.at)}. {s.consent.withdrawn.reason}
+                  Withdrawn {formatStamp(s.consent.withdrawn.at)}. {s.consent.withdrawn.reason}
                 </p>
               )}
             </dl>
@@ -189,7 +206,7 @@ export function SessionRecord() {
               <div><dt className="text-graphite">Guide friction</dt><dd>{s.notes.friction}</dd></div>
               <div><dt className="text-graphite">Missing coverage</dt><dd>{s.notes.missing}</dd></div>
               <div><dt className="text-graphite">Recontact</dt><dd>{s.notes.recontact}{s.notes.recontactNote ? `. ${s.notes.recontactNote}` : ''}</dd></div>
-              <p className="text-xs text-graphite">{s.notes.by}, {formatDateTime(s.notes.at)}</p>
+              <p className="text-xs text-graphite">{s.notes.by}, {formatStamp(s.notes.at)}</p>
             </dl>
           ) : (
             <p className="text-sm text-graphite">{s.mode === 'ai' ? 'AI-led sessions have no moderator notes.' : 'The moderator hasn’t submitted notes yet.'}</p>
@@ -197,7 +214,6 @@ export function SessionRecord() {
         </Card>
       </div>
 
-      <WizardFooter previous={back} />
     </div>
   )
 }

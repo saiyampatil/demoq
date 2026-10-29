@@ -1,6 +1,9 @@
 // The review queue's filters, kept so R22 can scope Previous and Next to them and the back link can return to them.
 
 import { scoreBand, type ReviewSession } from '@/mock/review'
+import { DEFAULT_COHORT_NAMES as NAMES } from '@/mock/sessions'
+
+export const DEFAULT_COHORT_NAMES: Record<string, string> = NAMES
 
 export type QueueFilters = { status: string; track: string; flag: string; integrity: string; quality: string; moderator: string; segment: string }
 export type QueueState = { filters: QueueFilters; search: string; asc: boolean; pageSize: number }
@@ -47,4 +50,3 @@ export function queueOrder(all: ReviewSession[], q: QueueState, cohortName: (id:
     .sort((a, b) => (q.asc ? 1 : -1) * (new Date(a.completedAt).getTime() - new Date(b.completedAt).getTime()))
 }
 
-export const DEFAULT_COHORT_NAMES: Record<string, string> = { 'c-younger': 'Younger, 25–34', 'c-older': 'Older, 35–44' }

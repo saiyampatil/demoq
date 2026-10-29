@@ -30,7 +30,7 @@ export function SessionsTab({ doc, studyId }: FWProps) {
   const open = (s: Session) => navigate(studyPath(studyId, { ...screenById.R19, path: screenById.R19.path.replace(':sessionId', s.id) }))
 
   const columns: Column<Session>[] = [
-    { key: 'id', header: 'Session', cell: (s) => <span className="font-medium tabular-nums">{s.id}</span> },
+    { key: 'id', header: 'Session', cell: (s) => <span className="font-medium whitespace-nowrap tabular-nums">{s.id}</span> },
     { key: 'ref', header: 'Participant', cell: (s) => <span className="whitespace-nowrap tabular-nums">{s.ref}</span> },
     { key: 'cohort', header: 'Segment', cell: (s) => (<span className="whitespace-nowrap">{s.cohort ?? <span className="text-muted">None</span>}{s.reserve && <span className="ml-2 text-xs text-graphite">Reserve</span>}</span>) },
     { key: 'region', header: 'Region', cell: (s) => s.region ?? <span className="text-muted">Unknown</span> },

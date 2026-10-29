@@ -7,7 +7,7 @@ import { TextArea } from '@/components/Field'
 import { Modal } from '@/components/Modal'
 import { StatusChip } from '@/components/StatusChip'
 import { WizardFooter } from '@/components/WizardFooter'
-import { formatDateTime } from '@/lib/format'
+import { formatStamp } from '@/lib/format'
 import { screenById, studyPath } from '@/routes/screens'
 import { consentSummary, fieldworkSummary, issueSummary, pauseFieldwork, resumeFieldwork } from '@/state/fieldwork'
 import { PageHeader } from '../../shared/PageHeader'
@@ -17,13 +17,14 @@ import { IssuesTab } from './IssuesTab'
 import { Overview } from './Overview'
 import { QuotasTab } from './QuotasTab'
 import { SessionsTab } from './SessionsTab'
-import { useFieldwork } from './useFieldwork'
+import { SampleDataBanner } from '../SampleDataBanner'
+import { useStudySessions } from '../useStudySessions'
 
 const TABS = ['overview', 'sessions', 'quotas', 'issues', 'consent'] as const
 type Tab = (typeof TABS)[number]
 
 export function CommandCenter() {
-  const { studyId, study, editable, audience, doc, me, update, preview } = useFieldwork()
+  const { studyId, study, editable, audience, doc, review, me, update, preview } = useStudySessions()
   const [params, setParams] = useSearchParams()
   const [pausing, setPausing] = useState(false)
   const [reason, setReason] = useState('')
@@ -37,7 +38,8 @@ export function CommandCenter() {
   const consent = consentSummary(doc)
   const target = audience?.def?.total ?? study.targetCompletes
   const pausedForVersion = study.status === 'Paused' && !doc.paused
-  const props: FWProps = { doc, audience, target, studyId, me, update, goTab, readOnly: preview }
+  const excluded = new Set(review.filter((r) => r.status === 'Excluded').map((r) => r.id))
+  const props: FWProps = { doc, audience, target, studyId, me, update, goTab, readOnly: preview, excluded }
 
   const labels: Record<Tab, { label: string; badge?: string; alert?: boolean }> = {
     overview: { label: 'Overview' },
@@ -57,7 +59,9 @@ export function CommandCenter() {
           <>
             <StatusChip status={preview ? 'Not Ready' : study.status} size="sm" />
             <span>{preview ? 'Sample data' : `${doc.releaseVersion}, guide v${doc.plan.guideVersion}`}</span>
-            <span className="tabular-nums">{sum.completed} of {target} interviews completed</span>
+            <span className="tabular-nums">
+              {sum.completed} completed, {sum.completed - excluded.size} of {target} count toward the target
+            </span>
           </>
         }
         actions={
@@ -71,14 +75,10 @@ export function CommandCenter() {
         }
       />
 
-      {preview && (
-        <Banner tone="info" title="Sample data: this study hasn’t launched" actions={<Button size="sm" to={studyPath(studyId, screenById.R17)}>Go to launch</Button>}>
-          You’re looking at example sessions so you can see how fieldwork works. Nothing here can be changed. Real sessions appear once the study is Live.
-        </Banner>
-      )}
+      {preview && <SampleDataBanner studyId={studyId} />}
       {doc.paused && (
         <Banner tone="warning" title="Fieldwork is paused">
-          {doc.paused.by} paused it, {formatDateTime(doc.paused.at)}: “{doc.paused.reason}”. No new sessions start while it’s paused. Pausing doesn’t change the guide.
+          {doc.paused.by} paused it, {formatStamp(doc.paused.at)}: “{doc.paused.reason}”. No new sessions start while it’s paused. Pausing doesn’t change the guide.
         </Banner>
       )}
       {pausedForVersion && (
@@ -136,7 +136,7 @@ export function CommandCenter() {
         {tab === 'consent' && <ConsentTab {...props} />}
       </div>
 
-      <WizardFooter previous={{ to: studyPath(studyId, screenById.R17), label: 'Launch' }} message={`${sum.completed} of ${target} interviews completed. You can move on to review at any time.`}>
+      <WizardFooter sticky={false} previous={{ to: studyPath(studyId, screenById.R17), label: 'Launch' }} message={`${sum.completed - excluded.size} of ${target} interviews count toward the target. You can move on to review at any time.`}>
         <Button variant="primary" to={studyPath(studyId, screenById.R21)}>
           Continue to review
         </Button>

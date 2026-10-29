@@ -6,7 +6,7 @@ import { cn } from '@/components/cn'
 import { controlBase, TextArea } from '@/components/Field'
 import { Modal } from '@/components/Modal'
 import { EmptyState } from '@/components/States'
-import { formatDateTime } from '@/lib/format'
+import { formatStamp } from '@/lib/format'
 import { screenById, studyPath } from '@/routes/screens'
 import { ISSUE_META, issueSummary, resolveIssue, type IssueSeverity } from '@/state/fieldwork'
 import type { FWProps } from './FieldworkBits'
@@ -113,7 +113,7 @@ export function IssuesTab({ doc, studyId, me, update, readOnly }: FWProps) {
                     </Link>
                   </p>
                   <p className="text-sm text-graphite">
-                    {formatDateTime(x.at)}. {ISSUE_META[x.type].action}
+                    {formatStamp(x.at)}. {ISSUE_META[x.type].action}
                   </p>
                   {x.status === 'Resolved' && (
                     <p className="text-sm text-positive-fg">

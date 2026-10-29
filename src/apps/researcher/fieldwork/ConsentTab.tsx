@@ -5,7 +5,7 @@ import { Card } from '@/components/Card'
 import { cn } from '@/components/cn'
 import { controlBase } from '@/components/Field'
 import { StatusChip } from '@/components/StatusChip'
-import { formatDateTime } from '@/lib/format'
+import { formatStamp } from '@/lib/format'
 import { screenById, studyPath } from '@/routes/screens'
 import { consentSummary, type Session } from '@/state/fieldwork'
 import type { FWProps } from './FieldworkBits'
@@ -100,8 +100,8 @@ export function ConsentTab({ doc, studyId }: FWProps) {
                       {c ? <StatusChip status={c.withdrawn ? 'Withdrawn' : 'Consented'} size="sm" /> : <span className="text-graphite">Not yet</span>}
                     </td>
                     <td className="px-3 py-2.5 whitespace-nowrap">
-                      {c ? formatDateTime(c.at) : <span className="text-muted">—</span>}
-                      {c?.withdrawn && <span className="mt-0.5 block text-xs text-pending-fg">Withdrawn {formatDateTime(c.withdrawn.at)}</span>}
+                      {c ? formatStamp(c.at) : <span className="text-muted">—</span>}
+                      {c?.withdrawn && <span className="mt-0.5 block text-xs text-pending-fg">Withdrawn {formatStamp(c.withdrawn.at)}</span>}
                     </td>
                     <td className="px-3 py-2.5">{c ? yes(c.recording) : '—'}</td>
                     <td className="px-3 py-2.5">{c ? (c.aiModerator ? 'Yes' : 'Not used') : '—'}</td>

@@ -4,9 +4,9 @@ import { Banner } from '@/components/Banner'
 import { regionMatrix, REGIONS, quotaFill } from '@/state/fieldwork'
 import type { FWProps } from './FieldworkBits'
 
-export function QuotasTab({ doc, audience, target }: FWProps) {
-  const fill = quotaFill(doc, audience)
-  const m = regionMatrix(doc, audience)
+export function QuotasTab({ doc, audience, target, excluded }: FWProps) {
+  const fill = quotaFill(doc, audience, excluded)
+  const m = regionMatrix(doc, audience, excluded)
   const booked = (name: string) => doc.sessions.filter((s) => s.cohort === name && s.status === 'Booked').length
   const maxCell = Math.max(1, ...m.rows.flatMap((r) => REGIONS.map((x) => r.byRegion[x])))
 

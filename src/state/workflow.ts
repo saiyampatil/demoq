@@ -1,7 +1,6 @@
 import type { StepState } from '@/components/Stepper'
 import type { Status } from '@/components/status'
 import type { StudyRecord } from '@/mock/types'
-import { reviewSessions, reviewSummary } from '@/mock/review'
 import { steps, type StepKey } from '@/routes/screens'
 
 export type StepInfo = {
@@ -30,7 +29,8 @@ function clientNote(study: StudyRecord) {
 }
 
 // Steps unlock in order, driven by status. See CLAUDE.md "Researcher study workspace".
-export function stepInfo(study: StudyRecord): StepInfo[] {
+/** `awaitingReview` comes from the study's session list (see state/studySessions.ts). */
+export function stepInfo(study: StudyRecord, sessions?: { awaitingReview: number }): StepInfo[] {
   const briefApproved = study.brief.status === 'Approved'
   const audienceConfirmed = briefApproved && study.audience.status === 'Confirmed'
   const guideApproved = audienceConfirmed && study.guide.status === 'Approved'
@@ -87,7 +87,7 @@ export function stepInfo(study: StudyRecord): StepInfo[] {
       key: 'review',
       label: label('review'),
       state: 'open',
-      badge: `${reviewSummary(reviewSessions).underReview} awaiting`,
+      badge: sessions ? `${sessions.awaitingReview} awaiting` : undefined,
       hint: isLaunched ? 'Sessions arrive here after they finish' : 'Sample data until the study launches',
     },
     {

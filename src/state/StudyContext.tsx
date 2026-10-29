@@ -9,7 +9,7 @@ import type { StudyRecord } from '@/mock/types'
 import { audienceSummary, emptySourcing, type AudienceDoc } from './audience'
 import { briefSummary, now, type BriefDoc } from './brief'
 import { guideSummary, type GuideDoc } from './guide'
-import { generateFieldwork, type FieldworkDoc } from './fieldwork'
+import { generateFieldwork, SESSION_SEED, type FieldworkDoc } from './fieldwork'
 import { compileStudyPlan, emptyLaunchDoc, readiness, type LaunchDoc } from './launch'
 
 const STORAGE_KEY = 'pulseai-qual:v2'
@@ -75,7 +75,7 @@ function seedStage(stage: StagePresetKey): Pick<Persisted, 'stage' | 'moisturize
   const launch = launchStage ? seedLaunchDoc(MOISTURIZER_ID, stage === 'live' ? 'live' : 'ready', moisturizer.client) : undefined
   const fieldwork =
     stage === 'live' && guide && audience && plan?.state === 'ok'
-      ? generateFieldwork({ studyId: MOISTURIZER_ID, audience, guide, plan: plan.plan, releaseNumber: 1, releaseVersion: 'Release v1.0', prefix: 'S-', launch })
+      ? generateFieldwork({ studyId: MOISTURIZER_ID, audience, guide, plan: plan.plan, releaseNumber: 1, releaseVersion: 'Release v1.0', launch })
       : undefined
   return {
     stage,
@@ -102,17 +102,17 @@ function load(): Persisted {
         const audiences = Object.fromEntries(
           Object.entries(parsed.audiences ?? {}).map(([id, doc]) => [id, Array.isArray(doc.sourcing?.candidates) ? doc : { ...doc, sourcing: emptySourcing() }]),
         )
-        // Fieldwork saved before regions, consent logs and technical issues existed is rebuilt from the same inputs.
+        // Fieldwork saved from an older seed session list is rebuilt, so it matches Review.
         const guides = parsed.guides ?? {}
         const launches = parsed.launches ?? {}
         const fieldworks = Object.fromEntries(
           Object.entries(parsed.fieldworks ?? {}).map(([id, fw]) => {
-            if (fw.window !== undefined && fw.sessions.every((x) => Array.isArray(x.issues))) return [id, fw]
+            if (fw.seed === SESSION_SEED) return [id, fw]
             const guide = guides[id]
             const audience = audiences[id]
             const plan = compileStudyPlan(guide)
             if (!guide || !audience || plan.state !== 'ok') return [id, fw]
-            return [id, { ...generateFieldwork({ studyId: id, audience, guide, plan: plan.plan, releaseNumber: fw.releaseNumber, releaseVersion: fw.releaseVersion, prefix: id === MOISTURIZER_ID ? 'S-' : `S-${id.slice(-4)}-`, launch: launches[id] }), paused: fw.paused, log: fw.log }]
+            return [id, { ...generateFieldwork({ studyId: id, audience, guide, plan: plan.plan, releaseNumber: fw.releaseNumber, releaseVersion: fw.releaseVersion, launch: launches[id] }), paused: fw.paused, log: fw.log }]
           }),
         )
         return { ...parsed, briefs, audiences, guides, launches, fieldworks }
@@ -254,7 +254,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
         const existing = prev.fieldworks[id]
         if (existing) fieldworks = { ...fieldworks, [id]: { ...existing, releaseNumber: doc.release!.number, releaseVersion: doc.release!.version, paused: null, ...(plan.state === 'ok' ? { plan: plan.plan } : {}) } }
         else if (guide && audience && plan.state === 'ok')
-          fieldworks = { ...fieldworks, [id]: generateFieldwork({ studyId: id, audience, guide, plan: plan.plan, releaseNumber: doc.release!.number, releaseVersion: doc.release!.version, prefix: id === MOISTURIZER_ID ? 'S-' : `S-${id.slice(-4)}-`, launch: doc }) }
+          fieldworks = { ...fieldworks, [id]: generateFieldwork({ studyId: id, audience, guide, plan: plan.plan, releaseNumber: doc.release!.number, releaseVersion: doc.release!.version, launch: doc }) }
       }
       return { ...prev, launches: { ...prev.launches, [id]: doc }, fieldworks, moisturizer: sync(prev.moisturizer), created: prev.created.map(sync) }
     })
@@ -289,7 +289,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       const plan = compileStudyPlan(next)
       const old = prev.fieldworks[MOISTURIZER_ID]
       const audience = prev.audiences[MOISTURIZER_ID]
-      const fieldwork = old && audience && plan.state === 'ok' ? { ...generateFieldwork({ studyId: MOISTURIZER_ID, audience, guide: next, plan: plan.plan, releaseNumber: old.releaseNumber, releaseVersion: old.releaseVersion, prefix: 'S-', launch: prev.launches[MOISTURIZER_ID] }), paused: old.paused, log: old.log } : old
+      const fieldwork = old && audience && plan.state === 'ok' ? { ...generateFieldwork({ studyId: MOISTURIZER_ID, audience, guide: next, plan: plan.plan, releaseNumber: old.releaseNumber, releaseVersion: old.releaseVersion, launch: prev.launches[MOISTURIZER_ID] }), paused: old.paused, log: old.log } : old
       return {
         ...prev,
         guides: { ...prev.guides, [MOISTURIZER_ID]: next },

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useParams, useSearchParams } from 'react-router'
+import { Link, useSearchParams } from 'react-router'
 import { Button } from '@/components/Button'
 import { cn } from '@/components/cn'
 import { controlBase } from '@/components/Field'
@@ -8,11 +8,12 @@ import { EmptyState, LoadingState } from '@/components/States'
 import { StatusChip } from '@/components/StatusChip'
 import { WizardFooter } from '@/components/WizardFooter'
 import { Tooltip } from '@/components/Tooltip'
-import { FLAG_TRACKS, FLAG_TYPES, MODERATOR_TYPES, reviewSessions, reviewSummary, scoreBand, trackLabel, type FlagSeverity, type ReviewFlag, type ReviewSession, type ReviewStatus, type ScoreBand } from '@/mock/review'
+import { FLAG_TRACKS, FLAG_TYPES, MODERATOR_TYPES, reviewSummary, scoreBand, trackLabel, type FlagSeverity, type ReviewFlag, type ReviewSession, type ReviewStatus, type ScoreBand } from '@/mock/review'
 import { screenById, studyPath } from '@/routes/screens'
 import { DEFAULT_COHORT_NAMES, loadQueue, NO_FILTERS, queueOrder, saveQueue, type QueueFilters } from '@/state/reviewQueue'
-import { useStudies } from '@/state/StudyContext'
 import { PageHeader } from '../../shared/PageHeader'
+import { SampleDataBanner } from '../SampleDataBanner'
+import { useStudySessions } from '../useStudySessions'
 
 type Filters = QueueFilters
 const NONE: Filters = NO_FILTERS
@@ -22,10 +23,9 @@ const dayText = (iso: string) => new Date(iso).toLocaleDateString('en-US', { mon
 const clockText = (iso: string) => new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' })
 
 export function ReviewQueue() {
-  const { studyId = '' } = useParams()
-  const { isEditable, getAudience } = useStudies()
+  const { studyId, audience, review, preview } = useStudySessions()
   // Segments are the audience cohorts, read from the audience so a freed slot can name its quota.
-  const cohorts = getAudience(studyId)?.def?.cohorts ?? Object.entries(DEFAULT_COHORT_NAMES).map(([id, name]) => ({ id, name }))
+  const cohorts = audience?.def?.cohorts ?? Object.entries(DEFAULT_COHORT_NAMES).map(([id, name]) => ({ id, name }))
   const cohortName = (id: string) => cohorts.find((c) => c.id === id)?.name ?? DEFAULT_COHORT_NAMES[id] ?? id
   const [params] = useSearchParams()
   // ?demo=loading|empty|reviewed shows the other queue states.
@@ -47,11 +47,16 @@ export function ReviewQueue() {
   }, [])
 
   const all: ReviewSession[] = useMemo(() => {
-    if (demo === 'empty' || !isEditable(studyId)) return []
-    return demo === 'reviewed' ? reviewSessions.map((s) => (s.status === 'Under review' ? { ...s, status: 'Accepted' as ReviewStatus } : s)) : reviewSessions
-  }, [demo, studyId, isEditable])
+    if (demo === 'empty') return []
+    return demo === 'reviewed' ? review.map((s) => (s.status === 'Under review' ? { ...s, status: 'Accepted' as ReviewStatus } : s)) : review
+  }, [demo, review])
 
-  const header = <PageHeader id="R21" title="Review queue" description="Every completed interview arrives here as Under review. Flags and scores help you decide. Nothing is excluded automatically." />
+  const header = (
+    <>
+      <PageHeader id="R21" title="Review queue" description="Every completed interview arrives here as Under review. Flags and scores help you decide. Nothing is excluded automatically." />
+      {preview && <SampleDataBanner studyId={studyId} />}
+    </>
+  )
 
   if (!loaded || demo === 'loading')
     return (

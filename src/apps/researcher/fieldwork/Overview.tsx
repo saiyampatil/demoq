@@ -2,7 +2,7 @@ import { Link } from 'react-router'
 import { Button } from '@/components/Button'
 import { Card } from '@/components/Card'
 import { cn } from '@/components/cn'
-import { formatDateTime } from '@/lib/format'
+import { formatStamp } from '@/lib/format'
 import { screenById, studyPath } from '@/routes/screens'
 import { fmtDay } from '@/state/launch'
 import { attentionReason, consentSummary, durationStats, issueSummary, needsAttention, pacing, quotaFill } from '@/state/fieldwork'
@@ -10,10 +10,10 @@ import { slotText, type FWProps } from './FieldworkBits'
 
 const sessionHref = (studyId: string, id: string) => studyPath(studyId, { ...screenById.R19, path: screenById.R19.path.replace(':sessionId', id) })
 
-export function Overview({ doc, audience, target, studyId, goTab }: FWProps) {
-  const pace = pacing(doc, target)
+export function Overview({ doc, audience, target, studyId, goTab, excluded }: FWProps) {
+  const pace = pacing(doc, target, excluded)
   const dur = durationStats(doc)
-  const fill = quotaFill(doc, audience)
+  const fill = quotaFill(doc, audience, excluded)
   const issues = issueSummary(doc)
   const consent = consentSummary(doc)
   const attention = doc.sessions.filter(needsAttention)
@@ -27,7 +27,7 @@ export function Overview({ doc, audience, target, studyId, goTab }: FWProps) {
           <div className="flex flex-col gap-3">
             <p className="flex items-baseline gap-2">
               <span className="text-xl font-semibold tabular-nums">{pace.completed}</span>
-              <span className="text-graphite tabular-nums">of {pace.target} interviews completed, day {pace.day} of {pace.days}</span>
+              <span className="text-graphite tabular-nums">of {pace.target} count toward the target, day {pace.day} of {pace.days}</span>
             </p>
             <div className="relative h-2 rounded-full bg-haze" role="img" aria-label={`${pace.completed} completed, ${pace.expected} expected by now`}>
               <div className="h-full rounded-full bg-ink" style={{ width: `${Math.min(100, (pace.completed / pace.target) * 100)}%` }} />
@@ -36,7 +36,7 @@ export function Overview({ doc, audience, target, studyId, goTab }: FWProps) {
             <p className={cn('text-sm', behind > 0 ? 'text-pending-fg' : 'text-positive-fg')}>
               {behind > 0 ? `${behind} behind pace.` : 'On pace.'} About {pace.expected} would be done by now. At this rate the study ends with about {pace.projected} of {pace.target}.
             </p>
-            {behind > 0 && <p className="text-xs text-graphite">{pace.left} days left. Booked and in-progress sessions are not counted until they complete.</p>}
+            <p className="text-xs text-graphite">{behind > 0 ? `${pace.left} days left. ` : ''}Booked and in-progress sessions count once they complete. Sessions excluded in Review don’t count.</p>
           </div>
         </Card>
 
@@ -132,7 +132,7 @@ export function Overview({ doc, audience, target, studyId, goTab }: FWProps) {
           <ul className="flex flex-col gap-2 text-sm">
             {[...doc.log].reverse().map((l) => (
               <li key={l.id}>
-                <span className="font-medium">{l.by}</span>: {l.text} <span className="text-xs text-graphite">{formatDateTime(l.at)}</span>
+                <span className="font-medium">{l.by}</span>: {l.text} <span className="text-xs text-graphite">{formatStamp(l.at)}</span>
               </li>
             ))}
           </ul>

@@ -7,7 +7,7 @@ export function ObserverShell() {
   return (
     <div className="flex min-h-screen flex-col bg-paper">
       <TopBar
-        home="/observer/sessions/S-014"
+        home="/observer/sessions/P-2042"
         context="Backroom, view only"
         right={<UserBadge name={me.name} title={me.organization} />}
       />

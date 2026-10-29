@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
+import { useNavigate, useParams, useSearchParams } from 'react-router'
+import { Breadcrumb } from '@/components/Breadcrumb'
 import { Button } from '@/components/Button'
 import { cn } from '@/components/cn'
 import { ChevronLeftIcon, ChevronRightIcon } from '@/components/icons'
@@ -7,11 +8,12 @@ import { EmptyState, LoadingState } from '@/components/States'
 import { StatusChip } from '@/components/StatusChip'
 import { formatStamp } from '@/lib/format'
 import { currentUser } from '@/mock/people'
-import { reviewSessions, transcriptFor, type ReviewFlag, type ReviewSession } from '@/mock/review'
+import { transcriptFor, type ReviewFlag, type ReviewSession } from '@/mock/review'
 import { screenById, studyPath } from '@/routes/screens'
 import { DEFAULT_COHORT_NAMES, DEFAULT_QUEUE, loadQueue, queueOrder } from '@/state/reviewQueue'
-import { useStudies } from '@/state/StudyContext'
 import { PageHeader } from '../../shared/PageHeader'
+import { SampleDataBanner } from '../SampleDataBanner'
+import { useStudySessions } from '../useStudySessions'
 import { FlagsPanel } from './FlagsPanel'
 import { ScorePair } from './ScorePanel'
 import { SessionDetails, SessionNotes, StimulusHistory, SurveyResponses } from './SessionPanels'
@@ -31,7 +33,7 @@ const TAB_LABEL: Record<Tab, string> = {
 
 export function SessionReview() {
   const { sessionId = '' } = useParams()
-  const { studyId, ...ctx } = useStudyIds()
+  const { studyId, audience, review, preview } = useStudySessions()
   const [params] = useSearchParams()
   const demo = params.get('demo')
   const [loaded, setLoaded] = useState(false)
@@ -42,22 +44,20 @@ export function SessionReview() {
     return () => clearTimeout(t)
   }, [sessionId])
 
-  const cohorts = ctx.audience?.def?.cohorts ?? Object.entries(DEFAULT_COHORT_NAMES).map(([id, name]) => ({ id, name }))
+  const cohorts = audience?.def?.cohorts ?? Object.entries(DEFAULT_COHORT_NAMES).map(([id, name]) => ({ id, name }))
   const cohortName = (id: string) => cohorts.find((c) => c.id === id)?.name ?? DEFAULT_COHORT_NAMES[id] ?? id
-  const all = ctx.editable ? reviewSessions : []
+  const all = review
   const session = all.find((s) => s.id === sessionId)
 
   const crumbs = (
-    <nav aria-label="Breadcrumb" className="mb-4 flex items-center gap-1.5 text-sm text-graphite">
-      <Link to={studyPath(studyId, screenById.R21)} className="inline-flex items-center gap-1 rounded-xs font-medium text-iris-700 hover:underline">
-        <ChevronLeftIcon size={14} />
-        Review queue
-      </Link>
-      <ChevronRightIcon size={12} />
-      <span aria-current="page" className="font-medium text-ink">
-        {sessionId}
-      </span>
-    </nav>
+    <>
+      <Breadcrumb parent={{ to: studyPath(studyId, screenById.R21), label: 'Review queue' }} current={sessionId} />
+      {preview && (
+        <div className="mb-4">
+          <SampleDataBanner studyId={studyId} />
+        </div>
+      )}
+    </>
   )
 
   if (!loaded && demo !== 'notfound')
@@ -81,12 +81,6 @@ export function SessionReview() {
     )
 
   return <Loaded key={session.id} session={session} all={all} cohortName={cohortName} studyId={studyId} crumbs={crumbs} demo={demo} />
-}
-
-function useStudyIds() {
-  const { studyId = '' } = useParams()
-  const { isEditable, getAudience } = useStudies()
-  return { studyId, editable: isEditable(studyId), audience: getAudience(studyId) }
 }
 
 function Loaded({ session, all, cohortName, studyId, crumbs, demo }: { session: ReviewSession; all: ReviewSession[]; cohortName: (id: string) => string; studyId: string; crumbs: React.ReactNode; demo: string | null }) {
