@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { Banner } from '@/components/Banner'
 import { Button } from '@/components/Button'
@@ -9,7 +9,7 @@ import { StatusChip } from '@/components/StatusChip'
 import { WizardFooter } from '@/components/WizardFooter'
 import { formatStamp } from '@/lib/format'
 import { screenById, studyPath } from '@/routes/screens'
-import { consentSummary, issueSummary, pauseFieldwork, progress, resumeFieldwork } from '@/state/fieldwork'
+import { arriveCandidate, consentSummary, issueSummary, pauseFieldwork, progress, resumeFieldwork } from '@/state/fieldwork'
 import { PageHeader } from '../../shared/PageHeader'
 import { ConsentTab } from './ConsentTab'
 import { FieldworkGate, type FWProps } from './FieldworkBits'
@@ -26,6 +26,13 @@ type Tab = (typeof TABS)[number]
 export function CommandCenter() {
   const { studyId, study, editable, audience, doc, review, outcomes, reserve, me, update, preview } = useStudySessions()
   const [params, setParams] = useSearchParams()
+  // The mock: an applicant arrives for a cohort whose screening was just reopened, passes, and goes to the reserve.
+  const waiting = (doc?.recruiting ?? []).filter((r) => r.status === 'Open' && r.arrived === 0).map((r) => r.cohort).join('|')
+  useEffect(() => {
+    if (!waiting || preview || !update) return
+    const t = setTimeout(() => waiting.split('|').forEach((c) => update((d) => arriveCandidate(d, c))), 1800)
+    return () => clearTimeout(t)
+  }, [waiting, preview, update])
   const [pausing, setPausing] = useState(false)
   const [reason, setReason] = useState('')
 

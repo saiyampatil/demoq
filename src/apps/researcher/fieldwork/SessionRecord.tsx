@@ -47,6 +47,8 @@ export function SessionRecord() {
   const target = doc.plan.durationMin
   const mandatory = doc.plan.mandatoryCount
   const reviewed = review.find((r) => r.id === s.id)
+  // Consent is given once, in the participant's first session, and still applies to later ones.
+  const consent = s.consent ?? sessionsOfParticipant(doc, s.participantId)[0]?.consent ?? null
 
   return (
     <div className="flex flex-col gap-6">
@@ -115,15 +117,57 @@ export function SessionRecord() {
         </Card>
       )}
 
+      {s.carried && (
+        <section aria-label="Carried over" className="rounded-md border border-progress-line bg-progress-bg px-5 py-4">
+          <h2 className="text-md font-semibold text-progress-fg">Carried over from {s.carried.from}</h2>
+          <p className="mt-0.5 text-sm text-ink">
+            This session resumed from the last saved state, not from the start. The handoff point is {slotText(s.carried.at)}, marked in the timeline.
+          </p>
+          <dl className="mt-3 grid gap-x-8 gap-y-2 text-sm sm:grid-cols-3">
+            <div>
+              <dt className="text-graphite">Questions already asked</dt>
+              <dd className="font-medium tabular-nums">{s.carried.questions}</dd>
+            </div>
+            <div>
+              <dt className="text-graphite">Survey answers kept (locked)</dt>
+              <dd className="font-medium tabular-nums">{s.carried.answerIds.length}</dd>
+            </div>
+            <div>
+              <dt className="text-graphite">Stimuli already shown</dt>
+              <dd className="font-medium tabular-nums">{s.carried.stimuliShown.length}</dd>
+            </div>
+          </dl>
+          {s.carried.turns.length > 0 ? (
+            <ol className="mt-3 flex flex-col gap-1.5 border-t border-progress-line pt-3 text-sm" aria-label="Earlier answers carried over">
+              {s.carried.turns.map((t, i) => (
+                <li key={i} className="flex gap-3">
+                  <span className="w-24 shrink-0 text-graphite">{t.ai || t.speaker !== 'Participant' ? 'Asked' : 'Answered'}</span>
+                  <span className="min-w-0 flex-1">{t.text}</span>
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <p className="mt-3 border-t border-progress-line pt-3 text-sm text-graphite">Nothing had been answered before the first session stopped.</p>
+          )}
+        </section>
+      )}
+
       <div className="grid gap-6 lg:grid-cols-2">
         <Card title="Timeline">
           <ol className="flex flex-col gap-2.5">
-            {s.events.map((e) => (
-              <li key={e.id} className="flex gap-3 text-sm">
-                <span className="w-40 shrink-0 text-graphite tabular-nums">{slotText(e.at)}</span>
-                <span>{e.text}</span>
-              </li>
-            ))}
+            {s.events.map((e) =>
+              e.marker === 'handoff' ? (
+                <li key={e.id} aria-label="Handoff point" className="-mx-2 flex gap-3 rounded-sm border border-dashed border-progress-line bg-progress-bg px-2 py-1.5 text-sm">
+                  <span className="w-40 shrink-0 font-medium text-progress-fg tabular-nums">{slotText(e.at)}</span>
+                  <span className="font-medium text-progress-fg">{e.text}</span>
+                </li>
+              ) : (
+                <li key={e.id} className="flex gap-3 text-sm">
+                  <span className="w-40 shrink-0 text-graphite tabular-nums">{slotText(e.at)}</span>
+                  <span>{e.text}</span>
+                </li>
+              ),
+            )}
           </ol>
         </Card>
 
@@ -149,7 +193,10 @@ export function SessionRecord() {
                 {s.stimuli.map((x) => (
                   <li key={x.name} className="flex items-center gap-2">
                     {x.result === 'Shown' ? <CheckIcon size={14} className="text-positive-fg" /> : x.result === 'Failed to load' ? <CloseIcon size={14} className="text-negative-fg" /> : <span className="size-3.5" />}
-                    <span className="flex-1">{x.name}</span>
+                    <span className="flex-1">
+                      {x.name}
+                      {s.carried?.stimuliShown.includes(x.name) && <span className="ml-2 text-xs text-progress-fg">Carried over</span>}
+                    </span>
                     <span className={x.result === 'Failed to load' ? 'font-medium text-negative-fg' : 'text-graphite'}>{x.result === 'Failed to load' ? 'Failed to load, not seen' : x.result}</span>
                   </li>
                 ))}
@@ -165,7 +212,10 @@ export function SessionRecord() {
                 {s.answers.map((a) => (
                   <div key={a.questionId} className="py-2 first:pt-0 last:pb-0">
                     <dt className="text-sm text-graphite">{a.question}</dt>
-                    <dd className="font-medium">{a.answer} <span className="text-xs font-normal text-graphite">Locked {formatStamp(a.lockedAt)}</span></dd>
+                    <dd className="font-medium">
+                      {a.answer} <span className="text-xs font-normal text-graphite">Locked {formatStamp(a.lockedAt)}</span>
+                      {s.carried?.answerIds.includes(a.questionId) && <span className="ml-2 text-xs font-normal text-progress-fg">Carried over from {s.carried.from}</span>}
+                    </dd>
                   </div>
                 ))}
               </dl>
@@ -175,22 +225,22 @@ export function SessionRecord() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <Card title="Consent record">
-          {s.consent ? (
+        <Card title="Consent record" description={s.no > 1 && consent ? `Given in session 1 of ${s.participantId}. It still applies.` : undefined}>
+          {consent ? (
             <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
               <div className="sm:col-span-2">
                 <dt className="text-graphite">Agreed to</dt>
-                <dd className="font-medium">{s.consent.wording}, {formatStamp(s.consent.at)}</dd>
+                <dd className="font-medium">{consent.wording}, {formatStamp(consent.at)}</dd>
               </div>
-              <div><dt className="text-graphite">Recording</dt><dd className="font-medium">{s.consent.recording ? 'Yes' : 'No'}</dd></div>
-              <div><dt className="text-graphite">AI moderator</dt><dd className="font-medium">{s.consent.aiModerator ? 'Yes' : 'Not used'}</dd></div>
-              <div><dt className="text-graphite">Data use</dt><dd className="font-medium">{s.consent.dataUse ? 'Yes' : 'No'}</dd></div>
-              <div><dt className="text-graphite">Contact again</dt><dd className="font-medium">{s.consent.recontact ? 'Yes' : 'No'}</dd></div>
-              <div><dt className="text-graphite">18 or older</dt><dd className="font-medium">{s.consent.over18 ? 'Confirmed' : 'No'}</dd></div>
-              <div><dt className="text-graphite">Device</dt><dd className="font-medium">{s.consent.device}</dd></div>
-              {s.consent.withdrawn && (
+              <div><dt className="text-graphite">Recording</dt><dd className="font-medium">{consent.recording ? 'Yes' : 'No'}</dd></div>
+              <div><dt className="text-graphite">AI moderator</dt><dd className="font-medium">{consent.aiModerator ? 'Yes' : 'Not used'}</dd></div>
+              <div><dt className="text-graphite">Data use</dt><dd className="font-medium">{consent.dataUse ? 'Yes' : 'No'}</dd></div>
+              <div><dt className="text-graphite">Contact again</dt><dd className="font-medium">{consent.recontact ? 'Yes' : 'No'}</dd></div>
+              <div><dt className="text-graphite">18 or older</dt><dd className="font-medium">{consent.over18 ? 'Confirmed' : 'No'}</dd></div>
+              <div><dt className="text-graphite">Device</dt><dd className="font-medium">{consent.device}</dd></div>
+              {consent.withdrawn && (
                 <p className="rounded-sm border border-pending-line bg-pending-bg px-3 py-2 text-pending-fg sm:col-span-2">
-                  Withdrawn {formatStamp(s.consent.withdrawn.at)}. {s.consent.withdrawn.reason}
+                  Withdrawn {formatStamp(consent.withdrawn.at)}. {consent.withdrawn.reason}
                 </p>
               )}
             </dl>

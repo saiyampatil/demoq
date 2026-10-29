@@ -27,7 +27,7 @@ export function SessionsTab({ doc, studyId, reserve }: FWProps) {
   const navigate = useNavigate()
   const [filter, setFilter] = useState<Filter>('All')
   const [q, setQ] = useState('')
-  const needing = new Set(needsYou(doc, reserve).map((r) => r.session.id))
+  const needing = new Set(needsYou(doc, reserve).flatMap((r) => (r.session ? [r.session.id] : [])))
   const test = (s: Session) => (filter === 'Needs you' ? needing.has(s.id) : match[filter](s))
   const rows = doc.sessions.filter((s) => test(s) && (!q.trim() || [s.id, s.participantId, s.ref, s.cohort ?? '', s.region ?? ''].some((x) => x.toLowerCase().includes(q.trim().toLowerCase()))))
   const open = (s: Session) => navigate(studyPath(studyId, { ...screenById.R19, path: screenById.R19.path.replace(':sessionId', s.id) }))

@@ -1,5 +1,5 @@
 import type { AudienceDoc } from '@/state/audience'
-import type { FieldworkDoc, Outcomes } from '@/state/fieldwork'
+import type { FieldworkDoc, Outcomes, ReserveCandidate } from '@/state/fieldwork'
 import { Button } from '@/components/Button'
 import { formatSlot } from '@/lib/format'
 import { EmptyState } from '@/components/States'
@@ -41,8 +41,8 @@ export type FWProps = {
   readOnly?: boolean
   /** Review status by session: what separates confirmed progress (Accepted) from pending (Under review). */
   outcomes: Outcomes
-  /** Reserve candidates not yet invited. */
-  reserve: number
+  /** Eligible people waiting to be invited as replacements. */
+  reserve: ReserveCandidate[]
   /** Sessions awaiting review, for the link to the queue. */
   awaiting: number
 }

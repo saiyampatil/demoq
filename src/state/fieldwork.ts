@@ -16,11 +16,15 @@ export type AccessStatus = 'Invited' | 'Opened' | 'Consented' | 'No-show'
 /** "Not started" and "Booked" are additions to the session vocabulary; see docs/OPEN_QUESTIONS.md. */
 export type SessionStatus = 'Not started' | 'Booked' | 'Active' | 'Paused' | 'Incomplete (resumable)' | 'Rescheduled' | 'Withdrawn' | 'Technical Error' | 'Completed'
 export type EventKind = 'system' | 'participant' | 'moderator' | 'stimulus' | 'survey'
-export type SessionEvent = { id: string; at: string; kind: EventKind; text: string }
+/** `marker: 'handoff'` is the point where a returning participant's new session picked up from the previous one. */
+export type SessionEvent = { id: string; at: string; kind: EventKind; text: string; marker?: 'handoff' }
 export type StimulusResult = { name: string; result: 'Shown' | 'Failed to load' | 'Not shown' }
 /** Survey answers are locked once recorded; follow-up probes never change them. */
 export type Answer = { questionId: string; question: string; answer: string; lockedAt: string }
 export type TranscriptTurn = { at: string; speaker: string; ai: boolean; text: string }
+
+/** What a returning participant's new session picked up from the previous session's last saved state (4.7). Never a blank restart. */
+export type Carried = { from: string; at: string; questions: number; covered: number; answerIds: string[]; stimuliShown: string[]; turns: TranscriptTurn[] }
 export type Notes = { takeaways: string; friction: string; missing: string; recontact: 'Yes' | 'No' | 'Maybe'; recontactNote: string; by: string; at: string }
 
 export type Region = 'Northeast' | 'Midwest' | 'South' | 'West'
@@ -123,9 +127,17 @@ export type Session = {
   notes: Notes | null
   issues: TechIssue[]
   consent: ConsentRecord | null
+  /** Set on a session that resumed an earlier one: what was carried over, and where. */
+  carried?: Carried
   /** Set when the Researcher acted on it from Needs you. A handled session leaves that list. */
   handled?: { action: string; at: string; by: string }
 }
+
+/** Someone who passed screening for a cohort after launch. They wait in the reserve until a replacement is approved. */
+export type ReserveCandidate = { id: string; cohort: string; contact: string; state: string; region: Region | null; arrivedAt: string; status: 'Reserve' | 'Invited'; invitedAs?: string }
+
+/** Screening reopened for one cohort, with the same screener and audience rules. */
+export type Recruiting = { cohort: string; openedAt: string; by: string; screenerVersion: string; status: 'Open' | 'Closed'; arrived: number }
 
 export type LogEntry = { id: string; at: string; by: string; text: string }
 
@@ -145,6 +157,10 @@ export type FieldworkDoc = {
   consentWording: string
   paused: { reason: string; by: string; at: string } | null
   log: LogEntry[]
+  /** Eligible applicants who arrived after launch, waiting to be invited as replacements. */
+  reserve: ReserveCandidate[]
+  /** Cohorts whose screening has been reopened. */
+  recruiting: Recruiting[]
 }
 
 // ─── mock generation ────────────────────────────────────────────────────────
@@ -176,7 +192,7 @@ export type GenInput = {
 }
 
 /** Bumped when the seed session list changes, so saved fieldwork is rebuilt from it. */
-export const SESSION_SEED = 3
+export const SESSION_SEED = 4
 
 const DEVICES = ['Mobile · iOS Safari', 'Mobile · Android Chrome', 'Desktop · Chrome', 'Desktop · Safari', 'Desktop · Edge']
 
@@ -199,7 +215,7 @@ export function generateFieldwork(i: GenInput): FieldworkDoc {
   const consentAt = i.launch?.setup.consent[lang]?.at
   const wording = `${lang}, approved ${formatDate(consentAt ?? '2026-10-26T15:00:00-04:00')}`
 
-  const sessions = SEED_SESSIONS.map((r, n): Session => {
+  const raw = SEED_SESSIONS.map((r, n): Session => {
     const modId = human ? (mods[n % mods.length] ?? null) : null
     const moderator = moderatorName(modId)
     const v = r.variant
@@ -310,6 +326,12 @@ export function generateFieldwork(i: GenInput): FieldworkDoc {
     }
   })
 
+  // A returning participant's later session resumes from the previous one's last saved state.
+  const sessions = raw.map((s) => {
+    const prev = s.no > 1 ? raw.find((x) => x.participantId === s.participantId && x.no === s.no - 1) : undefined
+    return prev ? resumeFrom(prev, s) : s
+  })
+
   return {
     studyId: i.studyId,
     seed: SESSION_SEED,
@@ -322,6 +344,38 @@ export function generateFieldwork(i: GenInput): FieldworkDoc {
     consentWording: wording,
     paused: null,
     log: [],
+    reserve: [],
+    recruiting: [],
+  }
+}
+
+/**
+ * The new session starts from the previous session's last saved state: questions asked, what was covered, stimuli
+ * shown, locked survey answers and the conversation so far. The handoff point is marked in its timeline.
+ */
+export function resumeFrom(prev: Session, next: Session): Session {
+  const lastSaved = prev.events.reduce((m, e) => (e.at > m ? e.at : m), prev.events[0]?.at ?? FIELDWORK_NOW)
+  const union = (a: string[], b: string[]) => [...new Set([...a, ...b])]
+  const stimuli = [...prev.stimuli.filter((x) => x.result === 'Shown'), ...next.stimuli.filter((x) => !prev.stimuli.some((y) => y.name === x.name && y.result === 'Shown'))]
+  const answers = [...prev.answers, ...next.answers.filter((a) => !prev.answers.some((x) => x.questionId === a.questionId))]
+  const first = next.events[0]?.at ?? lastSaved
+  const marker: SessionEvent = {
+    id: uid('ev'),
+    at: new Date(new Date(first).getTime() + 1000).toISOString(),
+    kind: 'system',
+    marker: 'handoff',
+    text: `Handoff point: resumed from the last saved state of ${prev.id}. ${prev.asked.length} ${prev.asked.length === 1 ? 'question' : 'questions'} already asked and ${prev.answers.length} survey ${prev.answers.length === 1 ? 'answer' : 'answers'} kept. Nothing is asked again.`,
+  }
+  return {
+    ...next,
+    asked: union(prev.asked, next.asked),
+    covered: union(prev.covered, next.covered),
+    followUps: { ...prev.followUps, ...next.followUps },
+    stimuli,
+    answers,
+    transcript: [...prev.transcript, ...next.transcript.slice(prev.transcript.length)],
+    events: [...next.events, marker].sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime()),
+    carried: { from: prev.id, at: lastSaved, questions: prev.asked.length, covered: prev.covered.length, answerIds: prev.answers.map((a) => a.questionId), stimuliShown: prev.stimuli.filter((x) => x.result === 'Shown').map((x) => x.name), turns: prev.transcript },
   }
 }
 
@@ -589,13 +643,16 @@ export function resendLink(doc: FieldworkDoc, sessionId: string, by: string): Fi
   )
 }
 
-/** A retry is a new session for the same participant: P-2048-1 stays as it was and P-2048-2 begins. */
+/**
+ * A retry is a new session for the same participant (P-2048-1 stays as it was and P-2048-2 begins), but it resumes:
+ * the new session loads the previous session's last saved state (4.7) instead of starting blank.
+ */
 export function retrySession(doc: FieldworkDoc, sessionId: string, by: string): FieldworkDoc {
   const when = tick(doc)
   const s = doc.sessions.find((x) => x.id === sessionId)
   if (!s) return doc
   const no = Math.max(...sessionsOfParticipant(doc, s.participantId).map((x) => x.no)) + 1
-  const next: Session = {
+  const blank: Session = {
     id: `${s.participantId}-${no}`,
     participantId: s.participantId,
     no,
@@ -624,16 +681,79 @@ export function retrySession(doc: FieldworkDoc, sessionId: string, by: string): 
     issues: [],
     consent: null,
   }
-  const marked = patch(doc, sessionId, (x) => handledBy(addEventAt(when, x, 'system', `${by} sent a retry link. Session ${no} was created.`), when, by, 'Retry'))
-  return logged({ ...marked, sessions: [...marked.sessions, next] }, when, by, `Sent a retry link to ${s.participantId}. Session ${no} created`)
+  const next = resumeFrom(s, blank)
+  const marked = patch(doc, sessionId, (x) => handledBy(addEventAt(when, x, 'system', `${by} sent a retry link. Session ${no} was created and will resume from here.`), when, by, 'Retry'))
+  return logged({ ...marked, sessions: [...marked.sessions, next] }, when, by, `Sent a retry link to ${s.participantId}. Session ${no} resumes from session ${s.no}`)
 }
 
-/** A replacement for someone who withdrew comes from the reserve. */
-export function approveReplacement(doc: FieldworkDoc, sessionId: string, by: string): FieldworkDoc {
+/**
+ * Approving a replacement invites a reserve candidate: they become a new participant with a first session. If the
+ * replacement is for a participant who withdrew, that participant leaves Needs you.
+ */
+export function approveReplacement(doc: FieldworkDoc, by: string, target: { sessionId?: string; candidate: ReserveCandidate }): FieldworkDoc {
   const when = tick(doc)
-  const s = doc.sessions.find((x) => x.id === sessionId)
-  if (!s) return doc
-  return logged(patch(doc, sessionId, (x) => handledBy(addEventAt(when, x, 'system', `${by} approved a replacement from the reserve`), when, by, 'Approve replacement')), when, by, `Approved a replacement for ${s.participantId} from the reserve`)
+  const c = target.candidate
+  const n = Math.max(2040, ...doc.sessions.map((x) => parseInt(x.participantId.slice(2), 10) || 0)) + 1
+  const participantId = `P-${n}`
+  const replaced = target.sessionId ? doc.sessions.find((x) => x.id === target.sessionId) : undefined
+  const first = doc.sessions[0]
+  const session: Session = {
+    id: `${participantId}-1`,
+    participantId,
+    no: 1,
+    applicantId: c.id,
+    ref: c.contact,
+    cohort: c.cohort,
+    region: c.region,
+    state: c.state,
+    device: 'Not known yet',
+    reserve: false,
+    mode: first?.mode ?? 'ai',
+    access: 'Invited',
+    status: 'Not started',
+    moderatorId: null,
+    slot: null,
+    startedAt: null,
+    durationMin: null,
+    events: [ev(when, 'system', `Invited as a replacement from the reserve${replaced ? ` for ${replaced.participantId}` : ''}. Approved by ${by}.`)],
+    stimuli: [],
+    answers: [],
+    asked: [],
+    covered: [],
+    followUps: {},
+    transcript: [],
+    notes: null,
+    issues: [],
+    consent: null,
+  }
+  const reserve = doc.reserve.some((x) => x.id === c.id) ? doc.reserve.map((x) => (x.id === c.id ? { ...x, status: 'Invited' as const, invitedAs: participantId } : x)) : [...doc.reserve, { ...c, status: 'Invited' as const, invitedAs: participantId }]
+  const base: FieldworkDoc = { ...doc, reserve, sessions: [...doc.sessions, session] }
+  const done = replaced ? patch(base, replaced.id, (x) => handledBy(addEventAt(when, x, 'system', `${by} approved a replacement: ${c.id} was invited as ${participantId}`), when, by, 'Approve replacement')) : base
+  return logged(done, when, by, `Approved a replacement from the reserve${replaced ? ` for ${replaced.participantId}` : ''}: invited ${c.id} (${c.cohort}) as ${participantId}`)
+}
+
+/** Reopens screening for one cohort. The screener and the audience rules are unchanged, so no new version is made. */
+export function reopenScreening(doc: FieldworkDoc, cohort: string, by: string, screenerVersion: string): FieldworkDoc {
+  if (doc.recruiting.some((r) => r.cohort === cohort && r.status === 'Open')) return doc
+  const when = tick(doc)
+  return logged({ ...doc, recruiting: [...doc.recruiting.filter((r) => r.cohort !== cohort), { cohort, openedAt: when, by, screenerVersion, status: 'Open', arrived: 0 }] }, when, by, `Reopened screening for ${cohort} (${screenerVersion}, unchanged)`)
+}
+
+export function closeScreening(doc: FieldworkDoc, cohort: string, by: string): FieldworkDoc {
+  const when = tick(doc)
+  return logged({ ...doc, recruiting: doc.recruiting.map((r) => (r.cohort === cohort ? { ...r, status: 'Closed' as const } : r)) }, when, by, `Closed screening for ${cohort}`)
+}
+
+const ARRIVALS: Record<string, [string, string]> = { 'Younger, 25–34': ['Oregon', 'Phone · (503) ••• 4418'], 'Older, 35–44': ['Minnesota', 'Phone · (612) ••• 9072'] }
+
+/** The mock: one applicant arrives for a cohort whose screening is open, passes the same rules, and goes to the reserve. */
+export function arriveCandidate(doc: FieldworkDoc, cohort: string): FieldworkDoc {
+  const r = doc.recruiting.find((x) => x.cohort === cohort && x.status === 'Open' && x.arrived === 0)
+  if (!r) return doc
+  const when = tick(doc)
+  const [state, contact] = ARRIVALS[cohort] ?? ['Oregon', 'Phone · (503) ••• 4418']
+  const candidate: ReserveCandidate = { id: `A-${2101 + doc.reserve.length}`, cohort, contact, state, region: (regionOf(state) as Region | undefined) ?? null, arrivedAt: when, status: 'Reserve' }
+  return logged({ ...doc, reserve: [...doc.reserve, candidate], recruiting: doc.recruiting.map((x) => (x === r ? { ...x, arrived: 1 } : x)) }, when, 'PulseAI', `${candidate.id} passed screening for ${cohort} and went to the reserve list`)
 }
 
 /** Books the next free slot, two days out at 10:00, for a participant who missed or moved theirs. */

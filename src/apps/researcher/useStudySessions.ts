@@ -6,7 +6,7 @@ import { currentUser } from '@/mock/people'
 import type { FieldworkDoc } from '@/state/fieldwork'
 import { useStudies } from '@/state/StudyContext'
 import { outcomesOf, reviewList } from '@/state/studySessions'
-import { reserveLeft } from '@/state/monitor'
+import { reserveCandidates } from '@/state/monitor'
 
 /** The study's fieldwork doc: the real one once Live, or the read-only sample before launch. */
 export function useSessionsDoc(studyId: string) {
@@ -29,7 +29,7 @@ export function useStudySessions() {
   const update = useCallback((fn: (d: FieldworkDoc) => FieldworkDoc) => (real ? updateFieldwork(studyId, fn) : undefined), [studyId, updateFieldwork, real])
   const review = useMemo(() => reviewList(doc), [doc])
   const outcomes = useMemo(() => outcomesOf(review), [review])
-  const reserve = useMemo(() => reserveLeft(audience), [audience])
+  const reserve = useMemo(() => reserveCandidates(doc, audience), [doc, audience])
   return {
     studyId,
     study: getStudy(studyId),
@@ -40,7 +40,7 @@ export function useStudySessions() {
     review,
     /** Review status by session: what separates confirmed from pending progress. */
     outcomes,
-    /** Reserve candidates not yet invited. */
+    /** Eligible people waiting to be invited as replacements. */
     reserve,
     preview,
     me: currentUser.name,
