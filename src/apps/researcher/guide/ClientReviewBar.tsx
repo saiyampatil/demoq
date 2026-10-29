@@ -3,23 +3,20 @@ import { Button } from '@/components/Button'
 import { TextArea } from '@/components/Field'
 import { CheckIcon } from '@/components/icons'
 import { formatStamp } from '@/lib/format'
-import { downloadGuide } from './download'
-import { clientApprovedVersion, recordChangesRequested, recordClientApproved, shareGuide, studyHasClient, type GuideDoc } from '@/state/guide'
+import { clientApprovedVersion, recordChangesRequested, recordClientApproved, studyHasClient, type GuideDoc } from '@/state/guide'
 
-type Props = { doc: GuideDoc; studyName: string; client: string; me: string; update: (fn: (d: GuideDoc) => GuideDoc) => void }
+type Props = { doc: GuideDoc; client: string; me: string; update: (fn: (d: GuideDoc) => GuideDoc) => void; onShare: () => void }
 
 /**
  * Step 5 and 6 of Module 3, above the guide: share with the client, record their decision, then approve (the button
  * is in the footer). A study with no client skips straight to approval, and says so.
  */
-export function ClientReviewBar({ doc, studyName, client, me, update }: Props) {
+export function ClientReviewBar({ doc, client, me, update, onShare }: Props) {
   const hasClient = studyHasClient(client)
   const [asking, setAsking] = useState(false)
   const [feedback, setFeedback] = useState('')
 
-  const download = () => downloadGuide(doc, studyName)
-
-  const shared = [...doc.events].reverse().find((e) => e.type === 'shared' && e.version === doc.version)
+  const shared = [...doc.events].reverse().find((e) => (e.type === 'shared' || e.type === 'emailed') && e.version === doc.version)
   const clientEvent = [...doc.events].reverse().find((e) => e.type === 'client-approved' && e.version === doc.version)
   const changes = [...doc.events].reverse().find((e) => e.type === 'changes-requested' && e.version === doc.version - 1)
   const approved = doc.status === 'Approved' && doc.approved
@@ -49,17 +46,11 @@ export function ClientReviewBar({ doc, studyName, client, me, update }: Props) {
           </p>
         ) : doc.status === 'Draft' ? (
           <div className="flex flex-wrap items-center gap-3">
-            <Button
-              variant="primary"
-              onClick={() => {
-                download()
-                update((d) => shareGuide(d, me))
-              }}
-            >
-              Download and share with client
+            <Button variant="primary" onClick={onShare}>
+              Share with client
             </Button>
             <p className="min-w-0 flex-1 basis-60 text-sm text-graphite">
-              Downloads version {doc.version} as a PDF to email to {client}, and sets it to In Review. A client approval is needed before you can approve it.
+              Email version {doc.version} to {client}, or download it as a PDF. Sharing sets it to In Review. A client approval is needed before you can approve it.
             </p>
           </div>
         ) : (
@@ -68,7 +59,7 @@ export function ClientReviewBar({ doc, studyName, client, me, update }: Props) {
               <span className="font-medium">In Review.</span>{' '}
               {shared && (
                 <>
-                  Downloaded {formatStamp(shared.at)} as version {shared.version} by {shared.by}.
+                  {shared.type === 'emailed' ? `Emailed to ${shared.note}` : 'Downloaded'} {formatStamp(shared.at)} as version {shared.version} by {shared.by}.
                 </>
               )}{' '}
               {!clientApprovedVersion(doc) && <span className="text-graphite">Record what {client} decided.</span>}
@@ -102,8 +93,8 @@ export function ClientReviewBar({ doc, studyName, client, me, update }: Props) {
               <div className="flex flex-wrap gap-2">
                 <Button onClick={() => setAsking(true)}>Changes requested</Button>
                 <Button onClick={() => update((d) => recordClientApproved(d, me, client))}>Client approved</Button>
-                <Button variant="ghost" onClick={download}>
-                  Download again
+                <Button variant="ghost" onClick={onShare}>
+                  Share again
                 </Button>
               </div>
             )}

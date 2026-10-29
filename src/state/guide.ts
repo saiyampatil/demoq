@@ -136,7 +136,7 @@ export type GuideEvent = {
   at: string
   by: string
   version: number
-  type: 'drafted' | 'redrafted' | 'shared' | 'changes-requested' | 'client-approved' | 'approved' | 'reopened' | 'override'
+  type: 'drafted' | 'redrafted' | 'saved' | 'emailed' | 'shared' | 'changes-requested' | 'client-approved' | 'approved' | 'reopened' | 'override'
   note?: string
   feedback?: string
 }
@@ -334,9 +334,32 @@ export function approvalBlockers(doc: GuideDoc, hasClient: boolean): string[] {
 
 // ─── review and approval ────────────────────────────────────────────────────
 
-export function shareGuide(doc: GuideDoc, by: string): GuideDoc {
+/** Sets the version In Review. The PDF is sent by the researcher; email records who it was sent to. */
+export function shareGuide(doc: GuideDoc, by: string, method: 'pdf' | 'email' = 'pdf', recipients: string[] = [], message = ''): GuideDoc {
   if (!doc.guide || doc.status === 'Approved') return doc
-  return { ...doc, status: 'In Review', events: [...doc.events, { id: uid('ge'), at: now(), by, version: doc.version, type: 'shared' }] }
+  const email = method === 'email'
+  return {
+    ...doc,
+    status: 'In Review',
+    // What is shared is the version as it stands, so its edits are part of it.
+    edits: 0,
+    events: [
+      ...doc.events,
+      { id: uid('ge'), at: now(), by, version: doc.version, type: email ? 'emailed' : 'shared', note: email ? recipients.join(', ') : undefined, feedback: email && message.trim() ? message.trim() : undefined },
+    ],
+  }
+}
+
+/** Saves the draft as the next version, like the brief. Only a Draft with unsaved edits can be saved. */
+export function saveGuideVersion(doc: GuideDoc, by: string): GuideDoc {
+  if (!doc.guide || doc.status !== 'Draft' || doc.edits === 0) return doc
+  const version = doc.version + 1
+  return {
+    ...doc,
+    version,
+    edits: 0,
+    events: [...doc.events, { id: uid('ge'), at: now(), by, version, type: 'saved', note: `${doc.edits} ${doc.edits === 1 ? 'edit' : 'edits'} saved from version ${doc.version}` }],
+  }
 }
 
 /** Changes requested creates the next version as a Draft, with the client's feedback recorded. */

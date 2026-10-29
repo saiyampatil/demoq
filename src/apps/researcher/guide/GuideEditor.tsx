@@ -31,6 +31,7 @@ import {
   overrideCheck,
   pruneBranches,
   regenerateGuide,
+  saveGuideVersion,
   shareGuide,
   startGuide,
   studyHasClient,
@@ -44,6 +45,7 @@ import {
 import { uid } from '@/state/brief'
 import { OriginTag } from '../audience/OriginTag'
 import { PageHeader } from '../../shared/PageHeader'
+import { SendForApprovalCard } from '../brief/SendForApprovalCard'
 import { ClientReviewBar } from './ClientReviewBar'
 import { downloadGuide } from './download'
 import { GuideGate, ReplaceGuideModal, VersionBanner } from './GuideBits'
@@ -55,6 +57,7 @@ const small = cn(controlBase, 'h-8 px-2 text-sm')
 export function GuideEditor() {
   const { studyId, study, editable, doc, me, update, ensure, stale } = useGuide()
   const [history, setHistory] = useState(false)
+  const [sharing, setSharing] = useState(false)
   const [regenerate, setRegenerate] = useState(false)
   const [overriding, setOverriding] = useState<'coverage' | 'duration'>()
   const [reason, setReason] = useState('')
@@ -120,14 +123,12 @@ export function GuideEditor() {
   const coverage = coverageCheck(g)
   const duration = durationCheck(g, target)
   const hasClient = studyHasClient(study?.client)
+  const dirty = doc.status === 'Draft' && doc.edits > 0
   const approveBlockers = approvalBlockers(doc, hasClient)
   const clientEvent = [...doc.events].reverse().find((e) => e.type === 'client-approved' && e.version === doc.version)
   // Draft on a study with a client: the next step is sharing, not approving.
   const needsShare = hasClient && doc.status === 'Draft' && !clientEvent
-  const shareWithClient = () => {
-    downloadGuide(doc, study?.name ?? 'Study')
-    update((d) => shareGuide(d, me))
-  }
+  const shareWithClient = () => setSharing(true)
   const shortDate = (iso: string) => new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/New_York' })
   const guideBlockers = approvalBlockers(doc, false)
   const footerMessage =
@@ -157,23 +158,29 @@ export function GuideEditor() {
           </span>
           <span>{ai ? 'AI moderator' : 'Human moderator'}</span>
           <span>Built from brief version {g.builtFrom.briefVersion}, audience version {g.builtFrom.audienceVersion}</span>
+          {dirty && <span className="font-medium text-pending-fg">Unsaved changes</span>}
         </>,
         <>
-          <Button variant="ghost" onClick={() => downloadGuide(doc, study?.name ?? 'Study')}>
-            Download PDF
+          <Button variant="ghost" onClick={() => setRegenerate(true)}>
+            Regenerate from brief and audience
           </Button>
           <Button variant="ghost" icon={<HistoryIcon />} onClick={() => setHistory(true)}>
             Version history
           </Button>
-          <Button variant="ghost" onClick={() => setRegenerate(true)}>
-            Regenerate from brief and audience
+          <Button variant={dirty ? 'primary' : 'secondary'} disabled={!dirty} onClick={() => update((d) => saveGuideVersion(d, me))}>
+            Save version
           </Button>
+          {hasClient && doc.status !== 'Approved' && (
+            <Button variant={dirty ? 'secondary' : 'primary'} onClick={() => setSharing(true)}>
+              Share with client
+            </Button>
+          )}
         </>,
       )}
 
       <VersionBanner doc={doc} />
 
-      <ClientReviewBar doc={doc} studyName={study?.name ?? 'Study'} client={study?.client ?? ''} me={me} update={update} />
+      <ClientReviewBar doc={doc} client={study?.client ?? ''} me={me} update={update} onShare={() => setSharing(true)} />
 
       <section aria-label="AI checks" className="flex flex-col gap-3">
         <CheckBanner
@@ -328,7 +335,7 @@ export function GuideEditor() {
           </Button>
         ) : needsShare ? (
           <Button variant="primary" onClick={shareWithClient}>
-            Download and share with client
+            Share with client
           </Button>
         ) : approveBlockers.length ? (
           <Tooltip focusable content={`${approveBlockers.join('. ')}.`}>
@@ -381,6 +388,26 @@ export function GuideEditor() {
         }}
       />
 
+      <SideDrawer open={sharing} onClose={() => setSharing(false)} title="Share with client" description={`Choose how version ${doc.version} reaches the client.`}>
+        <SendForApprovalCard
+          bare
+          noun="guide"
+          version={doc.version}
+          blockers={[]}
+          emailHint="The email goes to the client with the guide. The client’s review page isn’t built yet, so you record their answer here."
+          footnote="Sharing sets this version to In Review. Record Changes requested or Client approved in the bar above the guide."
+          onSendEmail={(emails, message) => {
+            update((d) => shareGuide(d, me, 'email', emails, message))
+            setSharing(false)
+          }}
+          onDownload={() => {
+            downloadGuide(doc, study?.name ?? 'Study')
+            update((d) => shareGuide(d, me, 'pdf'))
+            setSharing(false)
+          }}
+        />
+      </SideDrawer>
+
       <SideDrawer open={history} onClose={() => setHistory(false)} title="Version history" description="Who did what, and when.">
         <HistoryList events={doc.events} />
       </SideDrawer>
@@ -430,7 +457,11 @@ const eventText = (e: GuideEvent) => {
     case 'redrafted':
       return `${v} drafted again by ${e.by}`
     case 'shared':
-      return `${v} shared with the client by ${e.by}`
+      return `${v} shared with the client by ${e.by} (PDF)`
+    case 'emailed':
+      return `${v} emailed for approval to ${e.note} by ${e.by}`
+    case 'saved':
+      return `${v} saved by ${e.by}`
     case 'changes-requested':
       return `${v}: changes requested${e.note ? `. ${e.note}` : ''}`
     case 'client-approved':
@@ -451,6 +482,7 @@ function HistoryList({ events }: { events: GuideEvent[] }) {
         <li key={e.id} className="rounded-sm border border-mist px-3 py-2 text-sm">
           <p className={cn(e.type === 'approved' && 'font-semibold')}>{eventText(e)}</p>
           {e.feedback && <p className="mt-0.5 text-graphite">“{e.feedback}”</p>}
+          {e.type === 'saved' && e.note && <p className="text-graphite">{e.note}.</p>}
           {e.type === 'approved' && e.note && <p className="text-graphite">{e.note}.</p>}
           <p className="mt-0.5 text-xs text-graphite tabular-nums">
             {e.by} · {formatDateTime(e.at)}

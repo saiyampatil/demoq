@@ -15,9 +15,14 @@ type SendForApprovalCardProps = {
   blockers: string[]
   onSendEmail: (emails: string[], message: string) => void
   onDownload: () => void
+  /** What the email option does, when it isn't the brief's review link. */
+  emailHint?: string
+  footnote?: string
+  noun?: string
+  bare?: boolean
 }
 
-export function SendForApprovalCard({ version, blockers, onSendEmail, onDownload }: SendForApprovalCardProps) {
+export function SendForApprovalCard({ version, blockers, onSendEmail, onDownload, emailHint, footnote, noun = 'brief', bare }: SendForApprovalCardProps) {
   const [method, setMethod] = useState<Method>('email')
   const [emails, setEmails] = useState<string[]>([])
   const [message, setMessage] = useState('')
@@ -25,7 +30,7 @@ export function SendForApprovalCard({ version, blockers, onSendEmail, onDownload
   const blocked = blockers.length > 0
 
   const options: { value: Method; label: string; hint: string }[] = [
-    { value: 'email', label: 'Email the client', hint: 'The client gets a link to approve, decline or comment. Their answer is recorded for you.' },
+    { value: 'email', label: 'Email the client', hint: emailHint ?? 'The client gets a link to approve, decline or comment. Their answer is recorded for you.' },
     { value: 'download', label: 'Download PDF', hint: 'You send the PDF yourself, then record the client’s decision here.' },
   ]
 
@@ -35,11 +40,10 @@ export function SendForApprovalCard({ version, blockers, onSendEmail, onDownload
     </Button>
   )
 
-  return (
-    <Card title="Send for approval" description={`Choose how version ${version} reaches the client.`}>
+  const inner = (
       <div className="flex flex-col gap-4">
         <fieldset className="flex flex-col gap-2">
-          <legend className="sr-only">How to send the brief</legend>
+          <legend className="sr-only">How to send the {noun}</legend>
           {options.map((o) => (
             <label
               key={o.value}
@@ -81,7 +85,7 @@ export function SendForApprovalCard({ version, blockers, onSendEmail, onDownload
             />
             <TextArea label="Message (optional)" rows={3} value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Add a note for the client" />
             <p className="text-xs text-graphite">
-              Each person gets a link to a read-only preview. The first approval or decline closes the request. Comments don’t change the status.
+              {footnote ?? 'Each person gets a link to a read-only preview. The first approval or decline closes the request. Comments don’t change the status.'}
             </p>
             {blocked ? (
               <Tooltip focusable align="left" content={`You can’t send yet: ${blockers.join('. ')}.`}>
@@ -108,6 +112,10 @@ export function SendForApprovalCard({ version, blockers, onSendEmail, onDownload
           </div>
         )}
       </div>
+  )
+  return bare ? inner : (
+    <Card title="Send for approval" description={`Choose how version ${version} reaches the client.`}>
+      {inner}
     </Card>
   )
 }
