@@ -9,7 +9,8 @@ import { SubStepper, type SubStep } from '@/components/SubStepper'
 import { ErrorState } from '@/components/States'
 import type { StudyRecord } from '@/mock/types'
 import { builtScreenIds, screenById, screenOrder, screens, screensForStep, studyPath, wizardLabel, type Screen } from '@/routes/screens'
-import { generateQuestions, invitedCount, setScreener, startScreener } from '@/state/audience'
+import { approvedBriefSections, generateQuestions, invitedCount, setScreener, startScreener } from '@/state/audience'
+import { applyDraft, configBlockers, draftGuide } from '@/state/guide'
 import { useStudies } from '@/state/StudyContext'
 import { landingStep, stepInfo, type StepInfo } from '@/state/workflow'
 
@@ -26,7 +27,7 @@ function matchScreen(studyId: string, pathname: string): Screen | undefined {
 export function StudyWorkspace() {
   const { studyId = '' } = useParams()
   const { pathname } = useLocation()
-  const { getStudy, getAudience } = useStudies()
+  const { getStudy, getAudience, getGuide } = useStudies()
   const study = getStudy(studyId)
   const screenIdx = screenOrder(matchScreen(studyId, pathname)?.id ?? '')
 
@@ -58,6 +59,7 @@ export function StudyWorkspace() {
     return { ...s, to: items[0] ? studyPath(study.id, items[0]) : pathname, current: s.key === currentStep }
   })
   const audience = getAudience(study.id)
+  const guideDoc = getGuide(study.id)
   const subItems: SubStep[] = currentStep
     ? screensForStep(currentStep).map((i) => ({
         id: i.id,
@@ -65,9 +67,15 @@ export function StudyWorkspace() {
         to: builtScreenIds.has(i.id) ? studyPath(study.id, i) : undefined,
         current: i.id === screen?.id,
         done:
-          currentStep !== 'audience'
-            ? undefined
-            : i.id === 'R6'
+          currentStep === 'guide'
+            ? i.id === 'R12'
+              ? !!guideDoc && configBlockers(guideDoc.moderator).length === 0
+              : i.id === 'R13'
+                ? !!guideDoc && (guideDoc.stimuli.skipped || guideDoc.stimuli.items.some((s) => s.active))
+                : guideDoc?.status === 'Approved'
+            : currentStep !== 'audience'
+              ? undefined
+              : i.id === 'R6'
               ? audience?.status === 'Confirmed'
               : i.id === 'R7'
                 ? audience?.screener?.status === 'Ready'
@@ -82,6 +90,7 @@ export function StudyWorkspace() {
   return (
     <div className="flex flex-1 flex-col overflow-x-clip">
       <ScreenerAutomation studyId={study.id} />
+      <GuideAutomation studyId={study.id} />
       <div className="border-b border-mist bg-paper px-4 py-4 sm:px-8">
         <div className="mx-auto max-w-[1400px]">
           <Stepper steps={stepperSteps} />
@@ -137,6 +146,42 @@ function ScreenerAutomation({ studyId }: { studyId: string }) {
     const t = setTimeout(() => updateAudience(studyId, (d) => (d.def ? setScreener(d, generateQuestions(d.def)) : { ...d, screenerPending: false })), 1300)
     return () => clearTimeout(t)
   }, [pending, studyId, updateAudience])
+
+  return null
+}
+
+/** Drafts the guide once the setup asks for it, so it finishes whichever screen is open. */
+function GuideAutomation({ studyId }: { studyId: string }) {
+  const { getGuide, getBrief, getAudience, getStudy, updateGuide } = useStudies()
+  const doc = getGuide(studyId)
+  const pending = !!doc?.guidePending
+  const brief = getBrief(studyId)
+  const audience = getAudience(studyId)
+  const study = getStudy(studyId)
+
+  useEffect(() => {
+    if (!pending) return
+    const t = setTimeout(
+      () =>
+        updateGuide(studyId, (d) => {
+          if (!d.guidePending) return d
+          if (configBlockers(d.moderator).length) return { ...d, guidePending: false }
+          const approved = approvedBriefSections(brief)
+          const guide = draftGuide({
+            study: { client: study?.client ?? '', category: study?.category ?? '' },
+            briefSections: approved?.sections,
+            briefVersion: approved?.version ?? 0,
+            audienceVersion: audience?.version ?? 0,
+            moderator: d.moderator,
+            stimuli: d.stimuli,
+          })
+          return applyDraft(d, guide)
+        }),
+      1600,
+    )
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pending, studyId])
 
   return null
 }

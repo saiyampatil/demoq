@@ -71,9 +71,9 @@ Brief sections (R4), in order. These replace the earlier ten-section list. Resea
 | R8 | Participant sourcing (two options: upload or paste User IDs / phone numbers, or external panel IDs; each applicant tagged Manual or External; no recruitment link, no CSV) | 2 |
 | R9 | Screening dashboard + R10 applicant drawer (auto-marked from the rules; drawer shows rule-by-rule why, answers, verification confirmations, proof, activity log, reason-required actions) | 2 |
 | R11 | Finalize pool (Eligible + Passed only, Reserve as replacements, under-quota warning) | 2 |
-| R12 | Moderator setup (AI agent config OR assign humans; surveys) | 3 |
+| R12 | Moderator setup (AI agent, language, style, duration, surveys OR assign humans; one duration value; human mode hides all AI config and surveys) | 3 |
 | R13 | Stimulus library (active set, deselect never delete) | 3 |
-| R14 | Discussion guide editor (draft, flags, share, approve, versions) | 3 |
+| R14 | Discussion guide editor (auto-drafted; sections with minutes; per-question mandatory, probes, stimulus/survey, collapsed Advanced for banned phrasing, max follow-ups, branching; coverage and duration checks; share, approve, versions) | 3 |
 | R15 | Launch readiness (entry checklist, compiled study plan) | 4.1 |
 | R16 | Test runs (language × device matrix) | 4.1 |
 | R17 | Preflight and authorize launch | 4.1 |

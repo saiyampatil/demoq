@@ -1,11 +1,13 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { seedConfirmedAudience, seedDraftAudience } from '@/mock/audience'
+import { seedGuideDoc } from '@/mock/guide'
 import { seedApprovedBrief } from '@/mock/brief'
 import { DEFAULT_STAGE, MOISTURIZER_ID, presetStudy, type StagePresetKey } from '@/mock/moisturizerStudy'
 import { otherStudies } from '@/mock/studies'
 import type { StudyRecord } from '@/mock/types'
 import { audienceSummary, emptySourcing, type AudienceDoc } from './audience'
 import { briefSummary, now, type BriefDoc } from './brief'
+import { guideSummary, type GuideDoc } from './guide'
 
 const STORAGE_KEY = 'pulseai-qual:v2'
 
@@ -16,6 +18,7 @@ type Persisted = {
   created: StudyRecord[]
   briefs: Record<string, BriefDoc>
   audiences: Record<string, AudienceDoc>
+  guides: Record<string, GuideDoc>
 }
 
 type StudyContextValue = {
@@ -30,6 +33,9 @@ type StudyContextValue = {
   getAudience: (id: string | undefined) => AudienceDoc | undefined
   setAudience: (id: string, doc: AudienceDoc) => void
   updateAudience: (id: string, fn: (doc: AudienceDoc) => AudienceDoc) => void
+  getGuide: (id: string | undefined) => GuideDoc | undefined
+  setGuide: (id: string, doc: GuideDoc) => void
+  updateGuide: (id: string, fn: (doc: GuideDoc) => GuideDoc) => void
   stage: StagePresetKey
   setStage: (stage: StagePresetKey) => void
   resetSeed: () => void
@@ -37,16 +43,18 @@ type StudyContextValue = {
 
 const StudyContext = createContext<StudyContextValue | null>(null)
 
-function seedStage(stage: StagePresetKey): Pick<Persisted, 'stage' | 'moisturizer' | 'briefs' | 'audiences'> {
+function seedStage(stage: StagePresetKey): Pick<Persisted, 'stage' | 'moisturizer' | 'briefs' | 'audiences' | 'guides'> {
   const moisturizer = presetStudy(stage)
-  if (stage === 'new') return { stage, moisturizer, briefs: {}, audiences: {} }
+  if (stage === 'new') return { stage, moisturizer, briefs: {}, audiences: {}, guides: {} }
   const brief = seedApprovedBrief(MOISTURIZER_ID)
   const audience = stage === 'brief-approved' ? seedDraftAudience(MOISTURIZER_ID, brief) : seedConfirmedAudience(MOISTURIZER_ID)
+  const guide = stage === 'midway' ? seedGuideDoc(MOISTURIZER_ID, brief, 'in-review') : stage === 'ready' || stage === 'live' ? seedGuideDoc(MOISTURIZER_ID, brief, 'approved') : undefined
   return {
     stage,
-    moisturizer: { ...moisturizer, brief: briefSummary(brief), ...(audience ? { audience: audienceSummary(audience) } : {}) },
+    moisturizer: { ...moisturizer, brief: briefSummary(brief), ...(audience ? { audience: audienceSummary(audience) } : {}), ...(guide ? { guide: guideSummary(guide) } : {}) },
     briefs: { [MOISTURIZER_ID]: brief },
     audiences: audience ? { [MOISTURIZER_ID]: audience } : {},
+    guides: guide ? { [MOISTURIZER_ID]: guide } : {},
   }
 }
 
@@ -64,7 +72,7 @@ function load(): Persisted {
         const audiences = Object.fromEntries(
           Object.entries(parsed.audiences ?? {}).map(([id, doc]) => [id, Array.isArray(doc.sourcing?.candidates) ? doc : { ...doc, sourcing: emptySourcing() }]),
         )
-        return { ...parsed, briefs, audiences }
+        return { ...parsed, briefs, audiences, guides: parsed.guides ?? {} }
       }
     }
   } catch {
@@ -99,10 +107,12 @@ export function StudyProvider({ children }: { children: ReactNode }) {
         // Changing stage replaces only the seed study; created studies stay.
         const { [MOISTURIZER_ID]: _seedBrief, ...otherBriefs } = prev.briefs
         const { [MOISTURIZER_ID]: _seedAudience, ...otherAudiences } = prev.audiences
+        const { [MOISTURIZER_ID]: _seedGuide, ...otherGuides } = prev.guides
         void _seedBrief
         void _seedAudience
+        void _seedGuide
         const next = seedStage(stage)
-        return { ...prev, ...next, briefs: { ...otherBriefs, ...next.briefs }, audiences: { ...otherAudiences, ...next.audiences } }
+        return { ...prev, ...next, briefs: { ...otherBriefs, ...next.briefs }, audiences: { ...otherAudiences, ...next.audiences }, guides: { ...otherGuides, ...next.guides } }
       }),
     [],
   )
@@ -153,6 +163,25 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     [writeAudience],
   )
 
+  const writeGuide = useCallback((id: string, fn: (doc: GuideDoc | undefined) => GuideDoc) => {
+    setState((prev) => {
+      const doc = fn(prev.guides[id])
+      // Choosing AI or human in R12 sets the study's moderator type.
+      const sync = (s: StudyRecord): StudyRecord =>
+        s.id === id ? { ...s, guide: guideSummary(doc), moderatorType: doc.moderator.mode ? (doc.moderator.mode === 'ai' ? 'AI-led' : 'Human-led') : s.moderatorType, updatedAt: now() } : s
+      return { ...prev, guides: { ...prev.guides, [id]: doc }, moisturizer: sync(prev.moisturizer), created: prev.created.map(sync) }
+    })
+  }, [])
+  const setGuide = useCallback((id: string, doc: GuideDoc) => writeGuide(id, () => doc), [writeGuide])
+  const updateGuide = useCallback(
+    (id: string, fn: (doc: GuideDoc) => GuideDoc) =>
+      writeGuide(id, (doc) => {
+        if (!doc) throw new Error(`No guide for study ${id}`)
+        return fn(doc)
+      }),
+    [writeGuide],
+  )
+
   const setBrief = useCallback((id: string, doc: BriefDoc) => writeBrief(id, () => doc), [writeBrief])
   const updateBrief = useCallback(
     (id: string, fn: (doc: BriefDoc) => BriefDoc) =>
@@ -177,11 +206,14 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       getAudience: (id) => (id ? state.audiences[id] : undefined),
       setAudience,
       updateAudience,
+      getGuide: (id) => (id ? state.guides[id] : undefined),
+      setGuide,
+      updateGuide,
       stage: state.stage,
       setStage,
       resetSeed,
     }
-  }, [state, createStudy, setBrief, updateBrief, setAudience, updateAudience, setStage, resetSeed])
+  }, [state, createStudy, setBrief, updateBrief, setAudience, updateAudience, setGuide, updateGuide, setStage, resetSeed])
 
   return <StudyContext.Provider value={value}>{children}</StudyContext.Provider>
 }

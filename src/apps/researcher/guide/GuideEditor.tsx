@@ -1,0 +1,532 @@
+import { useEffect, useMemo, useState } from 'react'
+import { Banner } from '@/components/Banner'
+import { Button, Spinner } from '@/components/Button'
+import { Card } from '@/components/Card'
+import { cn } from '@/components/cn'
+import { controlBase, TextArea, TextField } from '@/components/Field'
+import { AIGeneratedTag } from '@/components/AIGenerated'
+import { ArrowUpIcon, CheckIcon, CloseIcon, HistoryIcon, PlusIcon } from '@/components/icons'
+import { Modal } from '@/components/Modal'
+import { SideDrawer } from '@/components/SideDrawer'
+import { StatusChip } from '@/components/StatusChip'
+import { Tooltip } from '@/components/Tooltip'
+import { WizardFooter } from '@/components/WizardFooter'
+import { formatDateTime } from '@/lib/format'
+import { people } from '@/mock/people'
+import { screenById, studyPath } from '@/routes/screens'
+import {
+  allQuestions,
+  approvalBlockers,
+  approveGuide,
+  clientApprovedVersion,
+  configBlockers,
+  coverageCheck,
+  durationCheck,
+  editGuide,
+  fixCoverage,
+  fixDuration,
+  flaggedQuestions,
+  guideAsText,
+  moveQuestion,
+  moveSection,
+  newQuestion,
+  newSection,
+  overrideCheck,
+  pruneBranches,
+  recordChangesRequested,
+  recordClientApproved,
+  regenerateGuide,
+  shareGuide,
+  startGuide,
+  totalMinutes,
+  touchQuestion,
+  type Check,
+  type Guide,
+  type GuideDoc,
+  type GuideEvent,
+  type GuideSection,
+} from '@/state/guide'
+import { uid } from '@/state/brief'
+import { OriginTag } from '../audience/OriginTag'
+import { PageHeader } from '../../shared/PageHeader'
+import { GuideGate, ReplaceGuideModal, VersionBanner } from './GuideBits'
+import { QuestionCard } from './QuestionCard'
+import { useGuide } from './useGuide'
+
+const small = cn(controlBase, 'h-8 px-2 text-sm')
+
+export function GuideEditor() {
+  const { studyId, study, editable, doc, me, update, ensure, stale } = useGuide()
+  const [history, setHistory] = useState(false)
+  const [regenerate, setRegenerate] = useState(false)
+  const [overriding, setOverriding] = useState<'coverage' | 'duration'>()
+  const [reason, setReason] = useState('')
+
+  useEffect(() => {
+    if (editable && !doc) ensure()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editable, doc === undefined])
+
+  // Reaching R14 with a complete setup starts the draft. There is no Generate button.
+  const ready = !!doc && configBlockers(doc.moderator).length === 0
+  useEffect(() => {
+    if (doc && ready && !doc.guide && !doc.guidePending) update(startGuide)
+  }, [doc, ready, update])
+
+  const flags = useMemo(() => (doc ? flaggedQuestions(doc) : []), [doc])
+
+  if (!editable) return <GuideGate reason="readonly" />
+  if (stale) return <GuideGate reason="stale" />
+  if (!doc) return null
+
+  const header = (meta?: React.ReactNode, actions?: React.ReactNode) => <PageHeader id="R14" title="Discussion guide" description="Drafted by the AI from the brief, audience, stimuli and moderator setup. Edit anything." meta={meta} actions={actions} />
+  const back = { to: studyPath(studyId, screenById.R13), label: 'Stimuli' }
+
+  const blockers = configBlockers(doc.moderator)
+  if (!doc.guide && blockers.length) {
+    return (
+      <div className="flex flex-col gap-6">
+        {header()}
+        <div className="rounded-md border border-dashed border-mist-strong bg-surface px-6 py-10">
+          <h2 className="text-lg font-semibold">Finish the moderator setup first</h2>
+          <p className="mt-1 max-w-prose text-graphite">The guide is drafted once the setup is complete. Still needed: {blockers.join(', ').toLowerCase()}.</p>
+          <Button className="mt-4" variant="primary" to={studyPath(studyId, screenById.R12)}>
+            Go to moderator setup
+          </Button>
+        </div>
+        <WizardFooter previous={back} />
+      </div>
+    )
+  }
+  if (!doc.guide) {
+    return (
+      <div className="flex flex-col gap-6">
+        {header()}
+        <div className="rounded-md border border-dashed border-mist-strong bg-surface">
+          <div className="flex items-center gap-2 px-6 py-10 text-graphite" role="status">
+            <Spinner /> Drafting the guide from the brief, audience and stimuli…
+          </div>
+        </div>
+        <WizardFooter previous={back} />
+      </div>
+    )
+  }
+
+  const g = doc.guide
+  const target = doc.moderator.durationMin
+  const ai = doc.moderator.mode === 'ai'
+  const edit = (fn: (g: Guide) => Guide, note?: string) => update((d) => editGuide(d, me, fn, note))
+  const editSection = (id: string, fn: (s: GuideSection) => GuideSection) => edit((x) => ({ ...x, sections: x.sections.map((s) => (s.id === id ? fn({ ...s, origin: s.origin === 'ai' ? 'edited' : s.origin }) : s)) }))
+  const editQuestion = (sid: string, qid: string, fn: (q: ReturnType<typeof newQuestion>) => ReturnType<typeof newQuestion>) =>
+    edit((x) => ({ ...x, sections: x.sections.map((s) => (s.id === sid ? { ...s, questions: s.questions.map((q) => (q.id === qid ? touchQuestion(fn(q)) : q)) } : s)) }))
+
+  const coverage = coverageCheck(g)
+  const duration = durationCheck(g, target)
+  const approveBlockers = approvalBlockers(doc)
+  const clientOk = clientApprovedVersion(doc)
+
+  return (
+    <div className="flex flex-col gap-6">
+      {header(
+        <>
+          <StatusChip status={doc.status} size="sm" />
+          <span className="font-medium text-ink tabular-nums">Version {doc.version}</span>
+          <span>{ai ? 'AI moderator' : 'Human moderator'}</span>
+          <span>Built from brief version {g.builtFrom.briefVersion}, audience version {g.builtFrom.audienceVersion}</span>
+        </>,
+        <>
+          <Button variant="ghost" icon={<HistoryIcon />} onClick={() => setHistory(true)}>
+            Version history
+          </Button>
+          <Button variant="ghost" onClick={() => setRegenerate(true)}>
+            Regenerate from brief and audience
+          </Button>
+        </>,
+      )}
+
+      <VersionBanner doc={doc} />
+
+      <section aria-label="AI checks" className="flex flex-col gap-3">
+        <CheckBanner
+          title="Coverage"
+          check={coverage}
+          onFix={() => edit(fixCoverage, 'Added questions to cover every objective')}
+          fixLabel="Add questions for the gaps"
+          onOverride={() => setOverriding('coverage')}
+        />
+        <CheckBanner
+          title="Duration"
+          check={duration}
+          onFix={() => edit((x) => fixDuration(x, target), 'Section times scaled to the target')}
+          fixLabel={`Scale sections to ${target} min`}
+          onOverride={() => setOverriding('duration')}
+        />
+        {flags.length > 0 && (
+          <Banner
+            tone="warning"
+            title={`${flags.length === 1 ? '1 question uses' : `${flags.length} questions use`} a stimulus that isn’t active`}
+            actions={
+              <Button size="sm" to={studyPath(studyId, screenById.R13)}>
+                Open library
+              </Button>
+            }
+          >
+            {flags.map((f) => `Q${allQuestions(g).findIndex((x) => x.id === f.question.id) + 1} (${f.stimulusName})`).join(', ')}. Switch the stimulus back on, or remove it from the question.
+          </Banner>
+        )}
+      </section>
+
+      <Card
+        title="Research objectives"
+        description="What the guide must cover. Each question says which objectives it covers."
+        actions={
+          <Button size="sm" icon={<PlusIcon />} onClick={() => edit((x) => ({ ...x, objectives: [...x.objectives, { id: uid('o'), text: '' }] }), 'Objective added')}>
+            Add objective
+          </Button>
+        }
+      >
+        <ol className="flex flex-col gap-2">
+          {g.objectives.map((o, i) => {
+            const n = allQuestions(g).filter((q) => q.covers.includes(o.id)).length
+            return (
+              <li key={o.id} className="flex flex-wrap items-center gap-2">
+                <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-haze text-xs font-semibold tabular-nums">{i + 1}</span>
+                <input
+                  aria-label={`Objective ${i + 1}`}
+                  value={o.text}
+                  placeholder="What the interviews need to find out"
+                  onChange={(e) => edit((x) => ({ ...x, objectives: x.objectives.map((y) => (y.id === o.id ? { ...y, text: e.target.value } : y)) }), 'Objective edited')}
+                  className={cn(small, 'min-w-0 flex-1 bg-surface')}
+                />
+                <span className={cn('w-44 text-sm', n ? 'text-positive-fg' : 'font-medium text-pending-fg')}>{n ? `Covered by ${n} ${n === 1 ? 'question' : 'questions'}` : 'No question covers this'}</span>
+                <button
+                  type="button"
+                  aria-label={`Remove objective ${i + 1}`}
+                  onClick={() => edit((x) => ({ ...x, objectives: x.objectives.filter((y) => y.id !== o.id), sections: x.sections.map((s) => ({ ...s, questions: s.questions.map((q) => ({ ...q, covers: q.covers.filter((c) => c !== o.id) })) })) }), 'Objective removed')}
+                  className="rounded-sm p-1.5 text-graphite hover:bg-haze hover:text-ink"
+                >
+                  <CloseIcon size={14} />
+                </button>
+              </li>
+            )
+          })}
+        </ol>
+      </Card>
+
+      <div className="flex flex-col gap-5">
+        <div className="flex flex-wrap items-baseline gap-3">
+          <h2 className="text-lg font-semibold">Sections</h2>
+          <p className={cn('text-sm tabular-nums', duration.ok ? 'text-graphite' : 'font-medium text-pending-fg')}>
+            {totalMinutes(g)} min of {target} min target
+          </p>
+        </div>
+        {g.sections.map((s, si) => (
+          <section key={s.id} aria-label={s.title} className="flex flex-col gap-3 rounded-md border border-mist bg-paper p-4">
+            <header className="flex flex-wrap items-center gap-2">
+              <span className="flex size-6 shrink-0 items-center justify-center rounded-full border border-ink text-xs font-semibold tabular-nums">{si + 1}</span>
+              <input aria-label={`Section ${si + 1} title`} value={s.title} onChange={(e) => editSection(s.id, (x) => ({ ...x, title: e.target.value }))} className={cn(small, 'h-9 min-w-48 flex-1 bg-surface text-base font-semibold')} />
+              {s.origin === 'ai' ? <AIGeneratedTag /> : <OriginTag origin={s.origin} />}
+              <label className="flex items-center gap-1.5 text-sm">
+                <input
+                  type="number"
+                  min={0}
+                  aria-label={`Section ${si + 1} minutes`}
+                  value={Number.isFinite(s.minutes) ? s.minutes : ''}
+                  onChange={(e) => editSection(s.id, (x) => ({ ...x, minutes: Math.max(0, Math.floor(Number(e.target.value))) }))}
+                  className={cn(small, 'w-16 bg-surface tabular-nums')}
+                />
+                <span className="text-graphite">min</span>
+              </label>
+              <Button size="sm" variant="ghost" disabled={si === 0} onClick={() => edit((x) => moveSection(x, s.id, -1))} aria-label={`Move section ${si + 1} up`}>
+                <ArrowUpIcon size={14} />
+              </Button>
+              <Button size="sm" variant="ghost" disabled={si === g.sections.length - 1} onClick={() => edit((x) => moveSection(x, s.id, 1))} aria-label={`Move section ${si + 1} down`}>
+                <ArrowUpIcon size={14} className="rotate-180" />
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => edit((x) => pruneBranches({ ...x, sections: x.sections.filter((y) => y.id !== s.id) }), 'Section removed')} aria-label={`Remove section ${si + 1}`}>
+                Remove
+              </Button>
+            </header>
+            {s.questions.length === 0 && <p className="px-1 text-sm text-graphite">No questions in this section.</p>}
+            <ol className="flex flex-col gap-3">
+              {s.questions.map((q) => (
+                <QuestionCard
+                  key={q.id}
+                  q={q}
+                  guide={g}
+                  stimuli={doc.stimuli.items}
+                  surveys={doc.moderator.surveys}
+                  aiMode={ai}
+                  flag={flags.find((f) => f.question.id === q.id)}
+                  libraryTo={studyPath(studyId, screenById.R13)}
+                  onChange={(fn) => editQuestion(s.id, q.id, fn)}
+                  onMove={(dir) => edit((x) => moveQuestion(x, q.id, dir))}
+                  onRemove={() => edit((x) => pruneBranches({ ...x, sections: x.sections.map((y) => (y.id === s.id ? { ...y, questions: y.questions.filter((z) => z.id !== q.id) } : y)) }), 'Question removed')}
+                  onClearStimulus={() => editQuestion(s.id, q.id, (x) => ({ ...x, stimulusId: undefined }))}
+                />
+              ))}
+            </ol>
+            <Button size="sm" className="self-start" icon={<PlusIcon />} onClick={() => edit((g2) => ({ ...g2, sections: g2.sections.map((y) => (y.id === s.id ? { ...y, questions: [...y.questions, newQuestion()] } : y)) }), 'Question added')}>
+              Add question
+            </Button>
+          </section>
+        ))}
+        <Button className="self-start" icon={<PlusIcon />} onClick={() => edit((x) => ({ ...x, sections: [...x.sections, newSection()] }), 'Section added')}>
+          Add section
+        </Button>
+      </div>
+
+      <Card title="Wrap-up conditions" description="When the interview ends.">
+        <ul className="flex flex-col gap-2">
+          {g.wrapUp.map((w, i) => (
+            <li key={i} className="flex items-center gap-2">
+              <input aria-label={`Wrap-up condition ${i + 1}`} value={w} onChange={(e) => edit((x) => ({ ...x, wrapUp: x.wrapUp.map((y, j) => (j === i ? e.target.value : y)) }), 'Wrap-up edited')} className={cn(small, 'w-full bg-surface')} />
+              <button type="button" aria-label={`Remove wrap-up condition ${i + 1}`} onClick={() => edit((x) => ({ ...x, wrapUp: x.wrapUp.filter((_, j) => j !== i) }), 'Wrap-up removed')} className="rounded-sm p-1.5 text-graphite hover:bg-haze hover:text-ink">
+                <CloseIcon size={14} />
+              </button>
+            </li>
+          ))}
+        </ul>
+        <Button size="sm" variant="ghost" icon={<PlusIcon />} className="mt-2" onClick={() => edit((x) => ({ ...x, wrapUp: [...x.wrapUp, ''] }), 'Wrap-up added')}>
+          Add condition
+        </Button>
+      </Card>
+
+      <ReviewCard doc={doc} studyName={study?.name ?? 'Study'} me={me} update={update} clientOk={clientOk} />
+
+      <WizardFooter
+        previous={back}
+        message={
+          doc.status === 'Approved' ? (
+            <span className="flex items-center gap-1.5 text-positive-fg">
+              <CheckIcon /> Version {doc.approved?.version} approved. Launch is unlocked.
+            </span>
+          ) : approveBlockers.length ? (
+            `Before you approve: ${approveBlockers[0].charAt(0).toLowerCase()}${approveBlockers[0].slice(1)}.`
+          ) : (
+            'Ready to approve. This records your name, the time and the version.'
+          )
+        }
+      >
+        {doc.status === 'Approved' ? (
+          <Button variant="primary" to={studyPath(studyId, screenById.R15)}>
+            Continue to launch
+          </Button>
+        ) : approveBlockers.length ? (
+          <Tooltip focusable content={`${approveBlockers.join('. ')}.`}>
+            <Button variant="primary" disabled>
+              Approve this version
+            </Button>
+          </Tooltip>
+        ) : (
+          <Button variant="primary" onClick={() => update((d) => approveGuide(d, me, clientApprovedVersion(d) ? `${people.client.name} (client)` : undefined))}>
+            Approve this version
+          </Button>
+        )}
+      </WizardFooter>
+
+      <Modal
+        open={!!overriding}
+        onClose={() => setOverriding(undefined)}
+        title={`Override the ${overriding} flag`}
+        description="The flag stays on record. Your reason is logged with your name and the time."
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setOverriding(undefined)}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              disabled={!reason.trim()}
+              onClick={() => {
+                if (overriding) update((d) => overrideCheck(d, me, overriding, reason))
+                setOverriding(undefined)
+                setReason('')
+              }}
+            >
+              Override
+            </Button>
+          </>
+        }
+      >
+        <TextArea label="Reason (required)" rows={3} value={reason} onChange={(e) => setReason(e.target.value)} />
+      </Modal>
+
+      <ReplaceGuideModal
+        open={regenerate}
+        doc={doc}
+        title="Regenerate the guide from the brief and audience?"
+        onCancel={() => setRegenerate(false)}
+        onConfirm={() => {
+          update((d) => regenerateGuide(d, me))
+          setRegenerate(false)
+        }}
+      />
+
+      <SideDrawer open={history} onClose={() => setHistory(false)} title="Version history" description="Who did what, and when.">
+        <HistoryList events={doc.events} />
+      </SideDrawer>
+    </div>
+  )
+}
+
+function CheckBanner({ title, check, onFix, fixLabel, onOverride }: { title: string; check: Check; onFix: () => void; fixLabel: string; onOverride: () => void }) {
+  if (check.ok)
+    return (
+      <p className="flex items-center gap-2 rounded-sm border border-positive-line bg-positive-bg px-4 py-2.5 text-sm">
+        <CheckIcon className="text-positive-fg" />
+        <span className="font-medium">{title}:</span> {check.message}
+      </p>
+    )
+  if (check.overridden)
+    return (
+      <Banner tone="info" title={`${title} flag overridden`}>
+        {check.message} Overridden by {check.overridden.by}, {formatDateTime(check.overridden.at)}: “{check.overridden.reason}”
+      </Banner>
+    )
+  return (
+    <Banner
+      tone="warning"
+      title={title === 'Duration' ? `Duration: ${check.message}` : 'Coverage: some objectives have no question'}
+      actions={
+        <>
+          <Button size="sm" onClick={onFix}>
+            {fixLabel}
+          </Button>
+          <Button size="sm" variant="ghost" onClick={onOverride}>
+            Override
+          </Button>
+        </>
+      }
+    >
+      {title === 'Duration' ? 'Fix the section times, or override with a reason.' : `${check.message} Fix it, or override with a reason.`}
+    </Banner>
+  )
+}
+
+function ReviewCard({ doc, studyName, me, update, clientOk }: { doc: GuideDoc; studyName: string; me: string; update: (fn: (d: GuideDoc) => GuideDoc) => void; clientOk: boolean }) {
+  const client = people.client.name
+  const [decision, setDecision] = useState<'approved' | 'changes'>('approved')
+  const [feedback, setFeedback] = useState('')
+  const [name, setName] = useState(client)
+
+  const download = () => {
+    const blob = new Blob([guideAsText(doc, studyName)], { type: 'text/plain' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${studyName.replace(/\s+/g, '-').toLowerCase()}-guide-v${doc.version}.txt`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  return (
+    <Card title="Client review" description="Optional. Download the guide, email it to the client outside PulseAI, then record what they decided.">
+      <div className="flex flex-col gap-4">
+        {doc.status === 'Draft' && (
+          <div className="flex flex-wrap items-center gap-3">
+            <Button
+              onClick={() => {
+                download()
+                update((d) => shareGuide(d, me))
+              }}
+            >
+              Share with client
+            </Button>
+            <p className="text-sm text-graphite">Downloads version {doc.version} and sets it to In Review. No client review? Approve it directly below.</p>
+          </div>
+        )}
+        {doc.status === 'In Review' && (
+          <form
+            className="flex flex-col gap-3 rounded-sm border border-mist bg-paper p-4"
+            onSubmit={(e) => {
+              e.preventDefault()
+              if (decision === 'changes') {
+                if (!feedback.trim()) return
+                update((d) => recordChangesRequested(d, me, name.trim() || client, feedback))
+                setFeedback('')
+              } else update((d) => recordClientApproved(d, me, name.trim() || client))
+            }}
+          >
+            <p className="text-sm text-graphite">Version {doc.version} is with the client. Record their decision.</p>
+            <TextField label="Client" value={name} onChange={(e) => setName(e.target.value)} containerClassName="max-w-xs" />
+            <fieldset className="flex flex-wrap gap-4 text-sm">
+              <legend className="mb-1 font-medium">Decision</legend>
+              {(
+                [
+                  ['approved', 'Approved'],
+                  ['changes', 'Changes requested'],
+                ] as const
+              ).map(([v, l]) => (
+                <label key={v} className="flex items-center gap-1.5">
+                  <input type="radio" name="decision" checked={decision === v} onChange={() => setDecision(v)} className="accent-[var(--color-iris-600)]" />
+                  {l}
+                </label>
+              ))}
+            </fieldset>
+            {decision === 'changes' && <TextArea label="Their feedback (required)" rows={3} value={feedback} onChange={(e) => setFeedback(e.target.value)} hint={`Recording this creates version ${doc.version + 1} as a draft for you to edit.`} />}
+            <div className="flex gap-2">
+              <Button type="submit" variant="primary" disabled={decision === 'changes' && !feedback.trim()}>
+                Record decision
+              </Button>
+              <Button variant="ghost" onClick={download}>
+                Download again
+              </Button>
+            </div>
+          </form>
+        )}
+        {clientOk && doc.status !== 'Approved' && (
+          <p className="flex items-center gap-1.5 text-sm text-positive-fg">
+            <CheckIcon size={14} /> The client approved version {doc.version}. Approve it below to lock it.
+          </p>
+        )}
+        {doc.status === 'Approved' && doc.approved && (
+          <p className="text-sm text-graphite">
+            Approved by {doc.approved.by}
+            {doc.approved.onBehalfOf ? ` for ${doc.approved.onBehalfOf}` : ''}, {formatDateTime(doc.approved.at)}. Any later edit to the guide, stimuli or moderator setup creates a new version.
+          </p>
+        )}
+      </div>
+    </Card>
+  )
+}
+
+const eventText = (e: GuideEvent) => {
+  const v = `Version ${e.version}`
+  switch (e.type) {
+    case 'drafted':
+      return `${v} drafted by ${e.by}`
+    case 'redrafted':
+      return `${v} drafted again by ${e.by}`
+    case 'shared':
+      return `${v} shared with the client by ${e.by}`
+    case 'changes-requested':
+      return `${v}: changes requested${e.note ? `. ${e.note}` : ''}`
+    case 'client-approved':
+      return `${v} approved by the client${e.note ? `, ${e.note}` : ''}`
+    case 'approved':
+      return `${v} approved by ${e.by}`
+    case 'reopened':
+      return e.note ?? `${v} created`
+    case 'override':
+      return e.note ?? `${v}: flag overridden`
+  }
+}
+
+function HistoryList({ events }: { events: GuideEvent[] }) {
+  return (
+    <ol className="flex flex-col gap-3">
+      {[...events].reverse().map((e) => (
+        <li key={e.id} className="rounded-sm border border-mist px-3 py-2 text-sm">
+          <p className={cn(e.type === 'approved' && 'font-semibold')}>{eventText(e)}</p>
+          {e.feedback && <p className="mt-0.5 text-graphite">“{e.feedback}”</p>}
+          {e.type === 'approved' && e.note && <p className="text-graphite">{e.note}.</p>}
+          <p className="mt-0.5 text-xs text-graphite tabular-nums">
+            {e.by} · {formatDateTime(e.at)}
+          </p>
+        </li>
+      ))}
+    </ol>
+  )
+}
+

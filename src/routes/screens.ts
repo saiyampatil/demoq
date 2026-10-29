@@ -124,7 +124,7 @@ export function screensForStep(step: StepKey) {
 }
 
 /** Researcher screens that are built. The sub-stepper lists the rest as upcoming. */
-export const builtScreenIds = new Set(['R1', 'R4', 'R5', 'R6', 'R7', 'R8', 'R9', 'R11'])
+export const builtScreenIds = new Set(['R1', 'R4', 'R5', 'R6', 'R7', 'R8', 'R9', 'R11', 'R12', 'R13', 'R14'])
 
 /** Short names for the sub-stepper inside a step. */
 export const wizardLabel: Record<string, string> = {
@@ -138,7 +138,7 @@ export const wizardLabel: Record<string, string> = {
   R11: 'Pool',
   R12: 'Moderator',
   R13: 'Stimuli',
-  R14: 'Guide',
+  R14: 'Discussion guide',
   R15: 'Readiness',
   R16: 'Test runs',
   R17: 'Preflight',
