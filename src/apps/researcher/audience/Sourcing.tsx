@@ -1,10 +1,11 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
+import { useNavigate } from 'react-router'
 import { Banner } from '@/components/Banner'
 import { Button } from '@/components/Button'
 import { Card } from '@/components/Card'
 import { cn } from '@/components/cn'
-import { TextArea, TextField } from '@/components/Field'
-import { CheckIcon, CloseIcon } from '@/components/icons'
+import { TextArea } from '@/components/Field'
+import { CheckIcon, CloseIcon, PaperclipIcon } from '@/components/icons'
 import { EmptyState } from '@/components/States'
 import { Table, type Column } from '@/components/Table'
 import { Tooltip } from '@/components/Tooltip'
@@ -33,12 +34,12 @@ import { useAudience } from './useAudience'
 
 const OPTIONS: { value: SourceOption; title: string; description: string }[] = [
   { value: 'manual', title: 'Upload or paste participants', description: 'People you already have. Paste their User IDs or phone numbers, one per line.' },
-  { value: 'external', title: 'External upload', description: 'IDs from an external recruitment panel. The panel integration is still to be confirmed.' },
+  { value: 'external', title: 'External upload', description: 'Import a file from an external panel or your own system.' },
 ]
 
 export function Sourcing() {
   const { studyId, audience, editable, update } = useAudience()
-  const [sent, setSent] = useState<string>()
+  const navigate = useNavigate()
   const [showAll, setShowAll] = useState(false)
 
   if (!editable || !audience?.def) return <AudienceGate studyId={studyId} editable={editable} />
@@ -54,10 +55,9 @@ export function Sourcing() {
   const gateReason = !audienceReady ? 'Confirm the audience first' : !screenerReady ? 'Accept the screener first' : undefined
 
   const send = () => {
-    const r = sendInvites(audience)
-    const parts = [r.phones && `${r.phones} ${r.phones === 1 ? 'phone number' : 'phone numbers'}`, r.userIds && `${r.userIds} ${r.userIds === 1 ? 'User ID' : 'User IDs'}`].filter(Boolean)
     update((d) => sendInvites(d).doc)
-    setSent(`Screener invites sent to ${parts.join(' and ')}.`)
+    // The wait for invitees to accept and answer is simulated, so go straight to the results.
+    navigate(studyPath(studyId, screenById.R9))
   }
 
   const columns: Column<Candidate>[] = [
@@ -149,29 +149,7 @@ export function Sourcing() {
           onAdd={(values, type) => update((d) => addCandidates(d, values, type, 'Manual'))}
         />
       ) : (
-        <Card title="External upload" description="IDs from an external recruitment panel.">
-          <div className="flex flex-col gap-4">
-            <p className="rounded-sm border border-dashed border-mist-strong px-3 py-2 text-sm text-graphite">
-              Panel integration: to be confirmed (PRD: “subject to integration feasibility”). For now, paste the panel’s member IDs. Invites to them are simulated.
-            </p>
-            <TextField
-              label="Panel name"
-              value={s.panelName}
-              onChange={(e) => update((d) => editSourcing(d, (x) => ({ ...x, panelName: e.target.value })))}
-              placeholder="e.g. Northstar Consumer Panel"
-              containerClassName="max-w-sm"
-            />
-            <PasteCard
-              key="external"
-              bare
-              title="Panel member IDs"
-              source="External"
-              fixedType="userId"
-              existing={s.candidates}
-              onAdd={(values, type) => update((d) => addCandidates(d, values, type, 'External'))}
-            />
-          </div>
-        </Card>
+        <UploadCard existing={s.candidates} onAdd={(values) => update((d) => addCandidates(d, values, 'userId', 'External'))} />
       )}
 
       <Card>
@@ -193,11 +171,6 @@ export function Sourcing() {
             </Tooltip>
           )}
         </div>
-        {sent && (
-          <Banner tone="success" title={sent} className="mt-4">
-            Sending is simulated in the prototype.
-          </Banner>
-        )}
       </Card>
 
       <Card title="Participants" flush>
@@ -217,12 +190,18 @@ export function Sourcing() {
         )}
       </Card>
 
-      <WizardFooter previous={{ to: studyPath(studyId, screenById.R7), label: 'Screener' }} message={invited ? `${invited} invited so far.` : undefined}>
-        <Tooltip focusable content="The screening dashboard is built in Phase 2b.">
-          <Button variant="primary" disabled>
+      <WizardFooter previous={{ to: studyPath(studyId, screenById.R7), label: 'Screener' }} message={invited ? `${invited} invited so far.` : 'Add participants, then send the screener invites.'}>
+        {invited > 0 ? (
+          <Button variant="primary" to={studyPath(studyId, screenById.R9)}>
             Continue to screening
           </Button>
-        </Tooltip>
+        ) : (
+          <Tooltip focusable content="Send screener invites first.">
+            <Button variant="primary" disabled>
+              Continue to screening
+            </Button>
+          </Tooltip>
+        )}
       </WizardFooter>
     </div>
   )
@@ -339,4 +318,70 @@ function PasteCard({
     </form>
   )
   return bare ? body : <Card title={title}>{body}</Card>
+}
+
+const MOCK_IMPORT = 12
+
+function UploadCard({ existing, onAdd }: { existing: Candidate[]; onAdd: (values: string[]) => void }) {
+  const ref = useRef<HTMLInputElement>(null)
+  const [note, setNote] = useState<string>()
+
+  const importFile = async (file: File) => {
+    // Any file type is accepted. Text files are read line by line; anything else gets sample participants,
+    // because the real panel import is still to be confirmed.
+    let values: string[] = []
+    let readable = false
+    if (file.size < 2_000_000) {
+      try {
+        const text = await file.text()
+        const first = text.split(/\r?\n/).map((l) => l.split(/[,;\t]/)[0].trim())
+        const r = parseIds(first.join('\n'), 'userId', existing)
+        if (r.valid.length && r.invalid.length <= r.valid.length) {
+          values = r.valid
+          readable = true
+        }
+      } catch {
+        // Unreadable: fall through to sample data.
+      }
+    }
+    if (!readable) {
+      const seen = new Set(existing.map((c) => c.value))
+      values = Array.from({ length: MOCK_IMPORT }, (_, i) => `EXT-${70100 + existing.length + i * 3}`).filter((v) => !seen.has(v))
+    }
+    onAdd(values)
+    setNote(
+      readable
+        ? `Imported ${values.length} External ${values.length === 1 ? 'participant' : 'participants'} from ${file.name}.`
+        : `Imported ${file.name}. Its contents can’t be read in the prototype, so ${values.length} sample External participants were added.`,
+    )
+  }
+
+  return (
+    <Card title="External upload" description="Import a file from an external panel or your own system. Any file type works.">
+      <div className="flex flex-col gap-3">
+        <input
+          ref={ref}
+          type="file"
+          aria-label="Choose a file to import"
+          className="hidden"
+          onChange={async (e) => {
+            const file = e.target.files?.[0]
+            if (file) await importFile(file)
+            e.target.value = ''
+          }}
+        />
+        <div className="flex flex-wrap items-center gap-3">
+          <Button variant="primary" icon={<PaperclipIcon />} onClick={() => ref.current?.click()}>
+            Choose a file
+          </Button>
+          {note && (
+            <span role="status" className="flex items-center gap-1 text-sm text-positive-fg">
+              <CheckIcon size={14} /> {note}
+            </span>
+          )}
+        </div>
+        <p className="text-xs text-graphite">Imported people are tagged External. Panel integration is to be confirmed.</p>
+      </div>
+    </Card>
+  )
 }
