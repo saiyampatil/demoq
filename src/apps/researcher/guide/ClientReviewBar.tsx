@@ -3,8 +3,8 @@ import { Button } from '@/components/Button'
 import { TextArea } from '@/components/Field'
 import { CheckIcon } from '@/components/icons'
 import { formatStamp } from '@/lib/format'
-import { textToPdf } from '@/lib/pdf'
-import { clientApprovedVersion, guideAsText, recordChangesRequested, recordClientApproved, shareGuide, studyHasClient, type GuideDoc } from '@/state/guide'
+import { downloadGuide } from './download'
+import { clientApprovedVersion, recordChangesRequested, recordClientApproved, shareGuide, studyHasClient, type GuideDoc } from '@/state/guide'
 
 type Props = { doc: GuideDoc; studyName: string; client: string; me: string; update: (fn: (d: GuideDoc) => GuideDoc) => void }
 
@@ -17,14 +17,7 @@ export function ClientReviewBar({ doc, studyName, client, me, update }: Props) {
   const [asking, setAsking] = useState(false)
   const [feedback, setFeedback] = useState('')
 
-  const download = () => {
-    const url = URL.createObjectURL(textToPdf(guideAsText(doc, studyName).split('\n')))
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${studyName.replace(/\s+/g, '-').toLowerCase()}-guide-v${doc.version}.pdf`
-    a.click()
-    URL.revokeObjectURL(url)
-  }
+  const download = () => downloadGuide(doc, studyName)
 
   const shared = [...doc.events].reverse().find((e) => e.type === 'shared' && e.version === doc.version)
   const clientEvent = [...doc.events].reverse().find((e) => e.type === 'client-approved' && e.version === doc.version)

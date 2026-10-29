@@ -318,7 +318,7 @@ export function flaggedQuestions(doc: GuideDoc): Flag[] {
 /** A study with no client skips the client review. */
 export const studyHasClient = (client: string | undefined) => !!client && client !== 'Client not set'
 
-export function approvalBlockers(doc: GuideDoc, hasClient = false): string[] {
+export function approvalBlockers(doc: GuideDoc, hasClient: boolean): string[] {
   if (!doc.guide) return ['The guide isn’t drafted yet']
   const out: string[] = []
   if (hasClient && !clientApprovedVersion(doc)) out.push(doc.status === 'In Review' ? 'Record the client’s decision first' : 'Share the guide with the client and record their approval first')
@@ -359,7 +359,7 @@ export function recordClientApproved(doc: GuideDoc, by: string, client: string):
   return { ...doc, events: [...doc.events, { id: uid('ge'), at: now(), by, version: doc.version, type: 'client-approved', note: client }] }
 }
 
-export function approveGuide(doc: GuideDoc, by: string, client?: string, hasClient = false): GuideDoc {
+export function approveGuide(doc: GuideDoc, by: string, client: string | undefined, hasClient: boolean): GuideDoc {
   if (!doc.guide || approvalBlockers(doc, hasClient).length) return doc
   const at = now()
   return {

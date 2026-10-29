@@ -17,7 +17,6 @@ import {
   allQuestions,
   approvalBlockers,
   approveGuide,
-  clientApprovedVersion,
   configBlockers,
   coverageCheck,
   durationCheck,
@@ -32,6 +31,7 @@ import {
   overrideCheck,
   pruneBranches,
   regenerateGuide,
+  shareGuide,
   startGuide,
   studyHasClient,
   totalMinutes,
@@ -45,6 +45,7 @@ import { uid } from '@/state/brief'
 import { OriginTag } from '../audience/OriginTag'
 import { PageHeader } from '../../shared/PageHeader'
 import { ClientReviewBar } from './ClientReviewBar'
+import { downloadGuide } from './download'
 import { GuideGate, ReplaceGuideModal, VersionBanner } from './GuideBits'
 import { QuestionCard } from './QuestionCard'
 import { useGuide } from './useGuide'
@@ -120,6 +121,31 @@ export function GuideEditor() {
   const duration = durationCheck(g, target)
   const hasClient = studyHasClient(study?.client)
   const approveBlockers = approvalBlockers(doc, hasClient)
+  const clientEvent = [...doc.events].reverse().find((e) => e.type === 'client-approved' && e.version === doc.version)
+  // Draft on a study with a client: the next step is sharing, not approving.
+  const needsShare = hasClient && doc.status === 'Draft' && !clientEvent
+  const shareWithClient = () => {
+    downloadGuide(doc, study?.name ?? 'Study')
+    update((d) => shareGuide(d, me))
+  }
+  const shortDate = (iso: string) => new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/New_York' })
+  const guideBlockers = approvalBlockers(doc, false)
+  const footerMessage =
+    doc.status === 'Approved' ? (
+      <span className="flex items-center gap-1.5 text-positive-fg">
+        <CheckIcon /> Version {doc.approved?.version} approved. Launch is unlocked.
+      </span>
+    ) : needsShare ? (
+      'Share with the client before approving.'
+    ) : hasClient && !clientEvent ? (
+      'Waiting on the client’s decision. Record it above.'
+    ) : guideBlockers.length ? (
+      `Before you approve: ${guideBlockers[0].charAt(0).toLowerCase()}${guideBlockers[0].slice(1)}.`
+    ) : clientEvent ? (
+      `Client approved version ${doc.version} on ${shortDate(clientEvent.at)}. Approving records your name, the time and the version.`
+    ) : (
+      'No client on this study. Approving records your name, the time and the version.'
+    )
 
   return (
     <div className="flex flex-col gap-6">
@@ -133,6 +159,9 @@ export function GuideEditor() {
           <span>Built from brief version {g.builtFrom.briefVersion}, audience version {g.builtFrom.audienceVersion}</span>
         </>,
         <>
+          <Button variant="ghost" onClick={() => downloadGuide(doc, study?.name ?? 'Study')}>
+            Download PDF
+          </Button>
           <Button variant="ghost" icon={<HistoryIcon />} onClick={() => setHistory(true)}>
             Version history
           </Button>
@@ -292,23 +321,14 @@ export function GuideEditor() {
         </Button>
       </Card>
 
-      <WizardFooter
-        previous={back}
-        message={
-          doc.status === 'Approved' ? (
-            <span className="flex items-center gap-1.5 text-positive-fg">
-              <CheckIcon /> Version {doc.approved?.version} approved. Launch is unlocked.
-            </span>
-          ) : approveBlockers.length ? (
-            `Before you approve: ${approveBlockers[0].charAt(0).toLowerCase()}${approveBlockers[0].slice(1)}.`
-          ) : (
-            'Ready to approve. This records your name, the time and the version.'
-          )
-        }
-      >
+      <WizardFooter previous={back} message={footerMessage}>
         {doc.status === 'Approved' ? (
           <Button variant="primary" to={studyPath(studyId, screenById.R15)}>
             Continue to launch
+          </Button>
+        ) : needsShare ? (
+          <Button variant="primary" onClick={shareWithClient}>
+            Download and share with client
           </Button>
         ) : approveBlockers.length ? (
           <Tooltip focusable content={`${approveBlockers.join('. ')}.`}>
@@ -317,7 +337,7 @@ export function GuideEditor() {
             </Button>
           </Tooltip>
         ) : (
-          <Button variant="primary" onClick={() => update((d) => approveGuide(d, me, clientApprovedVersion(d) ? `${study?.client ?? 'Client'} (client)` : undefined, hasClient))}>
+          <Button variant="primary" onClick={() => update((d) => approveGuide(d, me, clientEvent ? `${study?.client ?? 'Client'} (client)` : undefined, hasClient))}>
             Approve version {doc.version}
           </Button>
         )}
