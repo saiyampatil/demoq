@@ -9,6 +9,7 @@ import { ScreenerEditor } from '@/apps/researcher/audience/ScreenerEditor'
 import { ScreeningDashboard } from './apps/researcher/audience/ScreeningDashboard'
 import { CommandCenter } from '@/apps/researcher/fieldwork/CommandCenter'
 import { SessionRecord } from '@/apps/researcher/fieldwork/SessionRecord'
+import { ReviewQueue } from '@/apps/researcher/review/ReviewQueue'
 import { LaunchReadiness } from '@/apps/researcher/launch/LaunchReadiness'
 import { PreflightLaunch } from '@/apps/researcher/launch/PreflightLaunch'
 import { TestRuns } from '@/apps/researcher/launch/TestRuns'
@@ -57,6 +58,7 @@ const builtResearcher: Record<string, ReactNode> = {
   R17: <PreflightLaunch />,
   R18: <CommandCenter />,
   R19: <SessionRecord />,
+  R21: <ReviewQueue />,
 }
 
 function Root() {

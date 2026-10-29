@@ -79,7 +79,7 @@ Brief sections (R4), in order. These replace the earlier ten-section list. Resea
 | R17 | Preflight (2 critical, 4 overridable) and authorize launch (locks the release, sets Live) | 4.1 |
 | R18 | Fieldwork command center | 4.6 |
 | R19 | Session record | 4.6 / 4.7 |
-| R21 | Review queue | 4.8 |
+| R21 | Review queue (summary cards, six filters and search, colour-banded score columns, sort, pagination, loading, empty and all-reviewed states) | 4.8 |
 | R22 | Session review (R19 layout + scores, flags, decisions) | 4.8 |
 | R23 | Study settings (roles, client access, retention) | 4.9 |
 

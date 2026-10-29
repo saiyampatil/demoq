@@ -53,6 +53,11 @@ PRD gaps and conflicts found while building. Each entry says what the prototype 
 | 47 | 7 | The session vocabulary has no status for a booked slot that hasn't started, or for an invitee who hasn't started. | R18/R19 show "Booked" and "Not started", added to the session vocabulary. | Open: confirm names |
 | 48 | 7 | Phase order changed by the product owner: the participant interview (Phase 5) is deferred. Fieldwork runs on mock sessions built from the confirmed pool. | R18 and R19 read mock session records. A new release keeps earlier sessions tied to the release they ran on; no new sessions are simulated for it. | Prototype decision |
 | 49 | 7 | Reschedule (4.7) on R19. | A disabled button with an explanation. Pause and resume are built; each logs a required reason, who and when. | Open: 4.7 rules |
+| 50 | 8 | The Review brief names "R23 Evidence & Audit Trail (4.9)", but CLAUDE.md already uses R23 for Study settings (4.9 in the registry, Phase 9). | Not built yet. R21 only. Needs a new ID (e.g. R24) or a decision to merge. | Open: pick an ID |
+| 51 | 8 | The review mock has 24 sessions in segments 18–24, 25–34 and 35–45, but the audience cohorts are Younger 25–34 and Older 35–44, and fieldwork (R18) has about 14 sessions. | R21's mock data is its own file (`mock/review.ts`) so it can be swapped for an API. It is not derived from fieldwork. | Prototype decision, confirm |
+| 52 | 8 | Zero-flag sessions auto-accept (rule 8). | 3 of the 4 accepted sessions are auto-accepted, shown with an "auto" marker, and can be reopened. Every Under review session has at least one flag. | Prototype decision |
+| 53 | 8 | "Analysis is step 7 and stays locked until Review is Completed." Analysis is out of scope for the prototype. | It stays locked with the existing hover reason. Nothing unlocks it yet. | Open |
+| 54 | 8 | Score bands on R21. | Green 75 and above, amber 50 to 74, red below 50, each with the band word beside the number so colour isn't the only signal. | Prototype decision |
 
 ## Future ideas (not built)
 

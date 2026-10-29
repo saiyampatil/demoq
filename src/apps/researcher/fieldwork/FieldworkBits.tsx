@@ -3,7 +3,7 @@ import { EmptyState } from '@/components/States'
 import { screenById, studyPath } from '@/routes/screens'
 
 export const slotText = (iso: string | null) =>
-  iso ? new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '—'
+  iso ? new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' }) : '—'
 
 export function FieldworkGate({ studyId, editable }: { studyId: string; editable: boolean }) {
   return (
