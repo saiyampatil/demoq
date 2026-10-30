@@ -108,7 +108,8 @@ export function IssuesTab({ doc, studyId, me, update, readOnly }: FWProps) {
                 </span>
                 <div className="min-w-0 flex-1 basis-72">
                   <p className="font-medium">
-                    {x.type}{' '}
+                    {x.type}
+                    {x.selfService && <span className="ml-2 rounded-xs border border-positive-line bg-positive-bg px-1.5 py-0.5 text-xs font-medium text-positive-fg">Fixed by the participant</span>}{' '}
                     <Link to={sessionHref(studyId, x.sessionId)} className="font-normal text-iris-700 hover:underline">
                       <SessionTag participantId={x.participantId} no={x.no} count={sessionCountOf(doc, x)} />
                     </Link>

@@ -123,8 +123,17 @@ export type NeedsRow = {
   invites: boolean
   /** The participant is stuck: the Researcher can resume them, or give up and open their slot. */
   stuck: boolean
+  /** Said under what happened: that the participant already tried to fix it themselves, so nobody repeats a step. */
+  note?: string
   /** Higher is more urgent. */
   urgency: number
+}
+
+/** The participant already tried the on-screen steps for this problem and it didn't work. */
+export function selfServiceNote(s: Session): string | undefined {
+  const last = [...(s.selfService ?? [])].reverse().find((x) => x.outcome === 'unresolved')
+  if (!last || !s.issues.some((i) => i.status === 'Open' && i.type === last.issue)) return undefined
+  return `Self-service was already tried: the participant followed the steps for “${last.issue.toLowerCase()}” and checked ${last.checks} ${last.checks === 1 ? 'time' : 'times'}. It didn’t help, so there is no need to repeat them.`
 }
 
 const hoursSince = (iso: string) => (new Date(FIELDWORK_NOW).getTime() - new Date(iso).getTime()) / HOUR
@@ -144,9 +153,12 @@ export function needsYou(doc: FieldworkDoc): NeedsRow[] {
   for (const { latest: s } of participantsOf(doc)) {
     if (s.status === 'Completed' || s.status === 'Withdrawn' || s.handled || s.gaveUp) continue
     const since = lastEvent(s)
-    const openIssue = s.issues.find((i) => i.status === 'Open')
+    // The problem to name is the most serious open one, newest first: a participant who has just hit a blocking error
+    // must not be described by a minor note that was already open on their session.
+    const rank = { Blocking: 0, Degraded: 1, Minor: 2 } as const
+    const openIssue = s.issues.filter((i) => i.status === 'Open').sort((a, b) => rank[a.severity] - rank[b.severity] || b.at.localeCompare(a.at))[0]
     const row = (action: NeedsAction, what: string, urgency: number, extra: Partial<NeedsRow> = {}) =>
-      rows.push({ key: s.id, session: s, who: s.participantId, what, since, action, invites: action !== 'Assign moderator', stuck: false, urgency: urgency + Math.min(9, hoursSince(since) / 24), ...extra })
+      rows.push({ key: s.id, session: s, who: s.participantId, what, since, action, invites: action !== 'Assign moderator', stuck: false, urgency: urgency + Math.min(9, hoursSince(since) / 24), note: selfServiceNote(s), ...extra })
 
     if (s.status === 'Technical Error') row('Retry', `Technical error: ${(openIssue?.type ?? 'the session stopped').toLowerCase()}. The interview didn’t finish.`, 90, { stuck: true })
     else if (human && s.status === 'Booked' && !s.moderatorId) row('Assign moderator', 'Booked a slot, but no moderator is assigned.', 85)

@@ -68,7 +68,7 @@ export const screens: Screen[] = [
   { id: 'P15', name: 'Resume', app: 'participant', module: '4.7', phase: 5, path: 'resume' },
   { id: 'P16', name: 'Escalation consent', app: 'participant', module: '4.5', phase: 6, path: 'escalation' },
   { id: 'P17', name: 'Closing', app: 'participant', module: '4.7', phase: 5, path: 'closing' },
-  { id: 'P18', name: 'Technical issue', app: 'participant', module: '4.2 / 4.7', phase: 5, path: 'technical-issue' },
+  { id: 'P18', name: 'Something’s not working (self-service fix)', app: 'participant', module: '4.2 / 4.7', phase: 5, path: 'technical-issue' },
 
   { id: 'M1', name: 'My sessions', app: 'moderator', module: '4.5', phase: 6, path: 'sessions' },
   { id: 'M2', name: 'Moderator console', app: 'moderator', module: '4.5', phase: 6, path: 'sessions/:sessionId/console' },

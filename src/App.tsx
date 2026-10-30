@@ -3,6 +3,7 @@ import { createBrowserRouter, Navigate, Outlet, RouterProvider } from 'react-rou
 import { ModeratorShell } from '@/apps/moderator/ModeratorShell'
 import { ObserverShell } from '@/apps/observer/ObserverShell'
 import { ParticipantScreen } from '@/apps/participant/ParticipantScreen'
+import { TechnicalIssue } from '@/apps/participant/TechnicalIssue'
 import { ParticipantShell } from '@/apps/participant/ParticipantShell'
 import { AudienceDefinition } from '@/apps/researcher/audience/AudienceDefinition'
 import { ScreenerEditor } from '@/apps/researcher/audience/ScreenerEditor'
@@ -105,7 +106,7 @@ const router = createBrowserRouter([
       {
         path: '/p/:inviteId',
         element: <ParticipantShell />,
-        children: [{ index: true, element: <Navigate to="welcome" replace /> }, ...routesFor('participant', (id) => <ParticipantScreen id={id} />)],
+        children: [{ index: true, element: <Navigate to="welcome" replace /> }, ...routesFor('participant', (id) => (id === 'P18' ? <TechnicalIssue /> : <ParticipantScreen id={id} />))],
       },
       {
         path: '/moderator',

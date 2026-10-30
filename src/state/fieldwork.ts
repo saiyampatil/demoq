@@ -80,6 +80,22 @@ export type TechIssue = {
   resolution?: string
   resolvedBy?: string
   resolvedAt?: string
+  /** The participant fixed it themselves with the on-screen steps (P18), before the Researcher had to do anything. */
+  selfService?: boolean
+}
+
+/**
+ * One go at fixing a problem without the Researcher. The participant is walked through steps and re-checks; after
+ * one retry that still fails it goes to the Researcher (Needs you), with a note that this was already tried.
+ */
+export type SelfService = {
+  id: string
+  issue: IssueType
+  startedAt: string
+  /** How many times they pressed Try again. */
+  checks: number
+  outcome: 'resolved' | 'unresolved'
+  at: string
 }
 
 /** What the participant agreed to, with the wording version, and when it was withdrawn if it was. */
@@ -132,6 +148,8 @@ export type Session = {
   handled?: { action: string; at: string; by: string }
   /** Set when the Researcher gave up on this participant: their slot is open again. The data is kept. */
   gaveUp?: { reason: string; at: string; by: string }
+  /** The participant's own attempts at fixing a technical problem (P18), oldest first. */
+  selfService?: SelfService[]
 }
 
 /**
@@ -745,6 +763,68 @@ export function giveUp(doc: FieldworkDoc, sessionId: string, reason: string, by:
     when,
     by,
     `Gave up on ${s.participantId} and opened a slot: ${reason.trim()}`,
+  )
+}
+
+/** How serious each problem the participant can fix themselves is, if it isn't fixed. */
+export const SELF_SERVICE_SEVERITY: Partial<Record<IssueType, IssueSeverity>> = {
+  'Microphone permission denied': 'Blocking',
+  'Camera not detected': 'Blocking',
+  'Unsupported browser or device': 'Blocking',
+  'Connection lost': 'Blocking',
+  'Audio dropped': 'Degraded',
+  'Video stream interrupted': 'Degraded',
+}
+
+/**
+ * The participant fixed the problem themselves. The interview carries on from the last saved question (nothing is
+ * restarted or asked again), the problem is logged as resolved so it counts as having happened and is never open, and
+ * the session never reaches Needs you.
+ */
+export function selfServiceResolved(doc: FieldworkDoc, sessionId: string, issue: IssueType, checks: number, startedAt: string): FieldworkDoc {
+  const s = doc.sessions.find((x) => x.id === sessionId)
+  if (!s) return doc
+  const when = tick(doc)
+  const severity = SELF_SERVICE_SEVERITY[issue] ?? 'Degraded'
+  const resolution = `Fixed by the participant with the on-screen steps${checks > 1 ? ` (it took a second check)` : ''}.`
+  const record: SelfService = { id: uid('ss'), issue, startedAt, checks, outcome: 'resolved', at: when }
+  return logged(
+    patch(doc, sessionId, (x) => ({
+      ...addEventAt(
+        when,
+        addEventAt(when, x, 'system', `${issue}: the participant fixed it themselves with the on-screen steps (${checks} ${checks === 1 ? 'check' : 'checks'}). The Researcher wasn’t needed.`),
+        'system',
+        'The interview resumed from the last saved question. Nothing was restarted or asked again.',
+      ),
+      issues: [...x.issues, { id: uid('ti'), type: issue, severity, at: startedAt, status: 'Resolved' as const, resolution, resolvedBy: 'The participant (self-service)', resolvedAt: when, selfService: true }],
+      selfService: [...(x.selfService ?? []), record],
+    })),
+    when,
+    'The participant',
+    `${s.participantId} fixed “${issue}” themselves with the on-screen steps`,
+  )
+}
+
+/**
+ * The on-screen steps and one retry didn't fix it. The session becomes a Technical Error with the problem open, so it
+ * reaches Needs you like any other, with a note that self-service was already tried.
+ */
+export function selfServiceFailed(doc: FieldworkDoc, sessionId: string, issue: IssueType, checks: number, startedAt: string): FieldworkDoc {
+  const s = doc.sessions.find((x) => x.id === sessionId)
+  if (!s) return doc
+  const when = tick(doc)
+  const severity = SELF_SERVICE_SEVERITY[issue] ?? 'Blocking'
+  const record: SelfService = { id: uid('ss'), issue, startedAt, checks, outcome: 'unresolved', at: when }
+  return logged(
+    patch(doc, sessionId, (x) => ({
+      ...addEventAt(when, x, 'system', `${issue}: the participant followed the on-screen steps and checked ${checks} times. It still isn’t fixed, so the research team was told.`),
+      status: 'Technical Error' as const,
+      issues: [...x.issues, { id: uid('ti'), type: issue, severity, at: startedAt, status: 'Open' as const }],
+      selfService: [...(x.selfService ?? []), record],
+    })),
+    when,
+    'The participant',
+    `${s.participantId} couldn’t fix “${issue}” with the on-screen steps and the research team was told`,
   )
 }
 

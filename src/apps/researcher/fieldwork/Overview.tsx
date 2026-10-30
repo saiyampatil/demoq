@@ -290,7 +290,14 @@ function NeedsYou({ doc, rows, studyId, me, update, readOnly, blockedWhy }: FWPr
                   <Link to={r19(studyId, row.session.id)} className="font-medium text-iris-700 hover:underline">
                     <SessionTag participantId={row.session.participantId} no={row.session.no} count={doc.sessions.filter((x) => x.participantId === row.session.participantId).length} />
                   </Link>
-                  <span className="min-w-0 text-sm">{row.what}</span>
+                  <span className="min-w-0 text-sm">
+                    {row.what}
+                    {row.note && (
+                      <span data-testid="self-service-note" className="mt-0.5 block text-xs text-graphite">
+                        {row.note}
+                      </span>
+                    )}
+                  </span>
                   <span className="text-sm text-graphite tabular-nums sm:text-right">{ago(row.since)}</span>
                   <span className="flex flex-wrap gap-2 sm:justify-self-end">
                     {blocked ? (

@@ -9,7 +9,9 @@ import { EmptyState } from '@/components/States'
 import { StatusChip } from '@/components/StatusChip'
 import { Tooltip } from '@/components/Tooltip'
 import { formatStamp } from '@/lib/format'
-import { screenById, studyPath } from '@/routes/screens'
+import { controlBase } from '@/components/Field'
+import { sample, screenById, studyPath } from '@/routes/screens'
+import { SELF_SERVICE } from '@/state/selfService'
 import { ISSUE_META, moderatorName, openLink, resolveSession, sessionCountOf, sessionsOfParticipant, simulateTurn } from '@/state/fieldwork'
 import { PageHeader } from '../../shared/PageHeader'
 import { FieldworkGate, slotText } from './FieldworkBits'
@@ -23,6 +25,7 @@ export function SessionRecord() {
   const [params] = useSearchParams()
   const { studyId, study, editable, doc, review, preview, update } = useStudySessions()
   const [simulated, setSimulated] = useState<string>()
+  const [problem, setProblem] = useState<string>(SELF_SERVICE[0].type)
   if (!editable || !study || !doc) return <FieldworkGate studyId={studyId} editable={editable} />
   const back = { to: studyPath(studyId, screenById.R18), label: 'Fieldwork command center' }
   const found = resolveSession(doc, sessionId)
@@ -101,6 +104,18 @@ export function SessionRecord() {
               >
                 Simulate: participant opens their link
               </Button>
+            )}
+            {s.status === 'Active' && (
+              <span className="flex flex-wrap items-center gap-2">
+                <select value={problem} onChange={(e) => setProblem(e.target.value)} aria-label="Problem to simulate" className={`${controlBase} h-8 pr-7 text-sm`}>
+                  {SELF_SERVICE.map((x) => (
+                    <option key={x.type}>{x.type}</option>
+                  ))}
+                </select>
+                <Button size="sm" to={`/p/${sample.inviteId}/technical-issue?session=${s.id}&issue=${encodeURIComponent(problem)}`}>
+                  Simulate: the participant hits a problem
+                </Button>
+              </span>
             )}
             {s.status === 'Active' && (
               <Button
@@ -293,6 +308,24 @@ export function SessionRecord() {
           )}
         </Card>
 
+        {(s.selfService?.length ?? 0) > 0 && (
+          <Card title="Self-service" description="What the participant tried on their own before anyone else was needed.">
+            <ul data-testid="self-service" className="flex flex-col gap-3 text-sm">
+              {s.selfService!.map((x) => (
+                <li key={x.id}>
+                  <p className="font-medium">{x.issue}</p>
+                  <p className="text-graphite tabular-nums">
+                    {x.outcome === 'resolved'
+                      ? `Fixed by the participant after ${x.checks} ${x.checks === 1 ? 'check' : 'checks'}. The Researcher wasn’t needed.`
+                      : `Not fixed after ${x.checks} checks. The research team was told, and it is in Needs you.`}{' '}
+                    {formatStamp(x.at)}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        )}
+
         <Card title="Technical issues">
           {s.issues.length === 0 ? (
             <p className="text-sm text-graphite">No technical issues on this session.</p>
@@ -302,6 +335,7 @@ export function SessionRecord() {
                 <li key={x.id}>
                   <p className="font-medium">
                     {x.type} <span className="font-normal text-graphite">({x.severity}, {x.status})</span>
+                    {x.selfService && <span className="ml-2 rounded-xs border border-positive-line bg-positive-bg px-1.5 py-0.5 text-xs font-medium text-positive-fg">Fixed by the participant</span>}
                   </p>
                   <p className="text-graphite">{x.status === 'Resolved' ? `Resolved by ${x.resolvedBy}: ${x.resolution}` : ISSUE_META[x.type].action}</p>
                 </li>

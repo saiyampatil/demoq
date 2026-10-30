@@ -107,6 +107,9 @@ PRD gaps and conflicts found while building. Each entry says what the prototype 
 | 101 | L | The matrix's Completed cells have no button, so a completed run can't be redone from R15. Should there be a "Run again"? | Resolved in stage 2: Completed and Issues found cells have Run and Report. | Resolved |
 | 102 | L | What does "Out of date" depend on? The brief says the guide version, but a launched study keeps its release, and editing the guide pauses it. | A run is out of date when the guide version it ran on is not the current guide version. The dev button sets that without editing the guide. | Open |
 | 103 | L | A run that finds problems by itself (a stimulus that failed to load, consent not approved): may the Researcher mark it complete anyway? | Resolved: yes. It is recorded with who, when and how many problems were showing, and the problems still feed the pre-launch checks. | Resolved |
+| 104 | L | Self-service (P18): how many tries before the research team is told? The brief says "after one retry". | The first check, then one retry (two checks in all). | Open: default chosen |
+| 105 | L | Self-service covers six problems: microphone, camera, connection, audio, video and browser. What about "Recording failed to start", "Stimulus failed to load" and the rest? | They go straight to the Researcher as before; the participant has no fix for them. | Open |
+| 106 | L | When a participant fixes a problem themselves, should the Researcher be told after the fact (a digest, a count on Overview)? | It is only counted on the Issues tab (Happened) and logged on the session and in the activity feed. | Open |
 
 
 ## Future ideas (not built)
