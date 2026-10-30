@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Link, Navigate, useParams, useSearchParams } from 'react-router'
 import { AIGeneratedTag } from '@/components/AIGenerated'
 import { Breadcrumb } from '@/components/Breadcrumb'
@@ -9,7 +10,7 @@ import { StatusChip } from '@/components/StatusChip'
 import { Tooltip } from '@/components/Tooltip'
 import { formatStamp } from '@/lib/format'
 import { screenById, studyPath } from '@/routes/screens'
-import { ISSUE_META, moderatorName, resolveSession, sessionCountOf, sessionsOfParticipant } from '@/state/fieldwork'
+import { ISSUE_META, moderatorName, openLink, resolveSession, sessionCountOf, sessionsOfParticipant, simulateTurn } from '@/state/fieldwork'
 import { PageHeader } from '../../shared/PageHeader'
 import { FieldworkGate, slotText } from './FieldworkBits'
 import { Banner } from '@/components/Banner'
@@ -20,7 +21,8 @@ import { useStudySessions } from '../useStudySessions'
 export function SessionRecord() {
   const { sessionId = '' } = useParams()
   const [params] = useSearchParams()
-  const { studyId, study, editable, doc, review, preview } = useStudySessions()
+  const { studyId, study, editable, doc, review, preview, update } = useStudySessions()
+  const [simulated, setSimulated] = useState<string>()
   if (!editable || !study || !doc) return <FieldworkGate studyId={studyId} editable={editable} />
   const back = { to: studyPath(studyId, screenById.R18), label: 'Fieldwork command center' }
   const found = resolveSession(doc, sessionId)
@@ -77,6 +79,48 @@ export function SessionRecord() {
           ) : undefined
         }
       />
+
+      {s.gaveUp && (
+        <Banner tone="warning" title="Given up, slot opened">
+          {s.gaveUp.by} gave up on {s.participantId}, {formatStamp(s.gaveUp.at)}: “{s.gaveUp.reason}”. Their slot is open again and shows in the gap. Their data and this record are kept.
+        </Banner>
+      )}
+
+      {import.meta.env.DEV && !preview && update && (
+        <Card title="Dev: simulate the participant" description="Stands in for the participant app until it is built. Use it to see what a pause does.">
+          <div className="flex flex-wrap items-center gap-3">
+            {(s.status === 'Not started' || s.status === 'Booked' || s.status === 'Incomplete (resumable)') && (
+              <Button
+                size="sm"
+                onClick={() => {
+                  const paused = study.status === 'Paused' || !!doc.paused
+                  const out = openLink(doc, s.id, paused)
+                  update((d) => openLink(d, s.id, paused).doc)
+                  setSimulated(out.result === 'unavailable' ? 'This study is temporarily unavailable' : out.result === 'opened' ? 'Link opened' : out.result === 'started' ? 'Interview started' : undefined)
+                }}
+              >
+                Simulate: participant opens their link
+              </Button>
+            )}
+            {s.status === 'Active' && (
+              <Button
+                size="sm"
+                onClick={() => {
+                  update((d) => simulateTurn(d, s.id))
+                  setSimulated('The participant answered the next question. A running session carries on, paused or not.')
+                }}
+              >
+                Simulate: running session takes its next turn
+              </Button>
+            )}
+            {simulated && (
+              <p role="status" data-testid="simulated" className="rounded-sm border border-mist bg-paper px-3 py-1.5 text-sm">
+                {simulated}
+              </p>
+            )}
+          </div>
+        </Card>
+      )}
 
       {params.get('from') === 'review' && (
         <Banner tone="info" title="Still in fieldwork, not ready for review.">

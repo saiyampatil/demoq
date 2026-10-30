@@ -104,7 +104,18 @@ export type IdType = 'userId' | 'phone'
 export type SourceTag = 'Manual' | 'External'
 
 /** One person added to the pool. Every applicant carries the route they came through. */
-export type Candidate = { id: string; value: string; idType: IdType; source: SourceTag; addedAt: string; invitedAt?: string }
+export type Candidate = {
+  id: string
+  value: string
+  idType: IdType
+  source: SourceTag
+  addedAt: string
+  invitedAt?: string
+  /** Invited after the study launched (a top-up). If they qualify they go to the reserve, never straight into an interview. */
+  afterLaunch?: boolean
+  /** The audience version they were screened under. */
+  screenedUnder?: number
+}
 
 export type Sourcing = {
   option: SourceOption
@@ -451,16 +462,36 @@ export function addCandidates(doc: AudienceDoc, values: string[], idType: IdType
   return editSourcing(doc, (s) => ({ ...s, candidates: [...s.candidates, ...values.map((value) => ({ id: uid('cd'), value, idType, source, addedAt: at }))] }))
 }
 
+/**
+ * The mock of applicants arriving after launch: n people from the External panel, invited at once, who answer the screener.
+ * They go through R9 like anyone else, so some qualify and some don't; the ones who qualify land in the reserve.
+ */
+export function addArrivals(doc: AudienceDoc, n: number): AudienceDoc {
+  const at = now()
+  const have = doc.sourcing.candidates.length
+  const made: Candidate[] = Array.from({ length: n }, (_, i) => ({
+    id: uid('cd'),
+    value: `NS-${90100 + have + i * 3}`,
+    idType: 'userId',
+    source: 'External',
+    addedAt: at,
+    invitedAt: at,
+    afterLaunch: true,
+    screenedUnder: doc.version,
+  }))
+  return editSourcing(doc, (s) => ({ ...s, candidates: [...s.candidates, ...made] }))
+}
+
 export const notInvited = (s: Sourcing) => s.candidates.filter((c) => !c.invitedAt).length
 export const invitedCount = (s: Sourcing) => s.candidates.filter((c) => c.invitedAt).length
 export const countBySource = (s: Sourcing, source: SourceTag) => s.candidates.filter((c) => c.source === source).length
 
 /** Mock send: invites everyone not invited yet. Phone numbers get a text, user IDs an in-app invite. */
-export function sendInvites(doc: AudienceDoc): { doc: AudienceDoc; phones: number; userIds: number } {
+export function sendInvites(doc: AudienceDoc, afterLaunch = false): { doc: AudienceDoc; phones: number; userIds: number } {
   const at = now()
   const open = doc.sourcing.candidates.filter((c) => !c.invitedAt)
   return {
-    doc: editSourcing(doc, (s) => ({ ...s, candidates: s.candidates.map((c) => (c.invitedAt ? c : { ...c, invitedAt: at })) })),
+    doc: editSourcing(doc, (s) => ({ ...s, candidates: s.candidates.map((c) => (c.invitedAt ? c : { ...c, invitedAt: at, screenedUnder: doc.version, ...(afterLaunch ? { afterLaunch: true } : {}) })) })),
     phones: open.filter((c) => c.idType === 'phone').length,
     userIds: open.filter((c) => c.idType === 'userId').length,
   }

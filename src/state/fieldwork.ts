@@ -2,7 +2,7 @@
 // actions that change them. Sessions are mock records built from the confirmed pool when a release goes live.
 // The participant and moderator runtime (4.2 to 4.5) writes through the same actions.
 
-import type { AudienceDoc } from './audience'
+import type { AudienceDoc, SourceTag } from './audience'
 import { formatDate, formatSlot } from '@/lib/format'
 import { studyTimeZone } from '@/lib/timeZone'
 import type { ReviewStatus } from '@/mock/review'
@@ -130,13 +130,28 @@ export type Session = {
   carried?: Carried
   /** Set when the Researcher acted on it from Needs you. A handled session leaves that list. */
   handled?: { action: string; at: string; by: string }
+  /** Set when the Researcher gave up on this participant: their slot is open again. The data is kept. */
+  gaveUp?: { reason: string; at: string; by: string }
 }
 
-/** Someone who passed screening after launch. They wait in the reserve until a replacement is approved. */
-export type ReserveCandidate = { id: string; contact: string; state: string; region: Region | null; arrivedAt: string; status: 'Reserve' | 'Invited'; invitedAs?: string }
-
-/** Screening reopened for the study's cohort, with the same screener and audience rules. */
-export type Recruiting = { openedAt: string; by: string; screenerVersion: string; status: 'Open' | 'Closed'; arrived: number }
+/**
+ * Someone who passed screening and is not in an interview. They wait in the reserve until the Researcher invites them.
+ * Reserve people only ever come through screening (R9), never straight into an interview.
+ */
+export type ReserveCandidate = {
+  id: string
+  contact: string
+  state: string
+  region: Region | null
+  /** When they were screened. The reserve is first in, first out by this. */
+  arrivedAt: string
+  source: SourceTag
+  /** The audience version they were screened under. A reserve person screened under an older one needs re-screening. */
+  screenedUnder?: number
+  status: 'Reserve' | 'Invited'
+  invitedAs?: string
+  invitedAt?: string
+}
 
 export type LogEntry = { id: string; at: string; by: string; text: string }
 
@@ -156,10 +171,8 @@ export type FieldworkDoc = {
   consentWording: string
   paused: { reason: string; by: string; at: string } | null
   log: LogEntry[]
-  /** Eligible applicants who arrived after launch, waiting to be invited as replacements. */
+  /** Reserve people who have been invited. The rest of the reserve is read from screening (R9). */
   reserve: ReserveCandidate[]
-  /** Set while screening is reopened to recruit more. */
-  recruiting: Recruiting | null
 }
 
 // ─── mock generation ────────────────────────────────────────────────────────
@@ -191,7 +204,7 @@ export type GenInput = {
 }
 
 /** Bumped when the seed session list changes, so saved fieldwork is rebuilt from it. */
-export const SESSION_SEED = 5
+export const SESSION_SEED = 6
 
 const DEVICES = ['Mobile · iOS Safari', 'Mobile · Android Chrome', 'Desktop · Chrome', 'Desktop · Safari', 'Desktop · Edge']
 
@@ -342,7 +355,6 @@ export function generateFieldwork(i: GenInput): FieldworkDoc {
     paused: null,
     log: [],
     reserve: [],
-    recruiting: null,
   }
 }
 
@@ -668,73 +680,97 @@ export function retrySession(doc: FieldworkDoc, sessionId: string, by: string): 
 }
 
 /**
- * Approving a replacement invites a reserve candidate: they become a new participant with a first session. If the
- * replacement is for a participant who withdrew, that participant leaves Needs you.
+ * Inviting from the reserve turns each chosen candidate into a new participant with a first session. The slot they
+ * take is one that opened earlier (an exclusion, a withdrawal, a no-show after the window, or a given-up session).
+ * Candidates are invited in the order given; the Reserve tab hands them over first in, first out unless you pick.
  */
-export function approveReplacement(doc: FieldworkDoc, by: string, target: { sessionId?: string; candidate: ReserveCandidate }): FieldworkDoc {
+export function inviteFromReserve(doc: FieldworkDoc, by: string, candidates: ReserveCandidate[]): FieldworkDoc {
+  if (!candidates.length) return doc
   const when = tick(doc)
-  const c = target.candidate
-  const n = Math.max(2040, ...doc.sessions.map((x) => parseInt(x.participantId.slice(2), 10) || 0)) + 1
-  const participantId = `P-${n}`
-  const replaced = target.sessionId ? doc.sessions.find((x) => x.id === target.sessionId) : undefined
   const first = doc.sessions[0]
-  const session: Session = {
-    id: `${participantId}-1`,
-    participantId,
-    no: 1,
-    applicantId: c.id,
-    ref: c.contact,
-    region: c.region,
-    state: c.state,
-    device: 'Not known yet',
-    reserve: false,
-    mode: first?.mode ?? 'ai',
-    access: 'Invited',
-    status: 'Not started',
-    moderatorId: null,
-    slot: null,
-    startedAt: null,
-    durationMin: null,
-    events: [ev(when, 'system', `Invited as a replacement from the reserve${replaced ? ` for ${replaced.participantId}` : ''}. Approved by ${by}.`)],
-    stimuli: [],
-    answers: [],
-    asked: [],
-    covered: [],
-    followUps: {},
-    transcript: [],
-    notes: null,
-    issues: [],
-    consent: null,
+  let next = doc
+  const made: string[] = []
+  for (const c of candidates) {
+    if (next.reserve.some((x) => x.id === c.id && x.status === 'Invited')) continue
+    const n = Math.max(2040, ...next.sessions.map((x) => parseInt(x.participantId.slice(2), 10) || 0)) + 1
+    const participantId = `P-${n}`
+    const session: Session = {
+      id: `${participantId}-1`,
+      participantId,
+      no: 1,
+      applicantId: c.id,
+      ref: c.contact,
+      region: c.region,
+      state: c.state,
+      device: 'Not known yet',
+      reserve: false,
+      mode: first?.mode ?? 'ai',
+      access: 'Invited',
+      status: 'Not started',
+      moderatorId: null,
+      slot: null,
+      startedAt: null,
+      durationMin: null,
+      events: [ev(when, 'system', `Invited from the reserve (screened ${formatDate(c.arrivedAt)}). Approved by ${by}.`)],
+      stimuli: [],
+      answers: [],
+      asked: [],
+      covered: [],
+      followUps: {},
+      transcript: [],
+      notes: null,
+      issues: [],
+      consent: null,
+    }
+    // Rows from the Reserve tab carry a display label; only the candidate itself is stored.
+    const { label: _label, ...plain } = c as ReserveCandidate & { label?: string }
+    const stored: ReserveCandidate = { ...plain, status: 'Invited', invitedAs: participantId, invitedAt: when }
+    const reserve = next.reserve.some((x) => x.id === c.id) ? next.reserve.map((x) => (x.id === c.id ? stored : x)) : [...next.reserve, stored]
+    next = { ...next, reserve, sessions: [...next.sessions, session] }
+    made.push(`${c.id} as ${participantId}`)
   }
-  const reserve = doc.reserve.some((x) => x.id === c.id) ? doc.reserve.map((x) => (x.id === c.id ? { ...x, status: 'Invited' as const, invitedAs: participantId } : x)) : [...doc.reserve, { ...c, status: 'Invited' as const, invitedAs: participantId }]
-  const base: FieldworkDoc = { ...doc, reserve, sessions: [...doc.sessions, session] }
-  const done = replaced ? patch(base, replaced.id, (x) => handledBy(addEventAt(when, x, 'system', `${by} approved a replacement: ${c.id} was invited as ${participantId}`), when, by, 'Approve replacement')) : base
-  return logged(done, when, by, `Approved a replacement from the reserve${replaced ? ` for ${replaced.participantId}` : ''}: invited ${c.id} as ${participantId}`)
+  return logged(next, when, by, `Invited ${made.length} from the reserve: ${made.join(', ')}`)
 }
 
-/** Reopens screening for the study's cohort. The screener and the audience rules are unchanged, so no new version is made. */
-export function reopenScreening(doc: FieldworkDoc, by: string, screenerVersion: string): FieldworkDoc {
-  if (doc.recruiting?.status === 'Open') return doc
+/**
+ * Gives up on a stuck participant (technical error, left part-way, a link that won't work). Their slot opens again so
+ * the gap shows it. The reason is required and logged; their data and session record are kept.
+ */
+export function giveUp(doc: FieldworkDoc, sessionId: string, reason: string, by: string): FieldworkDoc {
   const when = tick(doc)
-  return logged({ ...doc, recruiting: { openedAt: when, by, screenerVersion, status: 'Open', arrived: 0 } }, when, by, `Reopened screening (${screenerVersion}, unchanged)`)
+  const s = doc.sessions.find((x) => x.id === sessionId)
+  if (!s || s.gaveUp || !reason.trim()) return doc
+  return logged(
+    patch(doc, sessionId, (x) => ({ ...addEventAt(when, x, 'system', `${by} gave up on this participant and opened a slot: ${reason.trim()}`), gaveUp: { reason: reason.trim(), at: when, by } })),
+    when,
+    by,
+    `Gave up on ${s.participantId} and opened a slot: ${reason.trim()}`,
+  )
 }
 
-export function closeScreening(doc: FieldworkDoc, by: string): FieldworkDoc {
-  if (!doc.recruiting) return doc
+/**
+ * The mock of a participant opening their link. While the study is paused they are told it is unavailable and nothing
+ * starts; otherwise a new person's first visit opens the link and the next one starts the session.
+ */
+export function openLink(doc: FieldworkDoc, sessionId: string, paused: boolean): { doc: FieldworkDoc; result: 'unavailable' | 'opened' | 'started' | 'ignored' } {
+  const s = doc.sessions.find((x) => x.id === sessionId)
+  if (!s) return { doc, result: 'ignored' }
   const when = tick(doc)
-  return logged({ ...doc, recruiting: { ...doc.recruiting, status: 'Closed' } }, when, by, 'Closed screening')
+  const blocked = s.status === 'Not started' || s.status === 'Booked' || s.status === 'Incomplete (resumable)'
+  if (!blocked) return { doc, result: 'ignored' }
+  if (paused) return { doc: patch(doc, sessionId, (x) => addEventAt(when, x, 'participant', 'Opened their link while the study was paused. Shown: “This study is temporarily unavailable.” Nothing started.')), result: 'unavailable' }
+  if (s.access === 'Invited') return { doc: patch(doc, sessionId, (x) => addEventAt(when, { ...x, access: 'Opened' }, 'participant', 'Opened their link')), result: 'opened' }
+  return { doc: patch(doc, sessionId, (x) => addEventAt(when, { ...x, access: 'Consented', status: 'Active', startedAt: x.startedAt ?? when }, 'participant', 'Started the interview')), result: 'started' }
 }
 
-const ARRIVALS: [string, string][] = [['Oregon', 'Phone · (503) ••• 4418'], ['Minnesota', 'Phone · (612) ••• 9072'], ['Arizona', 'Phone · (480) ••• 2215'], ['Ohio', 'Phone · (216) ••• 7730']]
-
-/** The mock: one applicant arrives while screening is open, passes the same rules, and goes to the reserve. */
-export function arriveCandidate(doc: FieldworkDoc): FieldworkDoc {
-  const r = doc.recruiting
-  if (!r || r.status !== 'Open' || r.arrived > 0) return doc
+/** The mock of a running interview moving on: pausing the study never interrupts it. */
+export function simulateTurn(doc: FieldworkDoc, sessionId: string): FieldworkDoc {
   const when = tick(doc)
-  const [state, contact] = ARRIVALS[doc.reserve.length % ARRIVALS.length]
-  const candidate: ReserveCandidate = { id: `A-${2101 + doc.reserve.length}`, contact, state, region: (regionOf(state) as Region | undefined) ?? null, arrivedAt: when, status: 'Reserve' }
-  return logged({ ...doc, reserve: [...doc.reserve, candidate], recruiting: { ...r, arrived: 1 } }, when, 'PulseAI', `${candidate.id} passed screening and went to the reserve list`)
+  return patch(doc, sessionId, (x) => {
+    if (x.status !== 'Active') return x
+    const n = x.transcript.length
+    return { ...addEventAt(when, x, 'participant', 'Answered the next question'), transcript: [...x.transcript, { at: when, speaker: 'Participant', ai: false, text: PARTICIPANT[n % PARTICIPANT.length] }] }
+  })
 }
 
 /** Books the next free slot, two days out at 10:00, for a participant who missed or moved theirs. */

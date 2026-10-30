@@ -41,8 +41,10 @@ export type FWProps = {
   readOnly?: boolean
   /** Review status by session: what separates confirmed progress (Accepted) from pending (Under review). */
   outcomes: Outcomes
-  /** Eligible people waiting to be invited as replacements. */
+  /** Reserve people who can be invited now, first in first out. */
   reserve: ReserveCandidate[]
+  /** The study is paused: nothing that sends an invitation or a link can run. */
+  paused: boolean
   /** Sessions awaiting review, for the link to the queue. */
   awaiting: number
 }

@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router'
+import { Link, useNavigate } from 'react-router'
 import { Banner } from '@/components/Banner'
 import { Button } from '@/components/Button'
 import { Card } from '@/components/Card'
@@ -13,6 +13,7 @@ import { WizardFooter } from '@/components/WizardFooter'
 import { formatDate } from '@/lib/format'
 import { screenById, studyPath } from '@/routes/screens'
 import {
+  addArrivals,
   addCandidates,
   countBySource,
   editSourcing,
@@ -28,7 +29,10 @@ import {
   type SourceOption,
   type SourceTag,
 } from '@/state/audience'
+import { mockApplicants } from '@/state/screening'
+import { shortfall } from '@/state/monitor'
 import { PageHeader } from '../../shared/PageHeader'
+import { useStudySessions } from '../useStudySessions'
 import { AudienceGate } from './AudienceGate'
 import { useAudience } from './useAudience'
 
@@ -38,9 +42,12 @@ const OPTIONS: { value: SourceOption; title: string; description: string }[] = [
 ]
 
 export function Sourcing() {
-  const { studyId, audience, editable, update } = useAudience()
+  const { studyId, study, audience, editable, update } = useAudience()
+  const fw = useStudySessions()
   const navigate = useNavigate()
   const [showAll, setShowAll] = useState(false)
+  const [arrivals, setArrivals] = useState<number>()
+  const [arrived, setArrived] = useState<number>()
 
   if (!editable || !audience?.def) return <AudienceGate studyId={studyId} editable={editable} />
 
@@ -54,8 +61,20 @@ export function Sourcing() {
   const invited = invitedCount(s)
   const gateReason = !audienceReady ? 'Confirm the audience first' : !screenerReady ? 'Accept the screener first' : undefined
 
+  // After launch this is a top-up: the audience and screener are locked to the release, and applicants who qualify
+  // go to the reserve in Fieldwork, never straight into interviews.
+  const launched = !!fw.doc && !fw.preview && (study?.status === 'Live' || study?.status === 'Paused')
+  const paused = launched && (study?.status === 'Paused' || !!fw.doc?.paused)
+  const gap = launched && fw.doc ? shortfall(fw.doc, def.total ?? 0, fw.outcomes, fw.reserve) : undefined
+  const need = gap ? Math.max(0, gap.gap - gap.reserve) : 0
+  const answered = launched ? mockApplicants(audience) : []
+  const qualified = answered.filter((a) => a.outcome === 'Eligible' || a.outcome === 'Reserve').length
+  const passRate = answered.length ? qualified / answered.length : 0
+  const estimate = need > 0 && passRate > 0 ? Math.ceil(need / passRate) : 0
+  const blockedWhy = paused ? 'Study is paused' : undefined
+
   const send = () => {
-    update((d) => sendInvites(d).doc)
+    update((d) => sendInvites(d, launched).doc)
     // The wait for invitees to accept and answer is simulated, so go straight to the results.
     navigate(studyPath(studyId, screenById.R9))
   }
@@ -86,7 +105,73 @@ export function Sourcing() {
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader id="R8" title="Participant sourcing" description="Choose where applicants come from. Everyone who applies answers the screener." />
+      <PageHeader id="R8" title="Participant sourcing" description={launched ? 'Source more applicants for the reserve. They answer the same screener, and anyone who qualifies waits in the reserve until you invite them.' : 'Choose where applicants come from. Everyone who applies answers the screener.'} />
+
+      {launched && gap && (
+        <Banner
+          tone={need > 0 ? 'warning' : 'info'}
+          title={need > 0 ? `Need ${need} more eligible. Reserve has ${gap.reserve}.` : `No more eligible people are needed. Reserve has ${gap.reserve}.`}
+          actions={
+            <Button size="sm" to={`${studyPath(studyId, screenById.R18)}?tab=reserve`}>
+              Back to fieldwork
+            </Button>
+          }
+        >
+          <ul className="mt-1 flex flex-col gap-1">
+            <li>
+              The audience (version {audience.version}) and the screener (version {audience.screener?.fromAudienceVersion ?? audience.version}) are locked to this release. Applicants are screened with the same rules, and no new version is made.
+            </li>
+            {need > 0 && (
+              <li data-testid="estimate">
+                {estimate > 0
+                  ? `Estimated applicants needed: about ${estimate}. So far ${qualified} of ${answered.length} who answered the screener qualified (${Math.round(passRate * 100)}%).`
+                  : 'There is no screening history to estimate from yet.'}
+              </li>
+            )}
+            {paused && <li className="font-medium">Study is paused. You can’t add or invite applicants until you resume fieldwork.</li>}
+          </ul>
+        </Banner>
+      )}
+
+      {launched && import.meta.env.DEV && (
+        <Card title="Dev: simulate applicants arriving" description="Stands in for the panel. The applicants answer the screener and go through screening like anyone else, so only some qualify.">
+          <div className="flex flex-wrap items-end gap-3">
+            <label className="flex flex-col gap-1 text-sm">
+              <span className="font-medium">How many arrive</span>
+              <input
+                type="number"
+                min={1}
+                value={arrivals ?? (estimate || 5)}
+                onChange={(e) => setArrivals(Math.max(1, Math.floor(Number(e.target.value)) || 1))}
+                className={cn('h-9 w-24 rounded-sm border border-mist-strong bg-surface px-2.5 tabular-nums focus:border-iris-600')}
+              />
+            </label>
+            {blockedWhy ? (
+              <Tooltip content={blockedWhy} focusable>
+                <Button disabled>Simulate: applicants arrive</Button>
+              </Tooltip>
+            ) : (
+              <Button
+                onClick={() => {
+                  const k = arrivals ?? (estimate || 5)
+                  update((d) => addArrivals(d, k))
+                  setArrived(k)
+                }}
+              >
+                Simulate: {arrivals ?? (estimate || 5)} applicants arrive
+              </Button>
+            )}
+            {arrived !== undefined && (
+              <p role="status" data-testid="arrived" className="text-sm text-positive-fg">
+                {arrived} applicants arrived and answered the screener. Anyone who qualified is in the reserve.{' '}
+                <Link to={studyPath(studyId, screenById.R9)} className="font-medium underline">
+                  See screening
+                </Link>
+              </p>
+            )}
+          </div>
+        </Card>
+      )}
 
       {!ready && (
         <Banner tone="warning" title="Sourcing opens once the audience and screener are ready">
@@ -159,7 +244,13 @@ export function Sourcing() {
           <Stat label="Invited" value={invited} />
           <Stat label="Waiting to be invited" value={pending} />
           <span className="flex-1" />
-          {ready ? (
+          {blockedWhy ? (
+            <Tooltip focusable content={blockedWhy}>
+              <Button variant="primary" disabled>
+                Send screener invites
+              </Button>
+            </Tooltip>
+          ) : ready ? (
             <Button variant="primary" disabled={pending === 0} onClick={send}>
               Send screener invites{pending ? ` (${pending})` : ''}
             </Button>

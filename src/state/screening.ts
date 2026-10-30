@@ -325,8 +325,12 @@ export type Applicant = {
   source: SourceTag
   autoOutcome: ScreeningOutcome
   outcome: ScreeningOutcome
-  /** Set when the target was already met, so an eligible applicant became Reserve. */
+  /** Set when the target was already met, or the applicant arrived after launch, so an eligible applicant became Reserve. */
   note?: string
+  /** Screened after launch: a top-up applicant. */
+  afterLaunch: boolean
+  /** The audience version they were screened under. */
+  screenedUnder?: number
   groups: RuleGroup[]
   reason: string
   verification: VerificationStatus
@@ -385,7 +389,11 @@ export function mockApplicants(doc: AudienceDoc): Applicant[] {
     let note: string | undefined
 
     if (manual) outcome = manual.to as ScreeningOutcome
-    if (outcome === 'Eligible' && !manual?.replacement) {
+    if (outcome === 'Eligible' && c.afterLaunch && !manual?.replacement) {
+      // Someone screened after launch never goes straight into an interview: they wait in the reserve to be invited.
+      outcome = 'Reserve'
+      note = 'Screened after the study launched, so this eligible applicant is in the reserve. Invite them from Fieldwork.'
+    } else if (outcome === 'Eligible' && !manual?.replacement) {
       if (room()) filled += 1
       else {
         outcome = 'Reserve'
@@ -410,6 +418,8 @@ export function mockApplicants(doc: AudienceDoc): Applicant[] {
       id,
       contact: inviteRef(c),
       source: c.source,
+      afterLaunch: !!c.afterLaunch,
+      screenedUnder: c.screenedUnder,
       autoOutcome: auto,
       outcome,
       note,

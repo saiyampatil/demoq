@@ -23,11 +23,11 @@ const match: Record<Exclude<Filter, 'Needs you'>, (s: Session) => boolean> = {
   'Has open issues': (s) => s.issues.some((i) => i.status === 'Open'),
 }
 
-export function SessionsTab({ doc, studyId, reserve }: FWProps) {
+export function SessionsTab({ doc, studyId }: FWProps) {
   const navigate = useNavigate()
   const [filter, setFilter] = useState<Filter>('All')
   const [q, setQ] = useState('')
-  const needing = new Set(needsYou(doc, reserve).flatMap((r) => (r.session ? [r.session.id] : [])))
+  const needing = new Set(needsYou(doc).flatMap((r) => (r.session ? [r.session.id] : [])))
   const test = (s: Session) => (filter === 'Needs you' ? needing.has(s.id) : match[filter](s))
   const rows = doc.sessions.filter((s) => test(s) && (!q.trim() || [s.id, s.participantId, s.ref, s.region ?? ''].some((x) => x.toLowerCase().includes(q.trim().toLowerCase()))))
   const open = (s: Session) => navigate(studyPath(studyId, { ...screenById.R19, path: screenById.R19.path.replace(':sessionId', s.id) }))
@@ -38,7 +38,7 @@ export function SessionsTab({ doc, studyId, reserve }: FWProps) {
     { key: 'region', header: 'Region', cell: (s) => s.region ?? <span className="text-muted">Unknown</span> },
     { key: 'mode', header: 'Moderator', cell: (s) => <span className="whitespace-nowrap">{moderatorName(s.moderatorId)}</span> },
     { key: 'access', header: 'Access', cell: (s) => <StatusChip status={s.access} size="sm" /> },
-    { key: 'status', header: 'Session', cell: (s) => <StatusChip status={s.status} size="sm" /> },
+    { key: 'status', header: 'Session', cell: (s) => (<span className="flex items-center gap-2"><StatusChip status={s.status} size="sm" />{s.gaveUp && <span className="text-xs text-pending-fg">Given up, slot opened</span>}</span>) },
     { key: 'dur', header: 'Length', cell: (s) => (s.durationMin !== null ? <span className="tabular-nums">{s.durationMin} min</span> : <span className="text-muted">—</span>) },
     { key: 'issues', header: 'Issues', cell: (s) => { const o = s.issues.filter((i) => i.status === 'Open').length; return s.issues.length === 0 ? <span className="text-muted">None</span> : <span className={cn('tabular-nums', o > 0 && 'font-medium text-negative-fg')}>{o} open / {s.issues.length}</span> } },
     { key: 'when', header: 'Slot or start', cell: (s) => <span className="whitespace-nowrap">{slotText(s.slot ?? s.startedAt)}</span> },
