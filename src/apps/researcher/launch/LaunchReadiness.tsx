@@ -12,7 +12,6 @@ import { now } from '@/state/brief'
 import { releaseLabel, supportedLanguages, type Row, type RowOwner } from '@/state/launch'
 import { PageHeader } from '../../shared/PageHeader'
 import { LaunchGate, ResultMark } from './LaunchBits'
-import { PlanPreview } from './PlanPreview'
 import { TestMatrix } from './TestMatrix'
 import { SetupDrawer } from './SetupDrawer'
 import { useLaunch } from './useLaunch'
@@ -20,9 +19,8 @@ import { useLaunch } from './useLaunch'
 const ownerScreen: Record<Exclude<RowOwner, 'setup'>, Screen> = { R11: screenById.R11, R12: screenById.R12, R13: screenById.R13, R14: screenById.R14 }
 
 export function LaunchReadiness() {
-  const { studyId, study, editable, guide, launch, readiness: r, me, update } = useLaunch()
+  const { studyId, study, editable, audience, guide, launch, readiness: r, me, update } = useLaunch()
   const [compiling, setCompiling] = useState(false)
-  const [showPlan, setShowPlan] = useState(true)
   const [setup, setSetup] = useState(false)
 
   // Opening R15 compiles the approved guide. It recompiles whenever the guide's content changes.
@@ -137,33 +135,25 @@ export function LaunchReadiness() {
                   {plan.sections.length} sections, {plan.mandatoryCount} core questions, {plan.durationMin} min. Compiled {compiled ? formatDateTime(compiled.at) : 'just now'}.
                 </p>
               </div>
-              <Button size="sm" aria-expanded={showPlan} onClick={() => setShowPlan((x) => !x)}>
-                {showPlan ? 'Hide study plan' : 'View study plan'}
-              </Button>
-            </div>
-          )}
-          {compileOk && plan && showPlan && (
-            <div className="mt-4">
-              <PlanPreview plan={plan} />
             </div>
           )}
         </div>
       </section>
 
-      <TestMatrix languages={supportedLanguages(guide, launch)} launch={launch} guideVersion={guide?.version ?? 0} />
+      <TestMatrix languages={supportedLanguages(guide, launch)} launch={launch} guideVersion={guide?.version ?? 0} compile={r.compile} inputs={{ study, audience, guide, launch }} me={me} studyId={studyId} update={update} />
 
       <WizardFooter
         previous={{ to: studyPath(studyId, screenById.R14), label: 'Discussion guide' }}
         message={canContinue ? 'Entry contract passes and the plan compiled.' : `Not ready: ${blockers[0]?.charAt(0).toLowerCase()}${blockers[0]?.slice(1) ?? 'compiling'}.`}
       >
         {canContinue ? (
-          <Button variant="primary" to={studyPath(studyId, screenById.R16)}>
-            Continue to test runs
+          <Button variant="primary" to={studyPath(studyId, screenById.R17)}>
+            Continue to authorize
           </Button>
         ) : (
           <Tooltip focusable content={blockers.length ? `${blockers.join('. ')}.` : 'The plan is still compiling.'}>
             <Button variant="primary" disabled>
-              Continue to test runs
+              Continue to authorize
             </Button>
           </Tooltip>
         )}

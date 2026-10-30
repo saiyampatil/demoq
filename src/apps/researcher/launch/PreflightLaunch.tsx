@@ -15,7 +15,7 @@ import { LaunchGate, ResultMark } from './LaunchBits'
 import { SetupDrawer } from './SetupDrawer'
 import { useLaunch } from './useLaunch'
 
-const ownerScreen = { R6: screenById.R6, R13: screenById.R13, R14: screenById.R14, R16: screenById.R16 }
+const ownerScreen = { R6: screenById.R6, R13: screenById.R13, R14: screenById.R14, R15: screenById.R15 }
 
 export function PreflightLaunch() {
   const { studyId, study, editable, audience, guide, launch, readiness: r, me, update } = useLaunch()
@@ -134,7 +134,7 @@ export function PreflightLaunch() {
         )}
       </section>
 
-      <WizardFooter previous={{ to: studyPath(studyId, screenById.R16), label: 'Test runs' }} />
+      <WizardFooter previous={{ to: studyPath(studyId, screenById.R15), label: 'Launch' }} />
 
       <Modal
         open={!!override}

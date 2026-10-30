@@ -79,10 +79,8 @@ export function StudyWorkspace() {
         done:
           currentStep === 'launch' && launchState
             ? i.id === 'R15'
-              ? launchState.entryOk && launchState.compile.state === 'ok'
-              : i.id === 'R16'
-                ? launchState.progress.all
-                : study.status === 'Live'
+              ? launchState.entryOk && launchState.compile.state === 'ok' && launchState.progress.all
+              : study.status === 'Live'
             : currentStep === 'guide'
             ? i.id === 'R12'
               ? !!guideDoc && configBlockers(guideDoc.moderator).length === 0

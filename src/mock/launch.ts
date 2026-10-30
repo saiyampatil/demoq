@@ -1,4 +1,4 @@
-import { consentTemplate, defaultLinks, emptyLaunchDoc, type LaunchDoc, type Release } from '@/state/launch'
+import { buildRunReport, compileStudyPlan, consentTemplate, DEVICES, defaultLinks, emptyLaunchDoc, makeRunIssue, recordRun, runKey, supportedLanguages, type Inputs, type LaunchDoc, type Release } from '@/state/launch'
 import { people } from './people'
 
 const maya = people.researcher.name
@@ -54,5 +54,30 @@ export function seedLaunchDoc(studyId: string, kind: 'ready' | 'live', client: s
     },
     release,
     releases: [release],
+  }
+}
+
+export type MockRuns = 'pass' | 'issue' | 'none' | 'outdated'
+
+/**
+ * The dev panel's test-run switches. Each returns a change to the launch doc, built from the real compiled plan,
+ * so the reports are the ones a real run would give. It does nothing if the plan doesn't compile.
+ */
+export function mockTestRuns(kind: MockRuns, i: Inputs): ((d: LaunchDoc) => LaunchDoc) | undefined {
+  const compile = compileStudyPlan(i.guide)
+  if (compile.state !== 'ok') return undefined
+  const version = i.guide?.version ?? 0
+  return (d) => {
+    if (kind === 'none') return { ...d, runs: {} }
+    const langs = supportedLanguages(i.guide, d)
+    let doc: LaunchDoc = { ...d, runs: {} }
+    langs.forEach((lang, li) =>
+      DEVICES.forEach((dev, di) => {
+        const report = { ...buildRunReport({ ...i, launch: d, plan: compile.plan }, lang, dev), issues: [] }
+        const broken = kind === 'issue' && li === 0 && di === DEVICES.length - 1
+        doc = recordRun(doc, runKey(lang, dev), kind === 'outdated' ? Math.max(0, version - 1) : version, broken ? { ...report, issues: [makeRunIssue('Media rendering', 'A concept card did not load on this device (mock).', maya)] } : report, broken ? 'Issues found' : 'Completed')
+      }),
+    )
+    return doc
   }
 }

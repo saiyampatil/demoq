@@ -42,7 +42,7 @@ PRD gaps and conflicts found while building. Each entry says what the prototype 
 | 36 | 3 | Interview language: the brief has no language section (see #7). | R12 starts at English (US) and offers a short mock list. | Open |
 | 37 | 3 | Survey items keep fixed wording and options once created (PRD criterion 4). | Surveys can only be added or removed in R12, never edited. | Prototype decision |
 | 38 | 4 | Which device profiles does a study support at launch? | Mobile and Desktop, as mock values. | Open |
-| 39 | 4 | Is viewing the compiled study plan mandatory before authorizing? | No. It's optional and one click away on R15. | Open: default chosen |
+| 39 | 4 | Is viewing the compiled study plan mandatory before authorizing? | No. It's optional and one click away on R15. | Superseded: the plan can no longer be viewed on the Launch screen. |
 | 40 | 4 | Who can authorize a launch and override a non-critical preflight check? | The researcher. Every override and the authorization record who and when. | Open: default chosen |
 | 41 | 4 | Where are consent wording, supported languages and the fieldwork window set? No earlier module owns them. | A "Study setup" drawer on R15 and R17, with mock values. **R23 (Study settings, Phase 9) takes these over.** | Open: moves to R23 |
 | 42 | 4 | The R16 gate: "every cell Completed" conflicts with "Issues found feeds R17". | The gate needs every combination run (Completed or Issues found). An Issues found cell feeds the matching preflight check, where a non-critical issue can be fixed or overridden. Test runs are tied to the guide version, so a new version resets them. | Resolved with the product owner |
@@ -104,7 +104,9 @@ PRD gaps and conflicts found while building. Each entry says what the prototype 
 | 98 | L | Launch redesign: the brief says "Authorize launch locks Release v1.0, pauses the study, and queues invitations", but also "markStudyLive" and a payload with status "live". | Authorize launch sets the study Live (as today). Pausing is only for edits after launch. Decided when stage 4 is built. | Open: confirm |
 | 99 | L | The brief lists the entry rows' owners as "R4, R6, R12, R15 setup, R14". R4 (the brief) owns none of the five rows. | Guide R14, moderator R12, pool R11, fieldwork window and consent the setup drawer. R6 holds only the target number. | Open |
 | 100 | L | The redesigned entry contract drops the Active stimuli and Surveys rows. | Stimuli are covered by the media check and the release summary; surveys by the plan compile. | Prototype decision |
-| 101 | L | The matrix's Completed cells have no button, so a completed run can't be redone from R15. Should there be a "Run again"? | None for now, as the brief says; Run again lives inside the modal (step 3). | Open |
+| 101 | L | The matrix's Completed cells have no button, so a completed run can't be redone from R15. Should there be a "Run again"? | Resolved in stage 2: Completed and Issues found cells have Run and Report. | Resolved |
+| 102 | L | What does "Out of date" depend on? The brief says the guide version, but a launched study keeps its release, and editing the guide pauses it. | A run is out of date when the guide version it ran on is not the current guide version. The dev button sets that without editing the guide. | Open |
+| 103 | L | A run that finds problems by itself (a stimulus that failed to load, consent not approved): may the Researcher mark it complete anyway? | Resolved: yes. It is recorded with who, when and how many problems were showing, and the problems still feed the pre-launch checks. | Resolved |
 
 
 ## Future ideas (not built)

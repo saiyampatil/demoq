@@ -3,7 +3,8 @@ import { Link, useLocation, useNavigate } from 'react-router'
 import { Button } from '@/components/Button'
 import { cn } from '@/components/cn'
 import { CloseIcon, SearchIcon } from '@/components/icons'
-import { stagePresets } from '@/mock/moisturizerStudy'
+import { mockTestRuns, type MockRuns } from '@/mock/launch'
+import { MOISTURIZER_ID, stagePresets } from '@/mock/moisturizerStudy'
 import { appLabel, screenHref, screens, type AppKey } from '@/routes/screens'
 import { featureInfo, useFeatures, type FeatureKey } from '@/state/features'
 import { useStudies } from '@/state/StudyContext'
@@ -16,7 +17,12 @@ export function ScreenJump() {
   const [query, setQuery] = useState('')
   const { pathname, search } = useLocation()
   const navigate = useNavigate()
-  const { stage, setStage, resetSeed } = useStudies()
+  const { stage, setStage, resetSeed, getStudy, getAudience, getGuide, getLaunch, updateLaunch } = useStudies()
+  const mockRuns = (kind: MockRuns) => {
+    const study = getStudy(MOISTURIZER_ID)
+    const change = study && mockTestRuns(kind, { study, audience: getAudience(MOISTURIZER_ID), guide: getGuide(MOISTURIZER_ID), launch: getLaunch(MOISTURIZER_ID) })
+    if (change) updateLaunch(MOISTURIZER_ID, change)
+  }
   const { flags, setFlag } = useFeatures()
 
   useEffect(() => {
@@ -28,7 +34,9 @@ export function ScreenJump() {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
-    return q ? screens.filter((s) => s.id.toLowerCase().includes(q) || s.name.toLowerCase().includes(q)) : screens
+    // Screens kept in the code but out of the navigation (R16) are not offered here either.
+    const offered = screens.filter((s) => !s.hidden)
+    return q ? offered.filter((s) => s.id.toLowerCase().includes(q) || s.name.toLowerCase().includes(q)) : offered
   }, [query])
 
   const here = pathname + search
@@ -65,6 +73,25 @@ export function ScreenJump() {
           </header>
 
           <div className="flex-1 overflow-y-auto">
+            <section className="border-b border-mist px-4 py-3">
+              <h3 className="text-sm font-semibold">Test runs (mock)</h3>
+              <p className="text-xs text-graphite">Sets every test run on the Launch screen from the real compiled plan. Needs an approved guide that compiles.</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <Button size="sm" onClick={() => mockRuns('pass')}>
+                  Mock all pass
+                </Button>
+                <Button size="sm" onClick={() => mockRuns('issue')}>
+                  Mock one issue
+                </Button>
+                <Button size="sm" onClick={() => mockRuns('none')}>
+                  Mock all not run
+                </Button>
+                <Button size="sm" onClick={() => mockRuns('outdated')}>
+                  Mock guide version changed
+                </Button>
+              </div>
+            </section>
+
             <section className="border-b border-mist px-4 py-3">
               <h3 className="text-sm font-semibold">Study stage</h3>
               <p className="text-xs text-graphite">Moisturizer Concept Study only. Changing it replaces its saved progress; studies you created stay.</p>

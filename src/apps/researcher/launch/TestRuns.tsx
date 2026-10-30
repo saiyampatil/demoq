@@ -4,10 +4,7 @@ import { cn } from '@/components/cn'
 import { controlBase, TextArea } from '@/components/Field'
 import { CheckIcon, CloseIcon } from '@/components/icons'
 import { StatusChip } from '@/components/StatusChip'
-import { Tooltip } from '@/components/Tooltip'
-import { WizardFooter } from '@/components/WizardFooter'
 import { formatDateTime } from '@/lib/format'
-import { screenById, studyPath } from '@/routes/screens'
 import {
   addRunIssue,
   buildRunReport,
@@ -239,23 +236,6 @@ export function TestRuns() {
           </div>
         )}
       </section>
-
-      <WizardFooter
-        previous={{ to: studyPath(studyId, screenById.R15), label: 'Readiness' }}
-        message={progress.all ? 'Every combination has been run.' : `${progress.total - progress.finished} ${progress.total - progress.finished === 1 ? 'combination' : 'combinations'} still to run.`}
-      >
-        {progress.all ? (
-          <Button variant="primary" to={studyPath(studyId, screenById.R17)}>
-            Continue to authorize
-          </Button>
-        ) : (
-          <Tooltip focusable content={`Run every language on every device first (${progress.finished} of ${progress.total}).`}>
-            <Button variant="primary" disabled>
-              Continue to authorize
-            </Button>
-          </Tooltip>
-        )}
-      </WizardFooter>
     </div>
   )
 }

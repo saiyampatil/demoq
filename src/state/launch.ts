@@ -58,7 +58,12 @@ export type RunReport = {
   note: string
   issues: RunIssue[]
 }
-export type Run = { status: RunStatus; guideVersion: number; at?: string; report?: RunReport }
+/**
+ * Set when the Researcher marked a run complete although its report showed problems. The report is information; the
+ * decision is theirs. It records who, when and how many problems were showing.
+ */
+export type Acknowledged = { by: string; at: string; problems: number }
+export type Run = { status: RunStatus; guideVersion: number; at?: string; report?: RunReport; acknowledged?: Acknowledged }
 
 export const runKey = (language: string, device: Device) => `${language}|${device}`
 
@@ -278,6 +283,19 @@ export function runFor(l: LaunchDoc | undefined, language: string, device: Devic
   return r && r.guideVersion === guideVersion ? r : { status: 'Not run', guideVersion }
 }
 
+/**
+ * What a matrix cell shows. A run is tied to the guide version it ran against: when the guide has moved on, the cell
+ * reads "Out of date" (and says which version it ran on) and needs another run. It doesn't count as finished.
+ */
+export type CellState = { kind: 'not-run' | 'in-progress' | 'completed' | 'issues' | 'out-of-date'; run?: Run; ranOn?: number }
+
+export function cellState(l: LaunchDoc | undefined, language: string, device: Device, guideVersion: number): CellState {
+  const r = l?.runs[runKey(language, device)]
+  if (!r || r.status === 'Not run') return { kind: 'not-run' }
+  if (r.guideVersion !== guideVersion) return r.status === 'Completed' || r.status === 'Issues found' ? { kind: 'out-of-date', run: r, ranOn: r.guideVersion } : { kind: 'not-run' }
+  return { kind: r.status === 'Completed' ? 'completed' : r.status === 'Issues found' ? 'issues' : 'in-progress', run: r }
+}
+
 export function runProgress(l: LaunchDoc | undefined, languages: string[], guideVersion: number) {
   const runs = languages.flatMap((lang) => DEVICES.map((d) => runFor(l, lang, d, guideVersion)))
   const finished = runs.filter((r) => r.status === 'Completed' || r.status === 'Issues found')
@@ -314,6 +332,16 @@ export function buildRunReport(i: Inputs & { plan: StudyPlan }, language: string
   }
 }
 
+/** The Researcher's verdict on a run: Mark complete, or Report an issue. Only then does the matrix change. */
+export function recordRun(doc: LaunchDoc, key: string, guideVersion: number, report: RunReport, outcome: 'Completed' | 'Issues found', acknowledged?: Acknowledged): LaunchDoc {
+  return setRun(doc, key, { status: outcome, guideVersion, at: now(), report, ...(acknowledged ? { acknowledged } : {}) })
+}
+
+/** An issue the Researcher reports against a run. The note is optional; the category is what feeds the preflight check. */
+export function makeRunIssue(category: IssueCategory, note: string, by: string): RunIssue {
+  return { id: uid('ri'), category, text: note.trim() || `${category} problem reported during the test run.`, at: now(), by }
+}
+
 export function finishRun(doc: LaunchDoc, key: string, guideVersion: number, report: RunReport): LaunchDoc {
   return setRun(doc, key, { status: report.issues.length ? 'Issues found' : 'Completed', guideVersion, at: now(), report })
 }
@@ -333,7 +361,7 @@ export const setRunNote = (doc: LaunchDoc, key: string, note: string): LaunchDoc
 // ─── preflight (R17) ────────────────────────────────────────────────────────
 
 export type CheckId = 'media' | 'translations' | 'links' | 'quota' | 'consent' | 'coverage'
-export type CheckOwner = 'R6' | 'R13' | 'R14' | 'R16' | 'setup'
+export type CheckOwner = 'R6' | 'R13' | 'R14' | 'R15' | 'setup'
 export type Check = {
   id: CheckId
   label: string
@@ -404,7 +432,7 @@ export function preflight(i: Inputs & { compile: CompileResult }): Check[] {
   coverageProblems.push(...fromRuns('coverage'))
 
   return [
-    make('media', 'Media rendering', false, mediaProblems, `All ${active.length} active ${active.length === 1 ? 'stimulus renders' : 'stimuli render'}.`, mediaProblems.some((p) => p.includes('test run')) && !active.some((s) => s.renderOk === false) ? 'R16' : 'R13', 'Replace the file'),
+    make('media', 'Media rendering', false, mediaProblems, `All ${active.length} active ${active.length === 1 ? 'stimulus renders' : 'stimuli render'}.`, mediaProblems.some((p) => p.includes('test run')) && !active.some((s) => s.renderOk === false) ? 'R15' : 'R13', mediaProblems.some((p) => p.includes('test run')) && !active.some((s) => s.renderOk === false) ? 'Open test runs' : 'Replace the file'),
     make('translations', 'Translations', false, transProblems, extra.length ? `Translated into ${extra.join(', ')}.` : 'One language, nothing to translate.', 'setup', 'Open study setup'),
     make('links', 'Links', false, linkProblems, `All ${i.launch?.setup.links.length ?? 0} links open.`, 'setup', 'Open study setup'),
     make('quota', 'Participant target', false, quotaProblems, `${def?.total ?? 0} completed interviews needed.`, 'R6', 'Open audience'),
