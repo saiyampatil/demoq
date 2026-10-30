@@ -10,34 +10,25 @@ const inline = cn(controlBase, 'h-8 px-2 text-sm')
 
 type CohortCardProps = {
   cohort: Cohort
-  index: number
-  canRemove: boolean
   onChange: (fn: (c: Cohort) => Cohort) => void
-  onDuplicate: () => void
-  onRemove: () => void
 }
 
-export function CohortCard({ cohort: c, index, canRemove, onChange, onDuplicate, onRemove }: CohortCardProps) {
+export function CohortCard({ cohort: c, onChange }: CohortCardProps) {
   const setFilter = (id: string, fn: (f: Filter) => Filter) => onChange((x) => ({ ...x, filters: x.filters.map((f) => (f.id === id ? touch(fn(f)) : f)) }))
 
   return (
-    <section aria-label={`Cohort ${index + 1}`} className="flex flex-col gap-4 rounded-md border border-mist bg-surface p-4">
+    <section aria-label="Cohort" className="flex flex-col gap-4 rounded-md border border-mist bg-surface p-4">
       <header className="flex flex-wrap items-center gap-2">
         <label className="flex min-w-0 flex-1 items-center gap-1.5 text-md font-semibold">
-          <span className="shrink-0">Cohort {index + 1}:</span>
+          <span className="shrink-0">Cohort:</span>
           <input
-            aria-label={`Cohort ${index + 1} name`}
+            aria-label="Cohort name"
             value={c.name}
-            onChange={(e) => onChange((x) => ({ ...x, name: e.target.value }))}
+            onChange={(e) => onChange((x) => ({ ...x, name: e.target.value, nameOrigin: 'edited' }))}
             className="min-w-0 flex-1 rounded-xs border border-transparent px-1 py-0.5 hover:border-mist-strong focus:border-iris-600"
           />
         </label>
-        <Button size="sm" variant="ghost" onClick={onDuplicate}>
-          Duplicate
-        </Button>
-        <Button size="sm" variant="ghost" onClick={onRemove} disabled={!canRemove} title={canRemove ? undefined : 'An audience needs at least one cohort'}>
-          Remove
-        </Button>
+        <OriginTag origin={c.nameOrigin} />
       </header>
 
       {c.missing.length > 0 && (
@@ -69,24 +60,6 @@ export function CohortCard({ cohort: c, index, canRemove, onChange, onDuplicate,
         </Button>
       </div>
 
-      <div className="flex flex-wrap items-end gap-3 border-t border-mist pt-4">
-        <label className="flex flex-col gap-1.5">
-          <span className="text-sm font-medium">Participants in this cohort</span>
-          <input
-            type="number"
-            min={1}
-            inputMode="numeric"
-            value={c.participants ?? ''}
-            placeholder="Not set"
-            onChange={(e) => {
-              const n = e.target.value === '' ? null : Math.max(0, Math.floor(Number(e.target.value)))
-              onChange((x) => ({ ...x, participants: n, participantsOrigin: n === null ? 'missing' : 'added' }))
-            }}
-            className={cn(controlBase, 'h-8 w-32 text-sm tabular-nums', c.participants === null && 'border-pending-line')}
-          />
-        </label>
-        <OriginTag origin={c.participantsOrigin} className="mb-1" />
-      </div>
     </section>
   )
 }

@@ -131,11 +131,10 @@ export function SessionNotes({ session, me }: { session: ReviewSession; me: stri
 }
 
 /** Facts about the session, and the release and guide it was recorded under. */
-export function SessionDetails({ session, segment, history }: { session: ReviewSession; segment: string; history?: { id: string; no: number; status: string; href: string }[] }) {
+export function SessionDetails({ session, history }: { session: ReviewSession; history?: { id: string; no: number; status: string; href: string }[] }) {
   const rows: [string, string][] = [
     ['Participant ID', session.participantId],
     ['Session', `${session.sessionNo} of ${session.sessionCount} (${session.id})`],
-    ['Segment', segment],
     ['Moderator', session.moderator],
     ['Release', session.release],
     ['Guide', session.guide],

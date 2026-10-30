@@ -12,7 +12,7 @@ import { WizardFooter } from '@/components/WizardFooter'
 import { formatDate } from '@/lib/format'
 import { screenById, studyPath } from '@/routes/screens'
 import { invitedCount } from '@/state/audience'
-import { cohortFill, inPool, mockApplicants, type Applicant, type ScreeningOutcome } from '@/state/screening'
+import { inPool, targetFill, mockApplicants, type Applicant, type ScreeningOutcome } from '@/state/screening'
 import { PageHeader } from '../../shared/PageHeader'
 import { ApplicantDrawer } from './ApplicantDrawer'
 import { AudienceGate } from './AudienceGate'
@@ -52,8 +52,8 @@ export function ScreeningDashboard() {
     )
   }
 
-  const fill = cohortFill(applicants, audience)
-  const fullCohorts = new Set(fill.filter((f) => f.target !== null && f.eligible >= f.target).map((f) => f.id))
+  const fill = targetFill(applicants, audience)
+  const targetMet = fill.target !== null && fill.eligible >= fill.target
   const count = (o: ScreeningOutcome) => applicants.filter((a) => a.outcome === o).length
   const needsReview = count('Needs Review')
   const ready = applicants.filter(inPool).length
@@ -64,7 +64,6 @@ export function ScreeningDashboard() {
     { key: 'id', header: 'Applicant', cell: (a) => <span className="font-medium tabular-nums">{a.id}</span> },
     { key: 'contact', header: 'Invited as', cell: (a) => <span className="whitespace-nowrap tabular-nums">{a.contact}</span> },
     { key: 'source', header: 'Source', cell: (a) => a.source },
-    { key: 'cohort', header: 'Cohort', cell: (a) => a.cohort ?? <span className="text-muted">None</span> },
     {
       key: 'outcome',
       header: 'Screening',
@@ -125,18 +124,23 @@ export function ScreeningDashboard() {
         ))}
       </div>
 
-      <Card title="Cohort fill" description="Eligible applicants against each cohort’s quota. Once a cohort is full, further eligible applicants go to Reserve.">
-        <ul className="grid gap-3 md:grid-cols-2">
-          {fill.map((f) => (
-            <li key={f.id} className="rounded-sm border border-mist px-4 py-3">
-              <p className="font-medium">{f.name}</p>
-              <p className="tabular-nums">
-                <span className="text-lg font-semibold">{f.eligible}</span> of {f.target ?? 'not set'} eligible
-                <span className="ml-2 text-sm text-graphite">{f.reserve} in reserve</span>
-              </p>
-            </li>
-          ))}
-        </ul>
+      <Card title="Target fill" description={`Eligible applicants against the ${audience.def?.cohort.name ?? 'study'} target. Once the target is met, further eligible applicants go to Reserve. Ineligible and Needs Review applicants never take a slot.`}>
+        <div className="flex flex-col gap-2">
+          <p className="tabular-nums">
+            <span className="text-lg font-semibold">{fill.eligible}</span> of {fill.target ?? 'not set'} eligible
+            <span className="ml-2 text-sm text-graphite">{fill.reserve} in reserve</span>
+          </p>
+          <div
+            role="progressbar"
+            aria-label="Eligible applicants against the target"
+            aria-valuemin={0}
+            aria-valuemax={fill.target ?? 0}
+            aria-valuenow={Math.min(fill.eligible, fill.target ?? fill.eligible)}
+            className="h-2 overflow-hidden rounded-full bg-haze"
+          >
+            <span className="block h-full rounded-full bg-iris-600" style={{ width: `${fill.target ? Math.min(100, (fill.eligible / fill.target) * 100) : 0}%` }} />
+          </div>
+        </div>
       </Card>
 
       <Card
@@ -186,7 +190,7 @@ export function ScreeningDashboard() {
         )}
       </WizardFooter>
 
-      <ApplicantDrawer applicant={open} fullCohorts={fullCohorts} me={me} update={update} onClose={() => setParams({})} />
+      <ApplicantDrawer applicant={open} targetMet={targetMet} me={me} update={update} onClose={() => setParams({})} />
     </div>
   )
 }

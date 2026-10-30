@@ -1,14 +1,11 @@
 // The review queue's filters, kept so R22 can scope Previous and Next to them and the back link can return to them.
 
 import { scoreBand, type ReviewSession } from '@/mock/review'
-import { DEFAULT_COHORT_NAMES as NAMES } from '@/mock/sessions'
 
-export const DEFAULT_COHORT_NAMES: Record<string, string> = NAMES
-
-export type QueueFilters = { status: string; track: string; flag: string; integrity: string; quality: string; moderator: string; segment: string }
+export type QueueFilters = { status: string; track: string; flag: string; integrity: string; quality: string; moderator: string }
 export type QueueState = { filters: QueueFilters; search: string; asc: boolean; pageSize: number }
 
-export const NO_FILTERS: QueueFilters = { status: '', track: '', flag: '', integrity: '', quality: '', moderator: '', segment: '' }
+export const NO_FILTERS: QueueFilters = { status: '', track: '', flag: '', integrity: '', quality: '', moderator: '' }
 export const DEFAULT_QUEUE: QueueState = { filters: NO_FILTERS, search: '', asc: false, pageSize: 10 }
 
 const KEY = 'pulseai-qual:review-queue'
@@ -32,7 +29,7 @@ export function saveQueue(q: QueueState) {
 }
 
 /** The sessions the queue shows, in order. R21 and R22 both use this, so Previous and Next follow the same list. */
-export function queueOrder(all: ReviewSession[], q: QueueState, cohortName: (id: string) => string): ReviewSession[] {
+export function queueOrder(all: ReviewSession[], q: QueueState): ReviewSession[] {
   const f = q.filters
   const band = (v: number, want: string) => !want || scoreBand(v) === want
   const text = q.search.trim().toLowerCase()
@@ -44,8 +41,7 @@ export function queueOrder(all: ReviewSession[], q: QueueState, cohortName: (id:
         band(s.integrity, f.integrity) &&
         band(s.quality, f.quality) &&
         (!f.moderator || s.moderatorType === f.moderator) &&
-        (!f.segment || s.cohortId === f.segment) &&
-        (!text || [s.id, cohortName(s.cohortId), s.moderator].some((x) => x.toLowerCase().includes(text))),
+        (!text || [s.id, s.moderator].some((x) => x.toLowerCase().includes(text))),
     )
     .sort((a, b) => (q.asc ? 1 : -1) * (new Date(a.completedAt).getTime() - new Date(b.completedAt).getTime()))
 }

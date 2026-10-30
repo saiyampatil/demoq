@@ -31,14 +31,13 @@ export type Origin = 'ai' | 'edited' | 'added'
 
 export type Filter = { id: string; field: FilterField; value: string; min?: string; max?: string; origin: Origin }
 
-/** A cohort is a quota segment: its participant number is its quota. */
+/** The one group of people a study recruits. Its participant count is the study's target (AudienceDef.total). */
 export type Cohort = {
   id: string
+  /** Named from the audience definition, e.g. "Women 25–44 with dry or combination skin". The Researcher can rename it. */
   name: string
+  nameOrigin: Origin
   filters: Filter[]
-  /** Empty until the researcher fills it in; the brief never says how to split. */
-  participants: number | null
-  participantsOrigin: 'missing' | 'added'
   /** Filters the brief didn't provide, shown as "Missing: not in brief". */
   missing: string[]
 }
@@ -60,7 +59,8 @@ export type AudienceDef = {
   totalNote?: string
   /** Over-recruitment buffer, percent. PRD recommends 10–20%. */
   bufferPct: number
-  cohorts: Cohort[]
+  /** A study has exactly one cohort. Age and the other filters are screening rules, not segments. */
+  cohort: Cohort
   exclusions: Exclusion[]
 }
 
@@ -146,30 +146,31 @@ export const emptySourcing = (): Sourcing => ({ option: 'manual', panelName: '',
 
 export const invitesFor = (total: number | null, bufferPct: number) => (total ? Math.ceil(total * (1 + bufferPct / 100)) : null)
 
-export const allocated = (def: AudienceDef) => def.cohorts.reduce((n, c) => n + (c.participants ?? 0), 0)
+/** "Women 25–44 with dry or combination skin": the cohort's name, read from its filters. */
+export function cohortNameFrom(filters: Filter[]): string {
+  const get = (f: FilterField) => filters.find((x) => x.field === f)
+  const gender = get('gender')?.value
+  const who = gender === 'Female' ? 'Women' : gender === 'Male' ? 'Men' : gender === 'Non-binary' ? 'Non-binary people' : 'People'
+  const age = get('age')
+  const range = age?.min && age?.max ? ` ${age.min}–${age.max}` : ''
+  const skin = get('skinType')?.value.trim()
+  const withSkin = skin ? ` with ${skin.toLowerCase()} skin` : ''
+  return filters.length ? `${who}${range}${withSkin}` : 'Target audience'
+}
 
 /** Reasons Confirm stays disabled. Empty means it can be confirmed. */
 export function confirmBlockers(def: AudienceDef): string[] {
   const out: string[] = []
   if (!def.total) out.push('Enter how many completed interviews are needed')
-  const unfilled = def.cohorts.filter((c) => c.participants === null)
-  if (unfilled.length) out.push(`Enter the participant number for ${unfilled.map((c) => c.name || 'each cohort').join(' and ')}`)
-  if (def.total && unfilled.length === 0 && allocated(def) !== def.total)
-    out.push(`Cohorts add up to ${allocated(def)}, not ${def.total}`)
-  if (def.cohorts.some((c) => c.filters.length === 0)) out.push('Every cohort needs at least one filter')
-  if (def.cohorts.some((c) => c.filters.some((f) => (filterMeta[f.field].input === 'range' ? !f.min || !f.max : !f.value.trim()))))
-    out.push('Fill in or remove empty filters')
+  if (def.cohort.filters.length === 0) out.push('Add at least one filter to say who qualifies')
+  if (def.cohort.filters.some((f) => (filterMeta[f.field].input === 'range' ? !f.min || !f.max : !f.value.trim()))) out.push('Fill in or remove empty filters')
   return out
 }
 
 /** Counts for the "Pulled from your approved brief" line. */
 export function fillCounts(def: AudienceDef) {
-  const filled = (def.totalOrigin === 'ai' ? 1 : 0) + def.cohorts.reduce((n, c) => n + c.filters.filter((f) => f.origin === 'ai').length, 0)
-  const needInput =
-    (def.total ? 0 : 1) +
-    def.cohorts.filter((c) => c.participants === null).length +
-    def.cohorts.reduce((n, c) => n + c.missing.length, 0) +
-    (def.exclusions.length ? 0 : 1)
+  const filled = (def.totalOrigin === 'ai' ? 1 : 0) + def.cohort.filters.filter((f) => f.origin === 'ai').length
+  const needInput = (def.total ? 0 : 1) + def.cohort.missing.length + (def.exclusions.length ? 0 : 1)
   return { filled, needInput }
 }
 
@@ -195,8 +196,8 @@ export function approvedBriefSections(brief: BriefDoc | undefined): { version: n
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase()
 
 /**
- * Reads only the approved brief. Anything the brief doesn't say stays blank and is flagged:
- * in particular the split across cohorts, which the brief never gives.
+ * Reads only the approved brief. Anything the brief doesn't say stays blank and is flagged.
+ * A study has one cohort, whatever the brief says about "splitting": the split is not a quota.
  */
 export function draftFromBrief(sections: Record<SectionKey, SectionSnapshot>): AudienceDef {
   const filters: Filter[] = []
@@ -226,18 +227,9 @@ export function draftFromBrief(sections: Record<SectionKey, SectionSnapshot>): A
   if (/united states|\bUSA?\b/i.test(sections.market.text)) ai('country', 'United States')
   else missing.push('Country (market)')
 
-  // Only split into cohorts if the brief asks for a split; otherwise one cohort. Numbers are never filled.
-  const skin = filters.find((f) => f.field === 'skinType')
-  const splitBySkin = /split by skin type/i.test(`${sections.sampleSize.text} ${aud}`) && skin && / or /.test(skin.value)
-  const cohort = (name: string, fs: Filter[]): Cohort => ({ id: uid('c'), name, filters: fs, participants: null, participantsOrigin: 'missing', missing })
-  const cohorts = splitBySkin
-    ? skin!.value.split(/\s+or\s+/).map((v) => {
-        const value = cap(v)
-        return cohort(`${value} skin`, filters.map((f) => (f.field === 'skinType' ? { ...f, id: uid('f'), value } : { ...f, id: uid('f') })))
-      })
-    : [cohort('All participants', filters)]
+  const cohort: Cohort = { id: 'c-main', name: cohortNameFrom(filters), nameOrigin: 'ai', filters, missing }
 
-  return { total, totalOrigin: total ? 'ai' : 'missing', totalNote, bufferPct: 15, cohorts, exclusions: [] }
+  return { total, totalOrigin: total ? 'ai' : 'missing', totalNote, bufferPct: 15, cohort, exclusions: [] }
 }
 
 export function startDraft(studyId: string, briefVersion: number): AudienceDoc {
@@ -256,7 +248,7 @@ export function startDraft(studyId: string, briefVersion: number): AudienceDoc {
 
 export const draftStepLabel: Record<DraftStep, { running: string; done: string }> = {
   read: { running: 'Reading the approved brief', done: 'Read the approved brief' },
-  draft: { running: 'Drafting cohorts and filters', done: 'Drafted cohorts and filters' },
+  draft: { running: 'Drafting the cohort and filters', done: 'Drafted the cohort and filters' },
 }
 
 export function advanceDraft(doc: AudienceDoc, sections: Record<SectionKey, SectionSnapshot>): AudienceDoc {
@@ -331,19 +323,6 @@ export function confirmAudience(doc: AudienceDoc, by: string): AudienceDoc {
 
 export const touch = (f: Filter): Filter => ({ ...f, origin: f.origin === 'ai' ? 'edited' : f.origin })
 
-export function newCohort(def: AudienceDef): Cohort {
-  // Starts from the first cohort's filters, keeping their origin, so the researcher only changes what differs.
-  const base = def.cohorts[0]
-  return {
-    id: uid('c'),
-    name: `Cohort ${def.cohorts.length + 1}`,
-    filters: (base?.filters ?? []).map((f) => ({ ...f, id: uid('f') })),
-    participants: null,
-    participantsOrigin: 'missing',
-    missing: base?.missing ?? [],
-  }
-}
-
 export function newFilter(cohort: Cohort): Filter {
   const used = new Set(cohort.filters.map((f) => f.field))
   const field = FILTER_FIELDS.find((f) => !used.has(f)) ?? 'city'
@@ -354,21 +333,21 @@ export function newFilter(cohort: Cohort): Filter {
 
 /** AI draft of the screener from the audience. Never more than seven questions. */
 export function generateQuestions(def: AudienceDef): ScreenerQuestion[] {
-  const fields = new Set(def.cohorts.flatMap((c) => c.filters.map((f) => f.field)))
-  const range = def.cohorts.flatMap((c) => c.filters.filter((f) => f.field === 'age')).map((f) => `${f.min}–${f.max}`)
+  const fields = new Set(def.cohort.filters.map((f) => f.field))
+  const range = def.cohort.filters.filter((f) => f.field === 'age').map((f) => `${f.min}–${f.max}`)
   const qs: ScreenerQuestion[] = []
   const add = (q: Omit<ScreenerQuestion, 'id' | 'origin'>) => {
     if (qs.length < MAX_QUESTIONS) qs.push({ ...q, id: uid('q'), origin: 'ai' })
   }
 
-  if (fields.has('age')) add({ field: 'age', text: 'What is your age?', type: 'number', options: [], purpose: `Checks age against each cohort (${[...new Set(range)].join(', ')}).` })
+  if (fields.has('age')) add({ field: 'age', text: 'What is your age?', type: 'number', options: [], purpose: `Checks age against the audience (${range.join(', ')}).` })
   if (fields.has('country') || fields.has('state') || fields.has('region') || fields.has('city'))
     add({ field: 'state', text: 'Which US state do you live in?', type: 'single', options: US_STATES, purpose: 'Checks location and places the applicant in a region.' })
   if (fields.has('zip')) add({ field: 'zip', text: 'What is your ZIP code?', type: 'text', options: [], purpose: 'Checks the ZIP code filter.' })
   if (fields.has('gender'))
     add({ field: 'gender', text: 'How do you describe your gender?', type: 'single', options: ['Female', 'Male', 'Non-binary', 'Prefer to self-describe', 'Prefer not to say'], purpose: 'Checks the gender filter.' })
   if (fields.has('skinType'))
-    add({ field: 'skinType', text: 'How would you describe your skin type?', type: 'single', options: ['Dry', 'Combination', 'Oily', 'Normal', 'Not sure'], purpose: 'Checks the skin type filter and places the applicant in a cohort.' })
+    add({ field: 'skinType', text: 'How would you describe your skin type?', type: 'single', options: ['Dry', 'Combination', 'Oily', 'Normal', 'Not sure'], purpose: 'Checks the skin type filter.' })
   if (fields.has('productUsage'))
     add({ field: 'productUsage', text: 'How often do you use a facial moisturizer?', type: 'single', options: ['Every day', 'A few times a week', 'About once a week', 'Rarely', 'Never'], purpose: 'Checks product usage.' })
   if (fields.has('purchaseFrequency'))
@@ -485,4 +464,34 @@ export function sendInvites(doc: AudienceDoc): { doc: AudienceDoc; phones: numbe
     phones: open.filter((c) => c.idType === 'phone').length,
     userIds: open.filter((c) => c.idType === 'userId').length,
   }
+}
+
+// ─── saved documents ────────────────────────────────────────────────────────
+
+type OldCohort = { id: string; name: string; filters: Filter[]; missing?: string[] }
+
+/**
+ * Audiences saved before a study had exactly one cohort carry a list of cohorts, each with its own number. They become
+ * one cohort: the first one's filters, with the age range widened to cover the others. The total is already the target.
+ */
+export function migrateAudience(doc: AudienceDoc): AudienceDoc {
+  const fix = (def: AudienceDef | null | undefined): AudienceDef | null | undefined => {
+    const old = def as (AudienceDef & { cohorts?: OldCohort[] }) | null | undefined
+    if (!old || old.cohort || !old.cohorts?.length) return def
+    const [first, ...rest] = old.cohorts
+    const ages = old.cohorts.flatMap((c) => c.filters.filter((f) => f.field === 'age'))
+    const lo = Math.min(...ages.map((f) => Number(f.min)).filter(Number.isFinite))
+    const hi = Math.max(...ages.map((f) => Number(f.max)).filter(Number.isFinite))
+    const filters = first.filters.map((f) => (f.field === 'age' && rest.length && Number.isFinite(lo) && Number.isFinite(hi) ? { ...f, min: String(lo), max: String(hi) } : f))
+    const { cohorts: _cohorts, ...keep } = old
+    return { ...keep, cohort: { id: 'c-main', name: cohortNameFrom(filters), nameOrigin: 'ai', filters, missing: first.missing ?? [] } }
+  }
+  type OldPool = { at: string; by: string; members: { applicantId: string }[]; shortfalls?: { have: number; need: number }[]; shortfall?: { have: number; need: number } | null }
+  const pool = doc.pool as OldPool | undefined
+  const fixedPool: PoolRecord | undefined =
+    pool && pool.shortfalls
+      ? { at: pool.at, by: pool.by, members: pool.members.map((m) => ({ applicantId: m.applicantId })), shortfall: pool.shortfalls.length ? { have: pool.shortfalls.reduce((n, x) => n + x.have, 0), need: pool.shortfalls.reduce((n, x) => n + x.need, 0) } : null }
+      : (doc.pool as PoolRecord | undefined)
+  const confirmed = doc.confirmed && { ...doc.confirmed, def: fix(doc.confirmed.def) as AudienceDef }
+  return { ...doc, def: fix(doc.def) ?? null, confirmed, pool: fixedPool }
 }

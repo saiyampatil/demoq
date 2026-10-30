@@ -25,7 +25,7 @@ export function ExclusionsCard({ exclusions, screener, onChange }: ExclusionsCar
   return (
     <Card
       title="Exclusions"
-      description="People who match an exclusion are screened out and never use a cohort slot."
+      description="People who match an exclusion are screened out and never take a slot."
       actions={
         <>
           <Button

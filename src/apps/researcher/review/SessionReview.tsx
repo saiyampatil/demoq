@@ -10,7 +10,7 @@ import { formatStamp } from '@/lib/format'
 import { currentUser } from '@/mock/people'
 import { transcriptFor, type ReviewFlag, type ReviewSession } from '@/mock/review'
 import { screenById, studyPath } from '@/routes/screens'
-import { DEFAULT_COHORT_NAMES, DEFAULT_QUEUE, loadQueue, queueOrder } from '@/state/reviewQueue'
+import { DEFAULT_QUEUE, loadQueue, queueOrder } from '@/state/reviewQueue'
 import { PageHeader } from '../../shared/PageHeader'
 import { resolveSession, sessionsOfParticipant } from '@/state/fieldwork'
 import { SampleDataBanner } from '../SampleDataBanner'
@@ -35,7 +35,7 @@ const TAB_LABEL: Record<Tab, string> = {
 
 export function SessionReview() {
   const { sessionId = '' } = useParams()
-  const { studyId, audience, review, preview, doc } = useStudySessions()
+  const { studyId, review, preview, doc } = useStudySessions()
   const [params] = useSearchParams()
   const demo = params.get('demo')
   const [loaded, setLoaded] = useState(false)
@@ -46,8 +46,6 @@ export function SessionReview() {
     return () => clearTimeout(t)
   }, [sessionId])
 
-  const cohorts = audience?.def?.cohorts ?? Object.entries(DEFAULT_COHORT_NAMES).map(([id, name]) => ({ id, name }))
-  const cohortName = (id: string) => cohorts.find((c) => c.id === id)?.name ?? DEFAULT_COHORT_NAMES[id] ?? id
   const all = review
   const session = all.find((s) => s.id === sessionId)
   const href = (screen: typeof screenById.R22, id: string) => studyPath(studyId, { ...screen, path: screen.path.replace(':sessionId', id) })
@@ -92,12 +90,12 @@ export function SessionReview() {
     )
 
   const history: History = doc ? sessionsOfParticipant(doc, session.participantId).map((x) => ({ id: x.id, no: x.no, status: x.status, href: href(screenById.R19, x.id) })) : []
-  return <Loaded key={session.id} session={session} all={all} cohortName={cohortName} studyId={studyId} crumbs={crumbs} demo={demo} history={history} />
+  return <Loaded key={session.id} session={session} all={all} studyId={studyId} crumbs={crumbs} demo={demo} history={history} />
 }
 
 type History = { id: string; no: number; status: string; href: string }[]
 
-function Loaded({ session, all, cohortName, studyId, crumbs, demo, history }: { session: ReviewSession; all: ReviewSession[]; cohortName: (id: string) => string; studyId: string; crumbs: React.ReactNode; demo: string | null; history: History }) {
+function Loaded({ session, all, studyId, crumbs, demo, history }: { session: ReviewSession; all: ReviewSession[]; studyId: string; crumbs: React.ReactNode; demo: string | null; history: History }) {
   const navigate = useNavigate()
   const [tab, setTab] = useState<Tab>('workspace')
   const [focus, setFocus] = useState<Focus>()
@@ -107,8 +105,8 @@ function Loaded({ session, all, cohortName, studyId, crumbs, demo, history }: { 
 
   // Previous and Next follow the queue as it was filtered when the Researcher left it.
   const queue = loadQueue()
-  const scoped = queueOrder(all, queue, cohortName)
-  const list = scoped.some((s) => s.id === session.id) ? scoped : queueOrder(all, { ...DEFAULT_QUEUE, asc: queue.asc }, cohortName)
+  const scoped = queueOrder(all, queue)
+  const list = scoped.some((s) => s.id === session.id) ? scoped : queueOrder(all, { ...DEFAULT_QUEUE, asc: queue.asc })
   const at = list.findIndex((s) => s.id === session.id)
   const go = (i: number) => navigate(studyPath(studyId, { ...screenById.R22, path: screenById.R22.path.replace(':sessionId', list[i].id) }))
 
@@ -139,7 +137,6 @@ function Loaded({ session, all, cohortName, studyId, crumbs, demo, history }: { 
             <>
               <StatusChip status={session.status} size="sm" />
               {session.sessionCount > 1 && <span className="font-medium text-ink">Session {session.sessionNo} of {session.sessionCount}</span>}
-              <span>{cohortName(session.cohortId)}</span>
               <span>{session.moderator}</span>
               <span>{session.release}</span>
               <span>{session.guide}</span>
@@ -211,7 +208,7 @@ function Loaded({ session, all, cohortName, studyId, crumbs, demo, history }: { 
         )}
         {tab === 'details' && (
           <Panel title="Session details">
-            <SessionDetails session={session} segment={cohortName(session.cohortId)} history={history} />
+            <SessionDetails session={session} history={history} />
           </Panel>
         )}
       </div>

@@ -29,13 +29,12 @@ export function SessionsTab({ doc, studyId, reserve }: FWProps) {
   const [q, setQ] = useState('')
   const needing = new Set(needsYou(doc, reserve).flatMap((r) => (r.session ? [r.session.id] : [])))
   const test = (s: Session) => (filter === 'Needs you' ? needing.has(s.id) : match[filter](s))
-  const rows = doc.sessions.filter((s) => test(s) && (!q.trim() || [s.id, s.participantId, s.ref, s.cohort ?? '', s.region ?? ''].some((x) => x.toLowerCase().includes(q.trim().toLowerCase()))))
+  const rows = doc.sessions.filter((s) => test(s) && (!q.trim() || [s.id, s.participantId, s.ref, s.region ?? ''].some((x) => x.toLowerCase().includes(q.trim().toLowerCase()))))
   const open = (s: Session) => navigate(studyPath(studyId, { ...screenById.R19, path: screenById.R19.path.replace(':sessionId', s.id) }))
 
   const columns: Column<Session>[] = [
     { key: 'id', header: 'Participant', cell: (s) => <SessionTag className="font-medium" participantId={s.participantId} no={s.no} count={sessionCountOf(doc, s)} /> },
     { key: 'ref', header: 'Contact', cell: (s) => <span className="whitespace-nowrap tabular-nums">{s.ref}</span> },
-    { key: 'cohort', header: 'Segment', cell: (s) => (<span className="whitespace-nowrap">{s.cohort ?? <span className="text-muted">None</span>}{s.reserve && <span className="ml-2 text-xs text-graphite">Reserve</span>}</span>) },
     { key: 'region', header: 'Region', cell: (s) => s.region ?? <span className="text-muted">Unknown</span> },
     { key: 'mode', header: 'Moderator', cell: (s) => <span className="whitespace-nowrap">{moderatorName(s.moderatorId)}</span> },
     { key: 'access', header: 'Access', cell: (s) => <StatusChip status={s.access} size="sm" /> },

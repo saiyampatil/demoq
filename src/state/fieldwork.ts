@@ -9,7 +9,7 @@ import type { ReviewStatus } from '@/mock/review'
 import { now, uid } from './brief'
 import type { GuideDoc } from './guide'
 import type { LaunchDoc, PlanItem, StudyPlan } from './launch'
-import { DEFAULT_COHORT_NAMES, SEED_SESSIONS, sessionIdOf } from '@/mock/sessions'
+import { SEED_SESSIONS, sessionIdOf } from '@/mock/sessions'
 import { regionOf } from './screening'
 
 export type AccessStatus = 'Invited' | 'Opened' | 'Consented' | 'No-show'
@@ -105,7 +105,6 @@ export type Session = {
   no: number
   applicantId: string
   ref: string
-  cohort: string | null
   region: Region | null
   state: string | null
   device: string
@@ -133,11 +132,11 @@ export type Session = {
   handled?: { action: string; at: string; by: string }
 }
 
-/** Someone who passed screening for a cohort after launch. They wait in the reserve until a replacement is approved. */
-export type ReserveCandidate = { id: string; cohort: string; contact: string; state: string; region: Region | null; arrivedAt: string; status: 'Reserve' | 'Invited'; invitedAs?: string }
+/** Someone who passed screening after launch. They wait in the reserve until a replacement is approved. */
+export type ReserveCandidate = { id: string; contact: string; state: string; region: Region | null; arrivedAt: string; status: 'Reserve' | 'Invited'; invitedAs?: string }
 
-/** Screening reopened for one cohort, with the same screener and audience rules. */
-export type Recruiting = { cohort: string; openedAt: string; by: string; screenerVersion: string; status: 'Open' | 'Closed'; arrived: number }
+/** Screening reopened for the study's cohort, with the same screener and audience rules. */
+export type Recruiting = { openedAt: string; by: string; screenerVersion: string; status: 'Open' | 'Closed'; arrived: number }
 
 export type LogEntry = { id: string; at: string; by: string; text: string }
 
@@ -159,8 +158,8 @@ export type FieldworkDoc = {
   log: LogEntry[]
   /** Eligible applicants who arrived after launch, waiting to be invited as replacements. */
   reserve: ReserveCandidate[]
-  /** Cohorts whose screening has been reopened. */
-  recruiting: Recruiting[]
+  /** Set while screening is reopened to recruit more. */
+  recruiting: Recruiting | null
 }
 
 // ─── mock generation ────────────────────────────────────────────────────────
@@ -192,7 +191,7 @@ export type GenInput = {
 }
 
 /** Bumped when the seed session list changes, so saved fieldwork is rebuilt from it. */
-export const SESSION_SEED = 4
+export const SESSION_SEED = 5
 
 const DEVICES = ['Mobile · iOS Safari', 'Mobile · Android Chrome', 'Desktop · Chrome', 'Desktop · Safari', 'Desktop · Edge']
 
@@ -203,7 +202,6 @@ const refOf = (id: string) => `Phone · (212) ••• ${id.slice(2)}`
 export function generateFieldwork(i: GenInput): FieldworkDoc {
   const human = i.guide.moderator.mode === 'human'
   const mods = human ? i.guide.moderator.humanIds : []
-  const cohortName = (id: string) => i.audience.def?.cohorts.find((c) => c.id === id)?.name ?? DEFAULT_COHORT_NAMES[id as keyof typeof DEFAULT_COHORT_NAMES] ?? id
 
   const items = i.plan.sections.flatMap((s) => s.items)
   const mandatory = items.filter((x) => x.core).map((x) => x.id)
@@ -298,7 +296,6 @@ export function generateFieldwork(i: GenInput): FieldworkDoc {
       no: r.no ?? 1,
       applicantId: `A-${r.participant.slice(2)}`,
       ref: refOf(r.participant),
-      cohort: cohortName(r.cohortId),
       region,
       state: r.state,
       device,
@@ -345,7 +342,7 @@ export function generateFieldwork(i: GenInput): FieldworkDoc {
     paused: null,
     log: [],
     reserve: [],
-    recruiting: [],
+    recruiting: null,
   }
 }
 
@@ -421,7 +418,7 @@ export function resolveSession(doc: FieldworkDoc, param: string): { session: Ses
 export type Outcomes = ReadonlyMap<string, ReviewStatus>
 const outcomeOf = (outcomes: Outcomes, s: Session): ReviewStatus => outcomes.get(s.id) ?? 'Under review'
 
-/** Completed sessions that count toward the target: Accepted (confirmed) or Under review (pending). Excluded ones are out of quotas. */
+/** Completed sessions that count toward the target: Accepted (confirmed) or Under review (pending). Excluded ones are out of the target. */
 export const countsToward = (x: Session, outcomes: Outcomes) => x.status === 'Completed' && !x.reserve && outcomeOf(outcomes, x) !== 'Excluded'
 
 /** Two numbers wherever progress appears: confirmed (Accepted) and pending (Under review). Excluded are removed. */
@@ -433,25 +430,20 @@ export function progress(doc: FieldworkDoc, outcomes: Outcomes) {
   return { completed: done.length, confirmed, pending, excluded: n('Excluded'), toward: confirmed + pending }
 }
 
-export function quotaFill(doc: FieldworkDoc, audience: AudienceDoc | undefined, outcomes: Outcomes) {
-  return (audience?.def?.cohorts ?? []).map((c) => {
-    const mine = doc.sessions.filter((x) => x.cohort === c.name && x.status === 'Completed' && !x.reserve)
-    const n = (st: ReviewStatus) => mine.filter((x) => outcomeOf(outcomes, x) === st).length
-    const accepted = n('Accepted')
-    const pending = n('Under review')
-    return {
-      id: c.id,
-      name: c.name,
-      target: c.participants ?? 0,
-      accepted,
-      pending,
-      excluded: n('Excluded'),
-      /** Toward the quota: accepted plus pending. */
-      completed: accepted + pending,
-      inProgress: doc.sessions.filter((x) => x.cohort === c.name && (x.status === 'Active' || x.status === 'Paused')).length,
-      reserve: doc.sessions.filter((x) => x.cohort === c.name && x.reserve).length,
-    }
-  })
+/** The study's one target, with who counts toward it. */
+export function targetFill(doc: FieldworkDoc, audience: AudienceDoc | undefined, outcomes: Outcomes) {
+  const prog = progress(doc, outcomes)
+  return {
+    name: audience?.def?.cohort.name ?? 'Participants',
+    target: audience?.def?.total ?? 0,
+    accepted: prog.confirmed,
+    pending: prog.pending,
+    excluded: prog.excluded,
+    /** Toward the target: accepted plus pending. */
+    completed: prog.toward,
+    inProgress: doc.sessions.filter((x) => x.status === 'Active').length,
+    reserve: doc.sessions.filter((x) => x.reserve).length,
+  }
 }
 
 export function findSession(all: Record<string, FieldworkDoc>, id: string): { doc: FieldworkDoc; session: Session } | undefined {
@@ -535,10 +527,6 @@ export function durationStats(doc: FieldworkDoc) {
   const done = doc.sessions.filter((x) => x.status === 'Completed' && x.durationMin !== null)
   const d = done.map((x) => x.durationMin as number).sort((a, b) => a - b)
   const target = doc.plan.durationMin
-  const byCohort = [...new Set(done.map((x) => x.cohort ?? 'No cohort'))].map((c) => {
-    const xs = done.filter((x) => (x.cohort ?? 'No cohort') === c).map((x) => x.durationMin as number)
-    return { name: c, n: xs.length, avg: avg(xs) }
-  })
   return {
     n: d.length,
     target,
@@ -547,7 +535,6 @@ export function durationStats(doc: FieldworkDoc) {
     min: d[0] ?? null,
     max: d[d.length - 1] ?? null,
     over: d.filter((x) => x > target).length,
-    byCohort,
     partial: doc.sessions.filter((x) => x.status === 'Incomplete (resumable)' || x.status === 'Withdrawn' || x.status === 'Technical Error').length,
   }
 }
@@ -566,15 +553,10 @@ export function pacing(doc: FieldworkDoc, target: number, outcomes: Outcomes) {
   return { completed, target, days, day, expected, projected, left: days - day }
 }
 
-export function regionMatrix(doc: FieldworkDoc, audience: AudienceDoc | undefined, outcomes: Outcomes) {
-  const cohorts = audience?.def?.cohorts ?? []
+export function regionMatrix(doc: FieldworkDoc, outcomes: Outcomes) {
   const done = doc.sessions.filter((x) => countsToward(x, outcomes))
-  const rows = cohorts.map((c) => {
-    const mine = done.filter((x) => x.cohort === c.name)
-    return { id: c.id, name: c.name, target: c.participants ?? 0, completed: mine.length, byRegion: Object.fromEntries(REGIONS.map((r) => [r, mine.filter((x) => x.region === r).length])) as Record<Region, number> }
-  })
   const totals = Object.fromEntries(REGIONS.map((r) => [r, done.filter((x) => x.region === r).length])) as Record<Region, number>
-  return { rows, totals, total: done.length, unplaced: done.filter((x) => !x.region).length }
+  return { totals, total: done.length, unplaced: done.filter((x) => !x.region).length }
 }
 
 /**
@@ -658,7 +640,6 @@ export function retrySession(doc: FieldworkDoc, sessionId: string, by: string): 
     no,
     applicantId: s.applicantId,
     ref: s.ref,
-    cohort: s.cohort,
     region: s.region,
     state: s.state,
     device: s.device,
@@ -703,7 +684,6 @@ export function approveReplacement(doc: FieldworkDoc, by: string, target: { sess
     no: 1,
     applicantId: c.id,
     ref: c.contact,
-    cohort: c.cohort,
     region: c.region,
     state: c.state,
     device: 'Not known yet',
@@ -729,31 +709,32 @@ export function approveReplacement(doc: FieldworkDoc, by: string, target: { sess
   const reserve = doc.reserve.some((x) => x.id === c.id) ? doc.reserve.map((x) => (x.id === c.id ? { ...x, status: 'Invited' as const, invitedAs: participantId } : x)) : [...doc.reserve, { ...c, status: 'Invited' as const, invitedAs: participantId }]
   const base: FieldworkDoc = { ...doc, reserve, sessions: [...doc.sessions, session] }
   const done = replaced ? patch(base, replaced.id, (x) => handledBy(addEventAt(when, x, 'system', `${by} approved a replacement: ${c.id} was invited as ${participantId}`), when, by, 'Approve replacement')) : base
-  return logged(done, when, by, `Approved a replacement from the reserve${replaced ? ` for ${replaced.participantId}` : ''}: invited ${c.id} (${c.cohort}) as ${participantId}`)
+  return logged(done, when, by, `Approved a replacement from the reserve${replaced ? ` for ${replaced.participantId}` : ''}: invited ${c.id} as ${participantId}`)
 }
 
-/** Reopens screening for one cohort. The screener and the audience rules are unchanged, so no new version is made. */
-export function reopenScreening(doc: FieldworkDoc, cohort: string, by: string, screenerVersion: string): FieldworkDoc {
-  if (doc.recruiting.some((r) => r.cohort === cohort && r.status === 'Open')) return doc
+/** Reopens screening for the study's cohort. The screener and the audience rules are unchanged, so no new version is made. */
+export function reopenScreening(doc: FieldworkDoc, by: string, screenerVersion: string): FieldworkDoc {
+  if (doc.recruiting?.status === 'Open') return doc
   const when = tick(doc)
-  return logged({ ...doc, recruiting: [...doc.recruiting.filter((r) => r.cohort !== cohort), { cohort, openedAt: when, by, screenerVersion, status: 'Open', arrived: 0 }] }, when, by, `Reopened screening for ${cohort} (${screenerVersion}, unchanged)`)
+  return logged({ ...doc, recruiting: { openedAt: when, by, screenerVersion, status: 'Open', arrived: 0 } }, when, by, `Reopened screening (${screenerVersion}, unchanged)`)
 }
 
-export function closeScreening(doc: FieldworkDoc, cohort: string, by: string): FieldworkDoc {
+export function closeScreening(doc: FieldworkDoc, by: string): FieldworkDoc {
+  if (!doc.recruiting) return doc
   const when = tick(doc)
-  return logged({ ...doc, recruiting: doc.recruiting.map((r) => (r.cohort === cohort ? { ...r, status: 'Closed' as const } : r)) }, when, by, `Closed screening for ${cohort}`)
+  return logged({ ...doc, recruiting: { ...doc.recruiting, status: 'Closed' } }, when, by, 'Closed screening')
 }
 
-const ARRIVALS: Record<string, [string, string]> = { 'Younger, 25–34': ['Oregon', 'Phone · (503) ••• 4418'], 'Older, 35–44': ['Minnesota', 'Phone · (612) ••• 9072'] }
+const ARRIVALS: [string, string][] = [['Oregon', 'Phone · (503) ••• 4418'], ['Minnesota', 'Phone · (612) ••• 9072'], ['Arizona', 'Phone · (480) ••• 2215'], ['Ohio', 'Phone · (216) ••• 7730']]
 
-/** The mock: one applicant arrives for a cohort whose screening is open, passes the same rules, and goes to the reserve. */
-export function arriveCandidate(doc: FieldworkDoc, cohort: string): FieldworkDoc {
-  const r = doc.recruiting.find((x) => x.cohort === cohort && x.status === 'Open' && x.arrived === 0)
-  if (!r) return doc
+/** The mock: one applicant arrives while screening is open, passes the same rules, and goes to the reserve. */
+export function arriveCandidate(doc: FieldworkDoc): FieldworkDoc {
+  const r = doc.recruiting
+  if (!r || r.status !== 'Open' || r.arrived > 0) return doc
   const when = tick(doc)
-  const [state, contact] = ARRIVALS[cohort] ?? ['Oregon', 'Phone · (503) ••• 4418']
-  const candidate: ReserveCandidate = { id: `A-${2101 + doc.reserve.length}`, cohort, contact, state, region: (regionOf(state) as Region | undefined) ?? null, arrivedAt: when, status: 'Reserve' }
-  return logged({ ...doc, reserve: [...doc.reserve, candidate], recruiting: doc.recruiting.map((x) => (x === r ? { ...x, arrived: 1 } : x)) }, when, 'PulseAI', `${candidate.id} passed screening for ${cohort} and went to the reserve list`)
+  const [state, contact] = ARRIVALS[doc.reserve.length % ARRIVALS.length]
+  const candidate: ReserveCandidate = { id: `A-${2101 + doc.reserve.length}`, contact, state, region: (regionOf(state) as Region | undefined) ?? null, arrivedAt: when, status: 'Reserve' }
+  return logged({ ...doc, reserve: [...doc.reserve, candidate], recruiting: { ...r, arrived: 1 } }, when, 'PulseAI', `${candidate.id} passed screening and went to the reserve list`)
 }
 
 /** Books the next free slot, two days out at 10:00, for a participant who missed or moved theirs. */

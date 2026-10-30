@@ -36,7 +36,7 @@ export const AGENTS: Agent[] = [
     name: 'Zoe',
     expertise: 'Gen Z and lifestyle',
     note: 'Younger consumers, social influence and trend-led buying.',
-    why: 'Suited to younger, trend-led audiences. This study’s cohorts are 25–44, so she’s a weaker match.',
+    why: 'Suited to younger, trend-led audiences. This study’s audience is 25–44, so she’s a weaker match.',
   },
 ]
 export const SUGGESTED_AGENT = 'ava'

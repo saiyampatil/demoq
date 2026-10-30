@@ -10,7 +10,7 @@ import { Tooltip } from '@/components/Tooltip'
 import { formatStamp } from '@/lib/format'
 import { screenById, studyPath } from '@/routes/screens'
 import { Modal } from '@/components/Modal'
-import { approveReplacement, assignModerator, closeScreening, durationStats, HUMAN_MODERATOR_IDS, quotaFill, reopenScreening, rescheduleSession, resendLink, retrySession } from '@/state/fieldwork'
+import { approveReplacement, assignModerator, closeScreening, durationStats, HUMAN_MODERATOR_IDS, regionMatrix, regionSkew, reopenScreening, rescheduleSession, resendLink, retrySession, targetFill } from '@/state/fieldwork'
 import { ago, funnel, needsYou, verdict, type NeedsRow, type VerdictLevel } from '@/state/monitor'
 import { SessionTag } from '../SessionTag'
 import type { FWProps } from './FieldworkBits'
@@ -26,11 +26,13 @@ const TONE: Record<VerdictLevel, { box: string; word: string }> = {
 export function Overview(p: FWProps) {
   const { doc, audience, target, studyId, outcomes, reserve, awaiting, readOnly, update, me } = p
   const needs = needsYou(doc, reserve)
-  const v = verdict(doc, audience, target, outcomes, reserve, needs.length)
-  const fill = quotaFill(doc, audience, outcomes)
+  const v = verdict(doc, target, outcomes, reserve, needs.length)
+  const fill = targetFill(doc, audience, outcomes)
+  const regions = regionMatrix(doc, outcomes)
+  const skew = regionSkew(regions.totals, regions.total)
   const dur = durationStats(doc)
   const flow = funnel(doc, outcomes)
-  const [recruiting, setRecruiting] = useState<string>()
+  const [recruiting, setRecruiting] = useState(false)
   const screenerLabel = `screener from audience v${audience?.screener?.fromAudienceVersion ?? audience?.version ?? 1}`
 
   return (
@@ -75,65 +77,62 @@ export function Overview(p: FWProps) {
 
       <NeedsYou {...p} rows={needs} />
 
+      {skew && (
+        <p role="status" className="flex items-start gap-2 rounded-md border border-pending-line bg-pending-bg px-4 py-2 text-sm text-pending-fg">
+          <AlertIcon size={14} className="mt-0.5 shrink-0" />
+          Regions are uneven. {skew}
+        </p>
+      )}
+
       <Card title="Participant funnel" description="Every invited participant is counted once, at the furthest stage they reached.">
         <div className="flex flex-col gap-5">
-          {v.gap.short > 0 && (
+          {v.gap.gap > 0 && (
             <div id="coverage" role="alert" className="scroll-mt-24 rounded-md border border-negative-line bg-negative-bg px-4 py-3 text-negative-fg">
               <p className="flex items-center gap-2 font-medium">
-                <AlertIcon /> {v.gap.cohorts.filter((c) => c.short > 0).map((c) => `${c.name} is short by ${c.short}`).join(' and ')}.
+                <AlertIcon /> Only {v.gap.ceiling} of {target} can finish. {v.gap.gap} more {v.gap.gap === 1 ? 'person is' : 'people are'} needed.
               </p>
-              <ul className="mt-2 flex flex-col gap-2 text-sm text-ink">
-                {v.gap.cohorts
-                  .filter((c) => c.short > 0)
-                  .map((c) => (
-                    <li key={c.id} className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                      <span className="min-w-0 flex-1 basis-72 tabular-nums">
-                        {c.name}: quota {c.quota}, {c.counting} counting, {c.inProgress} still in progress, {c.reserve} in reserve.
-                      </span>
-                      {readOnly ? (
-                        <Tooltip content="This is sample data. Nothing can be changed." focusable>
-                          <Button size="sm" disabled>
-                            Recruit for {c.name}
-                          </Button>
-                        </Tooltip>
-                      ) : doc.recruiting.some((r) => r.cohort === c.name && r.status === 'Open') ? (
-                        <span className="text-xs text-graphite">Screening is open</span>
-                      ) : (
-                        <Button size="sm" onClick={() => setRecruiting(c.name)}>
-                          Recruit for {c.name}
-                        </Button>
-                      )}
-                    </li>
-                  ))}
-              </ul>
-              <p className="mt-2 text-xs text-graphite tabular-nums">
-                Overall: invited {flow.total} for a target of {target}, {v.gap.reserve} in reserve. At most {v.gap.ceiling} can finish. You can’t finish without recruiting more.
-              </p>
+              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-ink">
+                <span className="min-w-0 flex-1 basis-72 tabular-nums">
+                  Target {target}: {v.gap.counting} counting, {v.gap.open} still open, {v.gap.reserve} in reserve (not invited).
+                </span>
+                {readOnly ? (
+                  <Tooltip content="This is sample data. Nothing can be changed." focusable>
+                    <Button size="sm" disabled>
+                      Recruit {v.gap.gap} more
+                    </Button>
+                  </Tooltip>
+                ) : doc.recruiting?.status === 'Open' ? (
+                  <span className="text-xs text-graphite">Screening is open</span>
+                ) : (
+                  <Button size="sm" onClick={() => setRecruiting(true)}>
+                    Recruit {v.gap.gap} more
+                  </Button>
+                )}
+              </div>
+              <p className="mt-2 text-xs text-graphite tabular-nums">Invited {flow.total} for a target of {target}. You can’t finish without more people.</p>
             </div>
           )}
-          {doc.recruiting
-            .filter((r) => r.status === 'Open')
-            .map((r) => (
-              <div key={r.cohort} role="status" className="flex flex-wrap items-start gap-3 rounded-md border border-progress-line bg-progress-bg px-4 py-3 text-sm">
-                <span className="mt-0.5">{r.arrived === 0 ? <Spinner /> : <AlertIcon />}</span>
-                <div className="min-w-0 flex-1">
-                  <p className="font-medium text-progress-fg">Screening is open for {r.cohort}</p>
-                  <p className="mt-0.5 text-ink">
-                    {r.screenerVersion}, unchanged. {r.arrived === 0 ? 'Waiting for applicants…' : `${r.arrived} eligible applicant has gone to the reserve list. Approve the replacement in Needs you to invite them.`}
-                  </p>
-                </div>
-                <div className="flex gap-2">
-                  <Button size="sm" to={studyPath(studyId, screenById.R9)}>
-                    Open screening
-                  </Button>
-                  {!readOnly && (
-                    <Button size="sm" variant="ghost" onClick={() => update((d) => closeScreening(d, r.cohort, me))}>
-                      Close screening
-                    </Button>
-                  )}
-                </div>
+          {doc.recruiting?.status === 'Open' && (
+            <div role="status" className="flex flex-wrap items-start gap-3 rounded-md border border-progress-line bg-progress-bg px-4 py-3 text-sm">
+              <span className="mt-0.5">{doc.recruiting.arrived === 0 ? <Spinner /> : <AlertIcon />}</span>
+              <div className="min-w-0 flex-1">
+                <p className="font-medium text-progress-fg">Screening is open</p>
+                <p className="mt-0.5 text-ink">
+                  {doc.recruiting.screenerVersion}, unchanged. {doc.recruiting.arrived === 0 ? 'Waiting for applicants…' : `${doc.recruiting.arrived} eligible applicant has gone to the reserve list. Approve the replacement in Needs you to invite them.`}
+                </p>
               </div>
-            ))}
+              <div className="flex gap-2">
+                <Button size="sm" to={studyPath(studyId, screenById.R9)}>
+                  Open screening
+                </Button>
+                {!readOnly && (
+                  <Button size="sm" variant="ghost" onClick={() => update((d) => closeScreening(d, me))}>
+                    Close screening
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
           <ol className="flex flex-col gap-3" aria-label="Funnel stages">
             {flow.stages.map((st) => (
               <li key={st.key} className="grid items-center gap-x-4 gap-y-1 sm:grid-cols-[7rem_minmax(0,1fr)_3rem]">
@@ -179,34 +178,31 @@ export function Overview(p: FWProps) {
       </Card>
 
       <RecruitModal
-        cohort={recruiting}
+        open={recruiting}
+        cohortName={audience?.def?.cohort.name ?? 'the cohort'}
         screenerLabel={screenerLabel}
         audienceVersion={audience?.version ?? 1}
-        onClose={() => setRecruiting(undefined)}
-        onConfirm={(c) => {
-          update((d) => reopenScreening(d, c, me, screenerLabel))
-          setRecruiting(undefined)
+        onClose={() => setRecruiting(false)}
+        onConfirm={() => {
+          update((d) => reopenScreening(d, me, screenerLabel))
+          setRecruiting(false)
         }}
       />
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-        <Card title="Quota by segment" actions={<Button size="sm" variant="ghost" onClick={() => p.goTab('quotas')}>Segments and regions</Button>}>
-          <ul className="flex flex-col gap-4">
-            {fill.map((f) => (
-              <li key={f.id}>
-                <div className="flex flex-wrap items-baseline gap-x-3 text-sm">
-                  <span className="flex-1 font-medium">{f.name}</span>
-                  <span className="tabular-nums">
-                    <span className="font-semibold">{f.completed}</span> of {f.target}
-                  </span>
-                </div>
-                <SplitBar className="mt-1.5" confirmed={f.accepted} pending={f.pending} total={f.target} label={`${f.name}: ${f.accepted} accepted, ${f.pending} under review, of ${f.target}`} />
-                <p className="mt-1 text-xs text-graphite tabular-nums">
-                  {f.accepted} confirmed, {f.pending} pending review{f.excluded ? `. ${f.excluded} excluded, not counted` : ''}
-                </p>
-              </li>
-            ))}
-          </ul>
+        <Card title="Progress toward the target">
+          <div>
+            <div className="flex flex-wrap items-baseline gap-x-3 text-sm">
+              <span className="flex-1 font-medium">{fill.name}</span>
+              <span className="tabular-nums">
+                <span className="font-semibold">{fill.completed}</span> of {fill.target}
+              </span>
+            </div>
+            <SplitBar className="mt-1.5" confirmed={fill.accepted} pending={fill.pending} total={fill.target} label={`${fill.accepted} accepted, ${fill.pending} under review, of ${fill.target}`} />
+            <p className="mt-1 text-xs text-graphite tabular-nums">
+              {fill.accepted} confirmed, {fill.pending} pending review{fill.excluded ? `. ${fill.excluded} excluded, not counted` : ''}
+            </p>
+          </div>
           <p className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-mist pt-3 text-xs text-graphite">
             <span className="flex items-center gap-1.5">
               <span className="inline-block h-2 w-4 rounded-xs bg-ink" /> Accepted
@@ -351,20 +347,20 @@ function NeedsYou({ doc, rows, studyId, me, update, readOnly }: FWProps & { rows
 }
 
 
-function RecruitModal({ cohort, screenerLabel, audienceVersion, onClose, onConfirm }: { cohort?: string; screenerLabel: string; audienceVersion: number; onClose: () => void; onConfirm: (cohort: string) => void }) {
+function RecruitModal({ open, cohortName, screenerLabel, audienceVersion, onClose, onConfirm }: { open: boolean; cohortName: string; screenerLabel: string; audienceVersion: number; onClose: () => void; onConfirm: () => void }) {
   return (
     <Modal
-      open={!!cohort}
+      open={open}
       onClose={onClose}
-      title={`Recruit for ${cohort ?? ''}`}
-      description="This reopens screening for this segment only."
+      title="Recruit more participants"
+      description={`This reopens screening for ${cohortName}.`}
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
             Cancel
           </Button>
-          <Button variant="primary" onClick={() => cohort && onConfirm(cohort)}>
-            Reopen screening for {cohort}
+          <Button variant="primary" onClick={onConfirm}>
+            Reopen screening
           </Button>
         </>
       }
@@ -373,7 +369,7 @@ function RecruitModal({ cohort, screenerLabel, audienceVersion, onClose, onConfi
         <li>
           It uses the same {screenerLabel} and the same audience rules (audience v{audienceVersion}). Nothing about the audience changes, so no new version is needed.
         </li>
-        <li>People who qualify go to the reserve list for {cohort}. They aren’t invited yet.</li>
+        <li>People who qualify go to the reserve list. They aren’t invited yet.</li>
         <li>Then approve the replacement in Needs you. That invites them.</li>
       </ul>
     </Modal>

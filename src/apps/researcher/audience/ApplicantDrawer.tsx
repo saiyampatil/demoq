@@ -28,13 +28,14 @@ const resultMark: Record<CheckResult, { icon: string; label: string; cls: string
 
 type Props = {
   applicant: Applicant | undefined
-  fullCohorts: Set<string>
+  /** True once eligible applicants have met the study's target, so another eligible one goes to Reserve. */
+  targetMet: boolean
   me: string
   update: (fn: (d: AudienceDoc) => AudienceDoc) => void
   onClose: () => void
 }
 
-export function ApplicantDrawer({ applicant: a, fullCohorts, me, update, onClose }: Props) {
+export function ApplicantDrawer({ applicant: a, targetMet, me, update, onClose }: Props) {
   const proofRequired = useFeature('proofRequired')
   const [pending, setPending] = useState<Pending>()
   const [overriding, setOverriding] = useState<VerificationStatus>()
@@ -83,8 +84,8 @@ export function ApplicantDrawer({ applicant: a, fullCohorts, me, update, onClose
                   onChange={(e) => setReason(e.target.value)}
                   autoFocus
                   hint={
-                    pending.to === 'Eligible' && a.cohortId && fullCohorts.has(a.cohortId)
-                      ? 'This cohort is full, so they will go to Reserve.'
+                    pending.to === 'Eligible' && targetMet
+                      ? 'The study’s target is met, so they will go to Reserve.'
                       : `Saved with your name and the time.`
                   }
                 />
@@ -127,7 +128,6 @@ export function ApplicantDrawer({ applicant: a, fullCohorts, me, update, onClose
               {lastManual ? `Set to ${lastManual.to} by ${lastManual.by}: “${lastManual.reason}”` : (a.note ?? a.reason)}
               {lastManual && a.note ? ` ${a.note}` : ''}
             </p>
-            {a.cohort && <p className="text-sm text-graphite">Cohort: {a.cohort}</p>}
           </section>
 
           <section aria-label="Rules">

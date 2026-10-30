@@ -3,7 +3,7 @@
 // so a fix in an earlier module shows up the next time a launch screen renders.
 
 import { agentName, allQuestions, configBlockers, humanName, totalMinutes, type GuideDoc, type Question } from './guide'
-import { allocated, type AudienceDoc } from './audience'
+import type { AudienceDoc } from './audience'
 import { now, uid } from './brief'
 import type { StudyRecord } from '@/mock/types'
 
@@ -257,14 +257,14 @@ export function entryContract(i: Inputs): Row[] {
 
   const def = i.audience?.def
   const pool = i.audience?.pool
-  const quotaOk = !!def && def.total !== null && allocated(def) === def.total && def.cohorts.every((c) => c.participants !== null)
-  const short = pool?.shortfalls.length ? ` (under quota: ${pool.shortfalls.map((s) => `${s.have} of ${s.need}`).join(', ')})` : ''
+  const targetOk = !!def && !!def.total
+  const short = pool?.shortfall ? ` (under target: ${pool.shortfall.have} of ${pool.shortfall.need})` : ''
   rows.push({
     id: 'pool',
-    label: 'Qualified pool and quotas',
+    label: 'Qualified pool and target',
     owner: 'R11',
-    ok: !!pool && quotaOk,
-    value: !pool ? 'The pool isn’t confirmed' : !quotaOk ? 'Cohort quotas don’t add up to the participant count' : `${nth(pool.members.length, 'participant')} in the pool, ${def!.total} needed${short}`,
+    ok: !!pool && targetOk,
+    value: !pool ? 'The pool isn’t confirmed' : !targetOk ? 'The number of participants needed isn’t set' : `${nth(pool.members.length, 'participant')} in the pool, ${def!.total} needed${short}`,
   })
 
   const langs = supportedLanguages(g, i.launch)
@@ -406,8 +406,8 @@ export function preflight(i: Inputs & { compile: CompileResult }): Check[] {
   const linkProblems = [...(i.launch?.setup.links ?? []).filter((l) => !l.ok).map((l) => `“${l.label}” does not open.`), ...fromRuns('links')]
 
   const def = i.audience?.def
-  const quotaOk = !!def && def.total !== null && def.cohorts.every((c) => c.participants !== null) && allocated(def) === def.total
-  const quotaProblems = quotaOk ? [] : [def ? `Quotas add up to ${allocated(def)}, but ${def.total ?? 'no number of'} participants are needed.` : 'The audience isn’t confirmed.']
+  const targetOk = !!def && !!def.total
+  const quotaProblems = targetOk ? [] : [def ? 'The number of participants needed isn’t set.' : 'The audience isn’t confirmed.']
 
   const consentProblems = [...langs.filter((l) => !i.launch?.setup.consent[l]?.approved).map((l) => `No approved consent wording for ${l}.`), ...fromRuns('consent')]
 
@@ -426,7 +426,7 @@ export function preflight(i: Inputs & { compile: CompileResult }): Check[] {
     make('media', 'Media rendering', false, mediaProblems, `All ${active.length} active ${active.length === 1 ? 'stimulus renders' : 'stimuli render'}.`, mediaProblems.some((p) => p.includes('test run')) && !active.some((s) => s.renderOk === false) ? 'R16' : 'R13', 'Replace the file'),
     make('translations', 'Translations', false, transProblems, extra.length ? `Translated into ${extra.join(', ')}.` : 'One language, nothing to translate.', 'setup', 'Open study setup'),
     make('links', 'Links', false, linkProblems, `All ${i.launch?.setup.links.length ?? 0} links open.`, 'setup', 'Open study setup'),
-    make('quota', 'Quota settings', false, quotaProblems, `Quotas add up to ${def?.total ?? 0}.`, 'R6', 'Open audience'),
+    make('quota', 'Participant target', false, quotaProblems, `${def?.total ?? 0} completed interviews needed.`, 'R6', 'Open audience'),
     make('consent', 'Consent language', true, consentProblems, `Approved consent wording for ${langs.join(', ')}.`, 'setup', 'Open study setup'),
     make('coverage', 'Question coverage', true, coverageProblems, mandatory ? `All ${mandatory} mandatory questions are in the plan.` : 'No mandatory questions.', 'R14', 'Open guide'),
   ]

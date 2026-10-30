@@ -56,7 +56,7 @@ export function SessionRecord() {
       <PageHeader
         id="R19"
         title={`Session ${s.participantId}`}
-        description={`${s.ref}${s.cohort ? `, ${s.cohort}` : ''}${s.reserve ? ' (reserve)' : ''}`}
+        description={`${s.ref}${s.reserve ? ' (reserve)' : ''}`}
         meta={
           <>
             {count > 1 && <span className="font-medium text-ink">Session {s.no} of {count}</span>}

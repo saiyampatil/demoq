@@ -7,7 +7,6 @@ import {
   pacing,
   participantsOf,
   progress,
-  quotaFill,
   type FieldworkDoc,
   type Outcomes,
   type Participant,
@@ -40,7 +39,7 @@ export function reserveCandidates(doc: FieldworkDoc | undefined, audience: Audie
         .filter((a) => a.outcome === 'Reserve' && !known.has(a.id))
         .map((a): ReserveCandidate => {
           const state = a.answers.find((x) => /state/i.test(x.question))?.answer ?? ''
-          return { id: a.id, cohort: a.cohort ?? '', contact: a.contact, state, region: (regionOf(state) as Region | undefined) ?? null, arrivedAt: FIELDWORK_NOW, status: 'Reserve' }
+          return { id: a.id, contact: a.contact, state, region: (regionOf(state) as Region | undefined) ?? null, arrivedAt: FIELDWORK_NOW, status: 'Reserve' }
         })
     : []
   return [...own.filter((c) => c.status === 'Reserve'), ...screening]
@@ -92,16 +91,13 @@ const lastEvent = (s: Session) => s.events.reduce((m, e) => (e.at > m ? e.at : m
 /**
  * Unfinished sessions that need the Researcher, most urgent first. Only a participant's latest session counts, and
  * only if it hasn't ended in Review: a finished interview is never here. A session the Researcher already acted on leaves.
- * A reserve candidate is paired with a participant who withdrew from the same cohort; one with nobody to replace gets a row of their own.
+ * A reserve candidate is paired with a participant who withdrew; one with nobody to replace gets a row of their own.
  */
 export function needsYou(doc: FieldworkDoc, reserve: ReserveCandidate[]): NeedsRow[] {
   const human = doc.sessions.some((s) => s.mode === 'human')
   const rows: NeedsRow[] = []
   const unclaimed = [...reserve]
-  const claim = (cohort: string | null) => {
-    const i = unclaimed.findIndex((c) => c.cohort === cohort)
-    return i >= 0 ? unclaimed.splice(i, 1)[0] : undefined
-  }
+  const claim = () => unclaimed.shift()
 
   for (const { latest: s } of participantsOf(doc)) {
     if (s.status === 'Completed' || s.handled) continue
@@ -115,9 +111,9 @@ export function needsYou(doc: FieldworkDoc, reserve: ReserveCandidate[]): NeedsR
     else if (human && s.status === 'Rescheduled') row('Reschedule', 'Missed or moved their slot and needs a new one.', 80)
     else if (s.status === 'Incomplete (resumable)') row('Resend link', 'Left part-way. They can resume from their link.', 70)
     else if (s.status === 'Withdrawn') {
-      const c = claim(s.cohort)
-      if (c) row('Approve replacement', `Withdrew from the study. ${c.id} passed screening for ${c.cohort} and is ready to invite.`, 66, { candidate: c })
-      else row('Approve replacement', 'Withdrew from the study.', 40, { blocked: `No one in ${s.cohort ?? 'this segment'} is in reserve. Recruit for it first.` })
+      const c = claim()
+      if (c) row('Approve replacement', `Withdrew from the study. ${c.id} passed screening and is ready to invite.`, 66, { candidate: c })
+      else row('Approve replacement', 'Withdrew from the study.', 40, { blocked: 'No one is in the reserve. Recruit more first.' })
     } else if (s.status === 'Not started' || s.status === 'Booked') {
       if (openIssue) row('Resend link', `${openIssue.type}. They can’t start until it’s fixed.`, 75)
       else if (s.access === 'No-show') row('Resend link', 'Consented but never started.', 60)
@@ -127,7 +123,7 @@ export function needsYou(doc: FieldworkDoc, reserve: ReserveCandidate[]): NeedsR
   }
   // Reserve candidates with nobody to replace are still ready to invite.
   for (const c of unclaimed)
-    rows.push({ key: c.id, candidate: c, who: c.id, what: `Passed screening for ${c.cohort} and is in the reserve, ready to invite.`, since: c.arrivedAt, action: 'Approve replacement', urgency: 62 })
+    rows.push({ key: c.id, candidate: c, who: c.id, what: 'Passed screening and is in the reserve, ready to invite.', since: c.arrivedAt, action: 'Approve replacement', urgency: 62 })
   return rows.sort((a, b) => b.urgency - a.urgency)
 }
 
@@ -202,48 +198,33 @@ export function funnel(doc: FieldworkDoc, outcomes: Outcomes) {
   }
 }
 
-// ─── Shortfall: per cohort ──────────────────────────────────────────────────
-
-export type CohortGap = {
-  id: string
-  name: string
-  quota: number
-  /** Accepted plus under review. Excluded are removed. */
-  counting: number
-  /** Still able to finish: not completed, withdrawn or no-show. */
-  inProgress: number
-  reserve: number
-  /** The most this cohort can reach: counting, plus everyone still in progress, plus its reserve. */
-  ceiling: number
-  /** How many more it needs. Zero when the cohort can still fill. */
-  short: number
-}
+// ─── The gap to the target ──────────────────────────────────────────────────
 
 /**
- * The gap per cohort against its quota, using confirmed plus pending. The overall figures are the sums, so a cohort
- * with spare people can't cover another that is short.
+ * One cohort, one target. Pace and coverage are separate questions: this is coverage.
+ *   counting = accepted + under review (excluded removed)
+ *   open     = invited, consented, in progress, booked, or with a human, and still able to finish
+ *   ceiling  = counting + open
+ *   gap      = target - ceiling
+ * The reserve is not in the ceiling: reserve people only become interviews once they are invited.
  */
-export function shortfall(doc: FieldworkDoc, audience: AudienceDoc | undefined, outcomes: Outcomes, reserve: ReserveCandidate[]) {
-  const fill = quotaFill(doc, audience, outcomes)
-  const ps = participantsOf(doc)
-  const cohorts: CohortGap[] = fill.map((f) => {
-    const inProgress = ps.filter((p) => bucketOf(p) === 'inProgress' && p.latest.cohort === f.name).length
-    const res = reserve.filter((c) => c.cohort === f.name).length
-    const ceiling = f.completed + inProgress + res
-    return { id: f.id, name: f.name, quota: f.target, counting: f.completed, inProgress, reserve: res, ceiling, short: Math.max(0, f.target - ceiling) }
-  })
-  const sum = (f: (c: CohortGap) => number) => cohorts.reduce((a, c) => a + f(c), 0)
+export type Gap = {
+  target: number
+  counting: number
+  confirmed: number
+  pending: number
+  excluded: number
+  open: number
+  reserve: number
+  ceiling: number
+  gap: number
+}
+
+export function shortfall(doc: FieldworkDoc, target: number, outcomes: Outcomes, reserve: ReserveCandidate[]): Gap {
   const prog = progress(doc, outcomes)
-  const inProgress = ps.filter((p) => bucketOf(p) === 'inProgress').length
-  return {
-    cohorts,
-    short: sum((c) => c.short),
-    /** Overall, for the line under the cohorts: counting plus still in progress plus reserve. */
-    counting: prog.toward,
-    inProgress,
-    reserve: reserve.length,
-    ceiling: prog.toward + inProgress + reserve.length,
-  }
+  const open = participantsOf(doc).filter((p) => bucketOf(p) === 'inProgress').length
+  const ceiling = prog.toward + open
+  return { target, counting: prog.toward, confirmed: prog.confirmed, pending: prog.pending, excluded: prog.excluded, open, reserve: reserve.length, ceiling, gap: Math.max(0, target - ceiling) }
 }
 
 // ─── Verdict ────────────────────────────────────────────────────────────────
@@ -260,40 +241,40 @@ export type Verdict = {
   basis: string
   /** The single most useful action. */
   action: { label: string; to: 'recruit' | 'needs' | 'review' | 'sessions' }
-  gap: ReturnType<typeof shortfall>
+  gap: Gap
   figures: { toward: number; confirmed: number; pending: number; excluded: number; expected: number; day: number; days: number }
 }
 
 /**
- * On track, Behind pace or At risk. Pace uses confirmed plus pending sessions (and says so). At risk means a
- * cohort can't reach its quota even if everyone still in progress finishes and the reserve is invited.
+ * Coverage first, then pace.
+ *   gap > 0: At risk. The sentence leads with how many can finish and how many more are needed, never with pace.
+ *   else counting < expected by now: Behind pace.
+ *   else On track.
+ * Expected-by-now comes from the fieldwork window. It is a pace figure only and is never the denominator of "done".
  */
-export function verdict(doc: FieldworkDoc, audience: AudienceDoc | undefined, target: number, outcomes: Outcomes, reserve: ReserveCandidate[], needs: number): Verdict {
+export function verdict(doc: FieldworkDoc, target: number, outcomes: Outcomes, reserve: ReserveCandidate[], needs: number): Verdict {
   const prog = progress(doc, outcomes)
   const pace = pacing(doc, target, outcomes)
-  const gap = shortfall(doc, audience, outcomes, reserve)
+  const gap = shortfall(doc, target, outcomes, reserve)
   const figures = { toward: prog.toward, confirmed: prog.confirmed, pending: prog.pending, excluded: prog.excluded, expected: pace.expected, day: pace.day, days: pace.days }
-  const basis = `Counts accepted plus under-review sessions${prog.excluded ? `, with the ${prog.excluded} excluded removed` : ''}.`
-  const warning = prog.pending > prog.toward / 2 && prog.toward > 0 ? `${prog.pending} of the ${prog.toward} are still under review, so only ${prog.confirmed} are confirmed. Pending sessions can still be excluded.` : undefined
-  const done = `${prog.toward} of ${target} done, about ${pace.expected} expected by now.`
+  const basis = `${gap.counting} counting (${gap.confirmed} accepted, ${gap.pending} under review${gap.excluded ? `, ${gap.excluded} excluded removed` : ''}) + ${gap.open} still open = ${gap.ceiling}.${gap.reserve ? ` The reserve has ${gap.reserve}, not invited yet.` : ''}`
+  const warning = prog.pending > prog.toward / 2 && prog.toward > 0 ? `${prog.pending} of the ${prog.toward} counted are still under review, so only ${prog.confirmed} are confirmed. Pending sessions can still be excluded.` : undefined
   const people = (k: number) => `${k} ${k === 1 ? 'person needs' : 'people need'} you`
 
-  if (gap.short > 0) {
-    const short = gap.cohorts.filter((c) => c.short > 0)
+  if (gap.gap > 0)
     return {
       level: 'At risk',
-      sentence: `${done} ${short.map((c) => `${c.name} is short by ${c.short}`).join(' and ')}. Even if everyone still open finishes${gap.reserve > 0 ? ' and the reserve is invited' : ''}, you’d end on ${gap.ceiling}.`,
+      sentence: `Only ${gap.ceiling} of ${target} can finish. ${gap.gap} more ${gap.gap === 1 ? 'person is' : 'people are'} needed.`,
       warning,
       basis,
-      action: { label: `Recruit at least ${gap.short} more`, to: 'recruit' },
+      action: { label: `Recruit ${gap.gap} more`, to: 'recruit' },
       gap,
       figures,
     }
-  }
   if (prog.toward < pace.expected)
     return {
       level: 'Behind pace',
-      sentence: needs > 0 ? `${done} ${people(needs)}, and ${gap.inProgress} could still finish.` : `${done} ${gap.inProgress} could still finish.`,
+      sentence: `${gap.counting} counting so far, but about ${pace.expected} are expected by day ${pace.day} of ${pace.days}. ${needs > 0 ? `${people(needs)}.` : `${gap.open} could still finish.`}`,
       warning,
       basis,
       action: needs > 0 ? { label: `Work through ${needs} needing you`, to: 'needs' } : { label: 'See who hasn’t started', to: 'sessions' },
@@ -302,7 +283,7 @@ export function verdict(doc: FieldworkDoc, audience: AudienceDoc | undefined, ta
     }
   return {
     level: 'On track',
-    sentence: `${done} ${needs > 0 ? `${people(needs)}.` : 'Nothing is blocking.'}`,
+    sentence: `${gap.counting} of ${target} counting, with ${gap.open} still open. ${needs > 0 ? `${people(needs)}.` : 'Nothing is blocking.'}`,
     warning,
     basis,
     action: needs > 0 ? { label: `Work through ${needs} needing you`, to: 'needs' } : { label: 'Review the finished sessions', to: 'review' },

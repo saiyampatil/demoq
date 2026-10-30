@@ -15,22 +15,22 @@ import { ConsentTab } from './ConsentTab'
 import { FieldworkGate, type FWProps } from './FieldworkBits'
 import { IssuesTab } from './IssuesTab'
 import { Overview } from './Overview'
-import { QuotasTab } from './QuotasTab'
+import { ReserveTab } from './ReserveTab'
 import { SessionsTab } from './SessionsTab'
 import { SampleDataBanner } from '../SampleDataBanner'
 import { useStudySessions } from '../useStudySessions'
 
-const TABS = ['overview', 'sessions', 'quotas', 'issues', 'consent'] as const
+const TABS = ['overview', 'sessions', 'reserve', 'issues', 'consent'] as const
 type Tab = (typeof TABS)[number]
 
 export function CommandCenter() {
   const { studyId, study, editable, audience, doc, review, outcomes, reserve, me, update, preview } = useStudySessions()
   const [params, setParams] = useSearchParams()
-  // The mock: an applicant arrives for a cohort whose screening was just reopened, passes, and goes to the reserve.
-  const waiting = (doc?.recruiting ?? []).filter((r) => r.status === 'Open' && r.arrived === 0).map((r) => r.cohort).join('|')
+  // The mock: an applicant arrives while screening is open, passes, and goes to the reserve.
+  const waiting = doc?.recruiting?.status === 'Open' && doc.recruiting.arrived === 0
   useEffect(() => {
     if (!waiting || preview || !update) return
-    const t = setTimeout(() => waiting.split('|').forEach((c) => update((d) => arriveCandidate(d, c))), 1800)
+    const t = setTimeout(() => update((d) => arriveCandidate(d)), 1800)
     return () => clearTimeout(t)
   }, [waiting, preview, update])
   const [pausing, setPausing] = useState(false)
@@ -51,7 +51,7 @@ export function CommandCenter() {
   const labels: Record<Tab, { label: string; badge?: string; alert?: boolean }> = {
     overview: { label: 'Overview' },
     sessions: { label: 'Sessions', badge: String(doc.sessions.length) },
-    quotas: { label: 'Quotas' },
+    reserve: { label: 'Reserve', badge: reserve.length ? String(reserve.length) : undefined },
     issues: { label: 'Issues', badge: issues.open ? String(issues.open) : undefined, alert: issues.blocking > 0 },
     consent: { label: 'Consent log', badge: consent.withdrawn ? `${consent.withdrawn} withdrawn` : undefined },
   }
@@ -61,7 +61,7 @@ export function CommandCenter() {
       <PageHeader
         id="R18"
         title="Fieldwork command center"
-        description="Sessions for this study as they happen: progress, quotas, technical problems and consent."
+        description="Sessions for this study as they happen: progress, the reserve, technical problems and consent."
         meta={
           <>
             <StatusChip status={preview ? 'Not Ready' : study.status} size="sm" />
@@ -118,7 +118,7 @@ export function CommandCenter() {
       <div id="fw-panel" role="tabpanel" aria-labelledby={`tab-${tab}`}>
         {tab === 'overview' && <Overview {...props} />}
         {tab === 'sessions' && <SessionsTab {...props} />}
-        {tab === 'quotas' && <QuotasTab {...props} />}
+        {tab === 'reserve' && <ReserveTab {...props} />}
         {tab === 'issues' && <IssuesTab {...props} />}
         {tab === 'consent' && <ConsentTab {...props} />}
       </div>

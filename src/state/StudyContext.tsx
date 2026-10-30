@@ -6,7 +6,7 @@ import { seedApprovedBrief } from '@/mock/brief'
 import { DEFAULT_STAGE, MOISTURIZER_ID, presetStudy, type StagePresetKey } from '@/mock/moisturizerStudy'
 import { otherStudies } from '@/mock/studies'
 import type { StudyRecord } from '@/mock/types'
-import { audienceSummary, emptySourcing, type AudienceDoc } from './audience'
+import { audienceSummary, emptySourcing, migrateAudience, type AudienceDoc } from './audience'
 import { briefSummary, now, type BriefDoc } from './brief'
 import { guideSummary, type GuideDoc } from './guide'
 import { DEFAULT_TIME_ZONE } from '@/lib/timeZone'
@@ -101,7 +101,7 @@ function load(): Persisted {
         const briefs = Object.fromEntries(Object.entries(parsed.briefs ?? {}).map(([id, doc]) => [id, { ...doc, reviewRequests: doc.reviewRequests ?? [] }]))
         // Sourcing saved before the two-option rework used a link, contacts and a panel list.
         const audiences = Object.fromEntries(
-          Object.entries(parsed.audiences ?? {}).map(([id, doc]) => [id, Array.isArray(doc.sourcing?.candidates) ? doc : { ...doc, sourcing: emptySourcing() }]),
+          Object.entries(parsed.audiences ?? {}).map(([id, doc]) => [id, migrateAudience(Array.isArray(doc.sourcing?.candidates) ? doc : { ...doc, sourcing: emptySourcing() })]),
         )
         // Fieldwork saved from an older seed session list is rebuilt, so it matches Review.
         const guides = parsed.guides ?? {}

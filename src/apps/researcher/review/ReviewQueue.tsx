@@ -10,7 +10,7 @@ import { WizardFooter } from '@/components/WizardFooter'
 import { Tooltip } from '@/components/Tooltip'
 import { FLAG_TRACKS, FLAG_TYPES, MODERATOR_TYPES, reviewSummary, scoreBand, trackLabel, type FlagSeverity, type ReviewFlag, type ReviewSession, type ReviewStatus, type ScoreBand } from '@/mock/review'
 import { screenById, studyPath } from '@/routes/screens'
-import { DEFAULT_COHORT_NAMES, loadQueue, NO_FILTERS, queueOrder, saveQueue, type QueueFilters } from '@/state/reviewQueue'
+import { loadQueue, NO_FILTERS, queueOrder, saveQueue, type QueueFilters } from '@/state/reviewQueue'
 import { formatClock, formatDay } from '@/lib/format'
 import { PageHeader } from '../../shared/PageHeader'
 import { SampleDataBanner } from '../SampleDataBanner'
@@ -25,10 +25,7 @@ const dayText = formatDay
 const clockText = formatClock
 
 export function ReviewQueue() {
-  const { studyId, audience, review, preview } = useStudySessions()
-  // Segments are the audience cohorts, read from the audience so a freed slot can name its quota.
-  const cohorts = audience?.def?.cohorts ?? Object.entries(DEFAULT_COHORT_NAMES).map(([id, name]) => ({ id, name }))
-  const cohortName = (id: string) => cohorts.find((c) => c.id === id)?.name ?? DEFAULT_COHORT_NAMES[id] ?? id
+  const { studyId, review, preview } = useStudySessions()
   const [params] = useSearchParams()
   // ?demo=loading|empty|reviewed shows the other queue states.
   const demo = params.get('demo')
@@ -81,7 +78,7 @@ export function ReviewQueue() {
     )
 
   const sum = reviewSummary(all)
-  const filtered = queueOrder(all, { filters, search, asc, pageSize }, cohortName)
+  const filtered = queueOrder(all, { filters, search, asc, pageSize })
   const pages = Math.max(1, Math.ceil(filtered.length / pageSize))
   const pageNo = Math.min(page, pages - 1)
   const rows = filtered.slice(pageNo * pageSize, pageNo * pageSize + pageSize)
@@ -119,7 +116,6 @@ export function ReviewQueue() {
         <FilterSelect label="Integrity score" value={filters.integrity} onChange={(v) => setF('integrity', v)} options={BANDS} />
         <FilterSelect label="Interview quality" value={filters.quality} onChange={(v) => setF('quality', v)} options={BANDS} />
         <FilterSelect label="Moderator type" value={filters.moderator} onChange={(v) => setF('moderator', v)} options={MODERATOR_TYPES} />
-        <FilterSelect label="Segment" value={filters.segment} onChange={(v) => setF('segment', v)} options={cohorts.map((c) => c.id)} labels={Object.fromEntries(cohorts.map((c) => [c.id, c.name]))} />
         <label className="flex min-w-48 flex-1 flex-col gap-1 text-sm">
           <span className="text-graphite">Search</span>
           <span className="flex h-9 items-center gap-2 rounded-sm border border-mist-strong bg-surface px-2.5 focus-within:border-iris-600">
@@ -130,7 +126,7 @@ export function ReviewQueue() {
                 setSearch(e.target.value)
                 setPage(0)
               }}
-              placeholder="Participant ID, segment or moderator"
+              placeholder="Participant ID or moderator"
               className="min-w-0 flex-1 bg-transparent outline-none"
             />
           </span>
@@ -199,7 +195,6 @@ export function ReviewQueue() {
                     />
                   </th>
                   <Th>Participant ID</Th>
-                  <Th>Segment</Th>
                   <Th>Moderator</Th>
                   <th scope="col" aria-sort={asc ? 'ascending' : 'descending'} className="h-9 px-3 text-sm font-medium whitespace-nowrap text-graphite">
                     <button type="button" onClick={() => setAsc((x) => !x)} className="flex items-center gap-1 rounded-xs hover:text-ink">
@@ -255,11 +250,6 @@ export function ReviewQueue() {
                       <Link to={href(s.id)} className="font-medium tabular-nums text-iris-700 underline-offset-2 hover:underline">
                         <SessionTag participantId={s.participantId} no={s.sessionNo} count={s.sessionCount} />
                       </Link>
-                    </td>
-                    <td className="px-3 py-2.5 whitespace-nowrap">
-                      {cohortName(s.cohortId).split(', ').map((part, i) => (
-                        <span key={i} className={cn('block', i > 0 && 'text-xs text-graphite tabular-nums')}>{part}</span>
-                      ))}
                     </td>
                     <td className="px-3 py-2.5">
                       <span className="block whitespace-nowrap">{s.moderator}</span>

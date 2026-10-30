@@ -1,6 +1,6 @@
 // Review (4.8) and Evidence and audit (4.9) data. The sessions come from the study's one session list
 // (mock/sessions.ts): every completed session is here, and nothing else is. Moderator type is fixed per study.
-import { DEFAULT_COHORT_NAMES, SEED_SESSIONS, sessionIdOf, type CohortId, type SeedSession } from './sessions'
+import { SEED_SESSIONS, sessionIdOf, type SeedSession } from './sessions'
 
 export const REVIEW_STUDY_ID = 'moisturizer-concept'
 
@@ -23,9 +23,6 @@ export type FlagSeverity = 'High' | 'Medium' | 'Low'
 /** Which score a flag belongs to. The two tracks are never read as one list. */
 export type FlagTrack = 'Integrity' | 'Quality'
 export type ReviewStatus = 'Under review' | 'Accepted' | 'Excluded'
-/** Segments are the audience cohorts (Module 2). The names are read from the audience at render time. */
-export type { CohortId }
-export { DEFAULT_COHORT_NAMES }
 export type ModeratorType = 'AI agent' | 'Human'
 
 /** Decision support only. A flag never excludes a session by itself. */
@@ -64,7 +61,6 @@ export type ReviewSession = {
   /** Which of the participant's sessions this is, and how many they have. The suffix shows only when there is more than one. */
   sessionNo: number
   sessionCount: number
-  cohortId: CohortId
   moderator: string
   moderatorType: ModeratorType
   /** Release version the session ran on, and the guide it was built from. */
@@ -154,7 +150,7 @@ const SURVEY_OPTIONS = ['Definitely would not', 'Probably would not', 'Might or 
 const turnsFor = (id: string) => (id === 'P-2041-1' ? 2400 : 160)
 
 function build(seed: SeedSession): ReviewSession {
-  const { participant, cohortId, at: completedAt, durationMin = 20 } = seed
+  const { participant, at: completedAt, durationMin = 20 } = seed
   const id = sessionIdOf(seed)
   const { integrity, quality, status } = seed.review!
   const flagTypes = seed.review!.flags as FlagType[]
@@ -193,7 +189,6 @@ function build(seed: SeedSession): ReviewSession {
     participantId: participant,
     sessionNo: seed.no ?? 1,
     sessionCount: SEED_SESSIONS.filter((x) => x.participant === participant).length,
-    cohortId,
     moderator,
     moderatorType,
     release: 'Release v1.0',

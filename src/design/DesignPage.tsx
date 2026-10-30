@@ -92,19 +92,19 @@ function TypeRow({ token, use, sample }: { token: string; use: string; sample: s
 
 const families: StatusFamily[] = ['neutral', 'pending', 'progress', 'positive', 'negative', 'held']
 
-type DemoApplicant = { id: string; name: string; segment: string; screening: Status; verification: Status }
+type DemoApplicant = { id: string; name: string; source: string; screening: Status; verification: Status }
 
 const demoApplicants: DemoApplicant[] = [
-  { id: 'A-1003', name: 'Rachel Kim', segment: 'Dry skin, 25–34', screening: 'Eligible', verification: 'Passed' },
-  { id: 'A-1007', name: 'Monica Alvarez', segment: 'Combination, 35–44', screening: 'Needs Review', verification: 'Pending' },
-  { id: 'A-1011', name: 'Tasha Greene', segment: 'Dry skin, 35–44', screening: 'Reserve', verification: 'Passed' },
-  { id: 'A-1014', name: 'Lauren Price', segment: 'Oily skin, 25–34', screening: 'Ineligible', verification: 'Not started' },
+  { id: 'A-1003', name: 'Rachel Kim', source: 'Manual', screening: 'Eligible', verification: 'Passed' },
+  { id: 'A-1007', name: 'Monica Alvarez', source: 'External', screening: 'Needs Review', verification: 'Pending' },
+  { id: 'A-1011', name: 'Tasha Greene', source: 'External', screening: 'Reserve', verification: 'Passed' },
+  { id: 'A-1014', name: 'Lauren Price', source: 'Manual', screening: 'Ineligible', verification: 'Not started' },
 ]
 
 const applicantColumns: Column<DemoApplicant>[] = [
   { key: 'id', header: 'Applicant', cell: (a) => <span className="tabular-nums text-graphite">{a.id}</span> },
   { key: 'name', header: 'Name', cell: (a) => <span className="font-medium">{a.name}</span> },
-  { key: 'segment', header: 'Segment', cell: (a) => <span className="text-graphite">{a.segment}</span> },
+  { key: 'source', header: 'Source', cell: (a) => <span className="text-graphite">{a.source}</span> },
   { key: 'screening', header: 'Screening', cell: (a) => <StatusChip status={a.screening} /> },
   { key: 'verification', header: 'Verification', cell: (a) => <StatusChip status={a.verification} /> },
 ]
@@ -351,7 +351,7 @@ export function DesignPage() {
               open={Boolean(drawer)}
               onClose={() => setDrawer(null)}
               title={drawer?.name ?? ''}
-              description={drawer ? `${drawer.id}, ${drawer.segment}` : undefined}
+              description={drawer ? `${drawer.id}, ${drawer.source}` : undefined}
               footer={
                 <>
                   <Button variant="ghost" onClick={() => setDrawer(null)}>Close</Button>

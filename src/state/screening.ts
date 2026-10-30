@@ -1,6 +1,6 @@
 // Screening rule engine for R9 / R10 / R11, on mock data.
 // Every invitee who "answered" gets a mock profile. The outcome is then worked out from the answers
-// against the audience's cohort filters and exclusions, never from the position in the list.
+// against the audience's filters and exclusions, never from the position in the list.
 // Only the researcher's manual decisions are stored (AudienceDoc.screening.log).
 
 import { US_STATES } from '@/mock/usStates'
@@ -21,7 +21,7 @@ export type ScreeningEntry = {
   from: string
   to: string
   reason: string
-  /** A Reserve applicant promoted to replace someone: skips the cohort-full rule. */
+  /** A Reserve applicant promoted to replace someone: skips the target-full rule. */
   replacement?: boolean
 }
 
@@ -30,8 +30,9 @@ export type ScreeningState = { log: ScreeningEntry[] }
 export type PoolRecord = {
   at: string
   by: string
-  members: { applicantId: string; cohort: string | null }[]
-  shortfalls: { cohort: string; have: number; need: number }[]
+  members: { applicantId: string }[]
+  /** Set when the confirmed pool is smaller than the study's target. */
+  shortfall: { have: number; need: number } | null
 }
 
 export function addEntry(doc: AudienceDoc, entry: Omit<ScreeningEntry, 'id' | 'at'>): AudienceDoc {
@@ -39,8 +40,8 @@ export function addEntry(doc: AudienceDoc, entry: Omit<ScreeningEntry, 'id' | 'a
   return { ...doc, screening: { log: [...(doc.screening?.log ?? []), e] } }
 }
 
-export function confirmPool(doc: AudienceDoc, by: string, members: PoolRecord['members'], shortfalls: PoolRecord['shortfalls']): AudienceDoc {
-  return { ...doc, pool: { at: now(), by, members, shortfalls } }
+export function confirmPool(doc: AudienceDoc, by: string, members: PoolRecord['members'], shortfall: PoolRecord['shortfall']): AudienceDoc {
+  return { ...doc, pool: { at: now(), by, members, shortfall } }
 }
 
 // ─── location helpers (mock) ────────────────────────────────────────────────
@@ -272,7 +273,7 @@ function checkExclusion(e: Exclusion, get: (field: QField) => Ans | undefined, l
   return { rule: e.label, detail: 'Not checked in the prototype (matched by invite reference)', result: 'skip' }
 }
 
-export type Evaluation = { outcome: ScreeningOutcome; cohortId: string | null; groups: RuleGroup[]; reason: string }
+export type Evaluation = { outcome: ScreeningOutcome; groups: RuleGroup[]; reason: string }
 
 export function evaluate(doc: AudienceDoc, answers: Record<string, string>, lastResearch: string | null): Evaluation {
   const def = doc.def!
@@ -297,42 +298,23 @@ export function evaluate(doc: AudienceDoc, answers: Record<string, string>, last
   }
 
   const exclusions = def.exclusions.map((e) => checkExclusion(e, get, lastResearch, answers, questions))
-  const perCohort = def.cohorts.map((c) => {
-    const checks = c.filters.map((f) => checkFilter(f, get))
-    return { c, checks, fails: checks.filter((x) => x.result === 'fail').length, unclear: checks.filter((x) => x.result === 'unclear').length }
-  })
-  const best =
-    perCohort.find((p) => p.fails === 0 && p.unclear === 0) ??
-    [...perCohort].sort((a, b) => a.fails - b.fails || a.unclear - b.unclear)[0]
+  const checks = def.cohort.filters.map((f) => checkFilter(f, get))
+  const fails = checks.filter((x) => x.result === 'fail').length
+  const unclear = checks.filter((x) => x.result === 'unclear').length
 
-  const groups: RuleGroup[] = []
-  if (best) groups.push({ title: perCohort.length > 1 ? `Cohort: ${best.c.name}` : 'Audience filters', checks: best.checks })
+  const groups: RuleGroup[] = [{ title: 'Audience filters', checks }]
   if (consistency.length) groups.push({ title: 'Answers', checks: consistency })
   if (exclusions.length) groups.push({ title: 'Exclusions', checks: exclusions })
 
-  const firstOf = (r: CheckResult) => [...(best?.checks ?? []), ...consistency, ...exclusions].find((x) => x.result === r)
+  const firstOf = (r: CheckResult) => [...checks, ...consistency, ...exclusions].find((x) => x.result === r)
   const text = (c?: RuleCheck) => (c ? `${c.rule}: ${c.detail}` : '')
   const excludedHard = exclusions.some((x) => x.result === 'fail')
-  const exclUnclear = exclusions.some((x) => x.result === 'unclear')
-  const unclearAny = consistency.some((x) => x.result === 'unclear') || exclUnclear
+  const unclearAny = consistency.some((x) => x.result === 'unclear') || exclusions.some((x) => x.result === 'unclear')
 
-  if (excludedHard) return { outcome: 'Ineligible', cohortId: null, groups, reason: text(exclusions.find((x) => x.result === 'fail')) }
-  // A cohort with no failing filter, even if something is unclear in it, can still be the one this person belongs to.
-  const candidate = perCohort.find((p) => p.fails === 0)
-  if (!candidate) return { outcome: 'Ineligible', cohortId: null, groups, reason: text(best?.checks.find((x) => x.result === 'fail')) }
-  if (candidate.unclear > 0 || unclearAny) {
-    const why = firstOf('unclear')
-    return { outcome: 'Needs Review', cohortId: candidate.c.id, groups: reorder(groups, candidate.c, perCohort), reason: text(why) }
-  }
-  return { outcome: 'Eligible', cohortId: candidate.c.id, groups: reorder(groups, candidate.c, perCohort), reason: 'Meets every filter and no exclusion applies.' }
-}
-
-// Shows the cohort the applicant was placed in, not just the closest one.
-function reorder(groups: RuleGroup[], placed: Cohort, per: { c: Cohort; checks: RuleCheck[] }[]): RuleGroup[] {
-  const p = per.find((x) => x.c.id === placed.id)
-  if (!p || !groups.length) return groups
-  const [first, ...rest] = groups
-  return [{ title: per.length > 1 ? `Cohort: ${placed.name}` : first.title, checks: p.checks }, ...rest]
+  if (excludedHard) return { outcome: 'Ineligible', groups, reason: text(exclusions.find((x) => x.result === 'fail')) }
+  if (fails > 0) return { outcome: 'Ineligible', groups, reason: text(checks.find((x) => x.result === 'fail')) }
+  if (unclear > 0 || unclearAny) return { outcome: 'Needs Review', groups, reason: text(firstOf('unclear')) }
+  return { outcome: 'Eligible', groups, reason: 'Meets every filter and no exclusion applies.' }
 }
 
 // ─── applicants ─────────────────────────────────────────────────────────────
@@ -341,11 +323,9 @@ export type Applicant = {
   id: string
   contact: string
   source: SourceTag
-  cohort: string | null
-  cohortId: string | null
   autoOutcome: ScreeningOutcome
   outcome: ScreeningOutcome
-  /** Set when the cohort was full, so an eligible applicant became Reserve. */
+  /** Set when the target was already met, so an eligible applicant became Reserve. */
   note?: string
   groups: RuleGroup[]
   reason: string
@@ -382,8 +362,7 @@ export function mockApplicants(doc: AudienceDoc): Applicant[] {
 
   const base = entries.map(({ c, idx }, n) => {
     const persona = PERSONAS[idx % PERSONAS.length]
-    const cohort = def.cohorts.length ? def.cohorts[(idx + Math.floor(idx / 2)) % def.cohorts.length] : undefined
-    const answers = buildAnswers(questions, cohort, persona, idx)
+    const answers = buildAnswers(questions, def.cohort, persona, idx)
     const lastResearch = persona === 'cooldown' ? '34 days ago' : null
     const ev = evaluate(doc, answers, lastResearch)
     return { c, idx, n, answers, lastResearch, ev }
@@ -392,13 +371,10 @@ export function mockApplicants(doc: AudienceDoc): Applicant[] {
   // Manual decisions, newest wins.
   const lastOf = (id: string, kind: ScreeningEntry['kind']) => [...log].reverse().find((e) => e.applicantId === id && e.kind === kind)
 
-  // Cohort slots go out in applicant order. Reserve is for eligible people once a cohort is full.
-  const filled = new Map<string, number>()
-  const room = (cid: string | null) => {
-    const co = def.cohorts.find((x) => x.id === cid)
-    return co ? (co.participants ?? Infinity) - (filled.get(co.id) ?? 0) > 0 : false
-  }
-  const take = (cid: string | null) => cid && filled.set(cid, (filled.get(cid) ?? 0) + 1)
+  // Slots go out in applicant order, up to the target. Eligible people beyond it go to Reserve.
+  // Only Eligible applicants take a slot: an Ineligible or Needs Review applicant never does.
+  let filled = 0
+  const room = () => filled < (def.total ?? Infinity)
 
   return base.map(({ c, idx, answers, lastResearch, ev }) => {
     const id = `A-${1001 + idx}`
@@ -406,21 +382,16 @@ export function mockApplicants(doc: AudienceDoc): Applicant[] {
     const vManual = lastOf(id, 'verification')
     const auto = ev.outcome
     let outcome: ScreeningOutcome = auto
-    let cohortId = ev.cohortId
     let note: string | undefined
 
-    if (manual) {
-      outcome = manual.to as ScreeningOutcome
-      if (outcome === 'Eligible' || outcome === 'Reserve') cohortId = cohortId ?? def.cohorts.find((x) => room(x.id))?.id ?? def.cohorts[0]?.id ?? null
-      if (outcome === 'Ineligible' || outcome === 'Needs Review') cohortId = outcome === 'Ineligible' ? null : cohortId
-    }
+    if (manual) outcome = manual.to as ScreeningOutcome
     if (outcome === 'Eligible' && !manual?.replacement) {
-      if (room(cohortId)) take(cohortId)
+      if (room()) filled += 1
       else {
         outcome = 'Reserve'
-        note = `The ${def.cohorts.find((x) => x.id === cohortId)?.name ?? 'cohort'} cohort is full, so this eligible applicant is in Reserve.`
+        note = `The study’s target of ${def.total} is already met, so this eligible applicant is in Reserve.`
       }
-    } else if (outcome === 'Eligible') take(cohortId)
+    } else if (outcome === 'Eligible') filled += 1
 
     // Verification starts from the screening result and the profile; an override replaces it.
     const autoV: VerificationStatus =
@@ -439,8 +410,6 @@ export function mockApplicants(doc: AudienceDoc): Applicant[] {
       id,
       contact: inviteRef(c),
       source: c.source,
-      cohort: def.cohorts.find((x) => x.id === cohortId)?.name ?? null,
-      cohortId,
       autoOutcome: auto,
       outcome,
       note,
@@ -460,14 +429,13 @@ export function mockApplicants(doc: AudienceDoc): Applicant[] {
   })
 }
 
-export function cohortFill(applicants: Applicant[], doc: AudienceDoc) {
-  return (doc.def?.cohorts ?? []).map((c) => ({
-    id: c.id,
-    name: c.name,
-    target: c.participants,
-    eligible: applicants.filter((a) => a.cohortId === c.id && a.outcome === 'Eligible').length,
-    reserve: applicants.filter((a) => a.cohortId === c.id && a.outcome === 'Reserve').length,
-  }))
+/** Eligible applicants against the study's target, with the reserve beside it. One cohort, one bar. */
+export function targetFill(applicants: Applicant[], doc: AudienceDoc) {
+  return {
+    target: doc.def?.total ?? null,
+    eligible: applicants.filter((a) => a.outcome === 'Eligible').length,
+    reserve: applicants.filter((a) => a.outcome === 'Reserve').length,
+  }
 }
 
 // ─── pool (R11) ─────────────────────────────────────────────────────────────
@@ -475,14 +443,10 @@ export function cohortFill(applicants: Applicant[], doc: AudienceDoc) {
 export const inPool = (a: Applicant) => a.outcome === 'Eligible' && a.verification === 'Passed'
 
 export function poolView(applicants: Applicant[], doc: AudienceDoc) {
-  return (doc.def?.cohorts ?? []).map((c) => {
-    const members = applicants.filter((a) => a.cohortId === c.id && inPool(a))
-    return {
-      cohort: c,
-      members,
-      reserve: applicants.filter((a) => a.cohortId === c.id && a.outcome === 'Reserve' && a.verification === 'Passed'),
-      waiting: applicants.filter((a) => a.cohortId === c.id && a.outcome === 'Eligible' && a.verification !== 'Passed'),
-      need: c.participants ?? 0,
-    }
-  })
+  return {
+    members: applicants.filter(inPool),
+    reserve: applicants.filter((a) => a.outcome === 'Reserve' && a.verification === 'Passed'),
+    waiting: applicants.filter((a) => a.outcome === 'Eligible' && a.verification !== 'Passed'),
+    need: doc.def?.total ?? 0,
+  }
 }

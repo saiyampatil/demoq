@@ -5,7 +5,7 @@ import { Button, Spinner } from '@/components/Button'
 import { Card } from '@/components/Card'
 import { cn } from '@/components/cn'
 import { controlBase } from '@/components/Field'
-import { CheckIcon, PlusIcon } from '@/components/icons'
+import { CheckIcon } from '@/components/icons'
 import { StatusChip } from '@/components/StatusChip'
 import { Tooltip } from '@/components/Tooltip'
 import { WizardFooter } from '@/components/WizardFooter'
@@ -13,7 +13,6 @@ import { formatDate, formatDateTime } from '@/lib/format'
 import { screenById, studyPath } from '@/routes/screens'
 import {
   advanceDraft,
-  allocated,
   approvedBriefSections,
   confirmAudience,
   confirmBlockers,
@@ -21,12 +20,11 @@ import {
   draftStepLabel,
   editDef,
   invitesFor,
-  newCohort,
+  cohortNameFrom,
   startDraft,
   type AudienceDef,
   type Cohort,
 } from '@/state/audience'
-import { uid } from '@/state/brief'
 import { PageHeader } from '../../shared/PageHeader'
 import { AudienceGate } from './AudienceGate'
 import { CohortCard } from './CohortCard'
@@ -62,7 +60,12 @@ export function AudienceDefinition() {
 
   const def = audience.def
   const edit = (fn: (d: AudienceDef) => AudienceDef) => update((doc) => editDef(doc, me, fn))
-  const editCohort = (id: string, fn: (c: Cohort) => Cohort) => edit((d) => ({ ...d, cohorts: d.cohorts.map((c) => (c.id === id ? fn(c) : c)) }))
+  // The cohort's name follows its filters until the Researcher renames it.
+  const editCohort = (fn: (c: Cohort) => Cohort) =>
+    edit((d) => {
+      const c = fn(d.cohort)
+      return { ...d, cohort: c.nameOrigin === 'ai' ? { ...c, name: cohortNameFrom(c.filters) } : c }
+    })
   const blockers = confirmBlockers(def)
   const reopened = audience.status === 'Draft' && audience.confirmed
   const briefMoved = approved && approved.version !== audience.briefVersion
@@ -106,7 +109,7 @@ export function AudienceDefinition() {
           Version {approved.version} of the brief is now approved. Check the audience still matches it.
         </Banner>
       )}
-      <Card title="Participant count" description="How many completed interviews the study needs, and how many extra people to invite.">
+      <Card title="Participant count" description="How many completed interviews the study needs, and how many extra people to invite. This one number is the study’s target.">
         <div className="flex flex-wrap items-start gap-x-10 gap-y-5">
           <div className="flex flex-col gap-1.5">
             <label htmlFor="total" className="text-sm font-medium">
@@ -163,38 +166,8 @@ export function AudienceDefinition() {
         </div>
       </Card>
 
-      <Card
-        title="Audience cohorts"
-        description="Define who qualifies, then split participants across cohorts. Each cohort’s number is its quota."
-        actions={
-          <Button size="sm" icon={<PlusIcon />} onClick={() => edit((d) => ({ ...d, cohorts: [...d.cohorts, newCohort(d)] }))}>
-            Add cohort
-          </Button>
-        }
-      >
-        <div className="flex flex-col gap-4">
-          <div className="grid gap-4 2xl:grid-cols-2">
-            {def.cohorts.map((c, i) => (
-              <CohortCard
-                key={c.id}
-                cohort={c}
-                index={i}
-                canRemove={def.cohorts.length > 1}
-                onChange={(fn) => editCohort(c.id, fn)}
-                onDuplicate={() =>
-                  edit((d) => {
-                    const at = d.cohorts.findIndex((x) => x.id === c.id)
-                    const copy: Cohort = { ...structuredClone(c), id: uid('c'), name: `${c.name} (copy)`, participants: null, participantsOrigin: 'missing' }
-                    copy.filters = copy.filters.map((f) => ({ ...f, id: uid('f') }))
-                    return { ...d, cohorts: [...d.cohorts.slice(0, at + 1), copy, ...d.cohorts.slice(at + 1)] }
-                  })
-                }
-                onRemove={() => edit((d) => ({ ...d, cohorts: d.cohorts.filter((x) => x.id !== c.id) }))}
-              />
-            ))}
-          </div>
-          <AllocationBar def={def} />
-        </div>
+      <Card title="Cohort" description="One group of people for the whole study. Who qualifies is decided by the filters below, age included.">
+        <CohortCard cohort={def.cohort} onChange={editCohort} />
       </Card>
 
       <ExclusionsCard
@@ -238,41 +211,6 @@ export function AudienceDefinition() {
           </Button>
         )}
       </WizardFooter>
-    </div>
-  )
-}
-
-function AllocationBar({ def }: { def: AudienceDef }) {
-  const sum = allocated(def)
-  const unfilled = def.cohorts.filter((c) => c.participants === null).length
-  if (!def.total)
-    return <p className="rounded-sm border border-mist bg-paper px-4 py-3 text-sm text-graphite">Set the number of completed interviews to check the allocation.</p>
-  const ok = unfilled === 0 && sum === def.total
-  const message = ok
-    ? `Adds up to ${def.total}`
-    : unfilled
-      ? `${unfilled} ${unfilled === 1 ? 'cohort has' : 'cohorts have'} no participant number`
-      : sum > def.total
-        ? `Over by ${sum - def.total}`
-        : `${def.total - sum} still to allocate`
-  return (
-    <div
-      role="status"
-      className={cn(
-        'flex flex-wrap items-center gap-x-4 gap-y-2 rounded-sm border px-4 py-3',
-        ok ? 'border-positive-line bg-positive-bg' : 'border-negative-line bg-negative-bg',
-      )}
-    >
-      <span className="font-semibold tabular-nums">
-        {sum} / {def.total} allocated
-      </span>
-      <span className="h-2 min-w-24 flex-1 overflow-hidden rounded-full bg-surface" aria-hidden="true">
-        <span className={cn('block h-full rounded-full', ok ? 'bg-positive-fg' : 'bg-negative-fg')} style={{ width: `${Math.min(100, (sum / def.total) * 100)}%` }} />
-      </span>
-      <span className={cn('flex items-center gap-1.5 text-sm font-medium', ok ? 'text-positive-fg' : 'text-negative-fg')}>
-        {ok && <CheckIcon />}
-        {message}
-      </span>
     </div>
   )
 }

@@ -42,7 +42,7 @@ export const sectionMeta: Record<SectionKey, { title: string; required?: boolean
   sampleSize: {
     title: 'Sample size',
     needed: 'How many completed interviews the client needs.',
-    why: 'Module 2 sets the participant count and quotas from it.',
+    why: 'Module 2 sets the participant count and the audience from it.',
   },
   length: {
     title: 'Length of interview',
