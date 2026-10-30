@@ -104,6 +104,7 @@ PRD gaps and conflicts found while building. Each entry says what the prototype 
 | 98 | L | Launch redesign: the brief says "Authorize launch locks Release v1.0, pauses the study, and queues invitations", but also "markStudyLive" and a payload with status "live". | Authorize launch sets the study Live (as today). Pausing is only for edits after launch. Decided when stage 4 is built. | Open: confirm |
 | 99 | L | The brief lists the entry rows' owners as "R4, R6, R12, R15 setup, R14". R4 (the brief) owns none of the five rows. | Guide R14, moderator R12, pool R11, fieldwork window and consent the setup drawer. R6 holds only the target number. | Open |
 | 100 | L | The redesigned entry contract drops the Active stimuli and Surveys rows. | Stimuli are covered by the media check and the release summary; surveys by the plan compile. | Prototype decision |
+| 101 | L | The matrix's Completed cells have no button, so a completed run can't be redone from R15. Should there be a "Run again"? | None for now, as the brief says; Run again lives inside the modal (step 3). | Open |
 
 
 ## Future ideas (not built)

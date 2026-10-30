@@ -9,10 +9,11 @@ import { WizardFooter } from '@/components/WizardFooter'
 import { formatDateTime } from '@/lib/format'
 import { screenById, studyPath, type Screen } from '@/routes/screens'
 import { now } from '@/state/brief'
-import { releaseLabel, type Row, type RowOwner } from '@/state/launch'
+import { releaseLabel, supportedLanguages, type Row, type RowOwner } from '@/state/launch'
 import { PageHeader } from '../../shared/PageHeader'
 import { LaunchGate, ResultMark } from './LaunchBits'
 import { PlanPreview } from './PlanPreview'
+import { TestMatrix } from './TestMatrix'
 import { SetupDrawer } from './SetupDrawer'
 import { useLaunch } from './useLaunch'
 
@@ -148,6 +149,8 @@ export function LaunchReadiness() {
           )}
         </div>
       </section>
+
+      <TestMatrix languages={supportedLanguages(guide, launch)} launch={launch} guideVersion={guide?.version ?? 0} />
 
       <WizardFooter
         previous={{ to: studyPath(studyId, screenById.R14), label: 'Discussion guide' }}

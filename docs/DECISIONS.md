@@ -110,3 +110,12 @@ One line per change: the decision, then the reason. Newest stage at the bottom.
 - The study plan is read-only and starts open: "6 sections, 13 core questions, 20 min. Compiled {date and time} ET." with Hide study plan. The "Looking at the plan is optional" note is gone. Reason: the plan is meant to be seen, and collapsible to save space.
 - The screen is titled "Launch". The registry name and the sub-stepper label for R15 stay "Launch readiness" and "Readiness" until stage 4. Reason: renaming one of three sub-steps would read as a second "Launch" next to the step.
 - Not built yet: the test matrix and modal, the pre-launch checks, the release summary and the launch button. The footer still says "Continue to test runs" and goes to R16.
+
+## Launch redesign, stage 2 (step 1): the test matrix on R15
+
+- Work is on the branch `launch-stage-2`, started from 3c32de7.
+- R15 gains a Test runs section below the study plan: a table with Language, Mobile and Desktop columns and one row per supported language (English (US) in the seed). Its states: Completed (a check, the word, the date and time with its zone, no buttons); Not run (blank apart from a Run button); Issues found (a warning mark, the date and time, Run and Report); In progress (a spinner). Each state has a word as well as a mark, so it doesn't rely on colour. A line above says how many combinations are finished and how many have issues. Reason: the redesign's matrix, built so it can be read at a glance.
+- The matrix reads the runs that already exist (`LaunchDoc.runs`, keyed by language and device) rather than adding a second `testRunsByCombo` store. "completedAt" is the run's `at`, and a run made on R16 shows on R15 at once. A run against an older guide version doesn't count and reads Not run (as on R16). Reason: one store, so R15 and R16 can't disagree; R16 goes in stage 4.
+- Completed cells have no button, as the brief says. Reason: the brief's states; open question #101 asks whether a completed run should be re-runnable from the matrix.
+- Run and Report are present but disabled, with the tooltip "The test run opens in the next step." Reason: the modal is step 2, and a button that does nothing is worse than one that says why. Issues found still counts as finished (the launch gate is unchanged, and still enforced by R17 until stage 4).
+- Not done in this step: the Run modal and report, Issues found / Mark complete / Run again, and the dev controls. The footer still says "Continue to test runs" and goes to R16.
