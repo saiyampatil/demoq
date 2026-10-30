@@ -105,7 +105,10 @@ export function ReviewQueue() {
 
       {sum.underReview === 0 && (
         <p className="flex items-center gap-2 rounded-md border border-positive-line bg-positive-bg px-4 py-3 text-sm">
-          <span className="font-medium">Everything is reviewed.</span> {sum.accepted} accepted and {sum.excluded} excluded. Open a session to reopen it if you need to change a decision.
+          <span className="font-medium">Everything is reviewed.</span> {sum.accepted} accepted and {sum.excluded} excluded. Open a session to reopen it if you need to change a decision.{' '}
+          <Link data-testid="to-evidence" to={studyPath(studyId, screenById.R24)} className="font-medium text-iris-700 hover:underline">
+            Next: check the evidence record
+          </Link>
         </p>
       )}
 

@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { Link } from 'react-router'
 import { Banner } from '@/components/Banner'
 import { Button } from '@/components/Button'
 import { cn } from '@/components/cn'
@@ -7,6 +8,7 @@ import { Modal } from '@/components/Modal'
 import { StatusChip } from '@/components/StatusChip'
 import { Tooltip } from '@/components/Tooltip'
 import { formatStamp } from '@/lib/format'
+import { screenById, studyPath } from '@/routes/screens'
 import { scoreBreakdown, trackShort, type FlagTrack, type ReviewEvent, type ReviewFlag, type ReviewSession } from '@/mock/review'
 import { decisionHistory, effectLines, effectOf } from '@/state/decisions'
 import { inviteFromReserve, tick, type FieldworkDoc, type Outcomes, type ReserveCandidate } from '@/state/fieldwork'
@@ -522,6 +524,9 @@ export function DecisionBar({ ctx }: { ctx: DecisionCtx }) {
                 {s.status} by {by(d.by, d.at)}
               </p>
             )}
+            <Link data-testid="to-evidence" to={`${studyPath(ctx.doc.studyId, screenById.R24)}?session=${s.id}`} className="mt-1 inline-block text-sm font-medium text-iris-700 hover:underline">
+              See this session in the evidence record
+            </Link>
           </div>
           {blocked ? (
             <Tooltip content={blocked} focusable>

@@ -2,7 +2,7 @@
 // Routes, the stepper and the dev Screen jump menu all read from here.
 
 export type AppKey = 'researcher' | 'participant' | 'moderator' | 'observer'
-export type StepKey = 'brief' | 'audience' | 'guide' | 'launch' | 'fieldwork' | 'review' | 'analysis'
+export type StepKey = 'brief' | 'audience' | 'guide' | 'launch' | 'fieldwork' | 'review' | 'evidence' | 'analysis'
 
 export type Screen = {
   id: string
@@ -50,6 +50,7 @@ export const screens: Screen[] = [
   { id: 'R21', name: 'Review queue', app: 'researcher', module: '4.8', phase: 8, path: 'review/queue', step: 'review' },
   { id: 'R22', name: 'Session review', app: 'researcher', module: '4.8', phase: 8, path: 'review/session/:sessionId', step: 'review' },
 
+  { id: 'R24', name: 'Evidence and audit trail', app: 'researcher', module: '4.9', phase: 9, path: 'evidence', step: 'evidence' },
   { id: 'R23', name: 'Study settings', app: 'researcher', module: '4.9', phase: 9, path: 'settings', standalone: true },
 
   { id: 'P1', name: 'Welcome, data consent, 18+ check', app: 'participant', module: '2', phase: 2, path: 'welcome' },
@@ -100,6 +101,7 @@ export const steps: { key: StepKey; label: string }[] = [
   { key: 'launch', label: 'Launch' },
   { key: 'fieldwork', label: 'Fieldwork' },
   { key: 'review', label: 'Review' },
+  { key: 'evidence', label: 'Evidence' },
   { key: 'analysis', label: 'Analysis' },
 ]
 
@@ -126,7 +128,7 @@ export function screensForStep(step: StepKey) {
 }
 
 /** Researcher screens that are built. The sub-stepper lists the rest as upcoming. */
-export const builtScreenIds = new Set(['R1', 'R4', 'R5', 'R6', 'R7', 'R8', 'R9', 'R11', 'R12', 'R13', 'R14', 'R15', 'R16', 'R17', 'R18', 'R19', 'R21', 'R22'])
+export const builtScreenIds = new Set(['R1', 'R4', 'R5', 'R6', 'R7', 'R8', 'R9', 'R11', 'R12', 'R13', 'R14', 'R15', 'R16', 'R17', 'R18', 'R19', 'R21', 'R22', 'R24'])
 
 /** Short names for the sub-stepper inside a step. */
 export const wizardLabel: Record<string, string> = {

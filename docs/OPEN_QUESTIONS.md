@@ -110,6 +110,9 @@ PRD gaps and conflicts found while building. Each entry says what the prototype 
 | 104 | L | Self-service (P18): how many tries before the research team is told? The brief says "after one retry". | The first check, then one retry (two checks in all). | Open: default chosen |
 | 105 | L | Self-service covers six problems: microphone, camera, connection, audio, video and browser. What about "Recording failed to start", "Stimulus failed to load" and the rest? | They go straight to the Researcher as before; the participant has no fix for them. | Open |
 | 106 | L | When a participant fixes a problem themselves, should the Researcher be told after the fact (a digest, a count on Overview)? | It is only counted on the Issues tab (Happened) and logged on the session and in the activity feed. | Open |
+| 107 | L | R24: should a session still Under review (no decision yet, so no reviewed copy or scores on file) appear in the evidence table, or only sessions that have been decided? | It appears, as "missing something", so the gate in stage 3 can count it. | Open |
+| 108 | L | R24: is the reviewed copy created at the first decision, or only once a Researcher edits the transcript? Which version number does an unedited reviewed copy carry? | Created at the first decision as v1; an edited one (P-2041-1) shows its edit version. | Open |
+| 109 | L | R24: what are the real retention periods, and who sets them (R23)? Who counts as having access (Researcher, Client, moderators, observers)? | Mock text (raw media 90 days, transcripts 24 months), and the two roles named in the study. | Open |
 
 
 ## Future ideas (not built)

@@ -6,6 +6,7 @@ import { CloseIcon, SearchIcon } from '@/components/icons'
 import { mockTestRuns, type MockRuns } from '@/mock/launch'
 import { MOISTURIZER_ID, stagePresets } from '@/mock/moisturizerStudy'
 import { appLabel, screenHref, screens, type AppKey } from '@/routes/screens'
+import { evidenceMockLabel, setEvidenceMock, useEvidenceMock, type EvidenceMock } from '@/state/evidence'
 import { featureInfo, useFeatures, type FeatureKey } from '@/state/features'
 import { useStudies } from '@/state/StudyContext'
 
@@ -24,6 +25,7 @@ export function ScreenJump() {
     if (change) updateLaunch(MOISTURIZER_ID, change)
   }
   const { flags, setFlag } = useFeatures()
+  const evidenceMock = useEvidenceMock()
 
   useEffect(() => {
     if (!open) return
@@ -73,6 +75,18 @@ export function ScreenJump() {
           </header>
 
           <div className="flex-1 overflow-y-auto">
+            <section className="border-b border-mist px-4 py-3">
+              <h3 className="text-sm font-semibold">Evidence (mock)</h3>
+              <p className="text-xs text-graphite">Mock sessions on the Evidence screen. “Live” reads the real review records.</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {(Object.keys(evidenceMockLabel) as EvidenceMock[]).map((m) => (
+                  <Button key={m} size="sm" variant={evidenceMock === m ? 'primary' : 'secondary'} onClick={() => setEvidenceMock(m)}>
+                    {evidenceMockLabel[m]}
+                  </Button>
+                ))}
+              </div>
+            </section>
+
             <section className="border-b border-mist px-4 py-3">
               <h3 className="text-sm font-semibold">Test runs (mock)</h3>
               <p className="text-xs text-graphite">Sets every test run on the Launch screen from the real compiled plan. Needs an approved guide that compiles.</p>

@@ -95,6 +95,13 @@ export function stepInfo(study: StudyRecord, sessions?: { awaitingReview: number
       hint: isLaunched ? 'Sessions arrive here after they finish' : 'Sample data until the study launches',
     },
     {
+      key: 'evidence',
+      label: label('evidence'),
+      // The record of Review. Like Review, it can always be opened; before launch it shows sample data.
+      state: 'open',
+      hint: 'The record of what was found and decided',
+    },
+    {
       key: 'analysis',
       label: label('analysis'),
       state: 'locked',
