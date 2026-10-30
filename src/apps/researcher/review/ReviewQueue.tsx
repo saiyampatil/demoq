@@ -98,14 +98,14 @@ export function ReviewQueue() {
 
       <section aria-label="Summary" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Card label="Completed interviews" value={sum.total} hint="Flagged sessions arrive as Under review" />
-        <Card label="Awaiting review" value={sum.underReview} total={sum.total} tone="pending" />
+        <Card label="Awaiting review" value={sum.underReview} total={sum.total} tone="pending" note={sum.awaitingClarification ? `${sum.awaitingClarification} awaiting clarification` : undefined} />
         <Card label="Reviewed and accepted" value={sum.accepted} total={sum.total} tone="positive" note={`${sum.autoAccepted} auto-accepted, ${sum.reviewedAccepted} reviewed`} />
         <Card label="Excluded" value={sum.excluded} total={sum.total} tone="negative" />
       </section>
 
       {sum.underReview === 0 && (
         <p className="flex items-center gap-2 rounded-md border border-positive-line bg-positive-bg px-4 py-3 text-sm">
-          <span className="font-medium">Everything is reviewed.</span> {sum.accepted} accepted and {sum.excluded} excluded. Reopen any session from its row if you need to change a decision.
+          <span className="font-medium">Everything is reviewed.</span> {sum.accepted} accepted and {sum.excluded} excluded. Open a session to reopen it if you need to change a decision.
         </p>
       )}
 
@@ -266,6 +266,7 @@ export function ReviewQueue() {
                       <span className="flex items-center gap-2">
                         <StatusChip status={s.status} size="sm" />
                         {s.decision?.auto && <span className="text-xs text-graphite">auto</span>}
+                        {s.awaiting && <span className="text-xs font-medium text-pending-fg">Awaiting clarification</span>}
                       </span>
                     </td>
                     <td className="px-3 py-2.5">

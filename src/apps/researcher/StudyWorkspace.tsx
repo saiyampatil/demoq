@@ -14,6 +14,7 @@ import { applyDraft, configBlockers, draftGuide } from '@/state/guide'
 import { readiness } from '@/state/launch'
 import { useStudies } from '@/state/StudyContext'
 import { setStudyTimeZone } from '@/lib/timeZone'
+import { useReviewState } from '@/state/reviewState'
 import { awaitingReview } from '@/state/studySessions'
 import { landingStep, stepInfo, type StepInfo } from '@/state/workflow'
 import { useSessionsDoc } from './useStudySessions'
@@ -36,6 +37,7 @@ export function StudyWorkspace() {
   // Every timestamp on every screen in this study is shown in its time zone.
   setStudyTimeZone(study?.timeZone)
   const { doc: sessionsDoc } = useSessionsDoc(studyId)
+  const reviewState = useReviewState()
   const screenIdx = screenOrder(matchScreen(studyId, pathname)?.id ?? '')
 
   // Slide direction follows the screen order. The first screen shown doesn't animate.
@@ -58,7 +60,7 @@ export function StudyWorkspace() {
     )
   }
 
-  const info = stepInfo(study, { awaitingReview: awaitingReview(sessionsDoc) })
+  const info = stepInfo(study, { awaitingReview: awaitingReview(sessionsDoc, reviewState) })
   const screen = matchScreen(study.id, pathname)
   const currentStep = screen?.step
   const stepperSteps: StepperStep[] = info.map((s) => {

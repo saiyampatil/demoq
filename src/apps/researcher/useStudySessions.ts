@@ -5,6 +5,7 @@ import { sampleFieldwork } from '@/mock/fieldwork'
 import { currentUser } from '@/mock/people'
 import type { FieldworkDoc } from '@/state/fieldwork'
 import { useStudies } from '@/state/StudyContext'
+import { useReviewState } from '@/state/reviewState'
 import { outcomesOf, reviewList } from '@/state/studySessions'
 import { reserveCandidates } from '@/state/monitor'
 
@@ -27,7 +28,8 @@ export function useStudySessions() {
   const { real, preview, editable, doc } = useSessionsDoc(studyId)
   const audience = getAudience(studyId) ?? (preview ? seedAudienceWithPool(studyId) : undefined)
   const update = useCallback((fn: (d: FieldworkDoc) => FieldworkDoc) => (real ? updateFieldwork(studyId, fn) : undefined), [studyId, updateFieldwork, real])
-  const review = useMemo(() => reviewList(doc), [doc])
+  const reviewState = useReviewState()
+  const review = useMemo(() => reviewList(doc, reviewState), [doc, reviewState])
   const outcomes = useMemo(() => outcomesOf(review), [review])
   const reserve = useMemo(() => reserveCandidates(doc, audience), [doc, audience])
   return {

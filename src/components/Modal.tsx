@@ -9,9 +9,11 @@ type ModalProps = {
   description?: ReactNode
   children?: ReactNode
   footer?: ReactNode
+  /** `lg` for dialogs with a form and a summary. */
+  size?: 'md' | 'lg'
 }
 
-export function Modal({ open, onClose, title, description, children, footer }: ModalProps) {
+export function Modal({ open, onClose, title, description, children, footer, size = 'md' }: ModalProps) {
   const panelRef = useRef<HTMLDivElement>(null)
   // Kept in a ref so a parent re-render doesn't re-run the focus effect.
   const onCloseRef = useRef(onClose)
@@ -45,7 +47,7 @@ export function Modal({ open, onClose, title, description, children, footer }: M
         aria-modal="true"
         aria-labelledby="modal-title"
         tabIndex={-1}
-        className="relative w-full max-w-md rounded-md border border-mist bg-surface shadow-overlay outline-none motion-safe:animate-[fade-in_150ms_ease-out]"
+        className={`relative w-full ${size === 'lg' ? 'max-w-xl' : 'max-w-md'} rounded-md border border-mist bg-surface shadow-overlay outline-none motion-safe:animate-[fade-in_150ms_ease-out]`}
       >
         <header className="flex items-start gap-3 px-5 pt-5">
           <div className="min-w-0 flex-1">
@@ -63,7 +65,7 @@ export function Modal({ open, onClose, title, description, children, footer }: M
             <CloseIcon />
           </button>
         </header>
-        {children && <div className="px-5 pt-4">{children}</div>}
+        {children && <div className="max-h-[58vh] overflow-y-auto px-5 pt-4">{children}</div>}
         {footer && <footer className="mt-5 flex justify-end gap-2 border-t border-mist px-5 py-3">{footer}</footer>}
       </div>
     </div>,

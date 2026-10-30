@@ -38,7 +38,23 @@ export type ReviewFlag = {
   turn: number
 }
 
-export type Decision = { by: string; at: string; note: string; auto?: boolean }
+export type Decision = { by: string; at: string; note: string; auto?: boolean; /** Exclusion reasons picked in the modal. */ reasons?: string[] }
+
+/**
+ * Everything that happens to a session in review, in order, and never erased. The status is worked out from it:
+ * the last decision or reopen wins. Seeded decisions are the first entries; the Researcher's actions are appended.
+ */
+export type ReviewEvent = { id: string; at: string; by: string } & (
+  | { type: 'decision'; outcome: 'Accepted' | 'Excluded'; note: string; reasons?: string[]; auto?: boolean }
+  | { type: 'reopen'; reason: string }
+  | { type: 'clarify'; to: 'Participant' | 'Moderator'; message: string; flagIds: string[] }
+  | { type: 'answer'; from: string; text: string; replyTo: string }
+  | { type: 'replacement'; candidateId: string; invitedAs: string }
+  | { type: 'dismiss'; flagId: string; reason: string }
+)
+
+/** A clarification that has been asked and not answered. */
+export type OpenClarification = { id: string; to: 'Participant' | 'Moderator'; message: string; flagIds: string[]; by: string; at: string }
 
 export type StimulusStatus = 'Loaded' | 'Fallback used' | 'Failed'
 export type StimulusCard = { name: string; version: string; kind: 'Concept card' | 'Image' | 'Video'; shownAtSec: number; status: StimulusStatus }
@@ -75,6 +91,14 @@ export type ReviewSession = {
   flags: ReviewFlag[]
   status: ReviewStatus
   decision?: Decision
+  /** Worked out from `events` when the session is read through the review state (state/decisions.ts). */
+  events?: ReviewEvent[]
+  /** Flags the Researcher dismissed, with who and why. A dismissed flag stays listed and stops counting toward the scores. */
+  dismissed?: Record<string, { by: string; at: string; reason: string }>
+  /** Set while a clarification has been asked and not answered. The status stays Under review. */
+  awaiting?: OpenClarification
+  /** The scores before any flag was dismissed, so the breakdown can show what was given back. */
+  baseScores?: { integrity: number; quality: number }
   stimuli: StimulusCard[]
   survey: SurveyResponse[]
   /** Notes written by the AI agent. Tagged AI-generated wherever they're shown. */
@@ -128,10 +152,8 @@ export const SEVERITY_WEIGHT: Record<FlagSeverity, number> = { High: 20, Medium:
 
 const AI = 'AI agent (Ava)'
 
+/** Decisions the seed study already has. They are starting data: the Researcher can reopen any of them. */
 const DECISIONS: Record<string, Decision> = {
-  'P-2059': { by: 'PulseAI (auto)', at: '2026-11-03T12:22:00-05:00', note: 'Auto-accepted: no flags raised.', auto: true },
-  'P-2060': { by: 'PulseAI (auto)', at: '2026-11-04T11:25:00-05:00', note: 'Auto-accepted: no flags raised.', auto: true },
-  'P-2061': { by: 'PulseAI (auto)', at: '2026-11-05T10:42:00-05:00', note: 'Auto-accepted: no flags raised.', auto: true },
   'P-2062': { by: 'Maya Ortiz', at: '2026-11-07T09:10:00-05:00', note: 'A short connection drop. The answer was repeated and is usable.' },
   'P-2063': { by: 'Maya Ortiz', at: '2026-11-05T09:30:00-05:00', note: 'Same device and near-identical answers as P-2043. Excluded as a duplicate.' },
   'P-2064': { by: 'Maya Ortiz', at: '2026-11-08T09:05:00-05:00', note: 'The agent led the answers and the participant disengaged. Not usable.' },
@@ -283,10 +305,30 @@ export function transcriptFor(sessionId: string, version: 'raw' | 'reviewed' = '
 export type ScoreBand = 'High' | 'Mid' | 'Low'
 export const scoreBand = (v: number): ScoreBand => (v >= 75 ? 'High' : v >= 50 ? 'Mid' : 'Low')
 
+/**
+ * The first entries in a session's history. Auto-accept is a rule, not seed data: a completed session with no flags
+ * raised arrives Accepted, recorded as "Auto-accepted: no flags raised." Anything else with a seeded decision starts there.
+ */
+export function seedEvents(s: ReviewSession): ReviewEvent[] {
+  if (s.flags.length === 0)
+    return [{ id: `${s.id}-auto`, at: new Date(new Date(s.completedAt).getTime() + 22 * 60000).toISOString(), by: 'PulseAI (auto)', type: 'decision', outcome: 'Accepted', note: 'Auto-accepted: no flags raised.', auto: true }]
+  if ((s.status === 'Accepted' || s.status === 'Excluded') && s.decision)
+    return [{ id: `${s.id}-seed`, at: s.decision.at, by: s.decision.by, type: 'decision', outcome: s.status, note: s.decision.note }]
+  return []
+}
+
 export function reviewSummary(list: ReviewSession[]) {
   const n = (s: ReviewStatus) => list.filter((x) => x.status === s).length
   const auto = list.filter((x) => x.status === 'Accepted' && x.decision?.auto).length
-  return { total: list.length, underReview: n('Under review'), accepted: n('Accepted'), excluded: n('Excluded'), autoAccepted: auto, reviewedAccepted: n('Accepted') - auto }
+  return {
+    total: list.length,
+    underReview: n('Under review'),
+    awaitingClarification: list.filter((x) => x.status === 'Under review' && x.awaiting).length,
+    accepted: n('Accepted'),
+    excluded: n('Excluded'),
+    autoAccepted: auto,
+    reviewedAccepted: n('Accepted') - auto,
+  }
 }
 
 /**

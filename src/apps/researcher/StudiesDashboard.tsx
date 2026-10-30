@@ -15,6 +15,7 @@ import type { ClientReviewSummary, StudyRecord } from '@/mock/types'
 import { screenById, steps, studyPath } from '@/routes/screens'
 import { progress } from '@/state/fieldwork'
 import { useStudies } from '@/state/StudyContext'
+import { useReviewState } from '@/state/reviewState'
 import { outcomesOf, reviewList } from '@/state/studySessions'
 import { landingStep } from '@/state/workflow'
 import { ScreenTag } from '../shared/ScreenTag'
@@ -105,15 +106,16 @@ export function StudiesDashboard() {
   // Outside a study the default zone applies.
   setStudyTimeZone()
   const { studies, getFieldwork } = useStudies()
+  const reviewState = useReviewState()
   const columns = useMemo(
     () =>
       makeColumns((s) => {
         const fw = getFieldwork(s.id)
         if (!fw) return undefined
-        const p = progress(fw, outcomesOf(reviewList(fw)))
+        const p = progress(fw, outcomesOf(reviewList(fw, reviewState)))
         return { confirmed: p.confirmed, pending: p.pending }
       }),
-    [getFieldwork],
+    [getFieldwork, reviewState],
   )
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()

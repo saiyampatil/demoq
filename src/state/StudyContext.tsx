@@ -11,6 +11,7 @@ import { briefSummary, now, type BriefDoc } from './brief'
 import { guideSummary, type GuideDoc } from './guide'
 import { DEFAULT_TIME_ZONE } from '@/lib/timeZone'
 import { generateFieldwork, SESSION_SEED, type FieldworkDoc } from './fieldwork'
+import { resetReview } from './reviewState'
 import { compileStudyPlan, emptyLaunchDoc, readiness, type LaunchDoc } from './launch'
 
 const STORAGE_KEY = 'pulseai-qual:v2'
@@ -146,7 +147,9 @@ export function StudyProvider({ children }: { children: ReactNode }) {
   }, [state])
 
   const setStage = useCallback(
-    (stage: StagePresetKey) =>
+    (stage: StagePresetKey) => {
+      // The seed study's review decisions belong to its seed sessions, so a new stage starts them again.
+      resetReview()
       setState((prev) => {
         // Changing stage replaces only the seed study; created studies stay.
         const { [MOISTURIZER_ID]: _seedBrief, ...otherBriefs } = prev.briefs
@@ -161,10 +164,14 @@ export function StudyProvider({ children }: { children: ReactNode }) {
         void _seedFieldwork
         const next = seedStage(stage)
         return { ...prev, ...next, briefs: { ...otherBriefs, ...next.briefs }, audiences: { ...otherAudiences, ...next.audiences }, guides: { ...otherGuides, ...next.guides }, launches: { ...otherLaunches, ...next.launches }, fieldworks: { ...otherFieldworks, ...next.fieldworks } }
-      }),
+      })
+    },
     [],
   )
-  const resetSeed = useCallback(() => setState(freshState()), [])
+  const resetSeed = useCallback(() => {
+    resetReview()
+    setState(freshState())
+  }, [])
 
   const createStudy = useCallback((name: string) => {
     const study: StudyRecord = {

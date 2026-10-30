@@ -20,7 +20,9 @@ const verdict: Record<FlagTrack, Record<ScoreBand, string>> = {
 
 /** One score, on its own. The two panels are never merged, averaged or ranked against each other. */
 export function ScorePanel({ session, track, dismissed }: { session: ReviewSession; track: FlagTrack; dismissed?: ReadonlySet<string> }) {
-  const b = scoreBreakdown(session, track, dismissed)
+  // The scores on the session already have dismissed flags given back; the breakdown starts from the base.
+  const base = session.baseScores ? { ...session, integrity: session.baseScores.integrity, quality: session.baseScores.quality } : session
+  const b = scoreBreakdown(base, track, dismissed ?? new Set(Object.keys(session.dismissed ?? {})))
   const band = scoreBand(b.score)
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)

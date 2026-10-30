@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import { Button } from '@/components/Button'
 import { cn } from '@/components/cn'
-import { FLAG_TRACKS, trackShort, type FlagTrack, type ReviewFlag } from '@/mock/review'
+import { FLAG_TRACKS, trackShort, type FlagTrack, type ReviewFlag, type ReviewSession } from '@/mock/review'
+import { formatStamp } from '@/lib/format'
 import { mmss, Severity, TrackTag } from './reviewUi'
 
 /** All the flags on the session, each with its track, timestamp and turn. Decision support only. */
-export function FlagsPanel({ flags, onJump, highlighted }: { flags: ReviewFlag[]; onJump: (f: ReviewFlag) => void; highlighted?: string }) {
+export function FlagsPanel({ flags, onJump, highlighted, dismissed = {}, onDismiss }: { flags: ReviewFlag[]; onJump: (f: ReviewFlag) => void; highlighted?: string; dismissed?: NonNullable<ReviewSession['dismissed']>; /** Set while the session is under review: offers Dismiss on each active flag. */ onDismiss?: (f: ReviewFlag) => void }) {
   const [track, setTrack] = useState<FlagTrack | 'All'>('All')
   const shown = flags.filter((f) => track === 'All' || f.track === track)
   const count = (t: FlagTrack) => flags.filter((f) => f.track === t).length
@@ -14,7 +15,7 @@ export function FlagsPanel({ flags, onJump, highlighted }: { flags: ReviewFlag[]
     <section aria-label="Flags" className="flex flex-col rounded-md border border-mist bg-surface">
       <header className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-mist px-4 py-3">
         <h2 className="text-md font-semibold">
-          Flags <span className="font-normal text-graphite tabular-nums">({flags.length})</span>
+          Flags <span className="font-normal text-graphite tabular-nums">({flags.length - Object.keys(dismissed).filter((id) => flags.some((f) => f.id === id)).length}{Object.keys(dismissed).length ? `, ${Object.keys(dismissed).filter((id) => flags.some((f) => f.id === id)).length} dismissed` : ''})</span>
         </h2>
         <div role="group" aria-label="Filter flags by track" className="ml-auto inline-flex rounded-sm border border-mist-strong bg-haze p-0.5 text-sm">
           {(['All', ...FLAG_TRACKS] as const).map((t) => (
@@ -44,18 +45,28 @@ export function FlagsPanel({ flags, onJump, highlighted }: { flags: ReviewFlag[]
         <ol className="divide-y divide-mist">
           {shown.map((f) => (
             <li key={f.id} className={cn('flex flex-col gap-1.5 px-4 py-3', highlighted === f.id && 'bg-iris-50')}>
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <div className={cn('flex flex-wrap items-center gap-x-3 gap-y-1', dismissed[f.id] && 'text-muted line-through')}>
                 <span className="text-sm font-semibold tabular-nums">{mmss(f.atSec)}</span>
                 <span className="text-xs text-graphite tabular-nums">Turn {f.turn}</span>
                 <TrackTag track={f.track} />
                 <Severity severity={f.severity} />
               </div>
-              <p className="font-medium">{f.type}</p>
-              <p className="text-sm text-graphite">{f.rationale}</p>
-              <div>
+              <p className={cn('font-medium', dismissed[f.id] && 'text-muted line-through')}>{f.type}</p>
+              <p className={cn('text-sm text-graphite', dismissed[f.id] && 'text-muted line-through')}>{f.rationale}</p>
+              {dismissed[f.id] && (
+                <p data-testid="dismissed-note" className="text-sm text-graphite tabular-nums">
+                  Dismissed by {dismissed[f.id].by}, {formatStamp(dismissed[f.id].at)}: {dismissed[f.id].reason}
+                </p>
+              )}
+              <div className="flex flex-wrap gap-2">
                 <Button size="sm" onClick={() => onJump(f)}>
                   Jump to {mmss(f.atSec)}
                 </Button>
+                {onDismiss && !dismissed[f.id] && (
+                  <Button size="sm" variant="ghost" onClick={() => onDismiss(f)} aria-label={`Dismiss flag: ${f.type}`}>
+                    Dismiss
+                  </Button>
+                )}
               </div>
             </li>
           ))}

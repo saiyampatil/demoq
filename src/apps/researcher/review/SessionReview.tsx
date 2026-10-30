@@ -19,10 +19,11 @@ import { useStudySessions } from '../useStudySessions'
 import { FlagsPanel } from './FlagsPanel'
 import { ScorePair } from './ScorePanel'
 import { SessionDetails, SessionNotes, StimulusHistory, SurveyResponses } from './SessionPanels'
+import { ActivityPanel, DecisionBar, DismissFlagModal, type DecisionCtx } from './DecisionBar'
 import { TranscriptView, type Focus } from './TranscriptView'
 import { usePlayer, VideoPlayer } from './VideoPlayer'
 
-const TABS = ['workspace', 'transcript', 'stimulus', 'survey', 'notes', 'details'] as const
+const TABS = ['workspace', 'transcript', 'stimulus', 'survey', 'notes', 'activity', 'details'] as const
 type Tab = (typeof TABS)[number]
 const TAB_LABEL: Record<Tab, string> = {
   workspace: 'Review workspace',
@@ -30,12 +31,13 @@ const TAB_LABEL: Record<Tab, string> = {
   stimulus: 'Stimulus history',
   survey: 'Survey responses',
   notes: 'Session notes',
+  activity: 'Activity',
   details: 'Session details',
 }
 
 export function SessionReview() {
   const { sessionId = '' } = useParams()
-  const { studyId, review, preview, doc } = useStudySessions()
+  const { studyId, review, preview, doc, audience, outcomes, reserve, study, update, me } = useStudySessions()
   const [params] = useSearchParams()
   const demo = params.get('demo')
   const [loaded, setLoaded] = useState(false)
@@ -47,7 +49,9 @@ export function SessionReview() {
   }, [sessionId])
 
   const all = review
-  const session = all.find((s) => s.id === sessionId)
+  // ?demo=human shows the session as if a human moderator ran it, to see what human-led studies offer.
+  const found0 = all.find((s) => s.id === sessionId)
+  const session = found0 && demo === 'human' ? { ...found0, moderatorType: 'Human' as const, moderator: 'Priya Shah' } : found0
   const href = (screen: typeof screenById.R22, id: string) => studyPath(studyId, { ...screen, path: screen.path.replace(':sessionId', id) })
   if (!session && demo !== 'notfound') {
     // A participant ID (no session number) means the session of theirs that is in Review.
@@ -90,16 +94,19 @@ export function SessionReview() {
     )
 
   const history: History = doc ? sessionsOfParticipant(doc, session.participantId).map((x) => ({ id: x.id, no: x.no, status: x.status, href: href(screenById.R19, x.id) })) : []
-  return <Loaded key={session.id} session={session} all={all} studyId={studyId} crumbs={crumbs} demo={demo} history={history} />
+  const paused = !preview && (study?.status === 'Paused' || !!doc?.paused)
+  const ctx: DecisionCtx | undefined = doc ? { session, doc, target: audience?.def?.total ?? study?.targetCompletes ?? 0, outcomes, reserve, me, update, paused, readOnly: preview || !update } : undefined
+  return <Loaded key={session.id} session={session} all={all} studyId={studyId} crumbs={crumbs} demo={demo} history={history} ctx={ctx} />
 }
 
 type History = { id: string; no: number; status: string; href: string }[]
 
-function Loaded({ session, all, studyId, crumbs, demo, history }: { session: ReviewSession; all: ReviewSession[]; studyId: string; crumbs: React.ReactNode; demo: string | null; history: History }) {
+function Loaded({ session, all, studyId, crumbs, demo, history, ctx }: { session: ReviewSession; all: ReviewSession[]; studyId: string; crumbs: React.ReactNode; demo: string | null; history: History; ctx?: DecisionCtx }) {
   const navigate = useNavigate()
   const [tab, setTab] = useState<Tab>('workspace')
   const [focus, setFocus] = useState<Focus>()
   const [flagOn, setFlagOn] = useState<string>()
+  const [dismissing, setDismissing] = useState<ReviewFlag>()
   const player = usePlayer(session.durationMin * 60, demo === 'videofail')
   const turns = useMemo(() => (demo === 'notranscript' ? [] : transcriptFor(session.id)), [session.id, demo])
 
@@ -136,6 +143,7 @@ function Loaded({ session, all, studyId, crumbs, demo, history }: { session: Rev
           meta={
             <>
               <StatusChip status={session.status} size="sm" />
+              {session.awaiting && <span className="rounded-xs border border-pending-line bg-pending-bg px-1.5 py-0.5 text-xs font-medium text-pending-fg">Awaiting clarification</span>}
               {session.sessionCount > 1 && <span className="font-medium text-ink">Session {session.sessionNo} of {session.sessionCount}</span>}
               <span>{session.moderator}</span>
               <span>{session.release}</span>
@@ -161,6 +169,8 @@ function Loaded({ session, all, studyId, crumbs, demo, history }: { session: Rev
         />
       </div>
 
+      {ctx && <DecisionBar ctx={ctx} />}
+
       <ScorePair session={session} />
 
       <div role="tablist" aria-label="Session views" className="flex flex-wrap gap-1 border-b border-mist">
@@ -184,8 +194,8 @@ function Loaded({ session, all, studyId, crumbs, demo, history }: { session: Rev
         {tab === 'workspace' && (
           <>
             <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
-              <VideoPlayer player={player} id={session.participantId} flags={session.flags} turns={turns} onJumpFlag={jumpFlag} />
-              <FlagsPanel flags={session.flags} onJump={jumpFlag} highlighted={flagOn} />
+              <VideoPlayer player={player} id={session.participantId} flags={session.flags.filter((f) => !session.dismissed?.[f.id])} turns={turns} onJumpFlag={jumpFlag} />
+              <FlagsPanel flags={session.flags} onJump={jumpFlag} highlighted={flagOn} dismissed={session.dismissed} onDismiss={ctx && !ctx.readOnly && session.status === 'Under review' ? setDismissing : undefined} />
             </div>
             <TranscriptView session={session} currentSec={player.t} focus={focus} empty={demo === 'notranscript'} onSeek={(s) => player.seek(s)} />
           </>
@@ -206,12 +216,18 @@ function Loaded({ session, all, studyId, crumbs, demo, history }: { session: Rev
             <SessionNotes session={session} me={currentUser.name} />
           </Panel>
         )}
+        {tab === 'activity' && (
+          <Panel title="Activity" note="Everything that has happened to this session in review. Entries are never edited or removed.">
+            <ActivityPanel session={session} />
+          </Panel>
+        )}
         {tab === 'details' && (
           <Panel title="Session details">
             <SessionDetails session={session} history={history} />
           </Panel>
         )}
       </div>
+      {ctx && <DismissFlagModal ctx={ctx} flag={dismissing} onClose={() => setDismissing(undefined)} />}
     </div>
   )
 }
