@@ -21,7 +21,7 @@ const ownerScreen: Record<Exclude<RowOwner, 'setup'>, Screen> = { R11: screenByI
 export function LaunchReadiness() {
   const { studyId, study, editable, guide, launch, readiness: r, me, update } = useLaunch()
   const [compiling, setCompiling] = useState(false)
-  const [showPlan, setShowPlan] = useState(false)
+  const [showPlan, setShowPlan] = useState(true)
   const [setup, setSetup] = useState(false)
 
   // Opening R15 compiles the approved guide. It recompiles whenever the guide's content changes.
@@ -54,14 +54,16 @@ export function LaunchReadiness() {
   const blockers = [...r.rows.filter((x) => !x.ok).map((x) => `${x.label}: ${x.value.toLowerCase()}`), ...(r.compile.state === 'failed' ? ['The study plan has errors'] : r.compile.state === 'waiting' ? ['The guide isn’t approved'] : [])]
   const canContinue = r.entryOk && compileOk
 
+  // Every row has an Edit button. It opens the screen that owns the value (with ?from=launch, so that screen offers a
+  // way back), or the setup drawer for values no earlier module owns. Coming back re-reads everything live.
   const view = (row: Row) =>
     row.owner === 'setup' ? (
-      <Button size="sm" variant="ghost" onClick={() => setSetup(true)}>
-        {row.ok ? 'View' : 'Fix'}
+      <Button size="sm" onClick={() => setSetup(true)} aria-label={`Edit ${row.label}`}>
+        Edit
       </Button>
     ) : (
-      <Button size="sm" variant="ghost" to={studyPath(studyId, ownerScreen[row.owner])}>
-        {row.ok ? 'View' : 'Fix'}
+      <Button size="sm" to={`${studyPath(studyId, ownerScreen[row.owner])}?from=launch`} aria-label={`Edit ${row.label}`}>
+        Edit
       </Button>
     )
 
@@ -69,8 +71,8 @@ export function LaunchReadiness() {
     <div className="flex flex-col gap-8">
       <PageHeader
         id="R15"
-        title="Launch readiness"
-        description="Everything the interviews run from, read live from the earlier steps."
+        title="Launch"
+        description="Everything the interviews run from, read live from the earlier steps. Edit any row to change it at its source."
         meta={
           <>
             <StatusChip status={study.status} size="sm" />
@@ -92,7 +94,7 @@ export function LaunchReadiness() {
           {r.rows.map((row) => (
             <li key={row.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3">
               <ResultMark state={row.ok ? 'pass' : 'fail'} label={row.ok ? 'Ready' : 'Needs attention'} />
-              <span className="w-56 shrink-0 font-medium">{row.label}</span>
+              <span className="w-44 shrink-0 font-medium">{row.label}</span>
               <span className={cn('min-w-0 flex-1 basis-60 text-sm', row.ok ? 'text-graphite' : 'text-pending-fg')}>{row.value}</span>
               {view(row)}
             </li>
@@ -145,7 +147,6 @@ export function LaunchReadiness() {
             </div>
           )}
         </div>
-        {compileOk && <p className="mt-2 text-xs text-graphite">Looking at the plan is optional.</p>}
       </section>
 
       <WizardFooter

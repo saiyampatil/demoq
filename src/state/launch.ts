@@ -236,46 +236,15 @@ export function entryContract(i: Inputs): Row[] {
         : `Missing: ${blockers.join(', ').toLowerCase()}`,
   })
 
-  const active = g?.stimuli.items.filter((s) => s.active).length ?? 0
-  const skipped = g?.stimuli.skipped
-  rows.push({
-    id: 'stimuli',
-    label: 'Active stimuli',
-    owner: 'R13',
-    ok: active > 0 || !!skipped,
-    value: skipped ? 'None, this study uses no stimuli' : active ? `${active} of ${g!.stimuli.items.length} active` : 'None active',
-  })
-
-  const surveys = g?.moderator.mode === 'ai' ? g.moderator.surveys.length : 0
-  rows.push({
-    id: 'surveys',
-    label: 'Surveys',
-    owner: 'R12',
-    ok: true,
-    value: g?.moderator.mode === 'human' ? 'Not used, human-led' : surveys ? nth(surveys, 'survey') : 'None, conversation only',
-  })
-
   const def = i.audience?.def
   const pool = i.audience?.pool
   const targetOk = !!def && !!def.total
-  const short = pool?.shortfall ? ` (under target: ${pool.shortfall.have} of ${pool.shortfall.need})` : ''
   rows.push({
     id: 'pool',
-    label: 'Qualified pool and target',
+    label: 'Qualified pool',
     owner: 'R11',
     ok: !!pool && targetOk,
-    value: !pool ? 'The pool isn’t confirmed' : !targetOk ? 'The number of participants needed isn’t set' : `${nth(pool.members.length, 'participant')} in the pool, ${def!.total} needed${short}`,
-  })
-
-  const langs = supportedLanguages(g, i.launch)
-  const consent = i.launch?.setup.consent ?? {}
-  const missing = langs.filter((l) => !consent[l]?.approved)
-  rows.push({
-    id: 'consent',
-    label: 'Consent wording and language',
-    owner: 'setup',
-    ok: !!i.launch && missing.length === 0,
-    value: missing.length ? `Not approved: ${missing.join(', ')}` : `Approved for ${langs.join(', ')}`,
+    value: !pool ? 'The pool isn’t confirmed' : !targetOk ? 'The number of participants needed isn’t set' : `${nth(pool.members.length, 'participant')}, ${def!.total} needed`,
   })
 
   const fw = i.launch?.setup.fieldwork
@@ -284,7 +253,19 @@ export function entryContract(i: Inputs): Row[] {
     label: 'Fieldwork window',
     owner: 'setup',
     ok: !!fw && fw.end >= fw.start && !!fw.start,
-    value: fw ? (fw.end >= fw.start ? `${fmtDay(fw.start)} to ${fmtDay(fw.end)}` : 'The end date is before the start date') : 'Not set',
+    value: fw ? (fw.end >= fw.start ? `${fmtDay(fw.start)} – ${fmtDay(fw.end)}` : 'The end date is before the start date') : 'Not set',
+  })
+
+  // Only the approval status is shown here, never the wording. The wording is edited in the study setup drawer.
+  const langs = supportedLanguages(g, i.launch)
+  const consent = i.launch?.setup.consent ?? {}
+  const missing = langs.filter((l) => !consent[l]?.approved)
+  rows.push({
+    id: 'consent',
+    label: 'Consent',
+    owner: 'setup',
+    ok: !!i.launch && missing.length === 0,
+    value: missing.length ? `Not approved: ${missing.join(', ')}` : `Approved for ${langs.join(', ')}`,
   })
   return rows
 }

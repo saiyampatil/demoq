@@ -31,7 +31,7 @@ function matchScreen(studyId: string, pathname: string): Screen | undefined {
 
 export function StudyWorkspace() {
   const { studyId = '' } = useParams()
-  const { pathname } = useLocation()
+  const { pathname, search } = useLocation()
   const { getStudy, getAudience, getGuide, getLaunch } = useStudies()
   const study = getStudy(studyId)
   // Every timestamp on every screen in this study is shown in its time zone.
@@ -103,6 +103,8 @@ export function StudyWorkspace() {
   const lockedStep = currentStep ? info.find((s) => s.key === currentStep && s.state === 'locked') : undefined
 
   const { dir, moved } = seen.current
+  // An Edit button on the launch screen sends you here with ?from=launch, so there is a way straight back.
+  const fromLaunch = new URLSearchParams(search).get('from') === 'launch'
   return (
     <div className="flex flex-1 flex-col overflow-x-clip">
       <ScreenerAutomation studyId={study.id} />
@@ -136,6 +138,12 @@ export function StudyWorkspace() {
         <main className="min-w-0 flex-1 overflow-x-clip px-4 py-8 sm:px-8">
           <div className="mx-auto max-w-content">
             {/* Fieldwork and Review use a breadcrumb inside the screen instead of a sub-stepper. */}
+            {fromLaunch && !lockedStep && screen?.step !== 'launch' && (
+              <Link to={studyPath(study.id, screenById.R15)} className="mb-4 inline-flex items-center gap-1 rounded-xs text-sm font-medium text-iris-700 hover:underline">
+                <ChevronLeftIcon size={14} />
+                Back to launch
+              </Link>
+            )}
             {subItems.length > 1 && !lockedStep && currentStep !== 'review' && currentStep !== 'fieldwork' && <SubStepper items={subItems} />}
             <div key={screen?.id ?? pathname} className={moved ? (dir === 'forward' ? 'screen-in-forward' : 'screen-in-back') : undefined}>
               {lockedStep ? <LockedStep step={lockedStep} studyId={study.id} info={info} /> : <Outlet />}
