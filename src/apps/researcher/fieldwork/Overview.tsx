@@ -11,9 +11,10 @@ import { Tooltip } from '@/components/Tooltip'
 import { formatStamp } from '@/lib/format'
 import { screenById, studyPath } from '@/routes/screens'
 import { assignModerator, durationStats, giveUp, HUMAN_MODERATOR_IDS, inviteFromReserve, regionMatrix, regionSkew, rescheduleSession, resendLink, retrySession, targetFill } from '@/state/fieldwork'
-import { ago, funnel, needsYou, verdict, type NeedsRow, type VerdictAction, type VerdictLevel } from '@/state/monitor'
+import { ago, funnel, needsYou, slotLedger, verdict, type NeedsRow, type VerdictAction, type VerdictLevel } from '@/state/monitor'
 import { SessionTag } from '../SessionTag'
 import type { FWProps } from './FieldworkBits'
+import { SlotLedger } from './SlotLedger'
 
 const r19 = (studyId: string, id: string) => studyPath(studyId, { ...screenById.R19, path: screenById.R19.path.replace(':sessionId', id) })
 
@@ -32,6 +33,7 @@ export function Overview(p: FWProps) {
   const skew = regionSkew(regions.totals, regions.total)
   const dur = durationStats(doc)
   const flow = funnel(doc, outcomes)
+  const ledger = slotLedger(doc, target, outcomes)
   const blockedWhy = readOnly ? 'This is sample data. Nothing can be changed.' : paused ? 'Study is paused' : undefined
 
   return (
@@ -49,11 +51,30 @@ export function Overview(p: FWProps) {
             </p>
           )}
           <p className="mt-2 text-xs text-graphite">{v.basis}</p>
+          <SlotLedger ledger={ledger} />
         </div>
         <div className="flex shrink-0 flex-wrap items-start gap-2" aria-label="Verdict actions">
-          {v.actions.map((a) => (
-            <VerdictButton key={a.label} action={a} blockedWhy={blockedWhy} studyId={studyId} goTab={p.goTab} onInvite={(n) => update((d) => inviteFromReserve(d, me, reserve.slice(0, n)))} />
-          ))}
+          {v.level === 'At risk' ? (
+            <>
+              {/* The reserve first: those people are already screened. Sourcing is for when it isn't enough. */}
+              <Button variant="primary" onClick={() => p.goTab('reserve')}>
+                Open the reserve
+              </Button>
+              {blockedWhy ? (
+                <Tooltip content={blockedWhy} focusable>
+                  <Button variant="secondary" disabled>
+                    Source more
+                  </Button>
+                </Tooltip>
+              ) : (
+                <Button variant="secondary" to={studyPath(studyId, screenById.R8)}>
+                  Source more
+                </Button>
+              )}
+            </>
+          ) : (
+            v.actions.map((a) => <VerdictButton key={a.label} action={a} blockedWhy={blockedWhy} studyId={studyId} goTab={p.goTab} onInvite={(n) => update((d) => inviteFromReserve(d, me, reserve.slice(0, n)))} />)
+          )}
         </div>
       </section>
 
@@ -68,22 +89,9 @@ export function Overview(p: FWProps) {
 
       <Card title="Participant funnel" description="Every invited participant is counted once, at the furthest stage they reached.">
         <div className="flex flex-col gap-5">
-          {v.gap.gap > 0 && (
-            <div id="coverage" role="alert" className="scroll-mt-24 rounded-md border border-negative-line bg-negative-bg px-4 py-3 text-negative-fg">
-              <p className="flex items-center gap-2 font-medium">
-                <AlertIcon /> Only {v.gap.ceiling} of {target} can finish. {v.gap.gap} more {v.gap.gap === 1 ? 'person is' : 'people are'} needed.
-              </p>
-              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-ink">
-                <span className="min-w-0 flex-1 basis-72 tabular-nums">
-                  Target {target}: {v.gap.counting} counting, {v.gap.running} still open{v.gap.noShowHeld ? `, ${v.gap.noShowHeld} no-show holding a slot` : ''}, {v.gap.reserve} in reserve (not invited).
-                </span>
-                <Button size="sm" onClick={() => p.goTab('reserve')}>
-                  Open the reserve
-                </Button>
-              </div>
-              <p className="mt-2 text-xs text-graphite tabular-nums">Invited {flow.total} for a target of {target}. You can’t finish without more people.</p>
-            </div>
-          )}
+          <p data-testid="funnel-summary" className="text-sm text-graphite tabular-nums">
+            Target {target}: {v.gap.counting} counting, {v.gap.running} still open{v.gap.noShowHeld ? `, ${v.gap.noShowHeld} no-${v.gap.noShowHeld === 1 ? 'show' : 'shows'} holding a slot` : ''}, {v.gap.reserve} in reserve
+          </p>
           <ol className="flex flex-col gap-3" aria-label="Funnel stages">
             {flow.stages.map((st) => (
               <li key={st.key} className="grid items-center gap-x-4 gap-y-1 sm:grid-cols-[7rem_minmax(0,1fr)_3rem]">

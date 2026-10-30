@@ -13,7 +13,7 @@ import type { FWProps } from './FieldworkBits'
 const yes = (b: boolean) => (b ? 'Yes' : 'No')
 const stateOf = (s: Session) => (s.consent?.withdrawn ? 'Withdrawn' : s.consent ? 'On record' : 'Not yet')
 
-export function ConsentTab({ doc, studyId }: FWProps) {
+export function ConsentTab({ doc, studyId, onBack }: FWProps & { onBack: () => void }) {
   const [filter, setFilter] = useState('')
   const sum = consentSummary(doc)
   // Consent is given once per participant, in their first session.
@@ -36,6 +36,12 @@ export function ConsentTab({ doc, studyId }: FWProps) {
 
   return (
     <div className="flex flex-col gap-6">
+      <div>
+        <Button size="sm" variant="ghost" onClick={onBack}>
+          Back to sessions
+        </Button>
+      </div>
+
       <section aria-label="Consent summary" className="grid grid-cols-2 gap-4 rounded-md border border-mist bg-surface p-5 sm:grid-cols-4">
         {(
           [

@@ -20,7 +20,7 @@ import { SessionsTab } from './SessionsTab'
 import { SampleDataBanner } from '../SampleDataBanner'
 import { useStudySessions } from '../useStudySessions'
 
-const TABS = ['overview', 'sessions', 'reserve', 'issues', 'consent'] as const
+const TABS = ['overview', 'sessions', 'reserve', 'issues'] as const
 type Tab = (typeof TABS)[number]
 
 export function CommandCenter() {
@@ -31,7 +31,10 @@ export function CommandCenter() {
 
   if (!editable || !study || !doc) return <FieldworkGate studyId={studyId} editable={editable} />
 
-  const tab: Tab = (TABS as readonly string[]).includes(params.get('tab') ?? '') ? (params.get('tab') as Tab) : 'overview'
+  // The consent log used to be a tab. It is a view inside Sessions now; an old ?tab=consent link lands there.
+  const legacyConsent = params.get('tab') === 'consent'
+  const tab: Tab = legacyConsent ? 'sessions' : (TABS as readonly string[]).includes(params.get('tab') ?? '') ? (params.get('tab') as Tab) : 'overview'
+  const consentView = tab === 'sessions' && (legacyConsent || params.get('view') === 'consent')
   const goTab = (t: string) => setParams(t === 'overview' ? {} : { tab: t })
   const prog = progress(doc, outcomes)
   const awaiting = review.filter((r) => r.status === 'Under review').length
@@ -48,7 +51,6 @@ export function CommandCenter() {
     sessions: { label: 'Sessions', badge: String(doc.sessions.length) },
     reserve: { label: 'Reserve', badge: reserve.length ? String(reserve.length) : undefined },
     issues: { label: 'Issues', badge: issues.open ? String(issues.open) : undefined, alert: issues.blocking > 0 },
-    consent: { label: 'Consent log', badge: consent.withdrawn ? `${consent.withdrawn} withdrawn` : undefined },
   }
 
   return (
@@ -112,10 +114,9 @@ export function CommandCenter() {
 
       <div id="fw-panel" role="tabpanel" aria-labelledby={`tab-${tab}`}>
         {tab === 'overview' && <Overview {...props} />}
-        {tab === 'sessions' && <SessionsTab {...props} />}
+        {tab === 'sessions' && (consentView ? <ConsentTab {...props} onBack={() => setParams({ tab: 'sessions' })} /> : <SessionsTab {...props} withdrawn={consent.withdrawn} onOpenConsent={() => setParams({ tab: 'sessions', view: 'consent' })} />)}
         {tab === 'reserve' && <ReserveTab {...props} />}
         {tab === 'issues' && <IssuesTab {...props} />}
-        {tab === 'consent' && <ConsentTab {...props} />}
       </div>
 
       {/* Fieldwork and Review run in parallel, so there is no "continue": just a way across. */}

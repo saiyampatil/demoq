@@ -1,15 +1,13 @@
 import { useState } from 'react'
-import { Banner } from '@/components/Banner'
 import { Button } from '@/components/Button'
 import { Card } from '@/components/Card'
 import { cn } from '@/components/cn'
 import { EmptyState } from '@/components/States'
 import { Tooltip } from '@/components/Tooltip'
-import { formatDate, formatStamp } from '@/lib/format'
-import { screenById, studyPath } from '@/routes/screens'
+import { formatStamp } from '@/lib/format'
 import { inviteFromReserve } from '@/state/fieldwork'
 import type { ReserveCandidate } from '@/state/fieldwork'
-import { reserveRows, shortfall, slotLedger, type ReserveRow, type ReserveStatus, type SlotState } from '@/state/monitor'
+import { reserveRows, shortfall, type ReserveRow, type ReserveStatus } from '@/state/monitor'
 import type { FWProps } from './FieldworkBits'
 
 const TONE: Record<ReserveStatus, string> = {
@@ -20,21 +18,12 @@ const TONE: Record<ReserveStatus, string> = {
   'Re-screen needed': 'border-negative-line bg-negative-bg text-negative-fg',
 }
 
-const SLOT: Record<SlotState, { cls: string; word: string }> = {
-  counting: { cls: 'bg-ink', word: 'Counting interview' },
-  running: { cls: 'hatched border border-ink', word: 'Held by someone who can still finish' },
-  noShow: { cls: 'border-2 border-pending-fg bg-pending-bg', word: 'Held by a no-show until the window closes' },
-  open: { cls: 'border-2 border-dashed border-negative-fg bg-surface', word: 'Open' },
-}
-
 /**
- * The reserve (everyone who passed screening and isn't in an interview), first in first out, and the slot ledger that says
- * how many slots are open for them. Reserve people only get here through screening, and only enter an interview when invited.
+ * The reserve: everyone who passed screening and isn't in an interview, first in first out. Reserve people only get here through screening, and only enter an interview when invited.
  */
-export function ReserveTab({ doc, audience, studyId, target, outcomes, reserve, paused, readOnly, update, me }: FWProps) {
+export function ReserveTab({ doc, audience, target, outcomes, reserve, paused, readOnly, update, me }: FWProps) {
   const rows = reserveRows(doc, audience)
   const gap = shortfall(doc, target, outcomes, reserve)
-  const ledger = slotLedger(doc, target, outcomes)
   const rescreen = rows.filter((r) => r.label === 'Re-screen needed').length
   const [notice, setNotice] = useState<string>()
   const why = readOnly ? 'This is sample data. Nothing can be changed.' : paused ? 'Study is paused' : undefined
@@ -48,68 +37,15 @@ export function ReserveTab({ doc, audience, studyId, target, outcomes, reserve, 
 
   return (
     <div className="flex flex-col gap-6">
-      <Banner
-        tone={gap.gap > 0 ? 'warning' : 'info'}
-        title={gap.gap > 0 ? `${gap.gap} more ${gap.gap === 1 ? 'person is' : 'people are'} needed. The reserve has ${reserve.length}.` : `The target is covered. The reserve has ${reserve.length}.`}
-        actions={
-          why ? (
-            <Tooltip content={why} focusable>
-              <Button size="sm" disabled>
-                Source more
-              </Button>
-            </Tooltip>
-          ) : (
-            <Button size="sm" to={studyPath(studyId, screenById.R8)}>
-              Source more
-            </Button>
-          )
-        }
-      >
-        The reserve is everyone who passed screening and isn’t in an interview. Eligible applicants beyond the target land here, and so does anyone screened after launch. They only enter an interview when you invite them.
-        {rescreen > 0 && ` ${rescreen} ${rescreen === 1 ? 'person was' : 'people were'} screened under an older version of the audience and need re-screening before they can be invited.`}
-      </Banner>
-
       {notice && (
         <p role="status" className="rounded-sm border border-positive-line bg-positive-bg px-4 py-2 text-sm text-positive-fg">
           {notice}
         </p>
       )}
 
-      <Card title="Slot ledger" description={`The target is ${ledger.target} slots. Each is held or open. A slot opens only when someone is excluded, withdraws, is a no-show after the window closes, or you give up on them.`}>
-        <div className="flex flex-col gap-4">
-          <ol aria-label="Slots" data-testid="slots" className="flex flex-wrap gap-1.5">
-            {ledger.slots.map((st, i) => (
-              <li key={i} title={`Slot ${i + 1}: ${SLOT[st].word}`} aria-label={`Slot ${i + 1}: ${SLOT[st].word}`} className={cn('size-5 rounded-xs', SLOT[st].cls)} />
-            ))}
-          </ol>
-          <ul className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-graphite tabular-nums" data-testid="slot-legend">
-            <li>{ledger.counting} counting ({ledger.confirmed} accepted, {ledger.pending} under review)</li>
-            <li>{ledger.running} held by people who can still finish</li>
-            {ledger.noShowHeld > 0 && <li>{ledger.noShowHeld} held by no-shows until {ledger.windowEnd ? formatDate(`${ledger.windowEnd}T12:00:00-05:00`) : 'the window closes'}</li>}
-            <li className={cn(ledger.open > 0 && 'font-medium text-negative-fg')}>{ledger.open} open</li>
-          </ul>
-          {ledger.released.length > 0 && (
-            <div>
-              <p className="mb-1 text-sm font-medium">Slots that opened</p>
-              <ul className="flex flex-col gap-0.5 text-sm text-graphite">
-                {ledger.released.map((r) => (
-                  <li key={r.participantId + r.why}>
-                    <span className="font-medium text-ink tabular-nums">{r.participantId}</span>: {r.why}
-                    {r.detail ? `. ${r.detail}` : ''}
-                  </li>
-                ))}
-              </ul>
-              {ledger.over > 0 || ledger.released.length > ledger.open ? (
-                <p className="mt-1 text-xs text-graphite">The study invited more people than it has slots (the over-recruitment buffer), so fewer slots are open than have opened.</p>
-              ) : null}
-            </div>
-          )}
-        </div>
-      </Card>
-
       <Card
         title="Reserve"
-        description="First in, first out by when they were screened. Invite the next ones in order, or pick anyone who is available."
+        description={`First in, first out by when they were screened. Invite the next ones in order, or pick anyone who is available.${rescreen > 0 ? ` ${rescreen} ${rescreen === 1 ? 'person was' : 'people were'} screened under an older version of the audience and need re-screening before they can be invited.` : ''}`}
         flush
         actions={
           why ? (
