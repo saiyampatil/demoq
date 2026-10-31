@@ -1,11 +1,12 @@
 import { cn } from '@/components/cn'
 import { formatDate } from '@/lib/format'
-import type { Ledger, SlotState } from '@/state/monitor'
+import type { Ledger, SlotState } from '@/state/selectors'
 
 const SLOT: Record<SlotState, { cls: string; word: string }> = {
-  counting: { cls: 'bg-ink', word: 'Counting interview' },
-  running: { cls: 'hatched border border-ink', word: 'Held by someone who can still finish' },
-  noShow: { cls: 'border-2 border-pending-fg bg-pending-bg', word: 'Held by a no-show until the window closes' },
+  accepted: { cls: 'bg-positive-fg', word: 'Accepted' },
+  review: { cls: 'bg-pending-fg', word: 'Under review' },
+  running: { cls: 'border-2 border-graphite bg-surface', word: 'Held by someone who can still finish' },
+  noShow: { cls: 'border-2 border-graphite bg-surface', word: 'Held by a no-show until the window closes' },
   open: { cls: 'border-2 border-dashed border-negative-fg bg-surface', word: 'Open' },
 }
 
@@ -15,6 +16,8 @@ const SLOT: Record<SlotState, { cls: string; word: string }> = {
  * window closes, or the Researcher gives up on them.
  */
 export function SlotLedger({ ledger }: { ledger: Ledger }) {
+  // Slots that opened but are not open now: the invitations beyond the target (the over-recruitment buffer) cover them.
+  const absorbed = Math.max(0, ledger.released.length - ledger.open)
   return (
     <div className="mt-3 flex flex-col gap-2" aria-label="Slot ledger">
       <ol aria-label="Slots" data-testid="slots" className="flex flex-wrap gap-1.5">
@@ -30,7 +33,10 @@ export function SlotLedger({ ledger }: { ledger: Ledger }) {
       </ul>
       {ledger.released.length > 0 && (
         <div data-testid="slots-opened">
-          <p className="text-xs font-medium text-ink">Slots that opened</p>
+          <p className="text-xs font-medium text-ink tabular-nums" data-testid="slots-summary">
+            {ledger.released.length} {ledger.released.length === 1 ? 'slot' : 'slots'} opened
+            {absorbed > 0 && `, ${absorbed} absorbed by the over-recruitment buffer`}, {ledger.open} open.
+          </p>
           <ul className="mt-0.5 flex flex-col gap-0.5 text-xs text-graphite">
             {ledger.released.map((r) => (
               <li key={r.participantId + r.why}>
@@ -39,7 +45,7 @@ export function SlotLedger({ ledger }: { ledger: Ledger }) {
               </li>
             ))}
           </ul>
-          {(ledger.over > 0 || ledger.released.length > ledger.open) && <p className="mt-1 text-xs text-graphite">The study invited more people than it has slots (the over-recruitment buffer), so fewer slots are open than have opened.</p>}
+          {absorbed > 0 && <p className="mt-1 text-xs text-graphite">The study invited more people than it has slots, so some of the slots that opened were already covered.</p>}
         </div>
       )}
     </div>

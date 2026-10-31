@@ -1,3 +1,4 @@
+import { outcomesOf, progress } from '@/state/selectors'
 import { setStudyTimeZone } from '@/lib/timeZone'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router'
@@ -13,10 +14,9 @@ import { Table, type Column } from '@/components/Table'
 import { formatDate } from '@/lib/format'
 import type { ClientReviewSummary, StudyRecord } from '@/mock/types'
 import { screenById, steps, studyPath } from '@/routes/screens'
-import { progress } from '@/state/fieldwork'
 import { useStudies } from '@/state/StudyContext'
 import { useReviewState } from '@/state/reviewState'
-import { outcomesOf, reviewList } from '@/state/studySessions'
+import { reviewList } from '@/state/studySessions'
 import { landingStep } from '@/state/workflow'
 import { ScreenTag } from '../shared/ScreenTag'
 
@@ -85,7 +85,8 @@ const makeColumns = (progressOf: (s: StudyRecord) => StudyProgress | undefined):
             </>
           ) : (
             <>
-              {s.completedSessions} <span className="text-graphite">of {s.targetCompletes}</span>
+              {s.completedSessions} <span className="text-graphite">of {s.targetCompletes}</span>{' '}
+              <span className="rounded-xs bg-haze px-1.5 py-0.5 text-xs text-graphite">Sample figure</span>
             </>
           )}
         </span>

@@ -1,13 +1,20 @@
-// What R18 tells the Researcher: am I on track, and what needs me. Everything here is computed from the
-// study's session list (state/fieldwork.ts), so every number on the screen comes from the same place.
+// The one place every derived number comes from: what R18 tells the Researcher (am I on track, what needs me),
+// what R21 and the stepper count, and what R24 records. All of it is computed from the study's session list
+// (state/fieldwork.ts) and the review records on it, so no screen counts for itself and two screens cannot disagree.
+//
+// The counted session of a participant is their latest session that is Completed. A participant counts once,
+// however many sessions they have. Validation (Under review, Accepted, Excluded) belongs to a Completed session
+// only: it is Under review the moment the session completes, and only a Researcher's decision changes it.
 
 import { formatDate } from '@/lib/format'
 import type { AudienceDoc } from './audience'
+import type { ReviewSession, ReviewStatus } from '@/mock/review'
 import {
   FIELDWORK_NOW,
-  pacing,
+  ISSUE_META,
+  ISSUE_TYPES,
+  REGIONS,
   participantsOf,
-  progress,
   type FieldworkDoc,
   type Outcomes,
   type Participant,
@@ -18,6 +25,57 @@ import {
 import { mockApplicants, regionOf } from './screening'
 
 const HOUR = 3600000
+
+// ─── counted sessions and validation ────────────────────────────────────────
+
+/** The participant's latest Completed session: the one that counts. */
+export const countedSessionOf = (p: Participant): Session | undefined => [...p.sessions].reverse().find((x) => x.status === 'Completed')
+
+/** One session per participant who has completed: the interviews that are in Review and toward the target. */
+export const countedSessions = (doc: FieldworkDoc): Session[] => participantsOf(doc).flatMap((p) => countedSessionOf(p) ?? [])
+
+/** Where a Completed session stands in validation. Review decisions come in through `outcomes`; with none it is Under review. */
+export const outcomeOf = (outcomes: Outcomes, s: Session): ReviewStatus => outcomes.get(s.id) ?? s.validationStatus ?? 'Under review'
+
+/** null until the session is Completed. */
+export const validationOf = (outcomes: Outcomes, s: Session): ReviewStatus | null => (s.status === 'Completed' ? outcomeOf(outcomes, s) : null)
+
+/** Review outcomes by session, from the review records. */
+export const outcomesOf = (review: ReviewSession[]): Outcomes => new Map(review.map((r) => [r.id, r.status]))
+
+/** The counted sessions that are not Excluded: they hold a slot and count toward the target. */
+export const towardSessions = (doc: FieldworkDoc, outcomes: Outcomes): Session[] => countedSessions(doc).filter((x) => outcomeOf(outcomes, x) !== 'Excluded')
+
+/** The status words from the brief, merging the access and session tracks into one fieldwork status. */
+export type FieldworkStatus = 'Invited' | 'Booked' | 'Not started' | 'In progress' | 'Completed' | 'Incomplete' | 'Rescheduled' | 'Withdrawn' | 'Technical error' | 'No-show'
+export function fieldworkStatus(s: Session): FieldworkStatus {
+  switch (s.status) {
+    case 'Completed': return 'Completed'
+    case 'Active':
+    case 'Paused': return 'In progress'
+    case 'Incomplete (resumable)': return 'Incomplete'
+    case 'Technical Error': return 'Technical error'
+    case 'Withdrawn': return 'Withdrawn'
+    case 'Rescheduled': return 'Rescheduled'
+    case 'Booked': return 'Booked'
+    default: return s.access === 'No-show' ? 'No-show' : s.access === 'Invited' || s.access === 'Opened' ? 'Invited' : 'Not started'
+  }
+}
+
+/** What the Review queue, the stepper and R24 count. `total` is the Completed interviews and is the funnel's Completed. */
+export function reviewCounts(review: ReviewSession[]) {
+  const n = (st: ReviewStatus) => review.filter((x) => x.status === st).length
+  return {
+    total: review.length,
+    underReview: n('Under review'),
+    waiting: review.filter((x) => x.status === 'Under review' && x.awaiting).length,
+    accepted: n('Accepted'),
+    excluded: n('Excluded'),
+  }
+}
+
+/** Sessions and people are different numbers: a participant who came back has two sessions. */
+export const sessionTotals = (doc: FieldworkDoc) => ({ sessions: doc.sessions.length, participants: participantsOf(doc).length })
 
 /** "12 min ago", "5 h ago", "3 days ago", on the fieldwork clock. */
 export function ago(iso: string): string {
@@ -97,7 +155,7 @@ export type Bucket = 'completed' | 'withdrew' | 'noShow' | 'gaveUp' | 'inProgres
 
 export function bucketOf(p: Participant): Bucket {
   const started = p.sessions.some((s) => s.startedAt)
-  if (p.latest.status === 'Completed') return 'completed'
+  if (countedSessionOf(p)) return 'completed'
   if (p.latest.gaveUp) return 'gaveUp'
   if (p.latest.status === 'Withdrawn') return 'withdrew'
   // A human-led participant who missed a slot is rescheduled, not gone.
@@ -277,7 +335,8 @@ export function funnel(doc: FieldworkDoc, outcomes: Outcomes) {
 
 // ─── The slot ledger and the gap to the target ──────────────────────────────
 
-export type SlotState = 'counting' | 'running' | 'noShow' | 'open'
+/** Accepted is green, Under review amber, running and noShow white (held by someone who can still finish), open a dashed red gap. */
+export type SlotState = 'accepted' | 'review' | 'running' | 'noShow' | 'open'
 
 export type SlotRelease = { participantId: string; why: 'Excluded' | 'Withdrew' | 'No-show, window closed' | 'Given up'; detail?: string }
 
@@ -326,12 +385,13 @@ export function slotLedger(doc: FieldworkDoc, target: number, outcomes: Outcomes
   ]
   const at = (k: number, from: number) => Math.max(0, Math.min(k, target - from))
   const c = at(prog.toward, 0)
+  const acc = Math.min(c, prog.confirmed)
   const r = at(running, c)
   const h = at(noShowHeld, c + r)
   const open = Math.max(0, target - held)
   return {
     target,
-    slots: [...Array(c).fill('counting'), ...Array(r).fill('running'), ...Array(h).fill('noShow'), ...Array(open).fill('open')] as SlotState[],
+    slots: [...Array(acc).fill('accepted'), ...Array(c - acc).fill('review'), ...Array(r).fill('running'), ...Array(h).fill('noShow'), ...Array(open).fill('open')] as SlotState[],
     counting: prog.toward,
     confirmed: prog.confirmed,
     pending: prog.pending,
@@ -450,3 +510,108 @@ export function verdict(doc: FieldworkDoc, target: number, outcomes: Outcomes, r
     figures,
   }
 }
+
+// ─── progress: confirmed and pending ────────────────────────────────────────
+
+/** Two numbers wherever progress appears: confirmed (Accepted) and pending (Under review). Excluded are removed. */
+export function progress(doc: FieldworkDoc, outcomes: Outcomes) {
+  const done = countedSessions(doc)
+  const n = (st: ReviewStatus) => done.filter((x) => outcomeOf(outcomes, x) === st).length
+  const confirmed = n('Accepted')
+  const pending = n('Under review')
+  return { completed: done.length, confirmed, pending, excluded: n('Excluded'), toward: confirmed + pending }
+}
+
+/** The study's one target, with who counts toward it. */
+export function targetFill(doc: FieldworkDoc, audience: AudienceDoc | undefined, outcomes: Outcomes) {
+  const prog = progress(doc, outcomes)
+  return {
+    name: audience?.def?.cohort.name ?? 'Participants',
+    target: audience?.def?.total ?? 0,
+    accepted: prog.confirmed,
+    pending: prog.pending,
+    excluded: prog.excluded,
+    /** Toward the target: accepted plus pending. */
+    completed: prog.toward,
+    inProgress: doc.sessions.filter((x) => x.status === 'Active').length,
+    reserve: doc.sessions.filter((x) => x.reserve).length,
+  }
+}
+
+
+const avg = (xs: number[]) => (xs.length ? Math.round((xs.reduce((a, b) => a + b, 0) / xs.length) * 10) / 10 : null)
+
+export function durationStats(doc: FieldworkDoc) {
+  const done = doc.sessions.filter((x) => x.status === 'Completed' && x.durationMin !== null)
+  const d = done.map((x) => x.durationMin as number).sort((a, b) => a - b)
+  const target = doc.plan.durationMin
+  return {
+    n: d.length,
+    target,
+    avg: avg(d),
+    median: d.length ? d[Math.floor(d.length / 2)] : null,
+    min: d[0] ?? null,
+    max: d[d.length - 1] ?? null,
+    over: d.filter((x) => x > target).length,
+    partial: doc.sessions.filter((x) => x.status === 'Incomplete (resumable)' || x.status === 'Withdrawn' || x.status === 'Technical Error').length,
+  }
+}
+
+/** Pace against the fieldwork window, on the prototype clock. */
+export function pacing(doc: FieldworkDoc, target: number, outcomes: Outcomes) {
+  const w = doc.window
+  const completed = towardSessions(doc, outcomes).length
+  if (!w) return { completed, target, days: 0, day: 0, expected: 0, projected: completed, left: 0 }
+  const day0 = new Date(`${w.start}T00:00:00-05:00`).getTime()
+  const end = new Date(`${w.end}T23:59:59-05:00`).getTime()
+  const days = Math.round((end - day0) / 86400000)
+  const day = Math.min(days, Math.max(1, Math.ceil((new Date(FIELDWORK_NOW).getTime() - day0) / 86400000)))
+  const expected = Math.round((target * day) / days)
+  const projected = Math.round((completed / day) * days)
+  return { completed, target, days, day, expected, projected, left: days - day }
+}
+
+export function regionMatrix(doc: FieldworkDoc, outcomes: Outcomes) {
+  const done = towardSessions(doc, outcomes)
+  const totals = Object.fromEntries(REGIONS.map((r) => [r, done.filter((x) => x.region === r).length])) as Record<Region, number>
+  return { totals, total: done.length, unplaced: done.filter((x) => !x.region).length }
+}
+
+/**
+ * Says so only when the regions are skewed: with at least six interviews counted, one region holds more than half
+ * of them, or (with ten or more) a region has none. Otherwise there is nothing to alert on.
+ */
+export function regionSkew(totals: Record<Region, number>, total: number): string | undefined {
+  if (total < 6) return undefined
+  const top = REGIONS.reduce((a, r) => (totals[r] > totals[a] ? r : a), REGIONS[0])
+  if (totals[top] / total > 0.5) return `${top} holds ${totals[top]} of the ${total} interviews counted (${Math.round((totals[top] / total) * 100)}%). Recruit more from the other regions if the client needs a spread.`
+  const empty = REGIONS.filter((r) => totals[r] === 0)
+  if (total >= 10 && empty.length) return `No interviews counted from ${empty.join(' or ')} yet, out of ${total}.`
+  return undefined
+}
+
+export function issueSummary(doc: FieldworkDoc) {
+  const all = doc.sessions.flatMap((s) => s.issues.map((i) => ({ ...i, sessionId: s.id, participantId: s.participantId, no: s.no, ref: s.ref })))
+  return {
+    all,
+    open: all.filter((x) => x.status === 'Open').length,
+    blocking: all.filter((x) => x.status === 'Open' && x.severity === 'Blocking').length,
+    resolved: all.filter((x) => x.status === 'Resolved').length,
+    sessions: new Set(all.map((x) => x.sessionId)).size,
+    byType: ISSUE_TYPES.map((t) => {
+      const xs = all.filter((x) => x.type === t)
+      return { type: t, ...ISSUE_META[t], count: xs.length, open: xs.filter((x) => x.status === 'Open').length, sessions: [...new Set(xs.map((x) => x.sessionId))] }
+    }),
+  }
+}
+
+/** Consent is given once per participant, in their first session; later sessions reuse it. */
+export function consentSummary(doc: FieldworkDoc) {
+  const ps = participantsOf(doc)
+  const given = ps.filter((p) => p.first.consent && !p.first.consent.withdrawn)
+  const withdrawn = ps.filter((p) => p.first.consent?.withdrawn)
+  const pending = ps.filter((p) => !p.first.consent)
+  const recontact = given.filter((p) => p.first.consent!.recontact).length
+  return { given: given.length, withdrawn: withdrawn.length, pending: pending.length, recontact, recontactPct: given.length ? Math.round((recontact / given.length) * 100) : 0, total: ps.length }
+}
+

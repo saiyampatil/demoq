@@ -15,7 +15,9 @@ import { readiness } from '@/state/launch'
 import { useStudies } from '@/state/StudyContext'
 import { setStudyTimeZone } from '@/lib/timeZone'
 import { useReviewState } from '@/state/reviewState'
-import { awaitingReview } from '@/state/studySessions'
+import { reviewList } from '@/state/studySessions'
+import { reviewCounts } from '@/state/selectors'
+import { checkInvariants } from '@/state/invariants'
 import { landingStep, stepInfo, type StepInfo } from '@/state/workflow'
 import { useSessionsDoc } from './useStudySessions'
 
@@ -44,6 +46,16 @@ export function StudyWorkspace() {
   const seen = useRef({ idx: screenIdx, dir: 'forward' as 'forward' | 'back', moved: false })
   if (seen.current.idx !== screenIdx) seen.current = { idx: screenIdx, dir: screenIdx > seen.current.idx ? 'forward' : 'back', moved: true }
 
+  // Dev only: check that every number on every screen agrees, and log each place they don't.
+  const target = study ? (getAudience(study.id)?.def?.total ?? study.targetCompletes) : 0
+  useEffect(() => {
+    if (!import.meta.env.DEV || !sessionsDoc) return
+    const review = reviewList(sessionsDoc, reviewState)
+    const bad = checkInvariants(sessionsDoc, review, target, reviewCounts(review).underReview)
+    ;(window as unknown as { __invariants: string[] }).__invariants = bad
+    bad.forEach((v) => console.error(`[invariant] ${v}`))
+  }, [sessionsDoc, reviewState, target])
+
   if (!study) {
     return (
       <main className="mx-auto w-full max-w-content px-6 py-10">
@@ -60,7 +72,7 @@ export function StudyWorkspace() {
     )
   }
 
-  const info = stepInfo(study, { awaitingReview: awaitingReview(sessionsDoc, reviewState) })
+  const info = stepInfo(study, { awaitingReview: sessionsDoc ? reviewCounts(reviewList(sessionsDoc, reviewState)).underReview : null })
   const screen = matchScreen(study.id, pathname)
   const currentStep = screen?.step
   const stepperSteps: StepperStep[] = info.map((s) => {

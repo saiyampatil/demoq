@@ -141,8 +141,8 @@ export function SessionDetails({ session, history }: { session: ReviewSession; h
     ['Completed', formatStamp(session.completedAt)],
     ['Duration', `${session.durationMin} min`],
     ['Transcript', `${session.turnCount.toLocaleString('en-US')} turns${session.reviewed ? `, reviewed copy v${session.reviewed.version} available` : ''}`],
-    ['Participant integrity', `${session.integrity}, ${scoreBand(session.integrity).toLowerCase()}`],
-    ['Interview quality', `${session.quality}, ${scoreBand(session.quality).toLowerCase()}`],
+    ['Participant integrity', session.scored ? `${session.integrity}, ${scoreBand(session.integrity).toLowerCase()}` : 'Not scored yet'],
+    ['Interview quality', session.scored ? `${session.quality}, ${scoreBand(session.quality).toLowerCase()}` : 'Not scored yet'],
     ['Flags', `${session.flags.length}`],
   ]
   return (

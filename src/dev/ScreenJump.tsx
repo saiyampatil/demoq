@@ -7,6 +7,8 @@ import { mockTestRuns, type MockRuns } from '@/mock/launch'
 import { MOISTURIZER_ID, stagePresets } from '@/mock/moisturizerStudy'
 import { appLabel, screenHref, screens, type AppKey } from '@/routes/screens'
 import { evidenceMockLabel, setEvidenceMock, useEvidenceMock, type EvidenceMock } from '@/state/evidence'
+import { addReviewEvent, useReviewState } from '@/state/reviewState'
+import { reviewList } from '@/state/studySessions'
 import { featureInfo, useFeatures, type FeatureKey } from '@/state/features'
 import { useStudies } from '@/state/StudyContext'
 
@@ -18,7 +20,7 @@ export function ScreenJump() {
   const [query, setQuery] = useState('')
   const { pathname, search } = useLocation()
   const navigate = useNavigate()
-  const { stage, setStage, resetSeed, getStudy, getAudience, getGuide, getLaunch, updateLaunch } = useStudies()
+  const { stage, setStage, resetSeed, getStudy, getAudience, getGuide, getLaunch, updateLaunch, getFieldwork } = useStudies()
   const mockRuns = (kind: MockRuns) => {
     const study = getStudy(MOISTURIZER_ID)
     const change = study && mockTestRuns(kind, { study, audience: getAudience(MOISTURIZER_ID), guide: getGuide(MOISTURIZER_ID), launch: getLaunch(MOISTURIZER_ID) })
@@ -26,6 +28,13 @@ export function ScreenJump() {
   }
   const { flags, setFlag } = useFeatures()
   const evidenceMock = useEvidenceMock()
+  const reviewState = useReviewState()
+  const demoDecide = () => {
+    const doc = getFieldwork(MOISTURIZER_ID)
+    reviewList(doc, reviewState)
+      .filter((r) => r.status === 'Under review')
+      .forEach((r) => addReviewEvent(r.id, { type: 'decision', outcome: 'Accepted', note: 'Dev demo decision.', by: 'Dev demo' }, r.completedAt))
+  }
 
   useEffect(() => {
     if (!open) return
@@ -77,7 +86,7 @@ export function ScreenJump() {
           <div className="flex-1 overflow-y-auto">
             <section className="border-b border-mist px-4 py-3">
               <h3 className="text-sm font-semibold">Evidence (mock)</h3>
-              <p className="text-xs text-graphite">Mock sessions on the Evidence screen. “Live” reads the real review records.</p>
+              <p className="text-xs text-graphite">How the Evidence screen shows artifacts and scores. It never invents a decision. “Live” reads the real review records.</p>
               <div className="mt-2 flex flex-wrap gap-2">
                 {(Object.keys(evidenceMockLabel) as EvidenceMock[]).map((m) => (
                   <Button key={m} size="sm" variant={evidenceMock === m ? 'primary' : 'secondary'} onClick={() => setEvidenceMock(m)}>
@@ -85,6 +94,10 @@ export function ScreenJump() {
                   </Button>
                 ))}
               </div>
+              <p className="mt-3 text-xs text-graphite">Records a real decision (Accepted, by “Dev demo”) on every session still Under review. Reset the study stage to undo.</p>
+              <Button size="sm" className="mt-2" onClick={demoDecide}>
+                Dev demo: decide every session
+              </Button>
             </section>
 
             <section className="border-b border-mist px-4 py-3">

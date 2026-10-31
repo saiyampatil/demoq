@@ -7,7 +7,8 @@ import { controlBase } from '@/components/Field'
 import { StatusChip } from '@/components/StatusChip'
 import { formatStamp } from '@/lib/format'
 import { screenById, studyPath } from '@/routes/screens'
-import { consentSummary, participantsOf, type Session } from '@/state/fieldwork'
+import { participantsOf, type Session } from '@/state/fieldwork'
+import { consentSummary } from '@/state/selectors'
 import type { FWProps } from './FieldworkBits'
 
 const yes = (b: boolean) => (b ? 'Yes' : 'No')

@@ -8,8 +8,9 @@ import { EmptyState, LoadingState } from '@/components/States'
 import { StatusChip } from '@/components/StatusChip'
 import { WizardFooter } from '@/components/WizardFooter'
 import { Tooltip } from '@/components/Tooltip'
-import { FLAG_TRACKS, FLAG_TYPES, MODERATOR_TYPES, reviewSummary, scoreBand, trackLabel, type FlagSeverity, type ReviewFlag, type ReviewSession, type ReviewStatus, type ScoreBand } from '@/mock/review'
+import { FLAG_TRACKS, FLAG_TYPES, MODERATOR_TYPES, scoreBand, trackLabel, type FlagSeverity, type ReviewFlag, type ReviewSession, type ScoreBand } from '@/mock/review'
 import { screenById, studyPath } from '@/routes/screens'
+import { reviewCounts } from '@/state/selectors'
 import { loadQueue, NO_FILTERS, queueOrder, saveQueue, type QueueFilters } from '@/state/reviewQueue'
 import { formatClock, formatDay } from '@/lib/format'
 import { PageHeader } from '../../shared/PageHeader'
@@ -25,9 +26,9 @@ const dayText = formatDay
 const clockText = formatClock
 
 export function ReviewQueue() {
-  const { studyId, review, preview } = useStudySessions()
+  const { studyId, review, preview, doc } = useStudySessions()
   const [params] = useSearchParams()
-  // ?demo=loading|empty|reviewed shows the other queue states.
+  // ?demo=loading|empty shows the other queue states.
   const demo = params.get('demo')
   const [loaded, setLoaded] = useState(false)
   // Filters survive a trip into a session and back (and are what Previous and Next follow there).
@@ -47,7 +48,7 @@ export function ReviewQueue() {
 
   const all: ReviewSession[] = useMemo(() => {
     if (demo === 'empty') return []
-    return demo === 'reviewed' ? review.map((s) => (s.status === 'Under review' ? { ...s, status: 'Accepted' as ReviewStatus } : s)) : review
+    return review
   }, [demo, review])
 
   const header = (
@@ -67,6 +68,16 @@ export function ReviewQueue() {
       </div>
     )
 
+  if (!doc)
+    return (
+      <div className="flex flex-col gap-6">
+        {header}
+        <div className="rounded-md border border-dashed border-mist-strong bg-surface">
+          <EmptyState title="Sample study: no live session data" description="The figures for this study on the Studies list are examples. It has no sessions in the prototype, so there is nothing to review." />
+        </div>
+      </div>
+    )
+
   if (all.length === 0)
     return (
       <div className="flex flex-col gap-6">
@@ -77,7 +88,7 @@ export function ReviewQueue() {
       </div>
     )
 
-  const sum = reviewSummary(all)
+  const sum = reviewCounts(all)
   const filtered = queueOrder(all, { filters, search, asc, pageSize })
   const pages = Math.max(1, Math.ceil(filtered.length / pageSize))
   const pageNo = Math.min(page, pages - 1)
@@ -97,9 +108,9 @@ export function ReviewQueue() {
       {header}
 
       <section aria-label="Summary" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Card label="Completed interviews" value={sum.total} hint="Flagged sessions arrive as Under review" />
-        <Card label="Awaiting review" value={sum.underReview} total={sum.total} tone="pending" note={sum.awaitingClarification ? `${sum.awaitingClarification} awaiting clarification` : undefined} />
-        <Card label="Reviewed and accepted" value={sum.accepted} total={sum.total} tone="positive" note={`${sum.autoAccepted} auto-accepted, ${sum.reviewedAccepted} reviewed`} />
+        <Card label="Completed interviews" value={sum.total} hint="Every completed interview arrives as Under review" />
+        <Card label="Awaiting review" value={sum.underReview} total={sum.total} tone="pending" note={sum.waiting ? `${sum.waiting} waiting for the participant` : undefined} />
+        <Card label="Accepted" value={sum.accepted} total={sum.total} tone="positive" />
         <Card label="Excluded" value={sum.excluded} total={sum.total} tone="negative" />
       </section>
 
@@ -262,13 +273,12 @@ export function ReviewQueue() {
                       <span className="block text-xs text-graphite">{clockText(s.completedAt)}</span>
                     </td>
                     <td className="px-3 py-2.5 whitespace-nowrap tabular-nums">{s.durationMin} min</td>
-                    <td className="px-3 py-2.5"><Score value={s.integrity} name="Integrity" /></td>
-                    <td className="px-3 py-2.5"><Score value={s.quality} name="Interview quality" /></td>
+                    <td className="px-3 py-2.5">{s.scored ? <Score value={s.integrity} name="Integrity" /> : <span className="text-sm text-graphite">Not scored yet</span>}</td>
+                    <td className="px-3 py-2.5">{s.scored ? <Score value={s.quality} name="Interview quality" /> : <span className="text-sm text-graphite">Not scored yet</span>}</td>
                     <td className="px-3 py-2.5"><Flags id={sessionText(s.participantId, s.sessionNo, s.sessionCount)} flags={s.flags} /></td>
                     <td className="px-3 py-2.5">
                       <span className="flex items-center gap-2">
                         <StatusChip status={s.status} size="sm" />
-                        {s.decision?.auto && <span className="text-xs text-graphite">auto</span>}
                         {s.awaiting && <span className="text-xs font-medium text-pending-fg">Awaiting clarification</span>}
                       </span>
                     </td>

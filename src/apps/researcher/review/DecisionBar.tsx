@@ -59,8 +59,8 @@ function Summary({ s }: { s: ReviewSession }) {
     ['Participant', s.participantId],
     ['Moderator', s.moderator],
     ['Release', s.release],
-    ['Participant integrity', `${s.integrity} / 100`],
-    ['Interview quality', `${s.quality} / 100`],
+    ['Participant integrity', s.scored ? `${s.integrity} / 100` : 'Not scored yet'],
+    ['Interview quality', s.scored ? `${s.quality} / 100` : 'Not scored yet'],
   ]
   return (
     <dl aria-label="Session summary" className="grid grid-cols-2 gap-x-6 gap-y-2 rounded-sm border border-mist px-3.5 py-3 text-sm sm:grid-cols-3">
@@ -517,7 +517,6 @@ export function DecisionBar({ ctx }: { ctx: DecisionCtx }) {
           <div className="min-w-0 flex-1">
             <h2 className="flex flex-wrap items-center gap-2 text-md font-semibold">
               Decision record <StatusChip status={s.status} size="sm" />
-              {d?.auto && <span className="text-xs font-normal text-graphite">auto</span>}
             </h2>
             {d && (
               <p data-testid="decision-by" className="mt-1 text-sm tabular-nums text-graphite">
@@ -620,7 +619,7 @@ function describe(e: ReviewEvent, s: ReviewSession): { title: string; body?: str
   const flagName = (id: string) => s.flags.find((f) => f.id === id)?.type ?? id
   switch (e.type) {
     case 'decision':
-      return { title: e.auto ? 'Auto-accepted' : e.outcome === 'Accepted' ? 'Accepted' : 'Excluded', body: e.note + (e.reasons?.length ? ` (${e.reasons.join('; ')})` : '') }
+      return { title: e.outcome === 'Accepted' ? 'Accepted' : 'Excluded', body: e.note + (e.reasons?.length ? ` (${e.reasons.join('; ')})` : '') }
     case 'reopen':
       return { title: 'Reopened for review', body: e.reason }
     case 'clarify':

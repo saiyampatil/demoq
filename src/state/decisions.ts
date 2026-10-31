@@ -3,8 +3,8 @@
 // (R18 progress, the verdict, the funnel, R21's cards, the stepper) moves when a decision does.
 
 import { scoreBreakdown, seedEvents, type OpenClarification, type ReviewEvent, type ReviewSession, type ReviewStatus, type Decision } from '@/mock/review'
-import { inviteFromReserve, progress, type FieldworkDoc, type Outcomes, type ReserveCandidate } from './fieldwork'
-import { shortfall } from './monitor'
+import { inviteFromReserve, type FieldworkDoc, type Outcomes, type ReserveCandidate } from './fieldwork'
+import { shortfall, progress } from './selectors'
 
 /** The session as the Researcher sees it now: status, decision, open clarification, dismissed flags and scores from its history. */
 export function applyReview(base: ReviewSession, stored: ReviewEvent[] = []): ReviewSession {
@@ -16,7 +16,7 @@ export function applyReview(base: ReviewSession, stored: ReviewEvent[] = []): Re
   for (const e of events) {
     if (e.type === 'decision') {
       status = e.outcome
-      decision = { by: e.by, at: e.at, note: e.note, auto: e.auto, reasons: e.reasons }
+      decision = { by: e.by, at: e.at, note: e.note, reasons: e.reasons }
       open = undefined
     } else if (e.type === 'reopen') {
       status = 'Under review'
@@ -35,8 +35,8 @@ export function applyReview(base: ReviewSession, stored: ReviewEvent[] = []): Re
     dismissed,
     events,
     baseScores: { integrity: base.integrity, quality: base.quality },
-    integrity: scoreBreakdown(base, 'Integrity', gone).score,
-    quality: scoreBreakdown(base, 'Quality', gone).score,
+    integrity: base.scored ? scoreBreakdown(base, 'Integrity', gone).score : 0,
+    quality: base.scored ? scoreBreakdown(base, 'Quality', gone).score : 0,
   }
 }
 

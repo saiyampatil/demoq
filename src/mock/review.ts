@@ -38,14 +38,14 @@ export type ReviewFlag = {
   turn: number
 }
 
-export type Decision = { by: string; at: string; note: string; auto?: boolean; /** Exclusion reasons picked in the modal. */ reasons?: string[] }
+export type Decision = { by: string; at: string; note: string; /** Exclusion reasons picked in the modal. */ reasons?: string[] }
 
 /**
  * Everything that happens to a session in review, in order, and never erased. The status is worked out from it:
  * the last decision or reopen wins. Seeded decisions are the first entries; the Researcher's actions are appended.
  */
 export type ReviewEvent = { id: string; at: string; by: string } & (
-  | { type: 'decision'; outcome: 'Accepted' | 'Excluded'; note: string; reasons?: string[]; auto?: boolean }
+  | { type: 'decision'; outcome: 'Accepted' | 'Excluded'; note: string; reasons?: string[] }
   | { type: 'reopen'; reason: string }
   | { type: 'clarify'; to: 'Participant' | 'Moderator'; message: string; flagIds: string[] }
   | { type: 'answer'; from: string; text: string; replyTo: string }
@@ -89,6 +89,8 @@ export type ReviewSession = {
   /** Interview quality: moderator thoroughness and objectivity. 0 to 100. Never merged with integrity. */
   quality: number
   flags: ReviewFlag[]
+  /** false for a session that completed but has no scores or flags yet. It shows "Not scored yet". */
+  scored: boolean
   status: ReviewStatus
   decision?: Decision
   /** Worked out from `events` when the session is read through the review state (state/decisions.ts). */
@@ -220,6 +222,7 @@ function build(seed: SeedSession): ReviewSession {
     integrity,
     quality,
     flags,
+    scored: true,
     status,
     decision: DECISIONS[participant],
     stimuli,
@@ -306,29 +309,13 @@ export type ScoreBand = 'High' | 'Mid' | 'Low'
 export const scoreBand = (v: number): ScoreBand => (v >= 75 ? 'High' : v >= 50 ? 'Mid' : 'Low')
 
 /**
- * The first entries in a session's history. Auto-accept is a rule, not seed data: a completed session with no flags
- * raised arrives Accepted, recorded as "Auto-accepted: no flags raised." Anything else with a seeded decision starts there.
+ * The first entries in a session's history. A seeded decision starts the history; nothing is ever decided by a rule.
+ * A completed session arrives Under review and stays there until the Researcher decides.
  */
 export function seedEvents(s: ReviewSession): ReviewEvent[] {
-  if (s.flags.length === 0)
-    return [{ id: `${s.id}-auto`, at: new Date(new Date(s.completedAt).getTime() + 22 * 60000).toISOString(), by: 'PulseAI (auto)', type: 'decision', outcome: 'Accepted', note: 'Auto-accepted: no flags raised.', auto: true }]
   if ((s.status === 'Accepted' || s.status === 'Excluded') && s.decision)
     return [{ id: `${s.id}-seed`, at: s.decision.at, by: s.decision.by, type: 'decision', outcome: s.status, note: s.decision.note }]
   return []
-}
-
-export function reviewSummary(list: ReviewSession[]) {
-  const n = (s: ReviewStatus) => list.filter((x) => x.status === s).length
-  const auto = list.filter((x) => x.status === 'Accepted' && x.decision?.auto).length
-  return {
-    total: list.length,
-    underReview: n('Under review'),
-    awaitingClarification: list.filter((x) => x.status === 'Under review' && x.awaiting).length,
-    accepted: n('Accepted'),
-    excluded: n('Excluded'),
-    autoAccepted: auto,
-    reviewedAccepted: n('Accepted') - auto,
-  }
 }
 
 /**
@@ -349,3 +336,28 @@ export function scoreBreakdown(s: ReviewSession, track: FlagTrack, dismissed: Re
 }
 
 export const SESSION_FLAG_SEVERITY_ORDER: FlagSeverity[] = ['High', 'Medium', 'Low']
+
+/** A completed session with no review record yet: it is in the queue, Under review, with nothing scored. */
+export function unscoredSession(i: { id: string; participantId: string; no: number; count: number; moderator: string; human: boolean; release: string; guide: string; completedAt: string; durationMin: number; turnCount: number; stimuli: StimulusCard[] }): ReviewSession {
+  return {
+    id: i.id,
+    participantId: i.participantId,
+    sessionNo: i.no,
+    sessionCount: i.count,
+    moderator: i.moderator,
+    moderatorType: i.human ? 'Human' : 'AI agent',
+    release: i.release,
+    guide: i.guide,
+    completedAt: i.completedAt,
+    durationMin: i.durationMin,
+    integrity: 0,
+    quality: 0,
+    flags: [],
+    scored: false,
+    status: 'Under review',
+    stimuli: i.stimuli,
+    survey: [],
+    aiNotes: [],
+    turnCount: i.turnCount,
+  }
+}

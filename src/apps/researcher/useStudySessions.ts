@@ -6,8 +6,9 @@ import { currentUser } from '@/mock/people'
 import type { FieldworkDoc } from '@/state/fieldwork'
 import { useStudies } from '@/state/StudyContext'
 import { useReviewState } from '@/state/reviewState'
-import { outcomesOf, reviewList } from '@/state/studySessions'
-import { reserveCandidates } from '@/state/monitor'
+import { reviewList } from '@/state/studySessions'
+import { outcomesOf } from '@/state/selectors'
+import { reserveCandidates } from '@/state/selectors'
 
 /** The study's fieldwork doc: the real one once Live, or the read-only sample before launch. */
 export function useSessionsDoc(studyId: string) {

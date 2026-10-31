@@ -10,7 +10,7 @@ import { StatusChip } from '@/components/StatusChip'
 import { Table, type Column } from '@/components/Table'
 import { screenById, studyPath } from '@/routes/screens'
 import { moderatorName, sessionCountOf, type Session } from '@/state/fieldwork'
-import { needsYou } from '@/state/monitor'
+import { needsYou } from '@/state/selectors'
 import { SessionTag } from '../SessionTag'
 import { slotText, type FWProps } from './FieldworkBits'
 

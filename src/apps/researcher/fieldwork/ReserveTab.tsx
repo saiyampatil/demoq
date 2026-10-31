@@ -7,7 +7,7 @@ import { Tooltip } from '@/components/Tooltip'
 import { formatStamp } from '@/lib/format'
 import { inviteFromReserve } from '@/state/fieldwork'
 import type { ReserveCandidate } from '@/state/fieldwork'
-import { reserveRows, shortfall, type ReserveRow, type ReserveStatus } from '@/state/monitor'
+import { reserveRows, shortfall, type ReserveRow, type ReserveStatus } from '@/state/selectors'
 import type { FWProps } from './FieldworkBits'
 
 const TONE: Record<ReserveStatus, string> = {

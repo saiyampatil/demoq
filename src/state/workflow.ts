@@ -31,8 +31,8 @@ function clientNote(study: StudyRecord) {
 }
 
 // Steps unlock in order, driven by status. See CLAUDE.md "Researcher study workspace".
-/** `awaitingReview` comes from the study's session list (see state/studySessions.ts). */
-export function stepInfo(study: StudyRecord, sessions?: { awaitingReview: number }): StepInfo[] {
+/** `awaitingReview` is the Under review count from state/selectors.ts; null for a study that has no session data in the prototype. */
+export function stepInfo(study: StudyRecord, sessions?: { awaitingReview: number | null }): StepInfo[] {
   const briefApproved = study.brief.status === 'Approved'
   const audienceConfirmed = briefApproved && study.audience.status === 'Confirmed'
   const guideApproved = audienceConfirmed && study.guide.status === 'Approved'
@@ -91,8 +91,8 @@ export function stepInfo(study: StudyRecord, sessions?: { awaitingReview: number
       label: label('review'),
       state: 'open',
       active: isLaunched && !fieldworkClosed,
-      badge: sessions ? `${sessions.awaitingReview} awaiting` : undefined,
-      hint: isLaunched ? 'Sessions arrive here after they finish' : 'Sample data until the study launches',
+      badge: sessions ? (sessions.awaitingReview === null ? 'Sample study' : `${sessions.awaitingReview} awaiting`) : undefined,
+      hint: sessions?.awaitingReview === null ? 'Sample study: no live session data' : isLaunched ? 'Sessions arrive here after they finish' : 'Sample data until the study launches',
     },
     {
       key: 'evidence',

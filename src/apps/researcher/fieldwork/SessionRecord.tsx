@@ -12,7 +12,7 @@ import { formatStamp } from '@/lib/format'
 import { controlBase } from '@/components/Field'
 import { sample, screenById, studyPath } from '@/routes/screens'
 import { SELF_SERVICE } from '@/state/selfService'
-import { ISSUE_META, moderatorName, openLink, resolveSession, sessionCountOf, sessionsOfParticipant, simulateTurn } from '@/state/fieldwork'
+import { endSession, ISSUE_META, moderatorName, openLink, resolveSession, sessionCountOf, sessionsOfParticipant, simulateTurn } from '@/state/fieldwork'
 import { PageHeader } from '../../shared/PageHeader'
 import { FieldworkGate, slotText } from './FieldworkBits'
 import { Banner } from '@/components/Banner'
@@ -116,6 +116,18 @@ export function SessionRecord() {
                   Simulate: the participant hits a problem
                 </Button>
               </span>
+            )}
+            {s.status === 'Active' && (
+              <Button
+                size="sm"
+                data-testid="simulate-complete"
+                onClick={() => {
+                  update((d) => endSession(d, s.id, 'Dev', 'Completed'))
+                  setSimulated('The session completed. It is Under review and in the Review queue now, with no scores yet.')
+                }}
+              >
+                Simulate: session completes
+              </Button>
             )}
             {s.status === 'Active' && (
               <Button

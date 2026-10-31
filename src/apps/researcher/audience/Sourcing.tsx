@@ -30,7 +30,7 @@ import {
   type SourceTag,
 } from '@/state/audience'
 import { mockApplicants } from '@/state/screening'
-import { shortfall } from '@/state/monitor'
+import { shortfall } from '@/state/selectors'
 import { PageHeader } from '../../shared/PageHeader'
 import { useStudySessions } from '../useStudySessions'
 import { AudienceGate } from './AudienceGate'

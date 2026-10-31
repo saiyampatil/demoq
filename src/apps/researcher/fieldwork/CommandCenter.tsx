@@ -9,7 +9,8 @@ import { StatusChip } from '@/components/StatusChip'
 import { WizardFooter } from '@/components/WizardFooter'
 import { formatStamp } from '@/lib/format'
 import { screenById, studyPath } from '@/routes/screens'
-import { consentSummary, issueSummary, pauseFieldwork, progress, resumeFieldwork } from '@/state/fieldwork'
+import { pauseFieldwork, resumeFieldwork } from '@/state/fieldwork'
+import { consentSummary, issueSummary, progress, reviewCounts, sessionTotals } from '@/state/selectors'
 import { PageHeader } from '../../shared/PageHeader'
 import { ConsentTab } from './ConsentTab'
 import { FieldworkGate, type FWProps } from './FieldworkBits'
@@ -37,7 +38,7 @@ export function CommandCenter() {
   const consentView = tab === 'sessions' && (legacyConsent || params.get('view') === 'consent')
   const goTab = (t: string) => setParams(t === 'overview' ? {} : { tab: t })
   const prog = progress(doc, outcomes)
-  const awaiting = review.filter((r) => r.status === 'Under review').length
+  const awaiting = reviewCounts(review).underReview
   const issues = issueSummary(doc)
   const consent = consentSummary(doc)
   const target = audience?.def?.total ?? study.targetCompletes
@@ -48,7 +49,7 @@ export function CommandCenter() {
 
   const labels: Record<Tab, { label: string; badge?: string; alert?: boolean }> = {
     overview: { label: 'Overview' },
-    sessions: { label: 'Sessions', badge: String(doc.sessions.length) },
+    sessions: { label: 'Sessions', badge: String(sessionTotals(doc).sessions) },
     reserve: { label: 'Reserve', badge: reserve.length ? String(reserve.length) : undefined },
     issues: { label: 'Issues', badge: issues.open ? String(issues.open) : undefined, alert: issues.blocking > 0 },
   }

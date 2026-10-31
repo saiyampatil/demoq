@@ -62,8 +62,7 @@ export function CohortCard({ cohort: c, onChange }: CohortCardProps) {
 
     </section>
   )
-}
-
+} 
 function FilterRow({
   filter: f,
   usedFields,

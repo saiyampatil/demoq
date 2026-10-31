@@ -38,6 +38,17 @@ export function ScorePanel({ session, track, dismissed }: { session: ReviewSessi
     }
   }, [open])
 
+  if (!session.scored)
+    return (
+      <section aria-label={trackLabel[track]} className="rounded-md border border-mist bg-surface p-5">
+        <h2 className="text-md font-semibold">{trackLabel[track]}</h2>
+        <p className="text-sm text-graphite">{subtitle[track]}</p>
+        <p className="mt-3 text-base font-medium">Not scored yet</p>
+        <p className="mt-1 text-sm text-graphite">Scores and flags appear once this interview has been checked. You can still review it and decide.</p>
+        <p className="mt-3 border-t border-mist pt-3 text-xs text-graphite">This score says nothing about {other[track]}. They are never combined.</p>
+      </section>
+    )
+
   const sev = (['High', 'Medium', 'Low'] as const).map((s) => [s, b.active.filter((f) => f.severity === s).length] as const).filter(([, n]) => n > 0)
 
   return (

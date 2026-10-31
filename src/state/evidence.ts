@@ -5,11 +5,10 @@ import { useSyncExternalStore } from 'react'
 import type { ReviewSession } from '@/mock/review'
 
 /** Dev-only: shapes the rows so every state of the table can be seen. "live" reads the real review records. */
-export type EvidenceMock = 'live' | 'complete' | 'missing' | 'mixed'
+export type EvidenceMock = 'live' | 'missing' | 'mixed'
 export const evidenceMockLabel: Record<EvidenceMock, string> = {
   live: 'Live review records',
-  complete: 'All reviewed',
-  missing: 'Some missing decisions',
+  missing: 'Missing artifacts',
   mixed: 'Mixed scores',
 }
 
@@ -17,7 +16,7 @@ const KEY = 'pulseai-qual:evidence-mock'
 const read = (): EvidenceMock => {
   try {
     const v = localStorage.getItem(KEY)
-    return v === 'complete' || v === 'missing' || v === 'mixed' ? v : 'live'
+    return v === 'missing' || v === 'mixed' ? v : 'live'
   } catch {
     return 'live'
   }
@@ -75,7 +74,7 @@ function derive(r: ReviewSession): EvidenceRow {
     transcript: r.turnCount > 0 ? { present: true } : { present: false },
     // A reviewed copy exists once the session has been reviewed. P-2041-1's was edited, so it is on a later version.
     reviewed: r.reviewed ? { present: true, version: r.reviewed.version } : decided ? { present: true, version: 1 } : { present: false },
-    scores: decided || r.awaiting ? { integrity: r.integrity, quality: r.quality } : null,
+    scores: r.scored ? { integrity: r.integrity, quality: r.quality } : null,
     decision,
     replacementFor: decision === 'Replacement ordered',
     release: r.release,
@@ -94,38 +93,29 @@ export function gaps(row: EvidenceRow): string[] {
   return out
 }
 
-/** The dev modes reshape rows by position, so the same four sessions always show the same story. */
+/**
+ * The dev modes only reshape the artifacts and scores, by position, so every kind of gap and every score band can be
+ * seen. They never decide a session: a decision shows only where a real decision exists. To get decisions, use the
+ * Screen jump button that records them (attributed to "Dev demo").
+ */
 function shape(rows: EvidenceRow[], mode: EvidenceMock, source: ReviewSession[]): EvidenceRow[] {
   if (mode === 'live') return rows
+  const spread = [
+    { integrity: 92, quality: 41 },
+    { integrity: 58, quality: 88 },
+    { integrity: 34, quality: 71 },
+    { integrity: 81, quality: 79 },
+    { integrity: 47, quality: 52 },
+  ]
   return rows.map((row, i) => {
-    const s = source[i]
-    const base: EvidenceRow = {
-      ...row,
-      transcript: { present: true },
-      reviewed: { present: true, version: s.reviewed?.version ?? 1 },
-      scores: { integrity: s.integrity, quality: s.quality },
-      decision: i % 3 === 2 ? 'Excluded' : 'Accepted',
-      replacementFor: false,
-    }
-    if (mode === 'complete') return base
-    if (mode === 'missing') {
-      // One session lacks each artifact, so every kind of gap shows.
-      if (i === 0) return { ...base, decision: 'None yet', reviewed: { present: false }, scores: null }
-      if (i === 1) return { ...base, transcript: { present: false } }
-      if (i === 2) return { ...base, reviewed: { present: false } }
-      if (i === 3) return { ...base, decision: 'Request clarification' }
-      return base
-    }
-    // mixed: scores spread across High, Mid and Low, with the decision outcomes a Researcher might see.
-    const spread = [
-      { integrity: 92, quality: 41 },
-      { integrity: 58, quality: 88 },
-      { integrity: 34, quality: 71 },
-      { integrity: 81, quality: 79 },
-      { integrity: 47, quality: 52 },
-    ][i % 5]
-    const decision: DecisionLabel = i % 5 === 2 ? 'Replacement ordered' : i % 5 === 1 ? 'Excluded' : 'Accepted'
-    return { ...base, scores: spread, decision, replacementFor: decision === 'Replacement ordered' }
+    if (mode === 'mixed') return { ...row, scores: spread[i % spread.length] }
+    // missing: one session lacks each kind of artifact.
+    const decided = row.decision === 'Accepted' || row.decision === 'Excluded' || row.decision === 'Replacement ordered'
+    const reviewed: Artifact = decided ? { present: true, version: source[i].reviewed?.version ?? 1 } : { present: false }
+    if (i === 0) return { ...row, reviewed: { present: false }, scores: null }
+    if (i === 1) return { ...row, transcript: { present: false }, reviewed }
+    if (i === 2) return { ...row, reviewed: { present: false } }
+    return row
   })
 }
 
