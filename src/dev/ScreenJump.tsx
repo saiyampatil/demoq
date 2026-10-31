@@ -20,7 +20,7 @@ export function ScreenJump() {
   const [query, setQuery] = useState('')
   const { pathname, search } = useLocation()
   const navigate = useNavigate()
-  const { stage, setStage, resetSeed, getStudy, getAudience, getGuide, getLaunch, updateLaunch, getFieldwork } = useStudies()
+  const { stage, setStage, resetSeed, getStudy, getAudience, getGuide, getLaunch, updateLaunch, getFieldwork, updateFieldwork } = useStudies()
   const mockRuns = (kind: MockRuns) => {
     const study = getStudy(MOISTURIZER_ID)
     const change = study && mockTestRuns(kind, { study, audience: getAudience(MOISTURIZER_ID), guide: getGuide(MOISTURIZER_ID), launch: getLaunch(MOISTURIZER_ID) })
@@ -84,6 +84,21 @@ export function ScreenJump() {
           </header>
 
           <div className="flex-1 overflow-y-auto">
+            <section className="border-b border-mist px-4 py-3">
+              <h3 className="text-sm font-semibold">Fieldwork window (mock)</h3>
+              <p className="text-xs text-graphite">Moves the end of the seed study’s window, to see the “Not enough time left” warning. The clock is Nov 11.</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {[
+                  ['2 days left', '2026-11-13'],
+                  ['6 days left (default)', '2026-11-17'],
+                ].map(([label, end]) => (
+                  <Button key={end} size="sm" onClick={() => getFieldwork(MOISTURIZER_ID)?.window && updateFieldwork(MOISTURIZER_ID, (d) => ({ ...d, window: d.window && { ...d.window, end } }))}>
+                    {label}
+                  </Button>
+                ))}
+              </div>
+            </section>
+
             <section className="border-b border-mist px-4 py-3">
               <h3 className="text-sm font-semibold">Evidence (mock)</h3>
               <p className="text-xs text-graphite">How the Evidence screen shows artifacts and scores. It never invents a decision. “Live” reads the real review records.</p>

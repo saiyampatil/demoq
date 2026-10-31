@@ -16,7 +16,7 @@ import { useStudies } from '@/state/StudyContext'
 import { setStudyTimeZone } from '@/lib/timeZone'
 import { useReviewState } from '@/state/reviewState'
 import { reviewList } from '@/state/studySessions'
-import { reviewCounts } from '@/state/selectors'
+import { reviewCounts, targetOf } from '@/state/selectors'
 import { checkInvariants } from '@/state/invariants'
 import { landingStep, stepInfo, type StepInfo } from '@/state/workflow'
 import { useSessionsDoc } from './useStudySessions'
@@ -47,7 +47,7 @@ export function StudyWorkspace() {
   if (seen.current.idx !== screenIdx) seen.current = { idx: screenIdx, dir: screenIdx > seen.current.idx ? 'forward' : 'back', moved: true }
 
   // Dev only: check that every number on every screen agrees, and log each place they don't.
-  const target = study ? (getAudience(study.id)?.def?.total ?? study.targetCompletes) : 0
+  const target = study ? targetOf(sessionsDoc, getAudience(study.id), study.targetCompletes) : 0
   useEffect(() => {
     if (!import.meta.env.DEV || !sessionsDoc) return
     const review = reviewList(sessionsDoc, reviewState)

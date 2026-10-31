@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react'
-import { Link, useNavigate } from 'react-router'
+import { Link, useNavigate, useSearchParams } from 'react-router'
 import { Banner } from '@/components/Banner'
 import { Button } from '@/components/Button'
 import { Card } from '@/components/Card'
@@ -29,6 +29,7 @@ import {
   type SourceOption,
   type SourceTag,
 } from '@/state/audience'
+import { startTopUp } from '@/state/fieldwork'
 import { mockApplicants } from '@/state/screening'
 import { shortfall } from '@/state/selectors'
 import { PageHeader } from '../../shared/PageHeader'
@@ -45,6 +46,9 @@ export function Sourcing() {
   const { studyId, study, audience, editable, update } = useAudience()
   const fw = useStudySessions()
   const navigate = useNavigate()
+  const [params] = useSearchParams()
+  // Opened from Fieldwork's "Source X more": the number to source is filled in.
+  const topup = Math.floor(Number(params.get('topup'))) || 0
   const [showAll, setShowAll] = useState(false)
   const [arrivals, setArrivals] = useState<number>()
   const [arrived, setArrived] = useState<number>()
@@ -65,7 +69,7 @@ export function Sourcing() {
   // go to the reserve in Fieldwork, never straight into interviews.
   const launched = !!fw.doc && !fw.preview && (study?.status === 'Live' || study?.status === 'Paused' || !!fw.doc.closed)
   const paused = launched && (study?.status === 'Paused' || !!fw.doc?.paused || !!fw.doc?.closed)
-  const gap = launched && fw.doc ? shortfall(fw.doc, def.total ?? 0, fw.outcomes, fw.reserve) : undefined
+  const gap = launched && fw.doc ? shortfall(fw.doc, fw.target, fw.outcomes, fw.reserve) : undefined
   const need = gap ? Math.max(0, gap.gap - gap.reserve) : 0
   const answered = launched ? mockApplicants(audience) : []
   const qualified = answered.filter((a) => a.outcome === 'Eligible' || a.outcome === 'Reserve').length
@@ -123,7 +127,9 @@ export function Sourcing() {
             </li>
             {need > 0 && (
               <li data-testid="estimate">
-                {estimate > 0
+                {topup > 0
+                  ? `Top-up: the Fieldwork screen asked for ${topup} more applicants, scaled up from the gap by the share of invited people who complete.`
+                  : estimate > 0
                   ? `Estimated applicants needed: about ${estimate}. So far ${qualified} of ${answered.length} who answered the screener qualified (${Math.round(passRate * 100)}%).`
                   : 'There is no screening history to estimate from yet.'}
               </li>
@@ -141,7 +147,7 @@ export function Sourcing() {
               <input
                 type="number"
                 min={1}
-                value={arrivals ?? (estimate || 5)}
+                value={arrivals ?? (topup || estimate || 5)}
                 onChange={(e) => setArrivals(Math.max(1, Math.floor(Number(e.target.value)) || 1))}
                 className={cn('h-9 w-24 rounded-sm border border-mist-strong bg-surface px-2.5 tabular-nums focus:border-iris-600')}
               />
@@ -153,12 +159,13 @@ export function Sourcing() {
             ) : (
               <Button
                 onClick={() => {
-                  const k = arrivals ?? (estimate || 5)
+                  const k = arrivals ?? (topup || estimate || 5)
                   update((d) => addArrivals(d, k))
+                  fw.update((d) => startTopUp(d, k, fw.me))
                   setArrived(k)
                 }}
               >
-                Simulate: {arrivals ?? (estimate || 5)} applicants arrive
+                Simulate: {arrivals ?? (topup || estimate || 5)} applicants arrive
               </Button>
             )}
             {arrived !== undefined && (

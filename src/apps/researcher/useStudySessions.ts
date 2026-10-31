@@ -7,7 +7,7 @@ import type { FieldworkDoc } from '@/state/fieldwork'
 import { useStudies } from '@/state/StudyContext'
 import { useReviewState } from '@/state/reviewState'
 import { reviewList } from '@/state/studySessions'
-import { outcomesOf } from '@/state/selectors'
+import { outcomesOf, targetOf } from '@/state/selectors'
 import { reserveCandidates } from '@/state/selectors'
 
 /** The study's fieldwork doc: the real one once Live, or the read-only sample before launch. */
@@ -46,6 +46,8 @@ export function useStudySessions() {
     /** Eligible people waiting to be invited as replacements. */
     reserve,
     preview,
+    /** The target every count is against: the audience's, or the Researcher's lowered one. */
+    target: targetOf(doc, audience, getStudy(studyId)?.targetCompletes),
     me: currentUser.name,
     update,
   }

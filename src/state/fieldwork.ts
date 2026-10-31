@@ -195,6 +195,10 @@ export type FieldworkDoc = {
   paused: { reason: string; by: string; at: string } | null
   /** Set when the Researcher closed fieldwork: no more invitations or sessions. The study is Complete. */
   closed?: { by: string; at: string }
+  /** A top-up: the Researcher asked for more applicants after launch to close a gap. */
+  topUp?: { requested: number; by: string; at: string }
+  /** The Researcher lowered the target. It replaces the audience's target for every count. */
+  targetChange?: { from: number; to: number; by: string; at: string; reason: string }
   log: LogEntry[]
   /** Reserve people who have been invited. The rest of the reserve is read from screening (R9). */
   reserve: ReserveCandidate[]
@@ -521,6 +525,25 @@ export function tick(doc: FieldworkDoc): string {
 export const pauseFieldwork = (doc: FieldworkDoc, reason: string, by: string): FieldworkDoc => {
   const when = tick(doc)
   return doc.paused ? doc : { ...doc, paused: { reason: reason.trim(), by, at: when }, log: [...doc.log, { id: uid('fl'), at: when, by, text: `Paused fieldwork: ${reason.trim()}` }] }
+}
+
+export const startTopUp = (doc: FieldworkDoc, requested: number, by: string): FieldworkDoc => {
+  const when = tick(doc)
+  return { ...doc, topUp: { requested: (doc.topUp?.requested ?? 0) + requested, by, at: when }, log: [...doc.log, { id: uid('fl'), at: when, by, text: `Started a top-up: sourcing ${requested} more applicants for screening` }] }
+}
+
+/** Moves the end of the fieldwork window later. A reason is required; who and when are logged. */
+export function extendWindow(doc: FieldworkDoc, end: string, reason: string, by: string): FieldworkDoc {
+  if (!doc.window || !reason.trim() || end <= doc.window.end) return doc
+  const when = tick(doc)
+  return { ...doc, window: { ...doc.window, end }, log: [...doc.log, { id: uid('fl'), at: when, by, text: `Extended the fieldwork window from ${formatDate(`${doc.window.end}T12:00:00-05:00`)} to ${formatDate(`${end}T12:00:00-05:00`)}: ${reason.trim()}` }] }
+}
+
+/** Lowers the target. It can't go below what already counts. A reason is required; who and when are logged. */
+export function lowerTarget(doc: FieldworkDoc, from: number, to: number, reason: string, by: string): FieldworkDoc {
+  if (!reason.trim() || to >= from || to < 1) return doc
+  const when = tick(doc)
+  return { ...doc, targetChange: { from: doc.targetChange?.from ?? from, to, by, at: when, reason: reason.trim() }, log: [...doc.log, { id: uid('fl'), at: when, by, text: `Lowered the target from ${from} to ${to}: ${reason.trim()}` }] }
 }
 
 export const closeFieldwork = (doc: FieldworkDoc, by: string): FieldworkDoc => {

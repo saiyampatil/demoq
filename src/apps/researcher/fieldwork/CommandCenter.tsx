@@ -26,7 +26,7 @@ const TABS = ['overview', 'sessions', 'reserve', 'issues'] as const
 type Tab = (typeof TABS)[number]
 
 export function CommandCenter() {
-  const { studyId, study, editable, audience, doc, review, outcomes, reserve, me, update, preview } = useStudySessions()
+  const { studyId, study, editable, audience, doc, review, outcomes, reserve, me, update, preview, target: tgt } = useStudySessions()
   const [params, setParams] = useSearchParams()
   const [pausing, setPausing] = useState(false)
   const [reason, setReason] = useState('')
@@ -43,7 +43,7 @@ export function CommandCenter() {
   const awaiting = reviewCounts(review).underReview
   const issues = issueSummary(doc)
   const consent = consentSummary(doc)
-  const target = audience?.def?.total ?? study.targetCompletes
+  const target = tgt
   const pausedForVersion = study.status === 'Paused' && !doc.paused
   // Paused by the Researcher, or paused for a version change: either way, nothing that sends an invitation can run.
   const closed = !preview && (!!doc.closed || study.status === 'Complete')

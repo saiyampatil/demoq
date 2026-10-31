@@ -117,6 +117,9 @@ PRD gaps and conflicts found while building. Each entry says what the prototype 
 | 111 | L | A completed session with no scores ("Not scored yet"): who or what scores it, and when? | Nothing does in the prototype; the Researcher can decide without scores. | Open |
 | 112 | M | Order replacement: should it always exclude the original session (as the brief says, "same as Exclude"), or can the Researcher still accept it and also order a replacement, as built? | Left as built: the modal lets the Researcher choose Accepted or Excluded together with the invitation. | Open |
 | 113 | M | Should closed fieldwork be reopenable? | No way back in the prototype. Pause and Resume are for stopping temporarily. | Open |
+| 114 | M | Gap loop: should "Invite all N from reserve" invite everyone in the reserve even when the reserve is much bigger than the gap, or cap it at what the completion rate says is needed? | Invites everyone in the reserve, as the brief reads. | Open |
+| 115 | L | Is 4 days the right time to source, screen and interview a new person, and should a reserve person (already screened) count as needing less? | A fixed mock 4 days, and the warning only shows when sourcing is needed. | Open |
+| 116 | L | Where does the audit trail live for Extend window and Lower target? | They are written to the Activity log on Overview; R24's timeline is not built yet. | Open |
 
 
 ## Future ideas (not built)

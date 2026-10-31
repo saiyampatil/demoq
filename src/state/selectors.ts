@@ -478,16 +478,68 @@ export type Verdict = {
   basis: string
   /** What to do, by situation. Several only when the reserve covers part of the gap. */
   actions: VerdictAction[]
+  /** How the gap is closed, with the reasoning in one line. Only when there is a gap. */
+  plan?: ReturnType<typeof closingPlan>
   gap: Gap
   figures: { toward: number; confirmed: number; pending: number; excluded: number; expected: number; day: number; days: number }
 }
 
-/** The action for an open gap, by how much of it the reserve covers. */
-export function gapActions(gap: number, reserve: number): VerdictAction[] {
+/** The study's target: the Researcher's lowered target if there is one, else the audience's. */
+export const targetOf = (doc: FieldworkDoc | undefined, audience: AudienceDoc | undefined, fallback = 0) => doc?.targetChange?.to ?? audience?.def?.total ?? fallback
+
+/** Share of invited participants who completed an interview. It sets how many more people to source. */
+export function completionRate(doc: FieldworkDoc) {
+  const ps = participantsOf(doc)
+  const completed = ps.filter((p) => bucketOf(p) === 'completed').length
+  return { completed, invited: ps.length, rate: ps.length ? completed / ps.length : 0 }
+}
+
+/** How long, in days, it takes to source, screen and interview someone new. A mock figure. */
+export const TOPUP_DAYS = 4
+
+/**
+ * How to close an open gap. The reserve is invited first (all of it: not everyone will finish), and what it can't cover
+ * is sourced, scaled up by the completion rate: gap divided by the share of invited people who complete, rounded up.
+ */
+export function closingPlan(gap: number, reserve: number, rate: number) {
+  const remaining = Math.max(0, gap - reserve)
+  const pct = Math.round(rate * 100)
+  // With no completions yet there is no rate to scale by, so every invited person is assumed to finish.
+  const source = remaining > 0 ? Math.ceil(remaining / (rate > 0 ? rate : 1)) : 0
+  const line = [`Need ${gap}`, reserve > 0 ? `${reserve} in reserve${remaining > 0 ? `, ${remaining} still to find` : ''}` : null, rate > 0 ? `${pct}% of invited people complete` : 'no one has completed yet', source > 0 ? `source ${source}` : null].filter(Boolean).join(' · ')
+  return { need: gap, inReserve: reserve, remaining, rate, pct, source, line }
+}
+
+/** The actions for an open gap, by how much of it the reserve covers. The first is the primary one. */
+export function gapActions(gap: number, reserve: number, rate: number): VerdictAction[] {
   if (gap <= 0) return []
-  if (reserve >= gap) return [{ kind: 'invite', n: gap, label: `Invite ${gap} from reserve` }]
-  if (reserve > 0) return [{ kind: 'invite', n: reserve, label: `Invite ${reserve} from reserve, ${gap - reserve} more needed` }, { kind: 'source', n: gap - reserve, label: 'Source more' }]
-  return [{ kind: 'source', n: gap, label: `Source ${gap} more` }]
+  const plan = closingPlan(gap, reserve, rate)
+  const invite: VerdictAction = { kind: 'invite', n: reserve, label: `Invite all ${reserve} from reserve` }
+  const source: VerdictAction = { kind: 'source', n: plan.source, label: `Source ${plan.source} more` }
+  if (reserve >= gap) return [invite]
+  if (reserve > 0) return [invite, source]
+  return [source]
+}
+
+/**
+ * A top-up is sourcing after launch: applicants who arrived and answered the screener go through screening into the
+ * reserve, never straight to interviews. This is where each one is. Derived from the audience, so it moves with R9.
+ */
+export function topUpStatus(doc: FieldworkDoc, audience: AudienceDoc | undefined) {
+  const candidates = audience?.sourcing.candidates.filter((c) => c.afterLaunch) ?? []
+  const applicants = audience ? mockApplicants(audience).filter((a) => a.afterLaunch) : []
+  const inReserve = new Set(reserveRows(doc, audience).filter((r) => r.label === 'Available').map((r) => r.id))
+  const sourced = candidates.length
+  const inScreening = sourced - applicants.length + applicants.filter((a) => a.outcome === 'Needs Review').length
+  const newInReserve = applicants.filter((a) => inReserve.has(a.id)).length
+  const running = sourced > 0 && (inScreening > 0 || newInReserve > 0)
+  return { sourced, inScreening, eligible: newInReserve, newInReserve, running, requested: doc.topUp?.requested ?? sourced }
+}
+
+/** Days left in the window against the days a new person needs to be sourced, screened and interviewed. */
+export function timeCheck(doc: FieldworkDoc, target: number, outcomes: Outcomes) {
+  const left = pacing(doc, target, outcomes).left
+  return { left, needed: TOPUP_DAYS, short: !!doc.window && left < TOPUP_DAYS }
 }
 
 /**
@@ -499,6 +551,7 @@ export function gapActions(gap: number, reserve: number): VerdictAction[] {
  */
 export function verdict(doc: FieldworkDoc, target: number, outcomes: Outcomes, reserve: ReserveCandidate[], needs: number): Verdict {
   const prog = progress(doc, outcomes)
+  const rate = completionRate(doc).rate
   const pace = pacing(doc, target, outcomes)
   const gap = shortfall(doc, target, outcomes, reserve)
   const figures = { toward: prog.toward, confirmed: prog.confirmed, pending: prog.pending, excluded: prog.excluded, expected: pace.expected, day: pace.day, days: pace.days }
@@ -513,7 +566,8 @@ export function verdict(doc: FieldworkDoc, target: number, outcomes: Outcomes, r
       sentence: `Only ${gap.ceiling} of ${target} can finish. ${gap.gap} more ${gap.gap === 1 ? 'person is' : 'people are'} needed.`,
       warning,
       basis,
-      actions: gapActions(gap.gap, gap.reserve),
+      actions: gapActions(gap.gap, gap.reserve, rate),
+      plan: closingPlan(gap.gap, gap.reserve, rate),
       gap,
       figures,
     }
@@ -554,7 +608,7 @@ export function targetFill(doc: FieldworkDoc, audience: AudienceDoc | undefined,
   const prog = progress(doc, outcomes)
   return {
     name: audience?.def?.cohort.name ?? 'Participants',
-    target: audience?.def?.total ?? 0,
+    target: targetOf(doc, audience),
     accepted: prog.confirmed,
     pending: prog.pending,
     excluded: prog.excluded,

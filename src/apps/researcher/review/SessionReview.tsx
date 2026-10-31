@@ -37,7 +37,7 @@ const TAB_LABEL: Record<Tab, string> = {
 
 export function SessionReview() {
   const { sessionId = '' } = useParams()
-  const { studyId, review, preview, doc, audience, outcomes, reserve, study, update, me } = useStudySessions()
+  const { studyId, review, preview, doc, outcomes, reserve, study, update, me, target } = useStudySessions()
   const [params] = useSearchParams()
   const demo = params.get('demo')
   const [loaded, setLoaded] = useState(false)
@@ -96,7 +96,7 @@ export function SessionReview() {
   const history: History = doc ? sessionsOfParticipant(doc, session.participantId).map((x) => ({ id: x.id, no: x.no, status: x.status, href: href(screenById.R19, x.id) })) : []
   const closed = !preview && (!!doc?.closed || study?.status === 'Complete')
   const paused = !preview && (study?.status === 'Paused' || !!doc?.paused || closed)
-  const ctx: DecisionCtx | undefined = doc ? { session, doc, target: audience?.def?.total ?? study?.targetCompletes ?? 0, outcomes, reserve, me, update, paused, closed, readOnly: preview || !update } : undefined
+  const ctx: DecisionCtx | undefined = doc ? { session, doc, target, outcomes, reserve, me, update, paused, closed, readOnly: preview || !update } : undefined
   return <Loaded key={session.id} session={session} all={all} studyId={studyId} crumbs={crumbs} demo={demo} history={history} ctx={ctx} />
 }
 

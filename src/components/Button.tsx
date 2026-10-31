@@ -55,7 +55,7 @@ export function Button({
 
   if (to && !disabled) {
     return (
-      <Link to={to} className={classes}>
+      <Link to={to} className={classes} data-testid={(rest as Record<string, string | undefined>)['data-testid']}>
         {content}
       </Link>
     )

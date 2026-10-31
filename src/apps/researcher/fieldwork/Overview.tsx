@@ -3,16 +3,16 @@ import { Link } from 'react-router'
 import { Button } from '@/components/Button'
 import { Card } from '@/components/Card'
 import { cn } from '@/components/cn'
-import { TextArea } from '@/components/Field'
+import { controlBase, TextArea } from '@/components/Field'
 import { useToast } from '@/components/Toast'
 import { AlertIcon } from '@/components/icons'
 import { Modal } from '@/components/Modal'
 import { SplitBar } from '@/components/ProgressBar'
 import { Tooltip } from '@/components/Tooltip'
-import { formatStamp } from '@/lib/format'
+import { formatDay, formatStamp } from '@/lib/format'
 import { screenById, studyPath } from '@/routes/screens'
-import { assignModerator, giveUp, HUMAN_MODERATOR_IDS, inviteFromReserve, rescheduleSession, resendLink, retrySession } from '@/state/fieldwork'
-import { ago, funnel, needsYou, slotLedger, verdict, type NeedsRow, type VerdictAction, type VerdictLevel, durationStats, regionMatrix, regionSkew, targetFill } from '@/state/selectors'
+import { assignModerator, extendWindow, giveUp, lowerTarget, HUMAN_MODERATOR_IDS, inviteFromReserve, rescheduleSession, resendLink, retrySession } from '@/state/fieldwork'
+import { ago, funnel, timeCheck, topUpStatus, needsYou, slotLedger, verdict, type NeedsRow, type VerdictAction, type VerdictLevel, durationStats, regionMatrix, regionSkew, targetFill } from '@/state/selectors'
 import { SessionTag } from '../SessionTag'
 import { invitedIds, invitedMessage, type FWProps } from './FieldworkBits'
 import { SlotLedger } from './SlotLedger'
@@ -43,7 +43,9 @@ export function Overview(p: FWProps) {
     update(() => next)
     if (ids.length) toast(invitedMessage(ids), { label: 'View in Sessions', to: `${studyPath(studyId, screenById.R18)}?tab=sessions` })
   }
-  const inviteN = Math.min(v.gap.gap, reserve.length)
+  const topUp = topUpStatus(doc, audience)
+  const time = timeCheck(doc, target, outcomes)
+  const [adjust, setAdjust] = useState<'extend' | 'lower'>()
 
   return (
     <div className="flex flex-col gap-6">
@@ -59,52 +61,89 @@ export function Overview(p: FWProps) {
               {v.warning}
             </p>
           )}
+          {v.plan && (
+            <p className="mt-2 text-sm font-medium tabular-nums" data-testid="closing-plan">
+              {v.plan.line}
+            </p>
+          )}
+          {v.plan && topUp.newInReserve > 0 && (
+            <p className="mt-1 text-sm text-positive-fg tabular-nums" data-testid="new-in-reserve">
+              {topUp.newInReserve} new in reserve ·{' '}
+              {blockedWhy ? (
+                <span className="text-graphite">Invite</span>
+              ) : (
+                <button type="button" onClick={() => inviteNow(reserve.length)} className="font-medium underline">
+                  Invite
+                </button>
+              )}
+            </p>
+          )}
+          {v.plan && v.plan.source > 0 && time.short && !closed && (
+            <div className="mt-2 rounded-sm border border-negative-line bg-surface px-3 py-2 text-sm" data-testid="not-enough-time">
+              <p className="flex items-start gap-2 font-medium text-negative-fg">
+                <AlertIcon size={14} className="mt-0.5 shrink-0" />
+                Not enough time left in the window
+              </p>
+              <p className="mt-0.5 text-graphite tabular-nums">
+                {time.left} {time.left === 1 ? 'day' : 'days'} left, and a new person needs about {time.needed} days to be sourced, screened and interviewed.
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <Button size="sm" disabled={!!blockedWhy} onClick={() => setAdjust('extend')}>
+                  Extend window
+                </Button>
+                <Button size="sm" disabled={!!blockedWhy} onClick={() => setAdjust('lower')}>
+                  Lower target
+                </Button>
+              </div>
+            </div>
+          )}
           <p className="mt-2 text-xs text-graphite">{v.basis}</p>
           <SlotLedger ledger={ledger} />
         </div>
         <div className="flex shrink-0 flex-wrap items-start gap-2" aria-label="Verdict actions">
-          {v.level === 'At risk' ? (
-            <>
-              {/* The reserve first: those people are already screened. Sourcing is for when it isn't enough. */}
-              {inviteN > 0 ? (
-                <>
-                  {blockedWhy ? (
-                    <Tooltip content={blockedWhy} focusable>
-                      <Button variant="primary" disabled>
-                        Invite from reserve ({inviteN})
-                      </Button>
-                    </Tooltip>
-                  ) : (
-                    <Button variant="primary" data-testid="invite-from-reserve" onClick={() => inviteNow(inviteN)}>
-                      Invite from reserve ({inviteN})
-                    </Button>
-                  )}
-                  <Button variant="secondary" onClick={() => p.goTab('reserve')}>
-                    Open the reserve
-                  </Button>
-                </>
-              ) : (
-                <Button variant="primary" onClick={() => p.goTab('reserve')}>
-                  Open the reserve
-                </Button>
-              )}
-              {blockedWhy ? (
-                <Tooltip content={blockedWhy} focusable>
-                  <Button variant="secondary" disabled>
-                    Source more
-                  </Button>
-                </Tooltip>
-              ) : (
-                <Button variant="secondary" to={studyPath(studyId, screenById.R8)}>
-                  Source more
-                </Button>
-              )}
-            </>
-          ) : (
-            v.actions.map((a) => <VerdictButton key={a.label} action={a} blockedWhy={blockedWhy} studyId={studyId} goTab={p.goTab} onInvite={inviteNow} />)
-          )}
+          {v.actions.map((a, i) => (
+            <VerdictButton key={a.label} action={a} primary={i === 0} blockedWhy={blockedWhy} studyId={studyId} goTab={p.goTab} onInvite={inviteNow} />
+          ))}
         </div>
       </section>
+
+      {topUp.running && (
+        <Card title="Top-up in progress" description="Applicants you sourced after launch go through screening into the reserve. They never go straight to an interview.">
+          <dl className="flex flex-wrap gap-x-8 gap-y-2 text-sm tabular-nums" data-testid="topup-card">
+            <div>
+              <dt className="text-graphite">Sourced</dt>
+              <dd className="text-lg font-semibold">{topUp.sourced}</dd>
+            </div>
+            <div>
+              <dt className="text-graphite">In screening</dt>
+              <dd className="text-lg font-semibold">{topUp.inScreening}</dd>
+            </div>
+            <div>
+              <dt className="text-graphite">Eligible</dt>
+              <dd className="text-lg font-semibold">{topUp.eligible}</dd>
+            </div>
+          </dl>
+          <p className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+            {topUp.newInReserve > 0 && (
+              <span className="font-medium text-positive-fg tabular-nums" data-testid="topup-new">
+                {topUp.newInReserve} new in reserve ·{' '}
+                {blockedWhy ? (
+                  <span className="text-graphite">Invite</span>
+                ) : (
+                  <button type="button" onClick={() => inviteNow(reserve.length)} className="underline">
+                    Invite
+                  </button>
+                )}
+              </span>
+            )}
+            <Link to={studyPath(studyId, screenById.R9)} className="text-iris-700 hover:underline">
+              See screening
+            </Link>
+          </p>
+        </Card>
+      )}
+
+      <AdjustModal kind={adjust} onClose={() => setAdjust(undefined)} p={p} counting={v.gap.counting} />
 
       <NeedsYou {...p} rows={needs} blockedWhy={blockedWhy} />
 
@@ -232,10 +271,76 @@ export function Overview(p: FWProps) {
 
 const FIRST_SHOWN = 5
 
+const plusDays = (iso: string, n: number) => new Date(new Date(`${iso}T12:00:00-05:00`).getTime() + n * 86400000).toISOString().slice(0, 10)
+
+/** Extend the window or lower the target. Either needs a reason; who and when go to the activity log (the audit trail). */
+function AdjustModal({ kind, onClose, p, counting }: { kind?: 'extend' | 'lower'; onClose: () => void; p: FWProps; counting: number }) {
+  const { doc, target, update, me } = p
+  const toast = useToast()
+  const [end, setEnd] = useState('')
+  const [to, setTo] = useState('')
+  const [reason, setReason] = useState('')
+  const current = doc.window?.end ?? ''
+  const endValue = end || plusDays(current, 7)
+  const toValue = to || String(Math.max(counting, target - 1))
+  const toNum = Number(toValue)
+  const min = Math.max(1, counting)
+  const valid = kind === 'extend' ? endValue > current : Number.isInteger(toNum) && toNum >= min && toNum < target
+  const close = () => {
+    setEnd('')
+    setTo('')
+    setReason('')
+    onClose()
+  }
+  const confirm = () => {
+    if (kind === 'extend') {
+      update((d) => extendWindow(d, endValue, reason, me))
+      toast(`Window extended to ${formatDay(`${endValue}T12:00:00-05:00`)}. Logged with your name and the time.`)
+    } else {
+      update((d) => lowerTarget(d, target, toNum, reason, me))
+      toast(`Target lowered from ${target} to ${toNum}. Logged with your name and the time.`)
+    }
+    close()
+  }
+  return (
+    <Modal
+      open={!!kind}
+      onClose={close}
+      title={kind === 'extend' ? 'Extend the fieldwork window' : 'Lower the target'}
+      description={kind === 'extend' ? `The window now ends ${current ? formatDay(`${current}T12:00:00-05:00`) : ''}. More time lets new applicants be sourced, screened and interviewed.` : `The target is ${target} and ${counting} already count, so it can’t go below ${min}. Every count and the verdict use the new target.`}
+      footer={
+        <>
+          <Button variant="ghost" onClick={close}>
+            Cancel
+          </Button>
+          <Button variant="primary" disabled={!valid || !reason.trim()} onClick={confirm} data-testid="confirm-adjust">
+            {kind === 'extend' ? 'Extend window' : 'Lower target'}
+          </Button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-3">
+        {kind === 'extend' ? (
+          <label className="flex flex-col gap-1 text-sm font-medium">
+            New end date
+            <input type="date" min={plusDays(current, 1)} value={endValue} onChange={(e) => setEnd(e.target.value)} className={`${controlBase} h-9 w-44 px-2.5`} />
+          </label>
+        ) : (
+          <label className="flex flex-col gap-1 text-sm font-medium">
+            New target
+            <input type="number" min={min} max={target - 1} value={toValue} onChange={(e) => setTo(e.target.value)} className={`${controlBase} h-9 w-28 px-2.5 tabular-nums`} />
+          </label>
+        )}
+        <TextArea label="Reason (required)" rows={3} value={reason} onChange={(e) => setReason(e.target.value)} />
+      </div>
+    </Modal>
+  )
+}
+
 /** One button from the verdict. Inviting and sourcing are blocked while the study is paused. */
-function VerdictButton({ action, blockedWhy, studyId, goTab, onInvite }: { action: VerdictAction; blockedWhy?: string; studyId: string; goTab: (t: string) => void; onInvite: (n: number) => void }) {
+function VerdictButton({ action, primary, blockedWhy, studyId, goTab, onInvite }: { action: VerdictAction; primary: boolean; blockedWhy?: string; studyId: string; goTab: (t: string) => void; onInvite: (n: number) => void }) {
   const fills = action.kind === 'invite' || action.kind === 'source'
-  const variant = action.kind === 'source' && action.label === 'Source more' ? 'secondary' : 'primary'
+  const variant = primary ? 'primary' : 'secondary'
   if (fills && blockedWhy)
     return (
       <Tooltip content={blockedWhy} focusable>
@@ -245,7 +350,8 @@ function VerdictButton({ action, blockedWhy, studyId, goTab, onInvite }: { actio
       </Tooltip>
     )
   if (action.kind === 'invite') return <Button variant={variant} onClick={() => onInvite(action.n ?? 0)}>{action.label}</Button>
-  if (action.kind === 'source') return <Button variant={variant} to={studyPath(studyId, screenById.R8)}>{action.label}</Button>
+  // Source more opens R8 as a top-up with the number to source filled in.
+  if (action.kind === 'source') return <Button variant={variant} data-testid="source-more" to={`${studyPath(studyId, screenById.R8)}?topup=${action.n}`}>{action.label}</Button>
   if (action.kind === 'sessions') return <Button variant="primary" onClick={() => goTab('sessions')}>{action.label}</Button>
   if (action.kind === 'needs') return <Button variant="primary" onClick={() => document.getElementById('needs-you')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>{action.label}</Button>
   return <Button variant="primary" to={studyPath(studyId, screenById.R21)}>{action.label}</Button>
