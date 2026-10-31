@@ -32,7 +32,7 @@ function clientNote(study: StudyRecord) {
 
 // Steps unlock in order, driven by status. See CLAUDE.md "Researcher study workspace".
 /** `awaitingReview` is the Under review count from state/selectors.ts; null for a study that has no session data in the prototype. */
-export function stepInfo(study: StudyRecord, sessions?: { awaitingReview: number | null }): StepInfo[] {
+export function stepInfo(study: StudyRecord, sessions?: { awaitingReview: number | null; total?: number }): StepInfo[] {
   const briefApproved = study.brief.status === 'Approved'
   const audienceConfirmed = briefApproved && study.audience.status === 'Confirmed'
   const guideApproved = audienceConfirmed && study.guide.status === 'Approved'
@@ -104,10 +104,22 @@ export function stepInfo(study: StudyRecord, sessions?: { awaitingReview: number
     {
       key: 'analysis',
       label: label('analysis'),
-      state: 'locked',
-      lockedReason: 'Out of scope for this prototype',
+      ...analysis(isLaunched, sessions),
     },
   ]
+}
+
+/**
+ * Analysis (out of scope here) unlocks only when every counted session has a Review decision, so the handoff gate in R24
+ * is complete. Until then the step says why it is locked.
+ */
+function analysis(isLaunched: boolean, sessions?: { awaitingReview: number | null; total?: number }): Pick<StepInfo, 'state' | 'lockedReason' | 'hint'> {
+  const locked = (lockedReason: string) => ({ state: 'locked' as const, lockedReason })
+  if (!isLaunched) return locked('Unlocks after launch, once every interview has a Review decision')
+  if (!sessions || sessions.awaitingReview === null || sessions.total === undefined) return locked('Out of scope for this prototype')
+  if (sessions.total === 0) return locked('Unlocks once interviews have been completed and every one has a Review decision')
+  if (sessions.awaitingReview > 0) return locked(`${sessions.awaitingReview} of ${sessions.total} ${sessions.total === 1 ? 'session still needs' : 'sessions still need'} a Review decision`)
+  return { state: 'open', hint: 'Every session has a decision. Analysis itself is out of scope for this prototype' }
 }
 
 /** Where to land when opening a study: the first step that still needs work. */

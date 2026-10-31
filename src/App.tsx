@@ -35,6 +35,7 @@ import { DesignPage } from '@/design/DesignPage'
 import { ClientSimulator } from '@/dev/ClientSimulator'
 import { ScreenJump } from '@/dev/ScreenJump'
 import { sample, screens, type AppKey } from '@/routes/screens'
+import { ToastProvider } from '@/components/Toast'
 import { FeaturesProvider } from '@/state/features'
 import { StudyProvider } from '@/state/StudyContext'
 
@@ -68,11 +69,11 @@ const builtResearcher: Record<string, ReactNode> = {
 
 function Root() {
   return (
-    <>
+    <ToastProvider>
       <Outlet />
       {import.meta.env.DEV && <ClientSimulator />}
       {import.meta.env.DEV && <ScreenJump />}
-    </>
+    </ToastProvider>
   )
 }
 

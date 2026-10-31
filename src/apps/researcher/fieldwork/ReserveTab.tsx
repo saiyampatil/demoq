@@ -4,11 +4,13 @@ import { Card } from '@/components/Card'
 import { cn } from '@/components/cn'
 import { EmptyState } from '@/components/States'
 import { Tooltip } from '@/components/Tooltip'
+import { useToast } from '@/components/Toast'
+import { screenById, studyPath } from '@/routes/screens'
 import { formatStamp } from '@/lib/format'
 import { inviteFromReserve } from '@/state/fieldwork'
 import type { ReserveCandidate } from '@/state/fieldwork'
 import { reserveRows, shortfall, type ReserveRow, type ReserveStatus } from '@/state/selectors'
-import type { FWProps } from './FieldworkBits'
+import { invitedIds, invitedMessage, type FWProps } from './FieldworkBits'
 
 const TONE: Record<ReserveStatus, string> = {
   Available: 'border-positive-line bg-positive-bg text-positive-fg',
@@ -21,16 +23,20 @@ const TONE: Record<ReserveStatus, string> = {
 /**
  * The reserve: everyone who passed screening and isn't in an interview, first in first out. Reserve people only get here through screening, and only enter an interview when invited.
  */
-export function ReserveTab({ doc, audience, target, outcomes, reserve, paused, readOnly, update, me }: FWProps) {
+export function ReserveTab({ doc, audience, target, outcomes, reserve, paused, closed, readOnly, update, me, studyId }: FWProps) {
+  const toast = useToast()
   const rows = reserveRows(doc, audience)
   const gap = shortfall(doc, target, outcomes, reserve)
   const rescreen = rows.filter((r) => r.label === 'Re-screen needed').length
   const [notice, setNotice] = useState<string>()
-  const why = readOnly ? 'This is sample data. Nothing can be changed.' : paused ? 'Study is paused' : undefined
+  const why = readOnly ? 'This is sample data. Nothing can be changed.' : closed ? 'Fieldwork is closed' : paused ? 'Study is paused' : undefined
   const next = Math.min(gap.gap, reserve.length)
 
   const invite = (list: ReserveCandidate[]) => {
-    update((d) => inviteFromReserve(d, me, list))
+    const after = inviteFromReserve(doc, me, list)
+    const ids = invitedIds(doc, after)
+    update(() => after)
+    if (ids.length) toast(invitedMessage(ids), { label: 'View in Sessions', to: `${studyPath(studyId, screenById.R18)}?tab=sessions` })
     setNotice(`Invited ${list.length} from the reserve: ${list.map((c) => c.id).join(', ')}.`)
   }
   const position = (r: ReserveRow) => reserve.findIndex((c) => c.id === r.id) + 1

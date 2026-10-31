@@ -4,6 +4,7 @@ import { Button } from '@/components/Button'
 import { Card } from '@/components/Card'
 import { cn } from '@/components/cn'
 import { TextArea } from '@/components/Field'
+import { useToast } from '@/components/Toast'
 import { AlertIcon } from '@/components/icons'
 import { Modal } from '@/components/Modal'
 import { SplitBar } from '@/components/ProgressBar'
@@ -13,7 +14,7 @@ import { screenById, studyPath } from '@/routes/screens'
 import { assignModerator, giveUp, HUMAN_MODERATOR_IDS, inviteFromReserve, rescheduleSession, resendLink, retrySession } from '@/state/fieldwork'
 import { ago, funnel, needsYou, slotLedger, verdict, type NeedsRow, type VerdictAction, type VerdictLevel, durationStats, regionMatrix, regionSkew, targetFill } from '@/state/selectors'
 import { SessionTag } from '../SessionTag'
-import type { FWProps } from './FieldworkBits'
+import { invitedIds, invitedMessage, type FWProps } from './FieldworkBits'
 import { SlotLedger } from './SlotLedger'
 
 const r19 = (studyId: string, id: string) => studyPath(studyId, { ...screenById.R19, path: screenById.R19.path.replace(':sessionId', id) })
@@ -25,7 +26,8 @@ const TONE: Record<VerdictLevel, { box: string; word: string }> = {
 }
 
 export function Overview(p: FWProps) {
-  const { doc, audience, target, studyId, outcomes, reserve, awaiting, readOnly, paused, update, me } = p
+  const { doc, audience, target, studyId, outcomes, reserve, awaiting, waiting, readOnly, paused, closed, update, me } = p
+  const toast = useToast()
   const needs = needsYou(doc)
   const v = verdict(doc, target, outcomes, reserve, needs.length)
   const fill = targetFill(doc, audience, outcomes)
@@ -34,7 +36,14 @@ export function Overview(p: FWProps) {
   const dur = durationStats(doc)
   const flow = funnel(doc, outcomes)
   const ledger = slotLedger(doc, target, outcomes)
-  const blockedWhy = readOnly ? 'This is sample data. Nothing can be changed.' : paused ? 'Study is paused' : undefined
+  const blockedWhy = readOnly ? 'This is sample data. Nothing can be changed.' : closed ? 'Fieldwork is closed' : paused ? 'Study is paused' : undefined
+  const inviteNow = (n: number) => {
+    const next = inviteFromReserve(doc, me, reserve.slice(0, n))
+    const ids = invitedIds(doc, next)
+    update(() => next)
+    if (ids.length) toast(invitedMessage(ids), { label: 'View in Sessions', to: `${studyPath(studyId, screenById.R18)}?tab=sessions` })
+  }
+  const inviteN = Math.min(v.gap.gap, reserve.length)
 
   return (
     <div className="flex flex-col gap-6">
@@ -57,9 +66,28 @@ export function Overview(p: FWProps) {
           {v.level === 'At risk' ? (
             <>
               {/* The reserve first: those people are already screened. Sourcing is for when it isn't enough. */}
-              <Button variant="primary" onClick={() => p.goTab('reserve')}>
-                Open the reserve
-              </Button>
+              {inviteN > 0 ? (
+                <>
+                  {blockedWhy ? (
+                    <Tooltip content={blockedWhy} focusable>
+                      <Button variant="primary" disabled>
+                        Invite from reserve ({inviteN})
+                      </Button>
+                    </Tooltip>
+                  ) : (
+                    <Button variant="primary" data-testid="invite-from-reserve" onClick={() => inviteNow(inviteN)}>
+                      Invite from reserve ({inviteN})
+                    </Button>
+                  )}
+                  <Button variant="secondary" onClick={() => p.goTab('reserve')}>
+                    Open the reserve
+                  </Button>
+                </>
+              ) : (
+                <Button variant="primary" onClick={() => p.goTab('reserve')}>
+                  Open the reserve
+                </Button>
+              )}
               {blockedWhy ? (
                 <Tooltip content={blockedWhy} focusable>
                   <Button variant="secondary" disabled>
@@ -73,7 +101,7 @@ export function Overview(p: FWProps) {
               )}
             </>
           ) : (
-            v.actions.map((a) => <VerdictButton key={a.label} action={a} blockedWhy={blockedWhy} studyId={studyId} goTab={p.goTab} onInvite={(n) => update((d) => inviteFromReserve(d, me, reserve.slice(0, n)))} />)
+            v.actions.map((a) => <VerdictButton key={a.label} action={a} blockedWhy={blockedWhy} studyId={studyId} goTab={p.goTab} onInvite={inviteNow} />)
           )}
         </div>
       </section>
@@ -176,6 +204,11 @@ export function Overview(p: FWProps) {
                 <Link to={studyPath(studyId, screenById.R21)} className="text-iris-700 hover:underline tabular-nums">
                   {awaiting} {awaiting === 1 ? 'session' : 'sessions'} awaiting review
                 </Link>
+                {(waiting.participant > 0 || waiting.moderator > 0) && (
+                  <span className="mt-0.5 block text-graphite tabular-nums" data-testid="waiting-line">
+                    {[waiting.participant > 0 && `${waiting.participant} waiting for participant`, waiting.moderator > 0 && `${waiting.moderator} waiting for moderator`].filter(Boolean).join(', ')}
+                  </span>
+                )}
               </dd>
             </div>
           </dl>

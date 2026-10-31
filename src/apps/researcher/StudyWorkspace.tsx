@@ -72,7 +72,7 @@ export function StudyWorkspace() {
     )
   }
 
-  const info = stepInfo(study, { awaitingReview: sessionsDoc ? reviewCounts(reviewList(sessionsDoc, reviewState)).underReview : null })
+  const info = stepInfo(study, (() => { const c = sessionsDoc ? reviewCounts(reviewList(sessionsDoc, reviewState)) : undefined; return { awaitingReview: c ? c.underReview : null, total: c?.total } })())
   const screen = matchScreen(study.id, pathname)
   const currentStep = screen?.step
   const stepperSteps: StepperStep[] = info.map((s) => {

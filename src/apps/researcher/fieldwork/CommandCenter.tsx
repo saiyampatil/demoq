@@ -6,11 +6,12 @@ import { cn } from '@/components/cn'
 import { TextArea } from '@/components/Field'
 import { Modal } from '@/components/Modal'
 import { StatusChip } from '@/components/StatusChip'
+import { Tooltip } from '@/components/Tooltip'
 import { WizardFooter } from '@/components/WizardFooter'
 import { formatStamp } from '@/lib/format'
 import { screenById, studyPath } from '@/routes/screens'
-import { pauseFieldwork, resumeFieldwork } from '@/state/fieldwork'
-import { consentSummary, issueSummary, progress, reviewCounts, sessionTotals } from '@/state/selectors'
+import { closeFieldwork, pauseFieldwork, resumeFieldwork } from '@/state/fieldwork'
+import { closeBlockers, consentSummary, issueSummary, progress, reviewCounts, sessionTotals, waitingFor } from '@/state/selectors'
 import { PageHeader } from '../../shared/PageHeader'
 import { ConsentTab } from './ConsentTab'
 import { FieldworkGate, type FWProps } from './FieldworkBits'
@@ -29,6 +30,7 @@ export function CommandCenter() {
   const [params, setParams] = useSearchParams()
   const [pausing, setPausing] = useState(false)
   const [reason, setReason] = useState('')
+  const [closing, setClosing] = useState(false)
 
   if (!editable || !study || !doc) return <FieldworkGate studyId={studyId} editable={editable} />
 
@@ -44,8 +46,10 @@ export function CommandCenter() {
   const target = audience?.def?.total ?? study.targetCompletes
   const pausedForVersion = study.status === 'Paused' && !doc.paused
   // Paused by the Researcher, or paused for a version change: either way, nothing that sends an invitation can run.
-  const paused = !preview && (study.status === 'Paused' || !!doc.paused)
-  const props: FWProps = { doc, audience, target, studyId, me, update, goTab, readOnly: preview, outcomes, reserve, awaiting, paused }
+  const closed = !preview && (!!doc.closed || study.status === 'Complete')
+  const paused = !preview && (study.status === 'Paused' || !!doc.paused || closed)
+  const blockers = closeBlockers(doc)
+  const props: FWProps = { doc, audience, target, studyId, me, update, goTab, readOnly: preview, outcomes, reserve, awaiting, paused, closed, waiting: waitingFor(review) }
 
   const labels: Record<Tab, { label: string; badge?: string; alert?: boolean }> = {
     overview: { label: 'Overview' },
@@ -70,18 +74,38 @@ export function CommandCenter() {
           </>
         }
         actions={
-          preview ? undefined : study.status === 'Live' && !doc.paused ? (
-            <Button onClick={() => setPausing(true)}>Pause fieldwork</Button>
-          ) : doc.paused ? (
-            <Button variant="primary" onClick={() => update((d) => resumeFieldwork(d, me))}>
-              Resume fieldwork
-            </Button>
-          ) : undefined
+          preview || closed ? undefined : (
+            <>
+              {study.status === 'Live' && !doc.paused ? (
+                <Button onClick={() => setPausing(true)}>Pause fieldwork</Button>
+              ) : doc.paused ? (
+                <Button variant="primary" onClick={() => update((d) => resumeFieldwork(d, me))}>
+                  Resume fieldwork
+                </Button>
+              ) : null}
+              {blockers.blocked ? (
+                <Tooltip content={blockers.reason!} focusable>
+                  <Button disabled data-testid="close-fieldwork">
+                    Close fieldwork
+                  </Button>
+                </Tooltip>
+              ) : (
+                <Button data-testid="close-fieldwork" onClick={() => setClosing(true)}>
+                  Close fieldwork
+                </Button>
+              )}
+            </>
+          )
         }
       />
 
       {preview && <SampleDataBanner studyId={studyId} />}
-      {doc.paused && (
+      {closed && (
+        <Banner tone="info" title="Fieldwork is closed">
+          {doc.closed ? `${doc.closed.by} closed it, ${formatStamp(doc.closed.at)}. ` : ''}No more invitations or links can be sent. The study is Complete. Sessions already finished are still in Review.
+        </Banner>
+      )}
+      {doc.paused && !closed && (
         <Banner tone="warning" title="Fieldwork is paused">
           {doc.paused.by} paused it, {formatStamp(doc.paused.at)}: “{doc.paused.reason}”. Nothing that sends an invitation or a link can run, and a participant who opens an existing link is told the study is temporarily unavailable. Sessions in progress carry on and finish.
         </Banner>
@@ -126,6 +150,30 @@ export function CommandCenter() {
           {awaiting} {awaiting === 1 ? 'session' : 'sessions'} awaiting review
         </Link>
       </WizardFooter>
+
+      <Modal
+        open={closing}
+        onClose={() => setClosing(false)}
+        title="Close fieldwork?"
+        description="No more invitations or links can be sent and the study becomes Complete. Nothing is in progress, so no one is cut off. Sessions awaiting review stay in Review, and excluding one after this can’t open a slot. Your name and the time are logged."
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setClosing(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              data-testid="confirm-close"
+              onClick={() => {
+                update((d) => closeFieldwork(d, me))
+                setClosing(false)
+              }}
+            >
+              Close fieldwork
+            </Button>
+          </>
+        }
+      />
 
       <Modal
         open={pausing}

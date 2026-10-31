@@ -63,15 +63,15 @@ export function Sourcing() {
 
   // After launch this is a top-up: the audience and screener are locked to the release, and applicants who qualify
   // go to the reserve in Fieldwork, never straight into interviews.
-  const launched = !!fw.doc && !fw.preview && (study?.status === 'Live' || study?.status === 'Paused')
-  const paused = launched && (study?.status === 'Paused' || !!fw.doc?.paused)
+  const launched = !!fw.doc && !fw.preview && (study?.status === 'Live' || study?.status === 'Paused' || !!fw.doc.closed)
+  const paused = launched && (study?.status === 'Paused' || !!fw.doc?.paused || !!fw.doc?.closed)
   const gap = launched && fw.doc ? shortfall(fw.doc, def.total ?? 0, fw.outcomes, fw.reserve) : undefined
   const need = gap ? Math.max(0, gap.gap - gap.reserve) : 0
   const answered = launched ? mockApplicants(audience) : []
   const qualified = answered.filter((a) => a.outcome === 'Eligible' || a.outcome === 'Reserve').length
   const passRate = answered.length ? qualified / answered.length : 0
   const estimate = need > 0 && passRate > 0 ? Math.ceil(need / passRate) : 0
-  const blockedWhy = paused ? 'Study is paused' : undefined
+  const blockedWhy = fw.doc?.closed ? 'Fieldwork is closed' : paused ? 'Study is paused' : undefined
 
   const send = () => {
     update((d) => sendInvites(d, launched).doc)

@@ -47,6 +47,14 @@ export type FWProps = {
   paused: boolean
   /** Sessions awaiting review, for the link to the queue. */
   awaiting: number
+  /** Clarifications waiting on a reply, by who they are waiting for. */
+  waiting: { participant: number; moderator: number }
+  /** Fieldwork is closed: the study is Complete and nothing more can be sent. */
+  closed: boolean
 }
+
+/** The participants a change to the doc added, for "P-2070 invited" confirmations. */
+export const invitedIds = (before: FieldworkDoc, after: FieldworkDoc) => after.sessions.filter((s) => !before.sessions.some((x) => x.id === s.id)).map((s) => s.participantId)
+export const invitedMessage = (ids: string[]) => (ids.length === 1 ? `${ids[0]} invited` : `${ids.length} people invited`)
 
 export const sessionPath = (id: string) => `fieldwork/sessions/${id}`

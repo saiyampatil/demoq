@@ -94,8 +94,9 @@ export function SessionReview() {
     )
 
   const history: History = doc ? sessionsOfParticipant(doc, session.participantId).map((x) => ({ id: x.id, no: x.no, status: x.status, href: href(screenById.R19, x.id) })) : []
-  const paused = !preview && (study?.status === 'Paused' || !!doc?.paused)
-  const ctx: DecisionCtx | undefined = doc ? { session, doc, target: audience?.def?.total ?? study?.targetCompletes ?? 0, outcomes, reserve, me, update, paused, readOnly: preview || !update } : undefined
+  const closed = !preview && (!!doc?.closed || study?.status === 'Complete')
+  const paused = !preview && (study?.status === 'Paused' || !!doc?.paused || closed)
+  const ctx: DecisionCtx | undefined = doc ? { session, doc, target: audience?.def?.total ?? study?.targetCompletes ?? 0, outcomes, reserve, me, update, paused, closed, readOnly: preview || !update } : undefined
   return <Loaded key={session.id} session={session} all={all} studyId={studyId} crumbs={crumbs} demo={demo} history={history} ctx={ctx} />
 }
 
@@ -143,7 +144,7 @@ function Loaded({ session, all, studyId, crumbs, demo, history, ctx }: { session
           meta={
             <>
               <StatusChip status={session.status} size="sm" />
-              {session.awaiting && <span className="rounded-xs border border-pending-line bg-pending-bg px-1.5 py-0.5 text-xs font-medium text-pending-fg">Awaiting clarification</span>}
+              {session.awaiting && <span className="rounded-xs border border-pending-line bg-pending-bg px-1.5 py-0.5 text-xs font-medium text-pending-fg">Waiting for {session.awaiting.to.toLowerCase()}</span>}
               {session.sessionCount > 1 && <span className="font-medium text-ink">Session {session.sessionNo} of {session.sessionCount}</span>}
               <span>{session.moderator}</span>
               <span>{session.release}</span>

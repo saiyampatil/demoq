@@ -74,6 +74,33 @@ export function reviewCounts(review: ReviewSession[]) {
   }
 }
 
+/** Who each outstanding clarification is waiting for. A clarification keeps the session Under review; it is a research matter, never Needs you. */
+export function waitingFor(review: ReviewSession[]) {
+  const open = review.filter((x) => x.status === 'Under review' && x.awaiting)
+  return { participant: open.filter((x) => x.awaiting!.to === 'Participant').length, moderator: open.filter((x) => x.awaiting!.to === 'Moderator').length }
+}
+
+/** The handoff to Analysis: every counted session has a decision. `undecided` is what is still Under review. */
+export function handoffGate(review: ReviewSession[]) {
+  const c = reviewCounts(review)
+  return { total: c.total, undecided: c.underReview, complete: c.total > 0 && c.underReview === 0 }
+}
+
+/**
+ * What stops fieldwork from closing: a participant (by their latest session) still in progress, left part-way, or
+ * stuck on a technical error. Someone the Researcher gave up on, or whose earlier attempt failed but later completed,
+ * no longer blocks.
+ */
+export function closeBlockers(doc: FieldworkDoc) {
+  const ps = participantsOf(doc).filter((p) => !p.latest.gaveUp && !countedSessionOf(p))
+  const n = (st: Session['status']) => ps.filter((p) => p.latest.status === st).length
+  const inProgress = ps.filter((p) => p.latest.status === 'Active' || p.latest.status === 'Paused').length
+  const incomplete = n('Incomplete (resumable)')
+  const technical = ps.filter((p) => p.latest.status === 'Technical Error').length
+  const parts = [inProgress && `${inProgress} in progress`, incomplete && `${incomplete} left part-way`, technical && `${technical} with a technical error`].filter(Boolean) as string[]
+  return { inProgress, incomplete, technical, blocked: parts.length > 0, reason: parts.length ? `Can’t close yet: ${parts.join(', ')}. Finish them or give up on them first.` : undefined }
+}
+
 /** Sessions and people are different numbers: a participant who came back has two sessions. */
 export const sessionTotals = (doc: FieldworkDoc) => ({ sessions: doc.sessions.length, participants: participantsOf(doc).length })
 

@@ -193,6 +193,8 @@ export type FieldworkDoc = {
   /** Which consent wording sessions agreed to, e.g. "English (US), approved Oct 26 2026". */
   consentWording: string
   paused: { reason: string; by: string; at: string } | null
+  /** Set when the Researcher closed fieldwork: no more invitations or sessions. The study is Complete. */
+  closed?: { by: string; at: string }
   log: LogEntry[]
   /** Reserve people who have been invited. The rest of the reserve is read from screening (R9). */
   reserve: ReserveCandidate[]
@@ -519,6 +521,12 @@ export function tick(doc: FieldworkDoc): string {
 export const pauseFieldwork = (doc: FieldworkDoc, reason: string, by: string): FieldworkDoc => {
   const when = tick(doc)
   return doc.paused ? doc : { ...doc, paused: { reason: reason.trim(), by, at: when }, log: [...doc.log, { id: uid('fl'), at: when, by, text: `Paused fieldwork: ${reason.trim()}` }] }
+}
+
+export const closeFieldwork = (doc: FieldworkDoc, by: string): FieldworkDoc => {
+  if (doc.closed) return doc
+  const when = tick(doc)
+  return { ...doc, closed: { by, at: when }, log: [...doc.log, { id: uid('fl'), at: when, by, text: 'Closed fieldwork' }] }
 }
 
 export const resumeFieldwork = (doc: FieldworkDoc, by: string): FieldworkDoc =>

@@ -109,7 +109,7 @@ export function ReviewQueue() {
 
       <section aria-label="Summary" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Card label="Completed interviews" value={sum.total} hint="Every completed interview arrives as Under review" />
-        <Card label="Awaiting review" value={sum.underReview} total={sum.total} tone="pending" note={sum.waiting ? `${sum.waiting} waiting for the participant` : undefined} />
+        <Card label="Awaiting review" value={sum.underReview} total={sum.total} tone="pending" note={sum.waiting ? `${sum.waiting} waiting for a reply` : undefined} />
         <Card label="Accepted" value={sum.accepted} total={sum.total} tone="positive" />
         <Card label="Excluded" value={sum.excluded} total={sum.total} tone="negative" />
       </section>
@@ -279,7 +279,7 @@ export function ReviewQueue() {
                     <td className="px-3 py-2.5">
                       <span className="flex items-center gap-2">
                         <StatusChip status={s.status} size="sm" />
-                        {s.awaiting && <span className="text-xs font-medium text-pending-fg">Awaiting clarification</span>}
+                        {s.awaiting && <span className="text-xs font-medium text-pending-fg">Waiting for {s.awaiting.to.toLowerCase()}</span>}
                       </span>
                     </td>
                     <td className="px-3 py-2.5">

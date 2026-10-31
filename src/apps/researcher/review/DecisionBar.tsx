@@ -7,6 +7,7 @@ import { TextArea } from '@/components/Field'
 import { Modal } from '@/components/Modal'
 import { StatusChip } from '@/components/StatusChip'
 import { Tooltip } from '@/components/Tooltip'
+import { useToast } from '@/components/Toast'
 import { formatStamp } from '@/lib/format'
 import { screenById, studyPath } from '@/routes/screens'
 import { scoreBreakdown, trackShort, type FlagTrack, type ReviewEvent, type ReviewFlag, type ReviewSession } from '@/mock/review'
@@ -28,6 +29,8 @@ export type DecisionCtx = {
   /** Changes the fieldwork doc. Missing on sample data. */
   update?: (fn: (d: FieldworkDoc) => FieldworkDoc) => void
   paused: boolean
+  /** Fieldwork is closed: a slot that opens can't be refilled. */
+  closed?: boolean
   readOnly: boolean
 }
 
@@ -199,6 +202,7 @@ function AcceptModal({ ctx, open, onClose }: { ctx: DecisionCtx; open: boolean; 
 // ─── Exclude ────────────────────────────────────────────────────────────────
 
 function ExcludeModal({ ctx, open, onClose }: { ctx: DecisionCtx; open: boolean; onClose: () => void }) {
+  const toast = useToast()
   const [form, setForm] = useState<ExcludeForm>({ reasons: [], note: '' })
   const s = ctx.session
   const lines = effectLines(effectOf(ctx.doc, ctx.target, ctx.outcomes, ctx.reserve, { sessionId: s.id, to: 'Excluded' }))
@@ -221,6 +225,9 @@ function ExcludeModal({ ctx, open, onClose }: { ctx: DecisionCtx; open: boolean;
           disabled={!excludeReady(form)}
           onConfirm={() => {
             addReviewEvent(s.id, { type: 'decision', outcome: 'Excluded', note: excludeNote(form), reasons: form.reasons, by: ctx.me }, tick(ctx.doc))
+            if (ctx.closed) toast(`${s.participantId} excluded. Fieldwork is closed, so the slot can’t be refilled.`)
+            else if (ctx.reserve.length > 0) toast('Slot opened', { label: 'Invite from reserve', to: studyPath(ctx.doc.studyId, screenById.R18) })
+            else toast('Slot opened', { label: 'Source more', to: studyPath(ctx.doc.studyId, screenById.R8) })
             close()
           }}
         />
@@ -269,7 +276,7 @@ function ClarifyModal({ ctx, open, onClose }: { ctx: DecisionCtx; open: boolean;
       }
     >
       <div className="flex flex-col gap-3 pb-1">
-        <Effect headline="Stays Under review, with the sub-state Awaiting clarification, until the answer arrives. It keeps counting as pending." lines={lines} />
+        <Effect headline="Stays Under review, waiting for the reply, until the answer arrives. It keeps counting as pending." lines={lines} />
         <fieldset className="flex flex-col gap-1.5">
           <legend className="mb-1 text-sm font-medium">Who is asked</legend>
           <label className="flex items-center gap-2 text-sm">
@@ -312,6 +319,7 @@ function ClarifyModal({ ctx, open, onClose }: { ctx: DecisionCtx; open: boolean;
 // ─── Order replacement ──────────────────────────────────────────────────────
 
 function ReplacementModal({ ctx, open, onClose }: { ctx: DecisionCtx; open: boolean; onClose: () => void }) {
+  const toast = useToast()
   const s = ctx.session
   const next = ctx.reserve[0]
   const [step, setStep] = useState<'candidate' | 'decide'>('candidate')
@@ -334,6 +342,7 @@ function ReplacementModal({ ctx, open, onClose }: { ctx: DecisionCtx; open: bool
     ctx.update((d) => inviteFromReserve(d, ctx.me, [next]))
     const invitedAs = `P-${Math.max(2040, ...ctx.doc.sessions.map((x) => parseInt(x.participantId.slice(2), 10) || 0)) + 1}`
     addReviewEvent(s.id, { type: 'replacement', candidateId: next.id, invitedAs, by: ctx.me }, floor)
+    toast(`${invitedAs} invited`, { label: 'View in Sessions', to: `${studyPath(ctx.doc.studyId, screenById.R18)}?tab=sessions` })
     if (choice === 'Accepted') addReviewEvent(s.id, { type: 'decision', outcome: 'Accepted', note: acc.note.trim(), by: ctx.me }, floor)
     else addReviewEvent(s.id, { type: 'decision', outcome: 'Excluded', note: excludeNote(exc), reasons: exc.reasons, by: ctx.me }, floor)
     close()
@@ -501,7 +510,7 @@ export function DecisionBar({ ctx }: { ctx: DecisionCtx }) {
   const [open, setOpen] = useState<Modal>()
   const done = () => setOpen(undefined)
   const blocked = ctx.readOnly ? 'This is sample data. Nothing can be changed.' : undefined
-  const replaceBlocked = blocked ?? (ctx.paused ? 'Study is paused' : undefined)
+  const replaceBlocked = blocked ?? (ctx.closed ? 'Fieldwork is closed' : ctx.paused ? 'Study is paused' : undefined)
   const history = decisionHistory(s)
 
   const answer = () => {
@@ -577,7 +586,7 @@ export function DecisionBar({ ctx }: { ctx: DecisionCtx }) {
         <div className="min-w-0 flex-1 basis-64">
           <h2 className="flex flex-wrap items-center gap-2 text-md font-semibold">
             Decision <StatusChip status="Under review" size="sm" />
-            {s.awaiting && <span data-testid="substate" className="rounded-xs border border-pending-line bg-pending-bg px-1.5 py-0.5 text-xs font-medium text-pending-fg">Awaiting clarification</span>}
+            {s.awaiting && <span data-testid="substate" className="rounded-xs border border-pending-line bg-pending-bg px-1.5 py-0.5 text-xs font-medium text-pending-fg">Waiting for {s.awaiting.to.toLowerCase()}</span>}
           </h2>
           <p className="mt-0.5 text-sm text-graphite">Flags support your decision. Nothing is accepted or excluded for you.</p>
         </div>

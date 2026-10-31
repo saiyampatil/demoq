@@ -115,6 +115,8 @@ PRD gaps and conflicts found while building. Each entry says what the prototype 
 | 109 | L | R24: what are the real retention periods, and who sets them (R23)? Who counts as having access (Researcher, Client, moderators, observers)? | Mock text (raw media 90 days, transcripts 24 months), and the two roles named in the study. | Open |
 | 110 | M | A participant who completes a session, then comes back for a second completed one: both are Completed, only the latest counts and is in the Review queue. Should the earlier completed session still be reviewable? | The earlier one stays visible in Fieldwork only and is not in Review. | Open |
 | 111 | L | A completed session with no scores ("Not scored yet"): who or what scores it, and when? | Nothing does in the prototype; the Researcher can decide without scores. | Open |
+| 112 | M | Order replacement: should it always exclude the original session (as the brief says, "same as Exclude"), or can the Researcher still accept it and also order a replacement, as built? | Left as built: the modal lets the Researcher choose Accepted or Excluded together with the invitation. | Open |
+| 113 | M | Should closed fieldwork be reopenable? | No way back in the prototype. Pause and Resume are for stopping temporarily. | Open |
 
 
 ## Future ideas (not built)
