@@ -10,6 +10,7 @@ import { now, uid } from './brief'
 import type { GuideDoc } from './guide'
 import type { LaunchDoc, PlanItem, StudyPlan } from './launch'
 import { SEED_SESSIONS, sessionIdOf, type SeedSession } from '@/mock/sessions'
+import { MODERATOR_ROSTER, OFFER_SECONDS } from '@/mock/moderation'
 import { regionOf } from './screening'
 
 export type AccessStatus = 'Invited' | 'Opened' | 'Consented' | 'No-show'
@@ -159,7 +160,28 @@ export type ConsentRecord = {
   withdrawn?: { at: string; reason: string }
 }
 
+/**
+ * A participant asked for a human. A standby moderator is offered the session, one at a time, longest idle first. If
+ * nobody accepts, it falls through to the Researcher ("Waiting for moderator"), who unblocks the participant: assign a
+ * moderator, send a booking link for a human follow-up, or give up. An accepted escalation never reaches the Researcher.
+ */
+export type EscalationOffer = { moderatorId: string; at: string; outcome: 'Offered' | 'Declined' | 'Timed out' | 'Accepted' | 'Assigned' }
+export type Escalation = {
+  requestedAt: string
+  status: 'Offering' | 'Waiting for moderator' | 'Assigned' | 'Booking link sent' | 'Joined' | 'Given up'
+  offers: EscalationOffer[]
+  /** When it fell through to the Researcher. */
+  fellThroughAt?: string
+  acceptedBy?: string
+  joinedAt?: string
+  /** What the Researcher did when it fell through. */
+  actedBy?: { by: string; at: string; action: 'Assigned' | 'Booking link'; moderatorId?: string }
+  /** Dev only: time added to the clock, to see a long wait. */
+  extraWaitMin?: number
+}
+
 export type Session = {
+  escalation?: Escalation
   /** The session's ID, e.g. P-2041-1. A participant who comes back (resume, retry, reschedule) gets P-2041-2. */
   id: string
   /** The person, e.g. P-2041. The main label on every screen. */
@@ -829,7 +851,7 @@ export function giveUp(doc: FieldworkDoc, sessionId: string, reason: string, by:
   const when = tick(doc)
   const s = doc.sessions.find((x) => x.id === sessionId)
   if (!s || s.gaveUp || !reason.trim()) return doc
-  const gone = patch(doc, sessionId, (x) => ({ ...addEventAt(when, x, 'system', `${by} gave up on this participant and opened a slot: ${reason.trim()}`), gaveUp: { reason: reason.trim(), at: when, by } }))
+  const gone = patch(doc, sessionId, (x) => ({ ...addEventAt(when, x, 'system', `${by} gave up on this participant and opened a slot: ${reason.trim()}`), gaveUp: { reason: reason.trim(), at: when, by }, ...(x.escalation && x.escalation.status !== 'Joined' ? { escalation: { ...x.escalation, status: 'Given up' as const } } : {}) }))
   // Giving up closes what is still open on the session, with that reason.
   const closed = resolveIssues(gone, (x, i) => x.id === sessionId && !handledBySystem(i.type), { via: 'gave-up', resolution: `given up and replaced: ${reason.trim()}` }, by, when)
   return logged(closed, when, by, `Gave up on ${s.participantId} and opened a slot: ${reason.trim()}`)
@@ -922,6 +944,106 @@ export function simulateTurn(doc: FieldworkDoc, sessionId: string): FieldworkDoc
     const n = x.transcript.length
     return { ...addEventAt(when, x, 'participant', 'Answered the next question'), transcript: [...x.transcript, { at: when, speaker: 'Participant', ai: false, text: (doc.lines ?? PARTICIPANT)[n % (doc.lines ?? PARTICIPANT).length] }] }
   })
+}
+
+// ─── escalation to a human ──────────────────────────────────────────────────
+
+/** Standby moderators, longest idle first: the order offers go out in. */
+export const standbyOrder = () => MODERATOR_ROSTER.filter((m) => m.standby && m.state === 'Online').sort((a, b) => b.idleMin - a.idleMin).map((m) => m.id)
+
+const escalate = (doc: FieldworkDoc, sessionId: string, fn: (s: Session, e: Escalation) => Session): FieldworkDoc => patch(doc, sessionId, (s) => (s.escalation ? fn(s, s.escalation) : s))
+
+/** The participant asks for a human. The longest-idle standby moderator is offered the session first. */
+export function requestEscalation(doc: FieldworkDoc, sessionId: string): FieldworkDoc {
+  const when = tick(doc)
+  const first = standbyOrder()[0]
+  return patch(doc, sessionId, (s) => {
+    if (s.escalation || s.status !== 'Active') return s
+    const base = addEventAt(when, s, 'participant', 'Asked to talk to a human moderator')
+    const withOffer = first ? addEventAt(when, base, 'system', `Offered to ${moderatorName(first)}, who has 60 seconds to answer`) : addEventAt(when, base, 'system', 'No moderator is on standby')
+    return { ...withOffer, escalation: { requestedAt: when, status: first ? 'Offering' : 'Waiting for moderator', fellThroughAt: first ? undefined : when, offers: first ? [{ moderatorId: first, at: when, outcome: 'Offered' }] : [] } }
+  })
+}
+
+/** The offered standby moderator accepts and joins. It never reaches the Researcher. */
+export function standbyAccepts(doc: FieldworkDoc, sessionId: string): FieldworkDoc {
+  return escalate(doc, sessionId, (s, e) => {
+    const offer = e.offers[e.offers.length - 1]
+    if (e.status !== 'Offering' || !offer) return s
+    const accepted = at(offer.at, 0.3)
+    const joined = at(offer.at, 1.5)
+    const withEvents = addEventAt(joined, addEventAt(accepted, s, 'system', `${moderatorName(offer.moderatorId)} accepted`), 'moderator', `${moderatorName(offer.moderatorId)} joined at ${formatSlot(joined)}`)
+    return { ...withEvents, moderatorId: offer.moderatorId, escalation: { ...e, status: 'Joined', acceptedBy: offer.moderatorId, joinedAt: joined, offers: [...e.offers.slice(0, -1), { ...offer, at: accepted, outcome: 'Accepted' }] } }
+  })
+}
+
+/** Every standby moderator declines or doesn't answer in time, so it falls through to the Researcher. */
+export function allDeclined(doc: FieldworkDoc, sessionId: string): FieldworkDoc {
+  return escalate(doc, sessionId, (s, e) => {
+    if (e.status !== 'Offering') return s
+    const order = standbyOrder()
+    let t = e.requestedAt
+    let acc = s
+    const offers: EscalationOffer[] = []
+    order.forEach((id, n) => {
+      const declined = n % 2 === 0
+      const end = at(t, declined ? 0.3 : OFFER_SECONDS / 60)
+      if (n > 0) acc = addEventAt(t, acc, 'system', `Offered to ${moderatorName(id)}, who has 60 seconds to answer`)
+      acc = addEventAt(end, acc, 'system', declined ? `${moderatorName(id)} declined` : `${moderatorName(id)} didn’t answer in 60 seconds (timed out)`)
+      offers.push({ moderatorId: id, at: end, outcome: declined ? 'Declined' : 'Timed out' })
+      t = end
+    })
+    acc = addEventAt(t, acc, 'system', 'No moderator accepted. It is waiting for the Researcher.')
+    return { ...acc, escalation: { ...e, status: 'Waiting for moderator', offers, fellThroughAt: t } }
+  })
+}
+
+/** Dev: adds hours to how long a participant has been waiting, to see the time left on the promise run down. */
+export const addWait = (doc: FieldworkDoc, sessionId: string, hours: number): FieldworkDoc => escalate(doc, sessionId, (s, e) => (e.status === 'Waiting for moderator' ? { ...s, escalation: { ...e, extraWaitMin: (e.extraWaitMin ?? 0) + hours * 60 } } : s))
+
+/** The Researcher picks a moderator. They are notified whatever their state or standby; nobody is picked for them. */
+export function assignEscalation(doc: FieldworkDoc, sessionId: string, moderatorId: string, by: string): FieldworkDoc {
+  const when = tick(doc)
+  const state = MODERATOR_ROSTER.find((m) => m.id === moderatorId)?.state ?? 'Offline'
+  const s = doc.sessions.find((x) => x.id === sessionId)
+  if (!s?.escalation || s.escalation.status !== 'Waiting for moderator') return doc
+  return logged(
+    escalate(doc, sessionId, (x, e) => ({
+      ...addEventAt(when, x, 'system', `${by} assigned ${moderatorName(moderatorId)} (${state.toLowerCase()}) and notified them`),
+      escalation: { ...e, status: 'Assigned', offers: [...e.offers, { moderatorId, at: when, outcome: 'Assigned' }], actedBy: { by, at: when, action: 'Assigned', moderatorId } },
+    })),
+    when,
+    by,
+    `Assigned ${moderatorName(moderatorId)} to ${s.participantId}, who asked for a human`,
+  )
+}
+
+/** Dev: the moderator the Researcher assigned joins. */
+export function assignedJoins(doc: FieldworkDoc, sessionId: string): FieldworkDoc {
+  return escalate(doc, sessionId, (s, e) => {
+    const id = e.actedBy?.moderatorId
+    if (e.status !== 'Assigned' || !id) return s
+    const joined = tick(doc)
+    return { ...addEventAt(joined, s, 'moderator', `${moderatorName(id)} joined at ${formatSlot(joined)}`), moderatorId: id, escalation: { ...e, status: 'Joined', acceptedBy: id, joinedAt: joined } }
+  })
+}
+
+/** The participant is sent a link to book a human follow-up. The session becomes Booked. */
+export function sendBookingLink(doc: FieldworkDoc, sessionId: string, by: string): FieldworkDoc {
+  const when = tick(doc)
+  const s = doc.sessions.find((x) => x.id === sessionId)
+  if (!s?.escalation || s.escalation.status !== 'Waiting for moderator') return doc
+  return logged(
+    escalate(doc, sessionId, (x, e) => ({
+      ...addEventAt(when, x, 'system', `${by} sent ${x.participantId} a link to book a human follow-up`),
+      status: 'Booked' as const,
+      slot: null,
+      escalation: { ...e, status: 'Booking link sent', actedBy: { by, at: when, action: 'Booking link' } },
+    })),
+    when,
+    by,
+    `Sent ${s.participantId} a booking link for a human follow-up`,
+  )
 }
 
 /** Books the next free slot, two days out at 10:00, for a participant who missed or moved theirs. */

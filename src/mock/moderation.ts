@@ -50,6 +50,21 @@ export const HUMAN_MODERATORS: HumanModerator[] = [
   { id: 'u-elena', name: 'Elena Brooks', title: 'Moderator, concept testing', note: 'Available weekdays, US Central.' },
 ]
 
+/**
+ * Who is available to take a participant who asks for a human, right now. Routing is by standby: the moderator who has been
+ * idle longest is offered the session first, one at a time, with 60 seconds to answer. A mock; the moderator app isn't built.
+ */
+export type ModeratorState = 'Online' | 'In session' | 'Offline'
+export const MODERATOR_ROSTER: { id: string; state: ModeratorState; standby: boolean; idleMin: number }[] = [
+  { id: 'u-priya', state: 'Online', standby: true, idleMin: 130 },
+  { id: 'u-jordan', state: 'Online', standby: true, idleMin: 40 },
+  { id: 'u-sam', state: 'In session', standby: false, idleMin: 0 },
+  { id: 'u-elena', state: 'Offline', standby: false, idleMin: 0 },
+]
+/** What a participant is promised when they ask for a human. */
+export const ESCALATION_PROMISE_HOURS = 24
+export const OFFER_SECONDS = 60
+
 export const LANGUAGES = ['English (US)', 'English (UK)', 'Spanish (US)', 'French (Canada)', 'German', 'Hindi']
 
 export const STYLES = [

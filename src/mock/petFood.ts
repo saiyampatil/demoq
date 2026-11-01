@@ -396,6 +396,37 @@ export function seedPetFood(): PetSeed {
     invitedAs: id,
     invitedAt: at,
   })
+  // P-3115 asked for a human during the interview. Priya declined, Jordan accepted: it never reached the Researcher.
+  const asked = '2026-09-15T16:41:00-04:00'
+  const stamp = (min: number) => new Date(new Date(asked).getTime() + min * 60000).toISOString()
+  const esc = (when: string, kind: 'system' | 'participant' | 'moderator', text: string) => ({ id: uid('ev'), at: when, kind, text })
+  base.sessions = base.sessions.map((s) =>
+    s.id !== 'P-3115-1'
+      ? s
+      : {
+          ...s,
+          moderatorId: 'u-jordan',
+          events: [
+            ...s.events,
+            esc(asked, 'participant', 'Asked to talk to a human moderator'),
+            esc(asked, 'system', 'Offered to Priya Shah, who has 60 seconds to answer'),
+            esc(stamp(0.3), 'system', 'Priya Shah declined'),
+            esc(stamp(0.3), 'system', 'Offered to Jordan Lee, who has 60 seconds to answer'),
+            esc(stamp(0.8), 'system', 'Jordan Lee accepted'),
+            esc(stamp(2), 'moderator', 'Jordan Lee joined at Sep 15, 4:43 PM ET'),
+          ],
+          escalation: {
+            requestedAt: asked,
+            status: 'Joined' as const,
+            offers: [
+              { moderatorId: 'u-priya', at: stamp(0.3), outcome: 'Declined' as const },
+              { moderatorId: 'u-jordan', at: stamp(0.8), outcome: 'Accepted' as const },
+            ],
+            acceptedBy: 'u-jordan',
+            joinedAt: stamp(2),
+          },
+        },
+  )
   const entry = (at: string, by: string, text: string) => ({ id: uid('fl'), at, by, text })
   const fieldwork: FieldworkDoc = {
     ...base,

@@ -13,7 +13,7 @@ import { controlBase, TextArea } from '@/components/Field'
 import { Modal } from '@/components/Modal'
 import { sample, screenById, studyPath } from '@/routes/screens'
 import { SELF_SERVICE } from '@/state/selfService'
-import { closeWithoutFix, endSession, handledBySystem, ISSUE_FIX, ISSUE_META, moderatorName, openLink, recoverSystem, resolveSession, sessionCountOf, sessionsOfParticipant, simulateTurn } from '@/state/fieldwork'
+import { addWait, allDeclined, assignedJoins, closeWithoutFix, endSession, requestEscalation, standbyAccepts, handledBySystem, ISSUE_FIX, ISSUE_META, moderatorName, openLink, recoverSystem, resolveSession, sessionCountOf, sessionsOfParticipant, simulateTurn } from '@/state/fieldwork'
 import { PageHeader } from '../../shared/PageHeader'
 import { FieldworkGate, slotText } from './FieldworkBits'
 import { Banner } from '@/components/Banner'
@@ -132,6 +132,31 @@ export function SessionRecord() {
                 </Button>
               </span>
             )}
+            {s.status === 'Active' && !s.escalation && (
+              <Button size="sm" data-testid="sim-escalate" onClick={() => { update((d) => requestEscalation(d, s.id)); setSimulated('The participant asked for a human. A standby moderator was offered the session.') }}>
+                Simulate: participant asks for a human
+              </Button>
+            )}
+            {s.escalation?.status === 'Offering' && (
+              <>
+                <Button size="sm" data-testid="sim-accepted" onClick={() => { update((d) => standbyAccepts(d, s.id)); setSimulated('The standby moderator accepted and joined. It never reached the Researcher.') }}>
+                  Simulate: escalation accepted by standby
+                </Button>
+                <Button size="sm" data-testid="sim-declined" onClick={() => { update((d) => allDeclined(d, s.id)); setSimulated('Every standby moderator declined or timed out. It is waiting for the Researcher.') }}>
+                  Simulate: all declined
+                </Button>
+              </>
+            )}
+            {s.escalation?.status === 'Waiting for moderator' && (
+              <Button size="sm" data-testid="sim-23h" onClick={() => { update((d) => addWait(d, s.id, 23)); setSimulated('Added 23 hours to the wait.') }}>
+                Simulate: 23 h waiting
+              </Button>
+            )}
+            {s.escalation?.status === 'Assigned' && (
+              <Button size="sm" data-testid="sim-assigned-joins" onClick={() => { update((d) => assignedJoins(d, s.id)); setSimulated('The assigned moderator joined.') }}>
+                Simulate: assigned moderator joins
+              </Button>
+            )}
             {s.status === 'Active' && (
               <Button
                 size="sm"
@@ -239,9 +264,38 @@ export function SessionRecord() {
       )}
 
       <div className="grid gap-6 lg:grid-cols-2">
+        {s.escalation && (
+          <Card title="Escalation to a human" className="lg:col-span-2">
+            <dl className="grid gap-x-8 gap-y-2 text-sm sm:grid-cols-4" data-testid="escalation-card">
+              <div>
+                <dt className="text-graphite">Status</dt>
+                <dd className="font-medium">{s.escalation.status}</dd>
+              </div>
+              <div>
+                <dt className="text-graphite">Asked</dt>
+                <dd>{slotText(s.escalation.requestedAt)}</dd>
+              </div>
+              <div>
+                <dt className="text-graphite">{s.escalation.joinedAt ? 'Joined' : s.escalation.actedBy ? s.escalation.actedBy.action === 'Assigned' ? 'Assigned by' : 'Booking link sent by' : 'Offered to'}</dt>
+                <dd>
+                  {s.escalation.joinedAt
+                    ? `${moderatorName(s.escalation.acceptedBy ?? null)}, ${slotText(s.escalation.joinedAt)}`
+                    : s.escalation.actedBy
+                      ? `${s.escalation.actedBy.by}, ${slotText(s.escalation.actedBy.at)}`
+                      : s.escalation.offers.map((o) => `${moderatorName(o.moderatorId)} (${o.outcome.toLowerCase()})`).join(', ') || 'No one'}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-graphite">Counts</dt>
+                <dd>Once toward the target, across the AI and human parts</dd>
+              </div>
+            </dl>
+            <p className="mt-2 text-xs text-graphite">Each step is in the timeline below.</p>
+          </Card>
+        )}
         <Card title="Timeline">
           <ol className="flex flex-col gap-2.5">
-            {s.events.map((e) =>
+            {[...s.events].sort((a, b) => a.at.localeCompare(b.at)).map((e) =>
               e.marker === 'handoff' ? (
                 <li key={e.id} aria-label="Handoff point" className="-mx-2 flex gap-3 rounded-sm border border-dashed border-progress-line bg-progress-bg px-2 py-1.5 text-sm">
                   <span className="w-40 shrink-0 font-medium text-progress-fg tabular-nums">{slotText(e.at)}</span>

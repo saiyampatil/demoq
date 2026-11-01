@@ -11,8 +11,8 @@ import { SplitBar } from '@/components/ProgressBar'
 import { Tooltip } from '@/components/Tooltip'
 import { formatDay, formatStamp } from '@/lib/format'
 import { screenById, studyPath } from '@/routes/screens'
-import { assignModerator, extendWindow, giveUp, lowerTarget, HUMAN_MODERATOR_IDS, inviteFromReserve, rescheduleSession, resendLink, retrySession } from '@/state/fieldwork'
-import { ago, funnel, timeCheck, topUpStatus, needsYou, slotLedger, verdict, type NeedsRow, type VerdictAction, type VerdictLevel, durationStats, regionMatrix, regionSkew, targetFill } from '@/state/selectors'
+import { assignEscalation, assignModerator, extendWindow, giveUp, lowerTarget, sendBookingLink, HUMAN_MODERATOR_IDS, inviteFromReserve, rescheduleSession, resendLink, retrySession } from '@/state/fieldwork'
+import { ago, funnel, moderatorRoster, timeCheck, topUpStatus, needsYou, slotLedger, verdict, type NeedsRow, type VerdictAction, type VerdictLevel, durationStats, regionMatrix, regionSkew, targetFill } from '@/state/selectors'
 import { SessionTag } from '../SessionTag'
 import { invitedIds, invitedMessage, type FWProps } from './FieldworkBits'
 import { SlotLedger } from './SlotLedger'
@@ -271,6 +271,12 @@ export function Overview(p: FWProps) {
 
 const FIRST_SHOWN = 5
 
+/** "4 h 12 min" or "38 min". */
+const duration = (min: number) => {
+  const m = Math.max(0, Math.round(min))
+  return m >= 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${m} min`
+}
+
 const plusDays = (iso: string, n: number) => new Date(new Date(`${iso}T12:00:00-05:00`).getTime() + n * 86400000).toISOString().slice(0, 10)
 
 /** Extend the window or lower the target. Either needs a reason; who and when go to the activity log (the audit trail). */
@@ -361,6 +367,9 @@ function NeedsYou({ doc, rows, studyId, me, update, readOnly, blockedWhy }: FWPr
   const [all, setAll] = useState(false)
   const [notice, setNotice] = useState<string>()
   const [giving, setGiving] = useState<NeedsRow>()
+  const [assigning, setAssigning] = useState<NeedsRow>()
+  const [pick, setPick] = useState('')
+  const toast = useToast()
   const [reason, setReason] = useState('')
   useEffect(() => {
     if (!notice) return
@@ -369,6 +378,7 @@ function NeedsYou({ doc, rows, studyId, me, update, readOnly, blockedWhy }: FWPr
   }, [notice])
 
   const shown = all ? rows : rows.slice(0, FIRST_SHOWN)
+  const roster = moderatorRoster(doc)
 
   const run = (row: NeedsRow) => {
     const id = row.session.id
@@ -424,6 +434,55 @@ function NeedsYou({ doc, rows, studyId, me, update, readOnly, blockedWhy }: FWPr
           <ul className="divide-y divide-mist">
             {shown.map((row) => {
               const blocked = why(row)
+              if (row.kind === 'escalation' && row.escalation) {
+                const e = row.escalation
+                const late = e.leftMin < 0
+                return (
+                  <li key={row.key} data-testid="escalation-row" className="flex flex-col gap-2 border-l-4 border-pending-fg bg-pending-bg px-5 py-3">
+                    <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                      <Link to={r19(studyId, row.session.id)} className="font-medium text-iris-700 hover:underline">
+                        <SessionTag participantId={row.session.participantId} no={row.session.no} count={doc.sessions.filter((x) => x.participantId === row.session.participantId).length} />
+                      </Link>
+                      <span className="rounded-xs border border-pending-line bg-surface px-1.5 py-0.5 text-xs font-medium text-pending-fg">Waiting for moderator</span>
+                      <span className="text-sm">{row.what}</span>
+                    </div>
+                    <p className="text-sm tabular-nums" data-testid="escalation-clock">
+                      Waiting {duration(e.waitedMin)}.{' '}
+                      <span className={late ? 'font-medium text-negative-fg' : 'font-medium'}>{late ? `Overdue by ${duration(-e.leftMin)} against` : `${duration(e.leftMin)} left on`} the promise: “We’ll contact you within 24 hours.”</span>
+                    </p>
+                    <span className="flex flex-wrap gap-2">
+                      {blocked ? (
+                        <Tooltip content={blocked} focusable>
+                          <Button size="sm" variant="primary" disabled>
+                            Assign moderator
+                          </Button>
+                        </Tooltip>
+                      ) : (
+                        <>
+                          <Button size="sm" variant="primary" data-testid="assign-moderator" onClick={() => { setPick(''); setAssigning(row) }}>
+                            Assign moderator
+                          </Button>
+                          <Button
+                            size="sm"
+                            data-testid="send-booking-link"
+                            onClick={() => {
+                              update((d) => sendBookingLink(d, row.session.id, me))
+                              toast(`Booking link sent to ${row.who}. They’ll book a human follow-up.`)
+                            }}
+                          >
+                            Send booking link
+                          </Button>
+                        </>
+                      )}
+                      {!readOnly && (
+                        <Button size="sm" variant="ghost" onClick={() => setGiving(row)} aria-label={`Give up and replace: ${row.who}`}>
+                          Give up and replace
+                        </Button>
+                      )}
+                    </span>
+                  </li>
+                )
+              }
               return (
                 <li key={row.key} className="grid items-center gap-x-4 gap-y-1 px-5 py-3 sm:grid-cols-[minmax(0,11rem)_minmax(0,1fr)_5.5rem_auto]">
                   <Link to={r19(studyId, row.session.id)} className="font-medium text-iris-700 hover:underline">
@@ -469,6 +528,46 @@ function NeedsYou({ doc, rows, studyId, me, update, readOnly, blockedWhy }: FWPr
           )}
         </>
       )}
+
+      <Modal
+        open={!!assigning}
+        onClose={() => setAssigning(undefined)}
+        title={`Assign a moderator to ${assigning?.who ?? ''}`}
+        description="Pick who takes this participant. They are notified whatever their state, even if they aren’t on standby. Nobody is picked for you."
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setAssigning(undefined)}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              disabled={!pick}
+              data-testid="confirm-assign"
+              onClick={() => {
+                if (assigning) {
+                  update((d) => assignEscalation(d, assigning.session.id, pick, me))
+                  toast(`${roster.find((m) => m.id === pick)?.name} was notified about ${assigning.who}.`)
+                }
+                setAssigning(undefined)
+              }}
+            >
+              Assign and notify
+            </Button>
+          </>
+        }
+      >
+        <fieldset className="flex flex-col gap-1.5">
+          <legend className="sr-only">Moderators</legend>
+          {roster.map((m) => (
+            <label key={m.id} className="flex items-center gap-3 rounded-sm border border-mist px-3 py-2 text-sm has-[:checked]:border-iris-600 has-[:checked]:bg-iris-50">
+              <input type="radio" name="assign-moderator" value={m.id} checked={pick === m.id} onChange={() => setPick(m.id)} className="accent-[var(--color-iris-600)]" />
+              <span className="flex-1 font-medium">{m.name}</span>
+              {m.standby && <span className="text-xs text-graphite">On standby</span>}
+              <span className={cn('rounded-xs px-1.5 py-0.5 text-xs font-medium', m.state === 'Online' ? 'bg-positive-bg text-positive-fg' : m.state === 'In session' ? 'bg-progress-bg text-progress-fg' : 'bg-haze text-graphite')}>{m.state}</span>
+            </label>
+          ))}
+        </fieldset>
+      </Modal>
 
       <Modal
         open={!!giving}

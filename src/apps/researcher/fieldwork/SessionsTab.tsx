@@ -14,14 +14,15 @@ import { needsYou } from '@/state/selectors'
 import { SessionTag } from '../SessionTag'
 import { slotText, type FWProps } from './FieldworkBits'
 
-type Filter = 'All' | 'In progress' | 'Completed' | 'Needs you' | 'Not started' | 'Has open issues'
-const FILTERS: Filter[] = ['All', 'In progress', 'Completed', 'Needs you', 'Not started', 'Has open issues']
+type Filter = 'All' | 'In progress' | 'Completed' | 'Needs you' | 'Not started' | 'Has open issues' | 'Escalated'
+const FILTERS: Filter[] = ['All', 'In progress', 'Completed', 'Needs you', 'Not started', 'Has open issues', 'Escalated']
 const match: Record<Exclude<Filter, 'Needs you'>, (s: Session) => boolean> = {
   All: () => true,
   'In progress': (s) => s.status === 'Active' || s.status === 'Paused',
   Completed: (s) => s.status === 'Completed',
   'Not started': (s) => s.status === 'Not started' || s.status === 'Booked',
   'Has open issues': (s) => s.issues.some((i) => i.status === 'Open'),
+  Escalated: (s) => !!s.escalation,
 }
 
 export function SessionsTab({ doc, studyId, withdrawn, onOpenConsent }: FWProps & { withdrawn: number; onOpenConsent: () => void }) {
@@ -39,7 +40,7 @@ export function SessionsTab({ doc, studyId, withdrawn, onOpenConsent }: FWProps 
     { key: 'region', header: 'Region', cell: (s) => s.region ?? <span className="text-muted">Unknown</span> },
     { key: 'mode', header: 'Moderator', cell: (s) => <span className="whitespace-nowrap">{moderatorName(s.moderatorId)}</span> },
     { key: 'access', header: 'Access', cell: (s) => <StatusChip status={s.access} size="sm" /> },
-    { key: 'status', header: 'Session', cell: (s) => (<span className="flex items-center gap-2"><StatusChip status={s.status} size="sm" />{s.gaveUp && <span className="text-xs text-pending-fg">Given up, slot opened</span>}</span>) },
+    { key: 'status', header: 'Session', cell: (s) => (<span className="flex items-center gap-2"><StatusChip status={s.status} size="sm" />{s.gaveUp && <span className="text-xs text-pending-fg">Given up, slot opened</span>}{s.escalation && <span className="text-xs text-graphite">Escalated: {s.escalation.status.toLowerCase()}</span>}</span>) },
     { key: 'dur', header: 'Length', cell: (s) => (s.durationMin !== null ? <span className="tabular-nums">{s.durationMin} min</span> : <span className="text-muted">—</span>) },
     { key: 'issues', header: 'Issues', cell: (s) => { const o = s.issues.filter((i) => i.status === 'Open').length; return s.issues.length === 0 ? <span className="text-muted">None</span> : <span className={cn('tabular-nums', o > 0 && 'font-medium text-negative-fg')}>{o} open / {s.issues.length}</span> } },
     { key: 'when', header: 'Slot or start', cell: (s) => <span className="whitespace-nowrap">{slotText(s.slot ?? s.startedAt)}</span> },

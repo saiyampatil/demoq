@@ -8,10 +8,12 @@
 
 import { formatDate } from '@/lib/format'
 import type { AudienceDoc } from './audience'
+import { ESCALATION_PROMISE_HOURS, MODERATOR_ROSTER, type ModeratorState } from '@/mock/moderation'
 import type { ReviewSession, ReviewStatus } from '@/mock/review'
 import {
   FIELDWORK_NOW,
   handledBySystem,
+  moderatorName,
   ISSUE_FIX,
   ISSUE_META,
   ISSUE_TYPES,
@@ -74,6 +76,12 @@ export function reviewCounts(review: ReviewSession[]) {
     accepted: n('Accepted'),
     excluded: n('Excluded'),
   }
+}
+
+/** Every moderator with where they are now, for assigning one. A moderator on a live session is in session, and not on standby. */
+export function moderatorRoster(doc: FieldworkDoc): { id: string; name: string; state: ModeratorState; standby: boolean }[] {
+  const busy = new Set(doc.sessions.filter((s) => s.status === 'Active' && s.moderatorId).map((s) => s.moderatorId))
+  return MODERATOR_ROSTER.map((m) => ({ id: m.id, name: moderatorName(m.id), state: busy.has(m.id) ? 'In session' : m.state, standby: m.standby && !busy.has(m.id) }))
 }
 
 /** Who each outstanding clarification is waiting for. A clarification keeps the session Under review; it is a research matter, never Needs you. */
@@ -214,6 +222,9 @@ export type NeedsRow = {
   note?: string
   /** Higher is more urgent. */
   urgency: number
+  /** A participant who asked for a human and nobody accepted: pinned above everything, with the promise clock. */
+  kind?: 'escalation'
+  escalation?: { waitedMin: number; leftMin: number }
 }
 
 /** The participant already tried the on-screen steps for this problem and it didn't work. */
@@ -238,6 +249,12 @@ export function needsYou(doc: FieldworkDoc): NeedsRow[] {
   const rows: NeedsRow[] = []
 
   for (const { latest: s } of participantsOf(doc)) {
+    // Someone who asked for a human and nobody accepted goes first. An accepted escalation never comes here.
+    if (s.escalation?.status === 'Waiting for moderator' && !s.gaveUp) {
+      const waited = Math.max(0, (new Date(FIELDWORK_NOW).getTime() - new Date(s.escalation.requestedAt).getTime()) / 60000 + (s.escalation.extraWaitMin ?? 0))
+      rows.push({ key: s.id, session: s, who: s.participantId, what: 'Asked for a human and no moderator accepted.', since: s.escalation.requestedAt, action: 'Assign moderator', invites: true, stuck: true, urgency: 1000 + waited, kind: 'escalation', escalation: { waitedMin: waited, leftMin: ESCALATION_PROMISE_HOURS * 60 - waited } })
+      continue
+    }
     if (s.status === 'Completed' || s.status === 'Withdrawn' || s.handled || s.gaveUp) continue
     const since = lastEvent(s)
     // The problem to name is the most serious open one, newest first: a participant who has just hit a blocking error

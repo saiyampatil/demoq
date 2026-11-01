@@ -122,6 +122,8 @@ PRD gaps and conflicts found while building. Each entry says what the prototype 
 | 116 | L | Where does the audit trail live for Extend window and Lower target? | They are written to the Activity log on Overview; R24's timeline is not built yet. | Open |
 | 117 | M | If PulseAI never recovers (an issue it handles stays open), does anything alert the Researcher after a time, and what does the participant's session do meanwhile? | Nothing: it stays open as "PulseAI is handling this" with no action. | Open |
 | 118 | L | Echo or background noise and Audio dropped are filed under PulseAI recovering. Should echo instead end when the session ends, and audio drops when the participant resumes? | Both resolve when PulseAI recovers. | Open |
+| 119 | M | After the Researcher assigns a moderator, what if they never join? Does it return to Needs you after a time, or does the participant's 24-hour promise just run out? | It leaves Needs you as Assigned; there is no timeout. | Open |
+| 120 | L | What does the participant see while they wait for a human, and when they are sent a booking link? | Not built: participant screens are out of scope here. | Open |
 
 
 ## Future ideas (not built)
