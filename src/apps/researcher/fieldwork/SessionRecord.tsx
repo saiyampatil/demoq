@@ -8,11 +8,12 @@ import { CheckIcon, CloseIcon } from '@/components/icons'
 import { EmptyState } from '@/components/States'
 import { StatusChip } from '@/components/StatusChip'
 import { Tooltip } from '@/components/Tooltip'
-import { formatStamp } from '@/lib/format'
-import { controlBase } from '@/components/Field'
+import { formatSlot, formatStamp } from '@/lib/format'
+import { controlBase, TextArea } from '@/components/Field'
+import { Modal } from '@/components/Modal'
 import { sample, screenById, studyPath } from '@/routes/screens'
 import { SELF_SERVICE } from '@/state/selfService'
-import { endSession, ISSUE_META, moderatorName, openLink, resolveSession, sessionCountOf, sessionsOfParticipant, simulateTurn } from '@/state/fieldwork'
+import { closeWithoutFix, endSession, handledBySystem, ISSUE_FIX, ISSUE_META, moderatorName, openLink, recoverSystem, resolveSession, sessionCountOf, sessionsOfParticipant, simulateTurn } from '@/state/fieldwork'
 import { PageHeader } from '../../shared/PageHeader'
 import { FieldworkGate, slotText } from './FieldworkBits'
 import { Banner } from '@/components/Banner'
@@ -23,8 +24,10 @@ import { useStudySessions } from '../useStudySessions'
 export function SessionRecord() {
   const { sessionId = '' } = useParams()
   const [params] = useSearchParams()
-  const { studyId, study, editable, doc, review, preview, update } = useStudySessions()
+  const { studyId, study, editable, doc, review, preview, update, me } = useStudySessions()
   const [simulated, setSimulated] = useState<string>()
+  const [closing, setClosing] = useState<{ id: string; type: string }>()
+  const [reason, setReason] = useState('')
   const [problem, setProblem] = useState<string>(SELF_SERVICE[0].type)
   if (!editable || !study || !doc) return <FieldworkGate studyId={studyId} editable={editable} />
   const back = { to: studyPath(studyId, screenById.R18), label: 'Fieldwork command center' }
@@ -102,7 +105,19 @@ export function SessionRecord() {
                   setSimulated(out.result === 'unavailable' ? 'This study is temporarily unavailable' : out.result === 'opened' ? 'Link opened' : out.result === 'started' ? 'Interview started' : undefined)
                 }}
               >
-                Simulate: participant opens their link
+                {s.status === 'Incomplete (resumable)' || s.carried ? 'Simulate: participant resumes' : 'Simulate: participant opens their link'}
+              </Button>
+            )}
+            {s.issues.some((x) => x.status === 'Open' && handledBySystem(x.type)) && (
+              <Button
+                size="sm"
+                data-testid="simulate-recover"
+                onClick={() => {
+                  update((d) => recoverSystem(d, s.id))
+                  setSimulated('PulseAI recovered. What it was handling is resolved.')
+                }}
+              >
+                Simulate: PulseAI recovers
               </Button>
             )}
             {s.status === 'Active' && (
@@ -349,7 +364,26 @@ export function SessionRecord() {
                     {x.type} <span className="font-normal text-graphite">({x.severity}, {x.status})</span>
                     {x.selfService && <span className="ml-2 rounded-xs border border-positive-line bg-positive-bg px-1.5 py-0.5 text-xs font-medium text-positive-fg">Fixed by the participant</span>}
                   </p>
-                  <p className="text-graphite">{x.status === 'Resolved' ? `Resolved by ${x.resolvedBy}: ${x.resolution}` : ISSUE_META[x.type].action}</p>
+                  {x.status === 'Resolved' ? (
+                    <p className="text-positive-fg" data-testid="resolved-line">
+                      Resolved: {x.resolution}
+                      {x.resolvedAt ? ` · ${formatSlot(x.resolvedAt)}` : ''}
+                      {x.detail ? <span className="text-graphite">. {x.detail}</span> : null}
+                    </p>
+                  ) : handledBySystem(x.type) ? (
+                    <p className="font-medium" data-testid="system-handling">PulseAI is handling this.</p>
+                  ) : (
+                    <>
+                      <p className="text-graphite">
+                        Who fixes it: {ISSUE_FIX[x.type].fixer}. {ISSUE_FIX[x.type].resolvesWhen}. {ISSUE_META[x.type].action}
+                      </p>
+                      {!preview && !s.gaveUp && (
+                        <Button size="sm" className="mt-1.5" data-testid="close-without-fix" onClick={() => setClosing({ id: x.id, type: x.type })}>
+                          Close without fix
+                        </Button>
+                      )}
+                    </>
+                  )}
                 </li>
               ))}
             </ul>
@@ -389,6 +423,42 @@ export function SessionRecord() {
         </Card>
       </div>
 
+      <Modal
+        open={!!closing}
+        onClose={() => {
+          setClosing(undefined)
+          setReason('')
+        }}
+        title={`Close “${closing?.type ?? ''}” without a fix?`}
+        description="Use this when the problem won’t be fixed and the session carries on or ends anyway. It isn’t a confirmation that anything was fixed. The reason is logged with your name and the time."
+        footer={
+          <>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setClosing(undefined)
+                setReason('')
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              disabled={!reason.trim()}
+              data-testid="confirm-close-without-fix"
+              onClick={() => {
+                if (closing) update?.((d) => closeWithoutFix(d, s.id, closing.id, reason, me))
+                setClosing(undefined)
+                setReason('')
+              }}
+            >
+              Close without fix
+            </Button>
+          </>
+        }
+      >
+        <TextArea label="Reason (required)" rows={3} value={reason} onChange={(e) => setReason(e.target.value)} />
+      </Modal>
     </div>
   )
 }

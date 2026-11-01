@@ -215,3 +215,19 @@ One line per change: the decision, then the reason. Newest stage at the bottom.
 - Small fix on the way: a Button given `to` now passes `data-testid` through to its link.
 - Probes: `tests/gap-loop.mjs` and `tests/gap-partial.mjs`. No test chain.
 
+## R18 close the gap loop, stage 2: issue ownership
+
+- "Mark resolved" is gone (the button, its modal and `resolveIssue`). The Researcher can't confirm a technical fix they can't see, so an issue now ends from the next event, or with a reason.
+- What ends each issue (`ISSUE_FIX` in `state/fieldwork.ts`):
+  - Microphone, camera, unsupported browser: the participant's next session starts (across all of their sessions, since the problem was on an earlier one). Moderator disconnected, human-led: the rescheduled session starts.
+  - Connection lost: the participant resumes (a session starting as a resume or a retry).
+  - Link expired: the reissued link is opened. A link nobody has reissued doesn't count.
+  - Transcription, recording, stimulus, survey-answer, consent-capture, audio, video, echo and AI-agent-timeout problems: PulseAI recovers. Echo or background noise sits here too: nothing to fix, and it is noted for the reviewer. Audio dropped is here, not with Connection lost, because it recovers inside the session.
+  - A fix by the participant through P18 still resolves at once, now recorded as "the participant fixed it with the on-screen steps".
+- Issues PulseAI handles show "PulseAI is handling this" with no Researcher action anywhere: not on the Issues tab, not on the session page, and not in Needs you (a Technical Error whose only open issues are PulseAI's no longer makes a row).
+- Every resolved issue says what resolved it and when, with the time zone: "Resolved: participant resumed · Nov 11, 5:06 PM ET", plus any detail the seed carried. The resolving event is also written on the session's timeline. Seed issues were re-attributed to the event that fixes them (for example "Resolved: PulseAI recovered · Nov 4, 11:26 AM ET"); the one seeded withdrawal (P-2050) is "closed without a fix" by Maya Ortiz.
+- Manual closing, only two ways: Give up and replace closes everything the Researcher can act on in that session, with "given up and replaced: reason"; or "Close without fix" on the session page (not shown for PulseAI's issues, nor on a session given up on), with a required reason, logged to Activity with who and when.
+- The Issues tab is a read-only record: the summary, the table of every kind of issue (now with Who fixes it and Resolves when instead of What to do), and the log with an Open / Resolved filter (default Open), severity, who fixes it, how it resolved and a link to the session. No buttons. Recovery actions are in Needs you and on the session page only.
+- Dev controls (on the session page): "Simulate: participant opens their link" (resumes, when the session is Incomplete or a retry), and "Simulate: PulseAI recovers" for a session with an open PulseAI issue. "Participant resumes" and "link opened" are the same mock of opening the link, labelled by what it does for that session.
+- `tests/issues.mjs` runs all of it on the seed. No test chain.
+

@@ -120,6 +120,8 @@ PRD gaps and conflicts found while building. Each entry says what the prototype 
 | 114 | M | Gap loop: should "Invite all N from reserve" invite everyone in the reserve even when the reserve is much bigger than the gap, or cap it at what the completion rate says is needed? | Invites everyone in the reserve, as the brief reads. | Open |
 | 115 | L | Is 4 days the right time to source, screen and interview a new person, and should a reserve person (already screened) count as needing less? | A fixed mock 4 days, and the warning only shows when sourcing is needed. | Open |
 | 116 | L | Where does the audit trail live for Extend window and Lower target? | They are written to the Activity log on Overview; R24's timeline is not built yet. | Open |
+| 117 | M | If PulseAI never recovers (an issue it handles stays open), does anything alert the Researcher after a time, and what does the participant's session do meanwhile? | Nothing: it stays open as "PulseAI is handling this" with no action. | Open |
+| 118 | L | Echo or background noise and Audio dropped are filed under PulseAI recovering. Should echo instead end when the session ends, and audio drops when the participant resumes? | Both resolve when PulseAI recovers. | Open |
 
 
 ## Future ideas (not built)

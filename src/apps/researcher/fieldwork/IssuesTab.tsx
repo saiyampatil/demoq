@@ -1,14 +1,12 @@
 import { useState } from 'react'
 import { Link } from 'react-router'
-import { Button } from '@/components/Button'
 import { Card } from '@/components/Card'
 import { cn } from '@/components/cn'
-import { controlBase, TextArea } from '@/components/Field'
-import { Modal } from '@/components/Modal'
+import { controlBase } from '@/components/Field'
 import { EmptyState } from '@/components/States'
-import { formatStamp } from '@/lib/format'
+import { formatSlot, formatStamp } from '@/lib/format'
 import { screenById, studyPath } from '@/routes/screens'
-import { ISSUE_META, resolveIssue, sessionCountOf, type IssueSeverity } from '@/state/fieldwork'
+import { handledBySystem, ISSUE_FIX, sessionCountOf, type IssueSeverity } from '@/state/fieldwork'
 import { issueSummary } from '@/state/selectors'
 import { SessionTag } from '../SessionTag'
 import type { FWProps } from './FieldworkBits'
@@ -16,11 +14,13 @@ import type { FWProps } from './FieldworkBits'
 const dot: Record<IssueSeverity, string> = { Blocking: 'bg-negative-fg', Degraded: 'bg-pending-fg', Minor: 'bg-graphite' }
 const sessionHref = (studyId: string, id: string) => studyPath(studyId, { ...screenById.R19, path: screenById.R19.path.replace(':sessionId', id) })
 
-export function IssuesTab({ doc, studyId, me, update, readOnly }: FWProps) {
+/**
+ * A record, not a work list. Recovery actions are in Needs you and on the session page; an issue ends from the next event
+ * (the participant starts or resumes, the link is opened, PulseAI recovers), or by giving up or closing it with a reason.
+ */
+export function IssuesTab({ doc, studyId }: FWProps) {
   const [status, setStatus] = useState('Open')
   const [severity, setSeverity] = useState('')
-  const [resolving, setResolving] = useState<{ sessionId: string; id: string; type: string }>()
-  const [note, setNote] = useState('')
   const sum = issueSummary(doc)
   const list = sum.all.filter((x) => (!status || x.status === status) && (!severity || x.severity === severity)).sort((a, b) => b.at.localeCompare(a.at))
 
@@ -42,13 +42,13 @@ export function IssuesTab({ doc, studyId, me, update, readOnly }: FWProps) {
         ))}
       </section>
 
-      <Card title="Every kind of issue" description="All the technical problems a session can hit, with how many have happened and what to do about each." flush>
+      <Card title="Every kind of issue" description="All the technical problems a session can hit, how many have happened, who fixes each and what ends it. Nothing here is closed by hand: an issue ends from the next event." flush>
         <div className="overflow-x-auto">
           <table className="w-full border-collapse text-left text-sm">
             <caption className="sr-only">Technical issues by type</caption>
             <thead>
               <tr className="border-b border-mist bg-haze text-graphite">
-                {['Issue', 'Area', 'When', 'Happened', 'Open', 'What to do'].map((h) => (
+                {['Issue', 'Area', 'When', 'Happened', 'Open', 'Who fixes it', 'Resolves when'].map((h) => (
                   <th key={h} scope="col" className="h-9 px-4 font-medium whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -64,7 +64,8 @@ export function IssuesTab({ doc, studyId, me, update, readOnly }: FWProps) {
                   <td className="px-4 py-3 whitespace-nowrap text-graphite">{t.stage}</td>
                   <td className="px-4 py-3 tabular-nums">{t.count === 0 ? <span className="text-muted">0</span> : t.count}</td>
                   <td className={cn('px-4 py-3 tabular-nums', t.open > 0 ? 'font-medium text-negative-fg' : 'text-muted')}>{t.open}</td>
-                  <td className="min-w-64 px-4 py-3 text-graphite">{t.action}</td>
+                  <td className="px-4 py-3 whitespace-nowrap">{t.fixer === 'PulseAI' ? 'PulseAI' : t.fixer}</td>
+                  <td className="min-w-52 px-4 py-3 text-graphite">{t.resolvesWhen}</td>
                 </tr>
               ))}
             </tbody>
@@ -74,6 +75,7 @@ export function IssuesTab({ doc, studyId, me, update, readOnly }: FWProps) {
 
       <Card
         title="Issue log"
+        description="A read-only record. Open a session to act on it."
         flush
         actions={
           <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -116,53 +118,24 @@ export function IssuesTab({ doc, studyId, me, update, readOnly }: FWProps) {
                     </Link>
                   </p>
                   <p className="text-sm text-graphite">
-                    {formatStamp(x.at)}. {ISSUE_META[x.type].action}
+                    {formatStamp(x.at)}.{' '}
+                    {x.status === 'Open' ? (handledBySystem(x.type) ? <span className="font-medium text-ink">PulseAI is handling this.</span> : <>Who fixes it: {ISSUE_FIX[x.type].fixer}. {ISSUE_FIX[x.type].resolvesWhen}.</>) : null}
                   </p>
                   {x.status === 'Resolved' && (
                     <p className="text-sm text-positive-fg">
-                      Resolved{x.resolvedBy ? ` by ${x.resolvedBy}` : ''}: {x.resolution}
+                      Resolved: {x.resolution}
+                      {x.resolvedAt ? ` · ${formatSlot(x.resolvedAt)}` : ''}
+                      {x.detail ? <span className="text-graphite">. {x.detail}</span> : null}
                     </p>
                   )}
                 </div>
-                {x.status === 'Open' && !readOnly ? (
-                  <Button size="sm" onClick={() => setResolving({ sessionId: x.sessionId, id: x.id, type: x.type })}>
-                    Mark resolved
-                  </Button>
-                ) : (
-                  <span className="text-xs text-graphite">{x.status === 'Resolved' ? 'Resolved' : 'Sample data'}</span>
-                )}
+                <span className={cn('text-xs', x.status === 'Open' ? 'font-medium text-pending-fg' : 'text-graphite')}>{x.status}</span>
               </li>
             ))}
           </ul>
         )}
       </Card>
 
-      <Modal
-        open={!!resolving}
-        onClose={() => setResolving(undefined)}
-        title={`Resolve “${resolving?.type ?? ''}”`}
-        description="Say what was done. It’s saved with your name and the time, and added to the activity log."
-        footer={
-          <>
-            <Button variant="ghost" onClick={() => setResolving(undefined)}>
-              Cancel
-            </Button>
-            <Button
-              variant="primary"
-              disabled={!note.trim()}
-              onClick={() => {
-                if (resolving) update((d) => resolveIssue(d, resolving.sessionId, resolving.id, me, note))
-                setResolving(undefined)
-                setNote('')
-              }}
-            >
-              Mark resolved
-            </Button>
-          </>
-        }
-      >
-        <TextArea label="What was done (required)" rows={3} value={note} onChange={(e) => setNote(e.target.value)} />
-      </Modal>
     </div>
   )
 }

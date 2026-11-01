@@ -11,6 +11,8 @@ import type { AudienceDoc } from './audience'
 import type { ReviewSession, ReviewStatus } from '@/mock/review'
 import {
   FIELDWORK_NOW,
+  handledBySystem,
+  ISSUE_FIX,
   ISSUE_META,
   ISSUE_TYPES,
   REGIONS,
@@ -241,10 +243,12 @@ export function needsYou(doc: FieldworkDoc): NeedsRow[] {
     // The problem to name is the most serious open one, newest first: a participant who has just hit a blocking error
     // must not be described by a minor note that was already open on their session.
     const rank = { Blocking: 0, Degraded: 1, Minor: 2 } as const
-    const openIssue = s.issues.filter((i) => i.status === 'Open').sort((a, b) => rank[a.severity] - rank[b.severity] || b.at.localeCompare(a.at))[0]
+    // What PulseAI is handling is never the Researcher's to act on: it names no row and gives none an action.
+    const openIssue = s.issues.filter((i) => i.status === 'Open' && !handledBySystem(i.type)).sort((a, b) => rank[a.severity] - rank[b.severity] || b.at.localeCompare(a.at))[0]
     const row = (action: NeedsAction, what: string, urgency: number, extra: Partial<NeedsRow> = {}) =>
       rows.push({ key: s.id, session: s, who: s.participantId, what, since, action, invites: action !== 'Assign moderator', stuck: false, urgency: urgency + Math.min(9, hoursSince(since) / 24), note: selfServiceNote(s), ...extra })
 
+    if (s.status === 'Technical Error' && !openIssue && s.issues.some((i) => i.status === 'Open')) continue
     if (s.status === 'Technical Error') row('Retry', `Technical error: ${(openIssue?.type ?? 'the session stopped').toLowerCase()}. The interview didn’t finish.`, 90, { stuck: true })
     else if (human && s.status === 'Booked' && !s.moderatorId) row('Assign moderator', 'Booked a slot, but no moderator is assigned.', 85)
     else if (human && s.status === 'Rescheduled') row('Reschedule', 'Missed or moved their slot and needs a new one.', 80)
@@ -681,7 +685,7 @@ export function issueSummary(doc: FieldworkDoc) {
     sessions: new Set(all.map((x) => x.sessionId)).size,
     byType: ISSUE_TYPES.map((t) => {
       const xs = all.filter((x) => x.type === t)
-      return { type: t, ...ISSUE_META[t], count: xs.length, open: xs.filter((x) => x.status === 'Open').length, sessions: [...new Set(xs.map((x) => x.sessionId))] }
+      return { type: t, ...ISSUE_META[t], ...ISSUE_FIX[t], count: xs.length, open: xs.filter((x) => x.status === 'Open').length, sessions: [...new Set(xs.map((x) => x.sessionId))] }
     }),
   }
 }

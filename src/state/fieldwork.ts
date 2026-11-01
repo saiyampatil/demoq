@@ -71,6 +71,49 @@ export const ISSUE_META: Record<IssueType, { area: IssueArea; stage: 'Before the
 }
 export const ISSUE_TYPES = Object.keys(ISSUE_META) as IssueType[]
 
+/**
+ * What ends an issue. Nobody confirms a fix they can't see: an issue resolves from the next event, not from a click.
+ *   session-start  the participant's next session starts (device and browser problems, a rescheduled session)
+ *   resume         the participant resumes (connection lost)
+ *   link-opened    the reissued link is opened (link expired)
+ *   system         PulseAI recovers (transcription, media and platform problems; the Researcher has nothing to do)
+ * A Researcher can also end one by giving up on the participant, or by closing it without a fix with a reason.
+ */
+export type ResolvedVia = 'session-start' | 'resume' | 'link-opened' | 'system' | 'self-service' | 'gave-up' | 'closed'
+export type IssueFix = { fixer: 'Participant' | 'Researcher' | 'PulseAI'; via: 'session-start' | 'resume' | 'link-opened' | 'system'; resolvesWhen: string }
+
+const NEXT_SESSION: IssueFix = { fixer: 'Participant', via: 'session-start', resolvesWhen: 'The participant’s next session starts' }
+const SYSTEM: IssueFix = { fixer: 'PulseAI', via: 'system', resolvesWhen: 'PulseAI recovers' }
+export const ISSUE_FIX: Record<IssueType, IssueFix> = {
+  'Microphone permission denied': NEXT_SESSION,
+  'Camera not detected': NEXT_SESSION,
+  'Unsupported browser or device': NEXT_SESSION,
+  'Link expired or invalid': { fixer: 'Researcher', via: 'link-opened', resolvesWhen: 'The reissued link is opened' },
+  'Connection lost': { fixer: 'Participant', via: 'resume', resolvesWhen: 'The participant resumes' },
+  'Moderator disconnected': { fixer: 'Researcher', via: 'session-start', resolvesWhen: 'The rescheduled session starts' },
+  'Consent capture failed': SYSTEM,
+  'Audio dropped': SYSTEM,
+  'Video stream interrupted': SYSTEM,
+  'Echo or background noise': SYSTEM,
+  'Stimulus failed to load': SYSTEM,
+  'Survey answer not saved': SYSTEM,
+  'Recording failed to start': SYSTEM,
+  'Recording upload incomplete': SYSTEM,
+  'Transcription delayed': SYSTEM,
+  'AI agent timeout': SYSTEM,
+}
+/** PulseAI is handling it: the Researcher has no action on it. */
+export const handledBySystem = (t: IssueType) => ISSUE_FIX[t].fixer === 'PulseAI'
+
+/** What resolved it, in the words shown after "Resolved:". */
+const RESOLVED_LABEL: Record<Exclude<ResolvedVia, 'gave-up' | 'closed'>, string> = {
+  'session-start': 'participant started their next session',
+  resume: 'participant resumed',
+  'link-opened': 'the reissued link was opened',
+  system: 'PulseAI recovered',
+  'self-service': 'the participant fixed it with the on-screen steps',
+}
+
 export type TechIssue = {
   id: string
   type: IssueType
@@ -82,6 +125,10 @@ export type TechIssue = {
   resolvedAt?: string
   /** The participant fixed it themselves with the on-screen steps (P18), before the Researcher had to do anything. */
   selfService?: boolean
+  /** The event that resolved it. An issue is never resolved by a bare click: it is an event, or a reason. */
+  via?: ResolvedVia
+  /** What happened, for the record, when the seed or the Researcher said more than the event does. */
+  detail?: string
 }
 
 /**
@@ -328,7 +375,23 @@ export function generateFieldwork(i: GenInput): FieldworkDoc {
         // Human-led sessions have a moderator who can drop, not an AI agent that can time out.
         const t = (human && type === 'AI agent timeout' ? 'Moderator disconnected' : type) as IssueType
         const when = at(t0, started ? 3 + j * 4 : 20)
-        return { id: `${sessionIdOf(r)}-ti${j + 1}`, type: t as IssueType, severity, at: when, status: st, resolution, resolvedBy: st === 'Resolved' ? 'Maya Ortiz' : undefined, resolvedAt: st === 'Resolved' ? at(when, 25) : undefined }
+        const fix = ISSUE_FIX[t]
+        if (st === 'Open') return { id: `${sessionIdOf(r)}-ti${j + 1}`, type: t, severity, at: when, status: 'Open' }
+        // A withdrawal is the Researcher's to close; everything else resolved from the event that fixes it.
+        const closed = r.variant === 'withdrawn'
+        const via: ResolvedVia = closed ? 'closed' : fix.via
+        return {
+          id: `${sessionIdOf(r)}-ti${j + 1}`,
+          type: t,
+          severity,
+          at: when,
+          status: 'Resolved',
+          via,
+          resolution: closed ? `closed without a fix: ${resolution}` : RESOLVED_LABEL[fix.via],
+          detail: closed ? undefined : resolution,
+          resolvedBy: closed ? 'Maya Ortiz' : fix.via === 'system' ? 'PulseAI' : 'The participant',
+          resolvedAt: at(when, 25),
+        }
       })
       .filter((x) => !ISSUE_META[x.type].only || ISSUE_META[x.type].only === (human ? 'Human-led' : 'AI-led'))
 
@@ -474,7 +537,10 @@ const addEventAt = (when: string, s: Session, kind: EventKind, text: string): Se
 const addTurn = (s: Session, speaker: string, ai: boolean, text: string): Session => ({ ...s, transcript: [...s.transcript, { at: now(), speaker, ai, text }] })
 
 export function startSession(doc: FieldworkDoc, id: string, by: string): FieldworkDoc {
-  return patch(doc, id, (s) => (s.status === 'Booked' || s.status === 'Rescheduled' || s.status === 'Incomplete (resumable)' ? addEvent({ ...s, status: 'Active', startedAt: s.startedAt ?? now() }, 'system', `${by} started the session`) : s))
+  const s = doc.sessions.find((x) => x.id === id)
+  if (!s || !(s.status === 'Booked' || s.status === 'Rescheduled' || s.status === 'Incomplete (resumable)')) return doc
+  const started = patch(doc, id, (x) => addEvent({ ...x, status: 'Active', startedAt: x.startedAt ?? now() }, 'system', `${by} started the session`))
+  return participantStarted(started, s.participantId, s.status === 'Incomplete (resumable)' || !!s.carried, tick(doc))
 }
 
 export function endSession(doc: FieldworkDoc, id: string, by: string, outcome: 'Completed' | 'Incomplete (resumable)'): FieldworkDoc {
@@ -557,13 +623,69 @@ export const resumeFieldwork = (doc: FieldworkDoc, by: string): FieldworkDoc =>
 
 // ─── monitoring figures (R18) ───────────────────────────────────────────────
 
-export const resolveIssue = (doc: FieldworkDoc, sessionId: string, issueId: string, by: string, resolution: string): FieldworkDoc => {
-  const when = tick(doc)
-  const type = doc.sessions.find((s) => s.id === sessionId)?.issues.find((x) => x.id === issueId)?.type
+/** Ends the matching open issues, and says so on the session. Every resolution carries what resolved it and when. */
+type How = { via: ResolvedVia; resolution: string }
+function resolveIssues(doc: FieldworkDoc, match: (s: Session, i: TechIssue) => boolean, how: How | ((i: TechIssue) => How), by: string, when: string): FieldworkDoc {
+  const of = (i: TechIssue) => (typeof how === 'function' ? how(i) : how)
   return {
-    ...patch(doc, sessionId, (s) => addEventAt(when, { ...s, issues: s.issues.map((x) => (x.id === issueId && x.status === 'Open' ? { ...x, status: 'Resolved' as const, resolution: resolution.trim(), resolvedBy: by, resolvedAt: when } : x)) }, 'system', `${type} marked resolved by ${by}`)),
-    log: [...doc.log, { id: uid('fl'), at: when, by, text: `Resolved “${type}” on ${sessionId}: ${resolution.trim()}` }],
+    ...doc,
+    sessions: doc.sessions.map((s) => {
+      const hit = s.issues.filter((i) => i.status === 'Open' && match(s, i))
+      if (!hit.length) return s
+      const ids = new Set(hit.map((i) => i.id))
+      const issues = s.issues.map((i) => (ids.has(i.id) ? { ...i, status: 'Resolved' as const, ...of(i), resolvedBy: by, resolvedAt: when } : i))
+      return hit.reduce((acc, i) => addEventAt(when, acc, 'system', `${i.type} resolved: ${of(i).resolution}`), { ...s, issues })
+    }),
   }
+}
+
+/**
+ * The participant's session starts. That resolves their open device and browser problems, their expired link (it was
+ * opened to get here), and, if it is a resume, a lost connection. Across all of their sessions: the problem was on an
+ * earlier one.
+ */
+function participantStarted(doc: FieldworkDoc, participantId: string, resumed: boolean, when: string): FieldworkDoc {
+  return resolveIssues(
+    doc,
+    (s, i) => {
+      if (s.participantId !== participantId) return false
+      const v = ISSUE_FIX[i.type].via
+      return v === 'session-start' || v === 'link-opened' || (v === 'resume' && resumed)
+    },
+    (i) => ({ via: ISSUE_FIX[i.type].via, resolution: RESOLVED_LABEL[ISSUE_FIX[i.type].via] }),
+    'The participant',
+    when,
+  )
+}
+
+/** The reissued link is opened. The Researcher sent it, so a link nobody has reissued doesn't count. */
+function linkOpened(doc: FieldworkDoc, s: Session, when: string): FieldworkDoc {
+  if (!s.handled) return doc
+  return resolveIssues(doc, (x, i) => x.participantId === s.participantId && ISSUE_FIX[i.type].via === 'link-opened', { via: 'link-opened', resolution: RESOLVED_LABEL['link-opened'] }, 'The participant', when)
+}
+
+/** PulseAI recovers from what it was handling on this session: transcription, media, platform. Nothing for the Researcher to do. */
+export function recoverSystem(doc: FieldworkDoc, sessionId: string): FieldworkDoc {
+  return resolveIssues(doc, (s, i) => s.id === sessionId && handledBySystem(i.type), { via: 'system', resolution: RESOLVED_LABEL.system }, 'PulseAI', tick(doc))
+}
+
+/**
+ * The only manual way to end an issue besides giving up on the participant: close it without a fix, with a reason.
+ * It is logged with who and when. The Researcher cannot confirm a fix they can't see, so there is no "mark resolved".
+ */
+export function closeWithoutFix(doc: FieldworkDoc, sessionId: string, issueId: string, reason: string, by: string): FieldworkDoc {
+  const s = doc.sessions.find((x) => x.id === sessionId)
+  const issue = s?.issues.find((x) => x.id === issueId && x.status === 'Open')
+  if (!s || !issue || !reason.trim() || handledBySystem(issue.type)) return doc
+  const when = tick(doc)
+  const text = reason.trim()
+  const next = {
+    ...doc,
+    sessions: doc.sessions.map((x) =>
+      x.id !== sessionId ? x : addEventAt(when, { ...x, issues: x.issues.map((i) => (i.id === issueId ? { ...i, status: 'Resolved' as const, via: 'closed' as const, resolution: `closed without a fix: ${text}`, resolvedBy: by, resolvedAt: when } : i)) }, 'system', `${issue.type} closed without a fix by ${by}: ${text}`),
+    ),
+  }
+  return logged(next, when, by, `Closed “${issue.type}” on ${sessionId} without a fix: ${text}`)
 }
 
 // ─── Needs you: what the Researcher can do about a session ──────────────────
@@ -690,12 +812,10 @@ export function giveUp(doc: FieldworkDoc, sessionId: string, reason: string, by:
   const when = tick(doc)
   const s = doc.sessions.find((x) => x.id === sessionId)
   if (!s || s.gaveUp || !reason.trim()) return doc
-  return logged(
-    patch(doc, sessionId, (x) => ({ ...addEventAt(when, x, 'system', `${by} gave up on this participant and opened a slot: ${reason.trim()}`), gaveUp: { reason: reason.trim(), at: when, by } })),
-    when,
-    by,
-    `Gave up on ${s.participantId} and opened a slot: ${reason.trim()}`,
-  )
+  const gone = patch(doc, sessionId, (x) => ({ ...addEventAt(when, x, 'system', `${by} gave up on this participant and opened a slot: ${reason.trim()}`), gaveUp: { reason: reason.trim(), at: when, by } }))
+  // Giving up closes what is still open on the session, with that reason.
+  const closed = resolveIssues(gone, (x, i) => x.id === sessionId && !handledBySystem(i.type), { via: 'gave-up', resolution: `given up and replaced: ${reason.trim()}` }, by, when)
+  return logged(closed, when, by, `Gave up on ${s.participantId} and opened a slot: ${reason.trim()}`)
 }
 
 /** How serious each problem the participant can fix themselves is, if it isn't fixed. */
@@ -718,7 +838,7 @@ export function selfServiceResolved(doc: FieldworkDoc, sessionId: string, issue:
   if (!s) return doc
   const when = tick(doc)
   const severity = SELF_SERVICE_SEVERITY[issue] ?? 'Degraded'
-  const resolution = `Fixed by the participant with the on-screen steps${checks > 1 ? ` (it took a second check)` : ''}.`
+  const detail = `Fixed with the on-screen steps${checks > 1 ? ' (it took a second check)' : ''}.`
   const record: SelfService = { id: uid('ss'), issue, startedAt, checks, outcome: 'resolved', at: when }
   return logged(
     patch(doc, sessionId, (x) => ({
@@ -728,7 +848,7 @@ export function selfServiceResolved(doc: FieldworkDoc, sessionId: string, issue:
         'system',
         'The interview resumed from the last saved question. Nothing was restarted or asked again.',
       ),
-      issues: [...x.issues, { id: uid('ti'), type: issue, severity, at: startedAt, status: 'Resolved' as const, resolution, resolvedBy: 'The participant (self-service)', resolvedAt: when, selfService: true }],
+      issues: [...x.issues, { id: uid('ti'), type: issue, severity, at: startedAt, status: 'Resolved' as const, via: 'self-service' as const, resolution: RESOLVED_LABEL['self-service'], detail, resolvedBy: 'The participant (self-service)', resolvedAt: when, selfService: true }],
       selfService: [...(x.selfService ?? []), record],
     })),
     when,
@@ -771,8 +891,10 @@ export function openLink(doc: FieldworkDoc, sessionId: string, paused: boolean):
   const blocked = s.status === 'Not started' || s.status === 'Booked' || s.status === 'Incomplete (resumable)'
   if (!blocked) return { doc, result: 'ignored' }
   if (paused) return { doc: patch(doc, sessionId, (x) => addEventAt(when, x, 'participant', 'Opened their link while the study was paused. Shown: “This study is temporarily unavailable.” Nothing started.')), result: 'unavailable' }
-  if (s.access === 'Invited') return { doc: patch(doc, sessionId, (x) => addEventAt(when, { ...x, access: 'Opened' }, 'participant', 'Opened their link')), result: 'opened' }
-  return { doc: patch(doc, sessionId, (x) => addEventAt(when, { ...x, access: 'Consented', status: 'Active', startedAt: x.startedAt ?? when }, 'participant', 'Started the interview')), result: 'started' }
+  if (s.access === 'Invited') return { doc: linkOpened(patch(doc, sessionId, (x) => addEventAt(when, { ...x, access: 'Opened' }, 'participant', 'Opened their link')), s, when), result: 'opened' }
+  const resumed = s.status === 'Incomplete (resumable)' || !!s.carried
+  const started = patch(doc, sessionId, (x) => addEventAt(when, { ...x, access: 'Consented', status: 'Active', startedAt: x.startedAt ?? when }, 'participant', resumed ? 'Resumed the interview' : 'Started the interview'))
+  return { doc: participantStarted(linkOpened(started, s, when), s.participantId, resumed, when), result: 'started' }
 }
 
 /** The mock of a running interview moving on: pausing the study never interrupts it. */
