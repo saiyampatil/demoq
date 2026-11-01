@@ -20,6 +20,8 @@ export type Screen = {
   standalone?: boolean
   /** Kept in the code and reachable by URL, but not offered in the step's navigation. */
   hidden?: boolean
+  /** A screen built for one study only: the Screen jump opens it on that study. */
+  demoStudy?: string
 }
 
 export const screens: Screen[] = [
@@ -51,6 +53,7 @@ export const screens: Screen[] = [
   { id: 'R22', name: 'Session review', app: 'researcher', module: '4.8', phase: 8, path: 'review/session/:sessionId', step: 'review' },
 
   { id: 'R24', name: 'Evidence and audit trail', app: 'researcher', module: '4.9', phase: 9, path: 'evidence', step: 'evidence' },
+  { id: 'A1', name: 'Analysis base', app: 'researcher', module: '5', phase: 10, path: 'analysis/base', step: 'analysis', demoStudy: 'pet-food-churn' },
   { id: 'R23', name: 'Study settings', app: 'researcher', module: '4.9', phase: 9, path: 'settings', standalone: true },
 
   { id: 'P1', name: 'Welcome, data consent, 18+ check', app: 'participant', module: '2', phase: 2, path: 'welcome' },
@@ -118,7 +121,7 @@ export function studyPath(studyId: string, screen: Screen) {
 
 /** A concrete URL for any screen, with sample params filled in. */
 export function screenHref(screen: Screen, studyId = sample.studyId) {
-  if (screen.app === 'researcher') return screen.id === 'R0' ? '/researcher' : studyPath(studyId, screen)
+  if (screen.app === 'researcher') return screen.id === 'R0' ? '/researcher' : studyPath(screen.demoStudy ?? studyId, screen)
   const base = appBase[screen.app].replace(':inviteId', sample.inviteId)
   return `${base}/${screen.path.replace(':sessionId', sample.sessionId)}`
 }
@@ -128,7 +131,7 @@ export function screensForStep(step: StepKey) {
 }
 
 /** Researcher screens that are built. The sub-stepper lists the rest as upcoming. */
-export const builtScreenIds = new Set(['R1', 'R4', 'R5', 'R6', 'R7', 'R8', 'R9', 'R11', 'R12', 'R13', 'R14', 'R15', 'R16', 'R17', 'R18', 'R19', 'R21', 'R22', 'R24'])
+export const builtScreenIds = new Set(['R1', 'R4', 'R5', 'R6', 'R7', 'R8', 'R9', 'R11', 'R12', 'R13', 'R14', 'R15', 'R16', 'R17', 'R18', 'R19', 'R21', 'R22', 'R24', 'A1'])
 
 /** Short names for the sub-stepper inside a step. */
 export const wizardLabel: Record<string, string> = {
@@ -150,6 +153,7 @@ export const wizardLabel: Record<string, string> = {
   R19: 'Session',
   R21: 'Queue',
   R22: 'Session',
+  A1: 'Base',
 }
 
 /** Position of a screen in the global order, used to pick the slide direction. */

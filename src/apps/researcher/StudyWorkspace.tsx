@@ -146,7 +146,7 @@ export function StudyWorkspace() {
           </div>
         </aside>
         <main className="min-w-0 flex-1 overflow-x-clip px-4 py-8 sm:px-8">
-          <div className="mx-auto max-w-content">
+          <div className={cn('mx-auto', currentStep === 'analysis' ? 'max-w-[1280px]' : 'max-w-content')}>
             {/* Fieldwork and Review use a breadcrumb inside the screen instead of a sub-stepper. */}
             {fromLaunch && !lockedStep && screen?.step !== 'launch' && (
               <Link to={studyPath(study.id, screenById.R15)} className="mb-4 inline-flex items-center gap-1 rounded-xs text-sm font-medium text-iris-700 hover:underline">

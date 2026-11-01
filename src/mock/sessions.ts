@@ -26,6 +26,8 @@ export type SeedSession = {
   durationMin?: number
   issues?: SeedIssue[]
   review?: SeedReview
+  /** What was recorded. Video unless the participant used the audio-only access mode. */
+  media?: 'Video' | 'Audio only'
 }
 
 const ET = (day: number, hm: string) => `2026-11-${String(day).padStart(2, '0')}T${hm}:00-05:00`
@@ -97,6 +99,9 @@ const PET_DONE: PetDone[] = [
   ['P-3122', 'New Jersey', 20, '13:10', 24, 87, 81, [], 'Accepted'],
 ]
 
+/** Four accepted participants used the audio-only access mode (P12), so there is no video of them. */
+const PET_AUDIO_ONLY = new Set(['P-3105', 'P-3110', 'P-3113', 'P-3118'])
+
 export const PET_SEED_SESSIONS: SeedSession[] = [
   // The first attempt of P-3104 lost its connection; the participant came back on a new link.
   { participant: 'P-3104', no: 1, state: 'Illinois', variant: 'error', at: PET(10, '13:50'), durationMin: 4, issues: [['Connection lost', 'Blocking', 'Resolved', 'The participant came back on a new link. Their second session is the one in Review.']] },
@@ -108,6 +113,7 @@ export const PET_SEED_SESSIONS: SeedSession[] = [
     at: PET(day, hm),
     durationMin,
     ...(issues ? { issues } : {}),
+    ...(PET_AUDIO_ONLY.has(participant) ? { media: 'Audio only' as const } : {}),
     review: { integrity, quality, flags, status },
   })),
   { participant: 'P-3123', state: 'Illinois', variant: 'withdrawn', at: PET(18, '14:10'), durationMin: 5 },

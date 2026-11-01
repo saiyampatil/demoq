@@ -110,16 +110,16 @@ export function stepInfo(study: StudyRecord, sessions?: { awaitingReview: number
 }
 
 /**
- * Analysis (out of scope here) unlocks only when every counted session has a Review decision, so the handoff gate in R24
+ * Analysis unlocks only when every counted session has a Review decision, so the handoff gate in R24
  * is complete. Until then the step says why it is locked.
  */
 function analysis(isLaunched: boolean, sessions?: { awaitingReview: number | null; total?: number }): Pick<StepInfo, 'state' | 'lockedReason' | 'hint'> {
   const locked = (lockedReason: string) => ({ state: 'locked' as const, lockedReason })
   if (!isLaunched) return locked('Unlocks after launch, once every interview has a Review decision')
-  if (!sessions || sessions.awaitingReview === null || sessions.total === undefined) return locked('Out of scope for this prototype')
+  if (!sessions || sessions.awaitingReview === null || sessions.total === undefined) return locked('This study has no interview data in the prototype')
   if (sessions.total === 0) return locked('Unlocks once interviews have been completed and every one has a Review decision')
   if (sessions.awaitingReview > 0) return locked(`${sessions.awaitingReview} of ${sessions.total} ${sessions.total === 1 ? 'session still needs' : 'sessions still need'} a Review decision`)
-  return { state: 'open', hint: 'Every session has a decision. Analysis itself is out of scope for this prototype' }
+  return { state: 'open', hint: 'Every session has a decision. Start with the analysis base' }
 }
 
 /** Where to land when opening a study: the first step that still needs work. */

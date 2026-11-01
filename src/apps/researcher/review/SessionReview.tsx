@@ -62,9 +62,11 @@ export function SessionReview() {
     if (found) return <Navigate replace to={`${href(screenById.R19, found.session.id)}?from=review`} />
   }
 
+  // The Analysis base opens a session with ?from=analysis-base so the way back is the base, not the queue.
+  const fromBase = params.get('from') === 'analysis-base'
   const crumbs = (
     <>
-      <Breadcrumb parent={{ to: studyPath(studyId, screenById.R21), label: 'Review queue' }} current={session ? sessionText(session.participantId, session.sessionNo, session.sessionCount) : sessionId} />
+      <Breadcrumb parent={fromBase ? { to: studyPath(studyId, screenById.A1), label: 'Back to Analysis base' } : { to: studyPath(studyId, screenById.R21), label: 'Review queue' }} current={session ? sessionText(session.participantId, session.sessionNo, session.sessionCount) : sessionId} />
       {preview && (
         <div className="mb-4">
           <SampleDataBanner studyId={studyId} />

@@ -26,6 +26,8 @@ export const vocabularies = {
   preflight: ['Passed', 'Failed', 'Overridden'],
   // Not in CLAUDE.md's list; see docs/OPEN_QUESTIONS.md #1
   audience: ['Draft', 'Confirmed'],
+  // Results Analysis (docs/ANALYSIS_PLAN.md). "Approved" comes from the brief and guide vocabulary.
+  analysis: ['Ready to approve', 'Needs re-approval'],
 } as const
 
 export const vocabularyLabels: Record<keyof typeof vocabularies, string> = {
@@ -41,6 +43,7 @@ export const vocabularyLabels: Record<keyof typeof vocabularies, string> = {
   testRun: 'Test run (launch)',
   preflight: 'Preflight check (launch)',
   audience: 'Audience definition',
+  analysis: 'Analysis base',
 }
 
 export type ArtifactStatus = (typeof vocabularies.artifact)[number]
@@ -74,6 +77,8 @@ export const statusFamily: Record<Status, StatusFamily> = {
   Rescheduled: 'pending',
   Booked: 'pending',
   Sent: 'pending',
+  'Ready to approve': 'pending',
+  'Needs re-approval': 'pending',
 
   Live: 'progress',
   Active: 'progress',

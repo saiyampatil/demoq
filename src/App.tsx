@@ -11,6 +11,7 @@ import { ScreeningDashboard } from './apps/researcher/audience/ScreeningDashboar
 import { CommandCenter } from '@/apps/researcher/fieldwork/CommandCenter'
 import { SessionRecord } from '@/apps/researcher/fieldwork/SessionRecord'
 import { SessionReview } from '@/apps/researcher/review/SessionReview'
+import { AnalysisBase } from '@/apps/researcher/analysis/AnalysisBase'
 import { EvidenceAudit } from '@/apps/researcher/evidence/EvidenceAudit'
 import { ReviewQueue } from '@/apps/researcher/review/ReviewQueue'
 import { LaunchReadiness } from '@/apps/researcher/launch/LaunchReadiness'
@@ -65,6 +66,7 @@ const builtResearcher: Record<string, ReactNode> = {
   R21: <ReviewQueue />,
   R24: <EvidenceAudit />,
   R22: <SessionReview />,
+  A1: <AnalysisBase />,
 }
 
 function Root() {

@@ -124,6 +124,9 @@ PRD gaps and conflicts found while building. Each entry says what the prototype 
 | 118 | L | Echo or background noise and Audio dropped are filed under PulseAI recovering. Should echo instead end when the session ends, and audio drops when the participant resumes? | Both resolve when PulseAI recovers. | Open |
 | 119 | M | After the Researcher assigns a moderator, what if they never join? Does it return to Needs you after a time, or does the participant's 24-hour promise just run out? | It leaves Needs you as Assigned; there is no timeout. | Open |
 | 120 | L | What does the participant see while they wait for a human, and when they are sent a booking link? | Not built: participant screens are out of scope here. | Open |
+| 121 | M | Results Analysis, base: which segments does the Researcher cut by? Pet type (dog or cat) is not a structured field, and the study is one cohort. | The Segment column shows US region and state, from the session. Dog vs cat would need transcript coding. | Open |
+| 122 | M | Results Analysis, base: should an audio-only participant (P12 alternative access mode) count the same as a video one? Their sessions have no facial or visual signals, so coverage differs from question to question. | They are in the base, tagged Audio only; the KPI says how many have video. Nothing excludes them. | Open |
+| 123 | L | Results Analysis, base: a flagged session the Researcher accepted anyway. Which flags are a whole-session caveat and which only remove one answer from one question? | Two flag types (Incorrect stimulus presentation, Missed core theme) are question-level; every other flag is a whole-session caveat. See docs/DECISIONS.md. | Open |
 
 
 ## Future ideas (not built)

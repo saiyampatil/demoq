@@ -106,6 +106,8 @@ export type ReviewSession = {
   /** Notes written by the AI agent. Tagged AI-generated wherever they're shown. */
   aiNotes: string[]
   turnCount: number
+  /** What was recorded. Absent means video. */
+  media?: 'Video' | 'Audio only'
   reviewed?: ReviewedMeta
   /** Seed data: the participant invited in this excluded session's place. */
   seedReplacement?: string
@@ -264,6 +266,7 @@ function build(seed: SeedSession, pack: ReviewPack): ReviewSession {
     ],
     aiNotes: pack.aiNotes(pack.stimuli[id.charCodeAt(5) % pack.stimuli.length].name.split(':')[0], flags.length, hasStimFlag),
     turnCount: count,
+    ...(seed.media ? { media: seed.media } : {}),
     reviewed: pack.reviewed[id],
   }
 }
