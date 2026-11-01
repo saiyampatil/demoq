@@ -13,6 +13,7 @@ No backend. Mock data and simulated AI only. We build one module at a time and v
 - If a diagram and the PRD text disagree, the text wins.
 - If PRD.md marks something "Open", do not invent an answer. Use a simple placeholder and add it to `docs/OPEN_QUESTIONS.md`.
 - Ignore the Results Analysis section of FOUNDER_BRIEF.md. It is out of scope.
+- Results Analysis: read docs/ANALYSIS_BRIEF.md and docs/ANALYSIS_PLAN.md before any analysis work.
 
 ## Known diagram errors (follow the text, not these diagrams)
 - 4.5: the human-led start does NOT go through the "Hybrid enabled?" check. It goes straight to the moderator console.
