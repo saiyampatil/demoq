@@ -3,29 +3,54 @@ import { people } from './people'
 
 const maya = people.researcher.name
 
+/** What differs between studies' launch records. The defaults are the seed study's. */
+export type LaunchSeed = {
+  guideVersion: number
+  stimuli: { id: string; name: string }[]
+  fieldwork: { start: string; end: string }
+  consentAt: string
+  releaseAt: string
+  testRunsAt: [string, string]
+  mandatory: number
+  durationMin: number
+  /** Rewrites the default support links for another client's domain. */
+  domain?: string
+}
+
+const SEED_LAUNCH: LaunchSeed = {
+  guideVersion: 3,
+  stimuli: [
+    { id: 'st-a', name: 'Concept A: 72-hour hydration' },
+    { id: 'st-b', name: 'Concept B: Refillable jar' },
+    { id: 'st-c', name: 'Concept C: Barrier repair' },
+  ],
+  fieldwork: { start: '2026-11-03', end: '2026-11-17' },
+  consentAt: '2026-10-26T15:00:00-04:00',
+  releaseAt: '2026-11-03T09:40:00-05:00',
+  testRunsAt: ['2026-11-01T11:00:00-04:00', '2026-11-01T11:20:00-04:00'],
+  mandatory: 12,
+  durationMin: 20,
+}
+
 /** Study setup for the launch stages: English consent approved and a two-week fieldwork window. */
-export function seedLaunchDoc(studyId: string, kind: 'ready' | 'live', client: string): LaunchDoc {
+export function seedLaunchDoc(studyId: string, kind: 'ready' | 'live', client: string, seed: LaunchSeed = SEED_LAUNCH): LaunchDoc {
   const doc = emptyLaunchDoc(studyId)
   doc.setup = {
     extraLanguages: [],
-    consent: { 'English (US)': { text: consentTemplate('English (US)', client), approved: true, by: maya, at: '2026-10-26T15:00:00-04:00', origin: 'researcher' } },
-    fieldwork: { start: '2026-11-03', end: '2026-11-17' },
+    consent: { 'English (US)': { text: consentTemplate('English (US)', client), approved: true, by: maya, at: seed.consentAt, origin: 'researcher' } },
+    fieldwork: seed.fieldwork,
     translated: {},
-    links: defaultLinks(),
+    links: seed.domain ? defaultLinks().map((l) => ({ ...l, url: l.url.replace('verdane.example', seed.domain!) })) : defaultLinks(),
   }
   if (kind === 'ready') return doc
 
-  const at = '2026-11-03T09:40:00-05:00'
+  const at = seed.releaseAt
   const report = (device: string) => ({
-    mandatoryCovered: 12,
-    mandatoryTotal: 12,
-    durationMin: device === 'Mobile' ? 20 : 21,
-    targetMin: 20,
-    stimuli: [
-      { name: 'Concept A: 72-hour hydration', ok: true },
-      { name: 'Concept B: Refillable jar', ok: true },
-      { name: 'Concept C: Barrier repair', ok: true },
-    ],
+    mandatoryCovered: seed.mandatory,
+    mandatoryTotal: seed.mandatory,
+    durationMin: seed.durationMin + (device === 'Mobile' ? 0 : 1),
+    targetMin: seed.durationMin,
+    stimuli: seed.stimuli.map((x) => ({ name: x.name, ok: true })),
     surveysCompleted: 2,
     surveysTotal: 2,
     note: '',
@@ -36,21 +61,17 @@ export function seedLaunchDoc(studyId: string, kind: 'ready' | 'live', client: s
     version: 'Release v1.0',
     by: maya,
     at,
-    guideVersion: 3,
+    guideVersion: seed.guideVersion,
     moderator: 'Ava, warm style',
     language: 'English (US)',
-    stimuli: [
-      { id: 'st-a', name: 'Concept A: 72-hour hydration' },
-      { id: 'st-b', name: 'Concept B: Refillable jar' },
-      { id: 'st-c', name: 'Concept C: Barrier repair' },
-    ],
+    stimuli: seed.stimuli,
     planSignature: '',
   }
   return {
     ...doc,
     runs: {
-      'English (US)|Mobile': { status: 'Completed', guideVersion: 3, at: '2026-11-01T11:00:00-04:00', report: report('Mobile') },
-      'English (US)|Desktop': { status: 'Completed', guideVersion: 3, at: '2026-11-01T11:20:00-04:00', report: report('Desktop') },
+      'English (US)|Mobile': { status: 'Completed', guideVersion: seed.guideVersion, at: seed.testRunsAt[0], report: report('Mobile') },
+      'English (US)|Desktop': { status: 'Completed', guideVersion: seed.guideVersion, at: seed.testRunsAt[1], report: report('Desktop') },
     },
     release,
     releases: [release],

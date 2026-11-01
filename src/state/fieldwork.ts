@@ -9,7 +9,7 @@ import type { ReviewStatus } from '@/mock/review'
 import { now, uid } from './brief'
 import type { GuideDoc } from './guide'
 import type { LaunchDoc, PlanItem, StudyPlan } from './launch'
-import { SEED_SESSIONS, sessionIdOf } from '@/mock/sessions'
+import { SEED_SESSIONS, sessionIdOf, type SeedSession } from '@/mock/sessions'
 import { regionOf } from './screening'
 
 export type AccessStatus = 'Invited' | 'Opened' | 'Consented' | 'No-show'
@@ -242,6 +242,8 @@ export type FieldworkDoc = {
   paused: { reason: string; by: string; at: string } | null
   /** Set when the Researcher closed fieldwork: no more invitations or sessions. The study is Complete. */
   closed?: { by: string; at: string }
+  /** What participants say in this study, in rotation, for turns simulated later. Absent for the seed study. */
+  lines?: string[]
   /** A top-up: the Researcher asked for more applicants after launch to close a gap. */
   topUp?: { requested: number; by: string; at: string }
   /** The Researcher lowered the target. It replaces the audience's target for every count. */
@@ -269,7 +271,18 @@ const PARTICIPANT = [
   'My skin gets tight in winter, so hydration matters most.',
 ]
 
+/** What a study's seed sessions say and when they ran, where it isn't the seed study's. */
+export type FieldworkContent = {
+  seeds: SeedSession[]
+  /** What participants say in the conversation, in rotation. */
+  lines: string[]
+  /** When fieldwork opened: the invitations went out just before. */
+  start: string
+}
+
 export type GenInput = {
+  /** Another study's sessions. The seed study's are used when this is missing. */
+  content?: FieldworkContent
   studyId: string
   audience: AudienceDoc
   guide: GuideDoc
@@ -302,7 +315,10 @@ export function generateFieldwork(i: GenInput): FieldworkDoc {
   const consentAt = i.launch?.setup.consent[lang]?.at
   const wording = `${lang}, approved ${formatDate(consentAt ?? '2026-10-26T15:00:00-04:00')}`
 
-  const raw = SEED_SESSIONS.map((r, n): Session => {
+  const seeds = i.content?.seeds ?? SEED_SESSIONS
+  const lines = i.content?.lines ?? PARTICIPANT
+  const start = i.content?.start ?? FIELDWORK_START
+  const raw = seeds.map((r, n): Session => {
     const modId = human ? (mods[n % mods.length] ?? null) : null
     const moderator = moderatorName(modId)
     const v = r.variant
@@ -346,7 +362,7 @@ export function generateFieldwork(i: GenInput): FieldworkDoc {
         }
       : null
 
-    const invitedAt = at(FIELDWORK_START, -60 + (n % 6) * 15)
+    const invitedAt = at(start, -60 + (n % 6) * 15)
     const events: SessionEvent[] = later ? [ev(at(t0, -5), 'participant', `Came back on a new link. This is session ${r.no}; consent from session 1 still applies.`)] : [ev(invitedAt, 'system', 'Invited to the study')]
     if (!later && access !== 'Invited') events.push(ev(v === 'opened' ? r.at : at(consent?.at ?? t0, -10), 'participant', 'Opened the invite link'))
     if (consent) events.push(ev(consent.at, 'participant', human ? 'Consented to recording' : 'Consented to recording and to an AI moderator'))
@@ -367,7 +383,7 @@ export function generateFieldwork(i: GenInput): FieldworkDoc {
 
     const transcript: TranscriptTurn[] = items.slice(0, Math.min(askedCount, 3)).flatMap((x, j) => [
       { at: at(t0, j * 3), speaker: moderator, ai: !human, text: x.text },
-      { at: at(t0, j * 3 + 1), speaker: 'Participant', ai: false, text: PARTICIPANT[(n + j) % PARTICIPANT.length] },
+      { at: at(t0, j * 3 + 1), speaker: 'Participant', ai: false, text: lines[(n + j) % lines.length] },
     ])
 
     const issues: TechIssue[] = (r.issues ?? [])
@@ -445,6 +461,7 @@ export function generateFieldwork(i: GenInput): FieldworkDoc {
     sessions,
     window: i.launch?.setup.fieldwork ?? { start: '2026-11-03', end: '2026-11-17' },
     consentWording: wording,
+    lines: i.content?.lines,
     paused: null,
     log: [],
     reserve: [],
@@ -903,7 +920,7 @@ export function simulateTurn(doc: FieldworkDoc, sessionId: string): FieldworkDoc
   return patch(doc, sessionId, (x) => {
     if (x.status !== 'Active') return x
     const n = x.transcript.length
-    return { ...addEventAt(when, x, 'participant', 'Answered the next question'), transcript: [...x.transcript, { at: when, speaker: 'Participant', ai: false, text: PARTICIPANT[n % PARTICIPANT.length] }] }
+    return { ...addEventAt(when, x, 'participant', 'Answered the next question'), transcript: [...x.transcript, { at: when, speaker: 'Participant', ai: false, text: (doc.lines ?? PARTICIPANT)[n % (doc.lines ?? PARTICIPANT).length] }] }
   })
 }
 

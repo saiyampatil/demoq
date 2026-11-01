@@ -107,6 +107,8 @@ export type ReviewSession = {
   aiNotes: string[]
   turnCount: number
   reviewed?: ReviewedMeta
+  /** Seed data: the participant invited in this excluded session's place. */
+  seedReplacement?: string
 }
 
 export const FLAG_TRACKS: FlagTrack[] = ['Integrity', 'Quality']
@@ -154,26 +156,50 @@ export const SEVERITY_WEIGHT: Record<FlagSeverity, number> = { High: 20, Medium:
 
 const AI = 'AI agent (Ava)'
 
+/**
+ * What differs from one study to the next: the concepts shown, the survey asked, what is said in the transcript, the
+ * decisions already made. The review records of the seed study and of Pet Food Subscription Churn are both built from this.
+ */
+export type ReviewPack = {
+  seeds: SeedSession[]
+  /** The guide version the interviews ran from, as it reads on a session. */
+  guide: string
+  stimuli: { name: string; version: string; kind: StimulusCard['kind'] }[]
+  surveyQ: string
+  surveyOptions: string[]
+  questions: string[]
+  answers: string[]
+  /** Flag wording that names the product or the topic. Anything not here uses the standard wording. */
+  library: Partial<Record<FlagType, Partial<{ rationale: string; text: string }>>>
+  decisions: Record<string, Decision>
+  /** An excluded participant and who was invited in their place. */
+  replacements: Record<string, string>
+  reviewed: Record<string, ReviewedMeta>
+  /** The session with a long transcript and a survey follow-up probe. */
+  sample?: string
+  aiNotes: (stimulusName: string, flags: number, stimulusFault: boolean) => string[]
+}
+const libOf = (pack: ReviewPack, t: FlagType) => ({ ...LIBRARY[t], ...pack.library[t] })
+const packOfSession = new Map<string, ReviewPack>()
+
 /** Decisions the seed study already has. They are starting data: the Researcher can reopen any of them. */
-const DECISIONS: Record<string, Decision> = {
+const SKIN_DECISIONS: Record<string, Decision> = {
   'P-2062': { by: 'Maya Ortiz', at: '2026-11-07T09:10:00-05:00', note: 'A short connection drop. The answer was repeated and is usable.' },
   'P-2063': { by: 'Maya Ortiz', at: '2026-11-05T09:30:00-05:00', note: 'Same device and near-identical answers as P-2043. Excluded as a duplicate.' },
   'P-2064': { by: 'Maya Ortiz', at: '2026-11-08T09:05:00-05:00', note: 'The agent led the answers and the participant disengaged. Not usable.' },
 }
 
-const STIMULI = [
+const SKIN_STIMULI = [
   { name: 'Concept A: 72-hour hydration', version: 'v1', kind: 'Concept card' as const },
   { name: 'Concept B: Refillable jar', version: 'v1', kind: 'Concept card' as const },
   { name: 'Concept C: Barrier repair', version: 'v2', kind: 'Concept card' as const },
 ]
 
-const SURVEY_Q = 'After seeing the concept, how likely would you be to buy it?'
-const SURVEY_OPTIONS = ['Definitely would not', 'Probably would not', 'Might or might not', 'Probably would', 'Definitely would']
+const SKIN_SURVEY_Q = 'After seeing the concept, how likely would you be to buy it?'
+const SKIN_SURVEY_OPTIONS = ['Definitely would not', 'Probably would not', 'Might or might not', 'Probably would', 'Definitely would']
 
-/** The full sample is P-2041 at 2,400 turns. Other sessions get a shorter transcript. */
-const turnsFor = (id: string) => (id === 'P-2041-1' ? 2400 : 160)
-
-function build(seed: SeedSession): ReviewSession {
+/** The full sample is the pack's sample session at 2,400 turns. Other sessions get a shorter transcript. */
+function build(seed: SeedSession, pack: ReviewPack): ReviewSession {
   const { participant, at: completedAt, durationMin = 20 } = seed
   const id = sessionIdOf(seed)
   const { integrity, quality, status } = seed.review!
@@ -181,7 +207,7 @@ function build(seed: SeedSession): ReviewSession {
   const moderator = AI
   const moderatorType: ModeratorType = 'AI agent'
   const total = durationMin * 60
-  const count = turnsFor(id)
+  const count = id === pack.sample ? 2400 : 160
   const atOf = (idx: number) => Math.floor((idx * total) / count)
   // A flag points at a real turn: AI-side flags on AI turns (even), participant-side flags on participant turns (odd).
   const idxFor = (sec: number, side: 'AI' | 'Participant') => {
@@ -191,14 +217,14 @@ function build(seed: SeedSession): ReviewSession {
   }
 
   const hasStimFlag = flagTypes.includes('Incorrect stimulus presentation')
-  const stimuli: StimulusCard[] = STIMULI.map((s, i) => ({ ...s, shownAtSec: atOf(idxFor(total * (0.3 + i * 0.2), 'AI')), status: 'Loaded' as StimulusStatus }))
-  if (hasStimFlag) stimuli[1].status = id === 'P-2041-1' ? 'Fallback used' : parseInt(id.slice(2), 10) % 2 ? 'Failed' : 'Fallback used'
+  const stimuli: StimulusCard[] = pack.stimuli.map((s, i) => ({ ...s, shownAtSec: atOf(idxFor(total * (0.3 + i * 0.2), 'AI')), status: 'Loaded' as StimulusStatus }))
+  if (hasStimFlag) stimuli[1].status = id === pack.sample ? 'Fallback used' : parseInt(id.slice(2), 10) % 2 ? 'Failed' : 'Fallback used'
 
   // The other flags sit at fixed points in the interview, clear of the stimulus (at about half way).
   const spots = [0.18, 0.34, 0.72, 0.88]
   let spot = 0
   const flags: ReviewFlag[] = flagTypes.map((type, i) => {
-    const lib = LIBRARY[type]
+    const lib = libOf(pack, type)
     const sec = type === 'Incorrect stimulus presentation' ? stimuli[1].shownAtSec : total * spots[spot++ % spots.length]
     const idx = idxFor(sec, lib.side)
     return { id: `${id}-f${i + 1}`, type, track: FLAG_TRACK[type], severity: lib.severity, rationale: lib.rationale, atSec: atOf(idx), turn: idx + 1 }
@@ -207,16 +233,16 @@ function build(seed: SeedSession): ReviewSession {
   const sf = flags.find((f) => f.type === 'Incorrect stimulus presentation')
   if (sf) stimuli[1].shownAtSec = sf.atSec
 
-  const answer = SURVEY_OPTIONS[id.charCodeAt(5) % 5]
+  const answer = pack.surveyOptions[id.charCodeAt(5) % 5]
   return {
     id,
     participantId: participant,
     sessionNo: seed.no ?? 1,
-    sessionCount: SEED_SESSIONS.filter((x) => x.participant === participant).length,
+    sessionCount: pack.seeds.filter((x) => x.participant === participant).length,
     moderator,
     moderatorType,
     release: 'Release v1.0',
-    guide: 'Guide v3',
+    guide: pack.guide,
     completedAt,
     durationMin,
     integrity,
@@ -224,47 +250,30 @@ function build(seed: SeedSession): ReviewSession {
     flags,
     scored: true,
     status,
-    decision: DECISIONS[participant],
+    decision: pack.decisions[participant],
+    seedReplacement: pack.replacements[participant],
     stimuli,
     survey: [
       {
-        question: SURVEY_Q,
-        options: SURVEY_OPTIONS,
+        question: pack.surveyQ,
+        options: pack.surveyOptions,
         answer,
         answeredAtSec: Math.round(total * 0.84),
-        probe: id === 'P-2041-1' ? { question: `You said “${answer}”. What would make it a definite yes?`, answer: 'If it really lasted all day and the jar felt solid. The answer above stays as I chose it.' } : undefined,
+        probe: id === pack.sample ? { question: `You said “${answer}”. What would make it a definite yes?`, answer: 'If it really lasted all day and the jar felt solid. The answer above stays as I chose it.' } : undefined,
       },
     ],
-    aiNotes: [
-      'Described a gel-cream routine, morning and night, and valued a light feel.',
-      `${STIMULI[id.charCodeAt(5) % 3].name.split(':')[0]} drew the strongest reaction.${hasStimFlag ? ' One concept card did not load as planned.' : ''}`,
-      flags.length ? `${flags.length} ${flags.length === 1 ? 'flag was' : 'flags were'} raised for review.` : 'No issues were raised during the interview.',
-    ],
+    aiNotes: pack.aiNotes(pack.stimuli[id.charCodeAt(5) % pack.stimuli.length].name.split(':')[0], flags.length, hasStimFlag),
     turnCount: count,
-    reviewed:
-      id === 'P-2041-1'
-        ? {
-            version: 2,
-            editedBy: 'Maya Ortiz',
-            editedAt: '2026-11-04T09:20:00-05:00',
-            summary: 'Corrected 3 mis-transcribed product names. The raw transcript is unchanged.',
-            edits: [
-              { index: 119, text: 'I use a gel-cream in the morning, and the Verdane one at night.' },
-              { index: 743, text: 'Concept A says 72-hour hydration, which I doubt.' },
-              { index: 1501, text: 'The refillable jar looks premium to me.' },
-            ],
-          }
-        : undefined,
+    reviewed: pack.reviewed[id],
   }
 }
 
-export const reviewSessions: ReviewSession[] = SEED_SESSIONS.filter((x) => x.variant === 'done' && x.review).map(build)
 
 // ─── transcripts ────────────────────────────────────────────────────────────
 
 export type Turn = { index: number; turn: number; atSec: number; speaker: 'AI' | 'Participant'; text: string }
 
-const QUESTIONS = [
+const SKIN_QUESTIONS = [
   'Walk me through your face moisturizer routine.',
   'What do you like about the one you use most?',
   'What would make you try a new one?',
@@ -272,7 +281,7 @@ const QUESTIONS = [
   'Is anything unclear to you?',
   'Does the refill feel premium or cheap?',
 ]
-const ANSWERS = [
+const SKIN_ANSWERS = [
   'Mostly a gel-cream, morning and night.',
   'It sinks in fast and doesn’t feel greasy.',
   'If it really lasted all day I’d try it.',
@@ -281,23 +290,73 @@ const ANSWERS = [
   'It feels premium if the jar looks solid.',
 ]
 
+
+const SKIN_PACK: ReviewPack = {
+  seeds: SEED_SESSIONS,
+  guide: 'Guide v3',
+  stimuli: SKIN_STIMULI,
+  surveyQ: SKIN_SURVEY_Q,
+  surveyOptions: SKIN_SURVEY_OPTIONS,
+  questions: SKIN_QUESTIONS,
+  answers: SKIN_ANSWERS,
+  library: {},
+  decisions: SKIN_DECISIONS,
+  replacements: {},
+  sample: 'P-2041-1',
+  reviewed: {
+    'P-2041-1': {
+      version: 2,
+      editedBy: 'Maya Ortiz',
+      editedAt: '2026-11-04T09:20:00-05:00',
+      summary: 'Corrected 3 mis-transcribed product names. The raw transcript is unchanged.',
+      edits: [
+        { index: 119, text: 'I use a gel-cream in the morning, and the Verdane one at night.' },
+        { index: 743, text: 'Concept A says 72-hour hydration, which I doubt.' },
+        { index: 1501, text: 'The refillable jar looks premium to me.' },
+      ],
+    },
+  },
+  aiNotes: (stim, flags, fault) => [
+    'Described a gel-cream routine, morning and night, and valued a light feel.',
+    `${stim} drew the strongest reaction.${fault ? ' One concept card did not load as planned.' : ''}`,
+    flags ? `${flags} ${flags === 1 ? 'flag was' : 'flags were'} raised for review.` : 'No issues were raised during the interview.',
+  ],
+}
+
+/** The review records of a pack: every completed session in its seed list, and nothing else. */
+export function buildReviewSessions(pack: ReviewPack): ReviewSession[] {
+  const list = pack.seeds.filter((x) => x.variant === 'done' && x.review).map((x) => build(x, pack))
+  list.forEach((r) => packOfSession.set(r.id, pack))
+  return list
+}
+
+export const reviewSessions: ReviewSession[] = buildReviewSessions(SKIN_PACK)
+
+/** Studies with their own review records register them here, so lookups by session ID find them. */
+const extraSets: ReviewSession[][] = []
+export const registerReviewSessions = (list: ReviewSession[]) => {
+  extraSets.push(list)
+}
+export const findReviewRecord = (id: string): ReviewSession | undefined => reviewSessions.find((x) => x.id === id) ?? extraSets.flat().find((x) => x.id === id)
+
 /**
  * The raw transcript is immutable. The reviewed copy is a separate, versioned copy with a few corrections,
  * and who made them. Flagged turns carry the text that raised the flag.
  */
 export function transcriptFor(sessionId: string, version: 'raw' | 'reviewed' = 'raw'): Turn[] {
-  const s = reviewSessions.find((x) => x.id === sessionId)
-  if (!s) return []
+  const s = findReviewRecord(sessionId)
+  const pack = packOfSession.get(sessionId)
+  if (!s || !pack) return []
   const total = s.durationMin * 60
   const turns: Turn[] = Array.from({ length: s.turnCount }, (_, i) => ({
     index: i,
     turn: i + 1,
     atSec: Math.floor((i * total) / s.turnCount),
     speaker: i % 2 === 0 ? 'AI' : 'Participant',
-    text: i % 2 === 0 ? QUESTIONS[(i / 2) % QUESTIONS.length] : ANSWERS[((i - 1) / 2) % ANSWERS.length],
+    text: i % 2 === 0 ? pack.questions[(i / 2) % pack.questions.length] : pack.answers[((i - 1) / 2) % pack.answers.length],
   }))
   s.flags.forEach((f) => {
-    turns[f.turn - 1].text = LIBRARY[f.type].text
+    turns[f.turn - 1].text = libOf(pack, f.type).text
   })
   if (version === 'reviewed' && s.reviewed) s.reviewed.edits.forEach((e) => (turns[e.index] = { ...turns[e.index], text: e.text }))
   return turns
@@ -313,8 +372,10 @@ export const scoreBand = (v: number): ScoreBand => (v >= 75 ? 'High' : v >= 50 ?
  * A completed session arrives Under review and stays there until the Researcher decides.
  */
 export function seedEvents(s: ReviewSession): ReviewEvent[] {
-  if ((s.status === 'Accepted' || s.status === 'Excluded') && s.decision)
-    return [{ id: `${s.id}-seed`, at: s.decision.at, by: s.decision.by, type: 'decision', outcome: s.status, note: s.decision.note }]
+  if ((s.status === 'Accepted' || s.status === 'Excluded') && s.decision) {
+    const replaced: ReviewEvent[] = s.seedReplacement ? [{ id: `${s.id}-replace`, at: s.decision.at, by: s.decision.by, type: 'replacement', candidateId: `A-${s.seedReplacement.slice(2)}`, invitedAs: s.seedReplacement }] : []
+    return [...replaced, { id: `${s.id}-seed`, at: s.decision.at, by: s.decision.by, type: 'decision', outcome: s.status, note: s.decision.note, reasons: s.decision.reasons }]
+  }
   return []
 }
 

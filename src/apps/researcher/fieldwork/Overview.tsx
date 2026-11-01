@@ -186,7 +186,7 @@ export function Overview(p: FWProps) {
                         </li>
                         {flow.completed.excluded > 0 && (
                           <li className="font-medium text-pending-fg tabular-nums">
-                            {flow.completed.excluded} excluded in review (replacements needed)
+                            {flow.completed.excluded} excluded in review{ledger.open > 0 ? ' (replacements needed)' : ''}
                           </li>
                         )}
                       </>

@@ -1,7 +1,7 @@
 // One list of sessions per study. Fieldwork reads every session; Review reads the counted ones (the latest Completed
 // session of each participant). A session is in Review the moment it completes, whether or not it has been scored.
 
-import { reviewSessions, unscoredSession, type ReviewSession } from '@/mock/review'
+import { findReviewRecord, unscoredSession, type ReviewSession } from '@/mock/review'
 import { applyReview } from './decisions'
 import type { ReviewState } from './reviewState'
 import { moderatorName, sessionCountOf, type FieldworkDoc } from './fieldwork'
@@ -12,7 +12,7 @@ export function reviewList(doc: FieldworkDoc | undefined, state?: ReviewState): 
   if (!doc) return []
   return countedSessions(doc).map((s) => {
     const sessionCount = sessionCountOf(doc, s)
-    const r = reviewSessions.find((x) => x.id === s.id)
+    const r = findReviewRecord(s.id)
     const base = r
       ? s.mode === 'ai'
         ? { ...r, sessionCount }

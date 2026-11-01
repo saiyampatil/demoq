@@ -49,7 +49,7 @@ export function EvidenceAudit() {
         guide={doc.plan.guideVersion}
         consent={doc.consentWording}
         researcher={people.researcher.name}
-        client={people.client}
+        client={{ name: study.clientContact ?? people.client.name, organization: study.client }}
       />
 
       <Card

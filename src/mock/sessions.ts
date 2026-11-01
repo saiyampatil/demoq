@@ -64,3 +64,52 @@ export const SEED_SESSIONS: SeedSession[] = [
 ]
 
 export const sessionIdOf = (s: Pick<SeedSession, 'participant' | 'no'>) => `${s.participant}-${s.no ?? 1}`
+
+// ─── Pet Food Subscription Churn ────────────────────────────────────────────
+// A finished study: 24 people invited, 22 interviews completed, 2 excluded in review and replaced from the reserve,
+// 20 accepted for the target of 20. Fieldwork ran Sept 8 to 22, 2026 (Eastern).
+
+const PET = (day: number, hm: string) => `2026-09-${String(day).padStart(2, '0')}T${hm}:00-04:00`
+type PetDone = [participant: string, state: string, day: number, hm: string, minutes: number, integrity: number, quality: number, flags: SeedReview['flags'], status: SeedReview['status'], issues?: SeedIssue[], no?: number]
+
+const PET_DONE: PetDone[] = [
+  ['P-3101', 'Texas', 8, '11:20', 27, 92, 88, [], 'Accepted'],
+  ['P-3102', 'California', 8, '15:40', 24, 71, 58, ['Insufficient probing'], 'Accepted'],
+  ['P-3103', 'New York', 9, '10:05', 26, 90, 91, [], 'Accepted'],
+  ['P-3104', 'Illinois', 10, '14:30', 29, 84, 79, [], 'Accepted', [['Survey answer not saved', 'Degraded', 'Resolved', 'Answer re-entered and locked']], 2],
+  ['P-3105', 'Georgia', 10, '16:45', 23, 88, 86, [], 'Accepted'],
+  ['P-3106', 'Washington', 11, '12:15', 25, 82, 62, ['Incorrect stimulus presentation'], 'Accepted', [['Stimulus failed to load', 'Degraded', 'Resolved', 'A fallback card was shown. Counted as not seen.']]],
+  ['P-3107', 'Ohio', 11, '17:00', 31, 86, 83, [], 'Accepted'],
+  ['P-3108', 'Florida', 12, '11:10', 22, 64, 76, ['Rushed response'], 'Accepted'],
+  ['P-3109', 'Colorado', 12, '14:25', 28, 89, 85, [], 'Accepted', [['Audio dropped', 'Degraded', 'Resolved', 'Participant rejoined and the answer was repeated']]],
+  ['P-3110', 'North Carolina', 13, '10:40', 26, 91, 87, [], 'Accepted'],
+  ['P-3111', 'Massachusetts', 13, '15:15', 24, 79, 66, ['Guide deviation'], 'Accepted'],
+  ['P-3112', 'Texas', 14, '09:50', 12, 24, 61, ['Duplicate entry', 'Rushed response'], 'Excluded'],
+  ['P-3113', 'Arizona', 14, '13:30', 27, 87, 84, [], 'Accepted', [['Transcription delayed', 'Minor', 'Resolved', 'The transcript filled in within the hour']]],
+  ['P-3114', 'Michigan', 15, '11:55', 25, 90, 82, [], 'Accepted'],
+  ['P-3115', 'Oregon', 15, '16:20', 30, 85, 89, [], 'Accepted'],
+  ['P-3116', 'Pennsylvania', 16, '10:30', 23, 73, 55, ['Missed core theme'], 'Accepted'],
+  ['P-3117', 'Virginia', 16, '14:05', 26, 88, 90, [], 'Accepted'],
+  ['P-3118', 'Minnesota', 17, '12:00', 28, 83, 77, [], 'Accepted'],
+  ['P-3119', 'California', 17, '15:45', 14, 48, 31, ['Leading question', 'Extended silence'], 'Excluded'],
+  ['P-3120', 'Tennessee', 18, '10:20', 25, 92, 86, [], 'Accepted'],
+  ['P-3121', 'Georgia', 19, '11:35', 27, 89, 88, [], 'Accepted'],
+  ['P-3122', 'New Jersey', 20, '13:10', 24, 87, 81, [], 'Accepted'],
+]
+
+export const PET_SEED_SESSIONS: SeedSession[] = [
+  // The first attempt of P-3104 lost its connection; the participant came back on a new link.
+  { participant: 'P-3104', no: 1, state: 'Illinois', variant: 'error', at: PET(10, '13:50'), durationMin: 4, issues: [['Connection lost', 'Blocking', 'Resolved', 'The participant came back on a new link. Their second session is the one in Review.']] },
+  ...PET_DONE.map(([participant, state, day, hm, durationMin, integrity, quality, flags, status, issues, no]): SeedSession => ({
+    participant,
+    ...(no ? { no } : {}),
+    state,
+    variant: 'done',
+    at: PET(day, hm),
+    durationMin,
+    ...(issues ? { issues } : {}),
+    review: { integrity, quality, flags, status },
+  })),
+  { participant: 'P-3123', state: 'Illinois', variant: 'withdrawn', at: PET(18, '14:10'), durationMin: 5 },
+  { participant: 'P-3124', state: 'Washington', variant: 'noshow', at: PET(12, '10:00') },
+]

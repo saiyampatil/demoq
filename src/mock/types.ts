@@ -37,6 +37,8 @@ export type StudyRecord = {
   id: string
   name: string
   client: string
+  /** Who at the client reviews the brief and watches from the backroom. Shown in study governance. */
+  clientContact?: string
   category: string
   moderatorType: 'AI-led' | 'Human-led'
   interviewLanguage: string

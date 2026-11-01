@@ -134,7 +134,7 @@ export function Sourcing() {
                   : 'There is no screening history to estimate from yet.'}
               </li>
             )}
-            {paused && <li className="font-medium">Study is paused. You can’t add or invite applicants until you resume fieldwork.</li>}
+            {fw.doc?.closed ? <li className="font-medium">Fieldwork is closed. You can’t add or invite applicants.</li> : paused && <li className="font-medium">Study is paused. You can’t add or invite applicants until you resume fieldwork.</li>}
           </ul>
         </Banner>
       )}
