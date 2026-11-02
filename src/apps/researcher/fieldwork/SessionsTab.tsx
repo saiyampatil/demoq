@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router'
 import { Card } from '@/components/Card'
 import { cn } from '@/components/cn'
@@ -7,39 +7,70 @@ import { SearchIcon } from '@/components/icons'
 import { EmptyState } from '@/components/States'
 import { StatusChip } from '@/components/StatusChip'
 import { Table, type Column } from '@/components/Table'
-import { screenById, studyPath } from '@/routes/screens'
 import { moderatorName, sessionCountOf, type Session } from '@/state/fieldwork'
-import { journeyPeople, needsYou, type JourneyKey } from '@/state/selectors'
+import { journeyPeople, type JourneyKey } from '@/state/selectors'
 import { MaskedEmail } from '../MaskedEmail'
 import { SessionTag } from '../SessionTag'
 import { slotText, type FWProps } from './FieldworkBits'
+import { FILTERS, listParams, sessionHref, sessionRows, type Filter } from './sessionList'
 
-type Filter = 'All' | 'In progress' | 'Completed' | 'Needs you' | 'Not started' | 'Has open issues' | 'Escalated'
-const FILTERS: Filter[] = ['All', 'In progress', 'Completed', 'Needs you', 'Not started', 'Has open issues', 'Escalated']
-const match: Record<Exclude<Filter, 'Needs you'>, (s: Session) => boolean> = {
-  All: () => true,
-  'In progress': (s) => s.status === 'Active' || s.status === 'Paused',
-  Completed: (s) => s.status === 'Completed',
-  'Not started': (s) => s.status === 'Not started' || s.status === 'Booked',
-  'Has open issues': (s) => s.issues.some((i) => i.status === 'Open'),
-  Escalated: (s) => !!s.escalation,
-}
+const SCROLL_KEY = 'pulseai-qual:sessions-scroll'
 
 export function SessionsTab({ doc, studyId }: FWProps) {
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
+  // The filter and the search live in the address, so a session page can bring the Researcher back to the same list.
   const asked = params.get('filter')
-  const [filter, setFilter] = useState<Filter>(FILTERS.includes(asked as Filter) ? (asked as Filter) : 'All')
-  const [q, setQ] = useState('')
-  const needing = new Set(needsYou(doc).flatMap((r) => (r.session ? [r.session.id] : [])))
-  const test = (s: Session) => (filter === 'Needs you' ? needing.has(s.id) : match[filter](s))
-  // A number on the journey opens Sessions for the people behind it.
+  const filter: Filter = FILTERS.includes(asked as Filter) ? (asked as Filter) : 'All'
+  const q = params.get('q') ?? ''
+  const setParam = (key: string, value: string) =>
+    setParams((prev) => {
+      const next = new URLSearchParams(prev)
+      if (value && !(key === 'filter' && value === 'All')) next.set(key, value)
+      else next.delete(key)
+      next.delete('viewed')
+      return next
+    }, { replace: true })
   const reached = params.get('reached') as JourneyKey | null
   const stuck = params.get('stuck') as JourneyKey | null
+  // A number on the journey opens Sessions for the people behind it.
   const people = reached || stuck ? journeyPeople(doc, reached ? { reached } : { stuck: stuck! }) : undefined
   const issueType = params.get('issue')
-  const rows = doc.sessions.filter((s) => test(s) && (!people || people.has(s.participantId)) && (!issueType || s.issues.some((i) => i.type === issueType)) && (!q.trim() || [s.id, s.participantId, s.email, s.country].some((x) => x.toLowerCase().includes(q.trim().toLowerCase()))))
-  const open = (s: Session) => navigate(studyPath(studyId, { ...screenById.R19, path: screenById.R19.path.replace(':sessionId', s.id) }))
+  const rows = sessionRows(doc, params)
+  const list = listParams(params)
+  const open = (s: Session) => {
+    try {
+      sessionStorage.setItem(SCROLL_KEY, String(window.scrollY))
+    } catch {
+      /* the scroll position is a convenience */
+    }
+    navigate(sessionHref(studyId, s.id, { from: 'sessions', ...list }))
+  }
+
+  // Coming back from a session: the same scroll position, and the row just viewed is marked for a few seconds.
+  const viewed = params.get('viewed')
+  const [mark, setMark] = useState(viewed)
+  useEffect(() => {
+    if (!viewed) return
+    setMark(viewed)
+    let saved: number | undefined
+    try {
+      saved = Number(sessionStorage.getItem(SCROLL_KEY))
+    } catch {
+      /* ignore */
+    }
+    requestAnimationFrame(() => {
+      const row = document.querySelector(`[data-row-key="${CSS.escape(viewed)}"]`)
+      if (saved) window.scrollTo({ top: saved })
+      // Out of view after the jump (the list changed): bring the row into view instead.
+      if (row) {
+        const r = row.getBoundingClientRect()
+        if (r.top < 0 || r.bottom > innerHeight) row.scrollIntoView({ block: 'center' })
+      }
+    })
+    const t = setTimeout(() => setMark(null), 6000)
+    return () => clearTimeout(t)
+  }, [viewed])
 
   const columns: Column<Session>[] = [
     { key: 'id', header: 'Participant', cell: (s) => <SessionTag className="font-medium" participantId={s.participantId} no={s.no} count={sessionCountOf(doc, s)} /> },
@@ -59,11 +90,11 @@ export function SessionsTab({ doc, studyId }: FWProps) {
         <div className="flex flex-wrap items-center gap-2">
           <span className="flex h-8 items-center gap-2 rounded-sm border border-mist-strong bg-surface px-2 focus-within:border-iris-600">
             <SearchIcon size={14} className="text-graphite" />
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search participant, email, country" aria-label="Search sessions" className="w-52 bg-transparent text-sm outline-none" />
+            <input value={q} onChange={(e) => setParam('q', e.target.value)} placeholder="Search participant, email, country" aria-label="Search sessions" className="w-52 bg-transparent text-sm outline-none" />
           </span>
           <label className="flex items-center gap-2 text-sm">
             <span className="text-graphite">Show</span>
-            <select value={filter} onChange={(e) => setFilter(e.target.value as Filter)} className={cn(controlBase, 'h-8 pr-7 text-sm')}>
+            <select value={filter} onChange={(e) => setParam('filter', e.target.value)} className={cn(controlBase, 'h-8 pr-7 text-sm')}>
               {FILTERS.map((f) => (
                 <option key={f}>{f}</option>
               ))}
@@ -92,7 +123,7 @@ export function SessionsTab({ doc, studyId }: FWProps) {
           </button>
         </div>
       )}
-      <Table caption="Fieldwork sessions" columns={columns} rows={rows} rowKey={(s) => s.id} onRowClick={open} empty={<EmptyState title="No sessions match" description="Choose another filter or clear the search." />} />
+      <Table caption="Fieldwork sessions" columns={columns} rows={rows} rowKey={(s) => s.id} rowClassName={(s) => (s.id === mark ? 'bg-iris-50' : undefined)} onRowClick={open} empty={<EmptyState title="No sessions match" description="Choose another filter or clear the search." />} />
     </Card>
   )
 }

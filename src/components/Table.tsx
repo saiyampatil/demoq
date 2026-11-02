@@ -18,9 +18,11 @@ type TableProps<T> = {
   empty?: ReactNode
   caption?: string
   className?: string
+  /** Extra classes for one row, e.g. to mark the row just viewed. */
+  rowClassName?: (row: T) => string | undefined
 }
 
-export function Table<T>({ columns, rows, rowKey, onRowClick, empty, caption, className }: TableProps<T>) {
+export function Table<T>({ columns, rows, rowKey, onRowClick, empty, caption, className, rowClassName }: TableProps<T>) {
   return (
     <div className={cn('relative overflow-x-auto', className)}>
       <table className="w-full border-collapse text-left">
@@ -51,6 +53,7 @@ export function Table<T>({ columns, rows, rowKey, onRowClick, empty, caption, cl
             rows.map((row) => (
               <tr
                 key={rowKey(row)}
+                data-row-key={rowKey(row)}
                 onClick={onRowClick ? () => onRowClick(row) : undefined}
                 onKeyDown={
                   onRowClick
@@ -66,6 +69,7 @@ export function Table<T>({ columns, rows, rowKey, onRowClick, empty, caption, cl
                 className={cn(
                   'border-b border-mist last:border-b-0',
                   onRowClick && 'cursor-pointer hover:bg-paper focus-visible:bg-iris-50',
+                  rowClassName?.(row),
                 )}
               >
                 {columns.map((c) => (
