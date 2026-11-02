@@ -18,6 +18,7 @@ import { PageHeader } from '../../shared/PageHeader'
 import { FieldworkGate, slotText } from './FieldworkBits'
 import { Banner } from '@/components/Banner'
 import { SampleDataBanner } from '../SampleDataBanner'
+import { maskEmail } from '@/mock/participants'
 import { sessionText } from '../SessionTag'
 import { useStudySessions } from '../useStudySessions'
 
@@ -65,7 +66,7 @@ export function SessionRecord() {
       <PageHeader
         id="R19"
         title={`Session ${s.participantId}`}
-        description={`${s.ref}${s.reserve ? ' (reserve)' : ''}`}
+        description={`${maskEmail(s.email)}, ${s.country}${s.reserve ? ' (reserve)' : ''}`}
         meta={
           <>
             {count > 1 && <span className="font-medium text-ink">Session {s.no} of {count}</span>}

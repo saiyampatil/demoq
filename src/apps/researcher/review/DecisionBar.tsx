@@ -10,6 +10,7 @@ import { useToast } from '@/components/Toast'
 import { formatStamp } from '@/lib/format'
 import { screenById, studyPath } from '@/routes/screens'
 import { scoreBreakdown, trackShort, type FlagTrack, type ReviewEvent, type ReviewFlag, type ReviewSession } from '@/mock/review'
+import { maskEmail, participantEmail } from '@/mock/participants'
 import { decisionHistory, effectLines, effectOf } from '@/state/decisions'
 import { inviteFromReserve, tick, type FieldworkDoc, type Outcomes, type ReserveCandidate } from '@/state/fieldwork'
 import { addReviewEvent } from '@/state/reviewState'
@@ -392,7 +393,7 @@ function ReplacementModal({ ctx, open, onClose }: { ctx: DecisionCtx; open: bool
               <p className="text-graphite">Next in the reserve</p>
               <p className="mt-0.5 font-semibold tabular-nums">{next.id}</p>
               <p className="tabular-nums text-graphite">
-                {next.contact} · {next.source} · screened {formatStamp(next.arrivedAt)}
+                {maskEmail(participantEmail(next.id))} · {next.source} · screened {formatStamp(next.arrivedAt)}
               </p>
             </div>
             <p className="text-sm text-graphite">After you continue you decide on {s.participantId}. Nothing is invited until you confirm the last step.</p>

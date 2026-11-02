@@ -11,6 +11,7 @@ import type { GuideDoc } from './guide'
 import type { LaunchDoc, PlanItem, StudyPlan } from './launch'
 import { SEED_SESSIONS, sessionIdOf, type SeedSession } from '@/mock/sessions'
 import { MODERATOR_ROSTER, OFFER_SECONDS } from '@/mock/moderation'
+import { countryOfRegion, participantEmail } from '@/mock/participants'
 import { regionOf } from './screening'
 
 export type AccessStatus = 'Invited' | 'Opened' | 'Consented' | 'No-show'
@@ -189,7 +190,9 @@ export type Session = {
   /** Which of the participant's sessions this is. */
   no: number
   applicantId: string
-  ref: string
+  /** The participant's email address. Shown masked; the full address is on hover. */
+  email: string
+  country: string
   region: Region | null
   state: string | null
   device: string
@@ -329,12 +332,10 @@ export type GenInput = {
 }
 
 /** Bumped when the seed session list changes, so saved fieldwork is rebuilt from it. */
-export const SESSION_SEED = 8
+export const SESSION_SEED = 9
 
 const DEVICES = ['Mobile · iOS Safari', 'Mobile · Android Chrome', 'Desktop · Chrome', 'Desktop · Safari', 'Desktop · Edge']
 
-/** The participant's reference as the Researcher sourced it, masked like the sourcing list. */
-const refOf = (id: string) => `Phone · (212) ••• ${id.slice(2)}`
 
 /** Builds the study's sessions from the one seed list (mock/sessions.ts), so Fieldwork and Review always agree. */
 export function generateFieldwork(i: GenInput): FieldworkDoc {
@@ -458,7 +459,8 @@ export function generateFieldwork(i: GenInput): FieldworkDoc {
       participantId: r.participant,
       no: r.no ?? 1,
       applicantId: `A-${r.participant.slice(2)}`,
-      ref: refOf(r.participant),
+      email: participantEmail(r.participant),
+      country: countryOfRegion(region),
       region,
       state: r.state,
       device,
@@ -781,7 +783,8 @@ export function retrySession(doc: FieldworkDoc, sessionId: string, by: string): 
     participantId: s.participantId,
     no,
     applicantId: s.applicantId,
-    ref: s.ref,
+    email: s.email,
+    country: s.country,
     region: s.region,
     state: s.state,
     device: s.device,
@@ -830,7 +833,8 @@ export function inviteFromReserve(doc: FieldworkDoc, by: string, candidates: Res
       participantId,
       no: 1,
       applicantId: c.id,
-      ref: c.contact,
+      email: participantEmail(participantId),
+      country: countryOfRegion(c.region),
       region: c.region,
       state: c.state,
       device: 'Not known yet',

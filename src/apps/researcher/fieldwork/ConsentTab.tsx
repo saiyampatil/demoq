@@ -6,9 +6,11 @@ import { cn } from '@/components/cn'
 import { controlBase } from '@/components/Field'
 import { StatusChip } from '@/components/StatusChip'
 import { formatStamp } from '@/lib/format'
+import { maskEmail } from '@/mock/participants'
 import { screenById, studyPath } from '@/routes/screens'
 import { participantsOf, type Session } from '@/state/fieldwork'
 import { consentSummary } from '@/state/selectors'
+import { MaskedEmail } from '../MaskedEmail'
 import type { FWProps } from './FieldworkBits'
 
 const yes = (b: boolean) => (b ? 'Yes' : 'No')
@@ -21,10 +23,10 @@ export function ConsentTab({ doc, studyId, onBack }: FWProps & { onBack: () => v
   const rows = participantsOf(doc).map((p) => p.first).filter((s) => !filter || stateOf(s) === filter)
 
   const exportCsv = () => {
-    const head = ['Participant', 'Contact', 'State', 'Consented at', 'Wording', 'Recording', 'AI moderator', 'Data use', 'Recontact', '18 or older', 'Device', 'Withdrawn at', 'Withdrawal reason']
+    const head = ['Participant', 'Email (masked)', 'State', 'Consented at', 'Wording', 'Recording', 'AI moderator', 'Data use', 'Recontact', '18 or older', 'Device', 'Withdrawn at', 'Withdrawal reason']
     const lines = participantsOf(doc).map((p) => p.first).map((s) => {
       const c = s.consent
-      return [s.participantId, s.ref, stateOf(s), c?.at ?? '', c?.wording ?? '', c ? yes(c.recording) : '', c ? yes(c.aiModerator) : '', c ? yes(c.dataUse) : '', c ? yes(c.recontact) : '', c ? yes(c.over18) : '', c?.device ?? '', c?.withdrawn?.at ?? '', c?.withdrawn?.reason ?? '']
+      return [s.participantId, maskEmail(s.email), stateOf(s), c?.at ?? '', c?.wording ?? '', c ? yes(c.recording) : '', c ? yes(c.aiModerator) : '', c ? yes(c.dataUse) : '', c ? yes(c.recontact) : '', c ? yes(c.over18) : '', c?.device ?? '', c?.withdrawn?.at ?? '', c?.withdrawn?.reason ?? '']
     })
     const csv = [head, ...lines].map((r) => r.map((x) => `"${String(x).replace(/"/g, '""')}"`).join(',')).join('\n')
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
@@ -88,7 +90,7 @@ export function ConsentTab({ doc, studyId, onBack }: FWProps & { onBack: () => v
             <caption className="sr-only">Consent records</caption>
             <thead>
               <tr className="border-b border-mist bg-haze text-graphite">
-                {['Participant', 'Contact', 'Consent', 'When', 'Recording', 'AI moderator', 'Data use', 'Recontact', '18+', 'Device'].map((h) => (
+                {['Participant', 'Email', 'Consent', 'When', 'Recording', 'AI moderator', 'Data use', 'Recontact', '18+', 'Device'].map((h) => (
                   <th key={h} scope="col" className="h-9 px-3 font-medium whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -103,7 +105,7 @@ export function ConsentTab({ doc, studyId, onBack }: FWProps & { onBack: () => v
                         {s.participantId}
                       </Link>
                     </td>
-                    <td className="px-3 py-2.5 whitespace-nowrap tabular-nums">{s.ref}</td>
+                    <td className="px-3 py-2.5"><MaskedEmail email={s.email} /></td>
                     <td className="px-3 py-2.5">
                       {c ? <StatusChip status={c.withdrawn ? 'Withdrawn' : 'Consented'} size="sm" /> : <span className="text-graphite">Not yet</span>}
                     </td>

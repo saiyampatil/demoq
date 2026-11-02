@@ -823,7 +823,7 @@ export function regionSkew(totals: Record<Region, number>, total: number): strin
 }
 
 export function issueSummary(doc: FieldworkDoc) {
-  const all = doc.sessions.flatMap((s) => s.issues.map((i) => ({ ...i, sessionId: s.id, participantId: s.participantId, no: s.no, ref: s.ref })))
+  const all = doc.sessions.flatMap((s) => s.issues.map((i) => ({ ...i, sessionId: s.id, participantId: s.participantId, no: s.no, email: s.email })))
   return {
     all,
     open: all.filter((x) => x.status === 'Open').length,

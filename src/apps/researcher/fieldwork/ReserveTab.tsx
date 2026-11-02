@@ -7,9 +7,11 @@ import { Tooltip } from '@/components/Tooltip'
 import { useToast } from '@/components/Toast'
 import { screenById, studyPath } from '@/routes/screens'
 import { formatStamp } from '@/lib/format'
+import { participantEmail } from '@/mock/participants'
 import { inviteFromReserve } from '@/state/fieldwork'
 import type { ReserveCandidate } from '@/state/fieldwork'
 import { reserveRows, shortfall, type ReserveRow, type ReserveStatus } from '@/state/selectors'
+import { MaskedEmail } from '../MaskedEmail'
 import { invitedIds, invitedMessage, type FWProps } from './FieldworkBits'
 
 const TONE: Record<ReserveStatus, string> = {
@@ -75,7 +77,7 @@ export function ReserveTab({ doc, audience, target, outcomes, reserve, paused, c
               <caption className="sr-only">Reserve</caption>
               <thead>
                 <tr className="border-b border-mist bg-haze text-graphite">
-                  {['Order', 'Applicant', 'Contact', 'Source', 'State', 'Screened', 'Status', ''].map((h, i) => (
+                  {['Order', 'Applicant', 'Email', 'Source', 'State', 'Screened', 'Status', ''].map((h, i) => (
                     <th key={i} scope="col" className="h-9 px-4 font-medium whitespace-nowrap">{h || <span className="sr-only">Action</span>}</th>
                   ))}
                 </tr>
@@ -85,7 +87,7 @@ export function ReserveTab({ doc, audience, target, outcomes, reserve, paused, c
                   <tr key={c.id} className="border-b border-mist last:border-0">
                     <td className="px-4 py-3 tabular-nums text-graphite">{c.label === 'Available' ? position(c) : '—'}</td>
                     <th scope="row" className="px-4 py-3 font-medium tabular-nums">{c.id}</th>
-                    <td className="px-4 py-3 whitespace-nowrap tabular-nums">{c.contact}</td>
+                    <td className="px-4 py-3"><MaskedEmail email={participantEmail(c.id)} /></td>
                     <td className="px-4 py-3">{c.source}</td>
                     <td className="px-4 py-3 whitespace-nowrap">{c.state ? `${c.state}${c.region ? `, ${c.region}` : ''}` : '—'}</td>
                     <td className="px-4 py-3 whitespace-nowrap tabular-nums">{formatStamp(c.arrivedAt)}</td>

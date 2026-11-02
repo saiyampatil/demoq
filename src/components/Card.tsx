@@ -15,8 +15,8 @@ export function Card({ title, description, actions, children, flush, className }
   return (
     <section className={cn('rounded-md border border-mist bg-surface', className)}>
       {(title || actions) && (
-        <header className="flex items-start gap-4 border-b border-mist px-5 py-3.5">
-          <div className="min-w-0 flex-1">
+        <header className="flex flex-wrap items-start gap-x-4 gap-y-2 border-b border-mist px-5 py-3.5">
+          <div className="min-w-0 flex-1 basis-40">
             {title && <h2 className="text-md font-semibold">{title}</h2>}
             {description && <p className="mt-0.5 text-sm text-graphite">{description}</p>}
           </div>
