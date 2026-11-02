@@ -26,12 +26,13 @@ export function IssuesTab({ doc, studyId }: FWProps) {
 
   return (
     <div className="flex flex-col gap-6">
-      <section aria-label="Issue summary" className="grid grid-cols-2 gap-4 rounded-md border border-mist bg-surface p-5 sm:grid-cols-4">
+      <section aria-label="Issue summary" className="grid grid-cols-2 gap-4 rounded-md border border-mist bg-surface p-5 sm:grid-cols-5">
         {(
           [
             ['Open', sum.open, sum.open > 0 ? 'text-pending-fg' : ''],
             ['Open and blocking', sum.blocking, sum.blocking > 0 ? 'text-negative-fg' : ''],
             ['Resolved', sum.resolved, ''],
+            ['Fixed by participants', sum.selfFixed, ''],
             ['Sessions affected', sum.sessions, ''],
           ] as const
         ).map(([l, n, c]) => (

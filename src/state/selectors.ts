@@ -312,8 +312,8 @@ export function needsYou(doc: FieldworkDoc): NeedsRow[] {
       }
     }
 
-    // 8. PulseAI hasn't recovered from what it was handling. The Researcher can only report it.
-    const system = oldest(open.filter((i) => handledBySystem(i.type)))
+    // 8. PulseAI hasn't recovered from what it was handling. The Researcher can only report it. A finished interview is in Review, not here.
+    const system = s.status === 'Completed' ? undefined : oldest(open.filter((i) => handledBySystem(i.type)))
     if (system) rows.push({ ...base, tier: 2, kind: 'pulseai', what: `${system.type}. PulseAI is still working on it.`, fault: 'Our side', since: system.at, action: 'Copy report for support', invites: false, giveUp: false, issue: system })
   }
 
@@ -753,6 +753,8 @@ export function issueSummary(doc: FieldworkDoc) {
     open: all.filter((x) => x.status === 'Open').length,
     blocking: all.filter((x) => x.status === 'Open' && x.severity === 'Blocking').length,
     resolved: all.filter((x) => x.status === 'Resolved').length,
+    /** Fixed by the participant with the on-screen steps. A count here and nothing in Needs you. */
+    selfFixed: all.filter((x) => x.selfService).length,
     sessions: new Set(all.map((x) => x.sessionId)).size,
     byType: ISSUE_TYPES.map((t) => {
       const xs = all.filter((x) => x.type === t)
