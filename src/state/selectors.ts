@@ -446,6 +446,71 @@ export function funnel(doc: FieldworkDoc, outcomes: Outcomes) {
   }
 }
 
+// ─── The participant journey ────────────────────────────────────────────────
+
+export type JourneyKey = 'invited' | 'opened' | 'booked' | 'started' | 'completed'
+export type JourneyStage = { key: JourneyKey; label: string; /** People who got at least this far. */ reached: number }
+export type JourneyStep = { from: JourneyKey; to: JourneyKey; /** People whose furthest stage is `from`. */ lost: number; /** Share of `from` who went on, whole percent. */ pct: number; biggest: boolean }
+
+/** A human-led study has a booking step between opening the link and starting. */
+export const isHumanLed = (doc: FieldworkDoc) => doc.sessions[0]?.mode === 'human'
+
+const JOURNEY_LABEL: Record<JourneyKey, string> = { invited: 'Invited', opened: 'Opened', booked: 'Booked', started: 'Started', completed: 'Completed' }
+/** Below this many invited, percentages say nothing. */
+export const JOURNEY_MIN_INVITED = 10
+
+const journeyKeys = (human: boolean): JourneyKey[] => (human ? ['invited', 'opened', 'booked', 'started', 'completed'] : ['invited', 'opened', 'started', 'completed'])
+
+/** The furthest stage a participant reached. Everyone is in exactly one. */
+function furthest(p: Participant, keys: JourneyKey[]): JourneyKey {
+  const started = p.sessions.some((s) => s.startedAt)
+  const reached: Record<JourneyKey, boolean> = {
+    invited: true,
+    opened: p.first.access !== 'Invited' || started,
+    booked: p.sessions.some((s) => s.slot || s.startedAt || s.status === 'Booked'),
+    started,
+    completed: bucketOf(p) === 'completed',
+  }
+  return [...keys].reverse().find((k) => reached[k]) ?? 'invited'
+}
+
+/**
+ * Where invited people are lost. Each participant is counted once, at the furthest stage reached, so the stages are
+ * cumulative ("reached at least") and an arrow's loss is the people whose furthest stage is the one it leaves. The
+ * numbers come from the same participants as the verdict, the KPI strip and the funnel invariants.
+ */
+export function journey(doc: FieldworkDoc) {
+  const human = isHumanLed(doc)
+  const keys = journeyKeys(human)
+  const ps = participantsOf(doc)
+  const at = new Map(ps.map((p) => [p.id, keys.indexOf(furthest(p, keys))]))
+  const stages: JourneyStage[] = keys.map((key, i) => ({ key, label: JOURNEY_LABEL[key], reached: [...at.values()].filter((x) => x >= i).length }))
+  const steps: JourneyStep[] = stages.slice(0, -1).map((st, i) => ({ from: st.key, to: stages[i + 1].key, lost: st.reached - stages[i + 1].reached, pct: st.reached ? Math.round((stages[i + 1].reached / st.reached) * 100) : 0, biggest: false }))
+  const worst = steps.reduce<JourneyStep | null>((m, x) => (x.lost > (m?.lost ?? 0) ? x : m), null)
+  if (worst) worst.biggest = true
+  const tooEarly = ps.length < JOURNEY_MIN_INVITED
+
+  const reading = (() => {
+    if (tooEarly) return { text: `Too early to read. Percentages start at ${JOURNEY_MIN_INVITED} invited people; ${ps.length} so far.` }
+    if (!worst) return { text: 'Nobody has been lost so far.' }
+    const lostWord = (n: number) => `${n} ${n === 1 ? 'person' : 'people'}`
+    if (worst.from === 'invited') return { text: 'Most loss is before people open the link. Check the invitation email and resend to those who haven’t opened.', link: { label: `See the ${lostWord(worst.lost)} who haven’t opened`, stuck: worst.from } }
+    if (worst.from === 'opened') return { text: 'People open but don’t start. Check booking availability and reminders.', link: { label: `See the ${lostWord(worst.lost)} who opened and stopped`, stuck: worst.from } }
+    if (worst.from === 'booked') return { text: 'People book a slot but don’t start. Check the reminders and the slot times.', link: { label: `See the ${lostWord(worst.lost)} who booked and didn’t start`, stuck: worst.from } }
+    return { text: 'People leave during the interview. Check interview length and technical issues.', link: { label: `See the ${lostWord(worst.lost)} who started and didn’t finish`, stuck: worst.from } }
+  })()
+  return { human, stages, steps, total: ps.length, tooEarly, reading }
+}
+
+/** The participants behind a number on the journey: those who reached a stage, or those whose furthest stage it is. */
+export function journeyPeople(doc: FieldworkDoc, by: { reached?: JourneyKey; stuck?: JourneyKey }): Set<string> | undefined {
+  const keys = journeyKeys(isHumanLed(doc))
+  const key = by.reached ?? by.stuck
+  if (!key || !keys.includes(key)) return undefined
+  const idx = keys.indexOf(key)
+  return new Set(participantsOf(doc).filter((p) => { const f = keys.indexOf(furthest(p, keys)); return by.reached ? f >= idx : f === idx }).map((p) => p.id))
+}
+
 // ─── The slot ledger and the gap to the target ──────────────────────────────
 
 /** Accepted is green, Under review amber, running and noShow white (held by someone who can still finish), open a dashed red gap. */

@@ -10,7 +10,7 @@ import { StatusChip } from '@/components/StatusChip'
 import { Table, type Column } from '@/components/Table'
 import { screenById, studyPath } from '@/routes/screens'
 import { moderatorName, sessionCountOf, type Session } from '@/state/fieldwork'
-import { needsYou } from '@/state/selectors'
+import { journeyPeople, needsYou, type JourneyKey } from '@/state/selectors'
 import { SessionTag } from '../SessionTag'
 import { slotText, type FWProps } from './FieldworkBits'
 
@@ -27,13 +27,17 @@ const match: Record<Exclude<Filter, 'Needs you'>, (s: Session) => boolean> = {
 
 export function SessionsTab({ doc, studyId, withdrawn, onOpenConsent }: FWProps & { withdrawn: number; onOpenConsent: () => void }) {
   const navigate = useNavigate()
-  const [params] = useSearchParams()
+  const [params, setParams] = useSearchParams()
   const asked = params.get('filter')
   const [filter, setFilter] = useState<Filter>(FILTERS.includes(asked as Filter) ? (asked as Filter) : 'All')
   const [q, setQ] = useState('')
   const needing = new Set(needsYou(doc).flatMap((r) => (r.session ? [r.session.id] : [])))
   const test = (s: Session) => (filter === 'Needs you' ? needing.has(s.id) : match[filter](s))
-  const rows = doc.sessions.filter((s) => test(s) && (!q.trim() || [s.id, s.participantId, s.ref, s.region ?? ''].some((x) => x.toLowerCase().includes(q.trim().toLowerCase()))))
+  // A number on the journey opens Sessions for the people behind it.
+  const reached = params.get('reached') as JourneyKey | null
+  const stuck = params.get('stuck') as JourneyKey | null
+  const people = reached || stuck ? journeyPeople(doc, reached ? { reached } : { stuck: stuck! }) : undefined
+  const rows = doc.sessions.filter((s) => test(s) && (!people || people.has(s.participantId)) && (!q.trim() || [s.id, s.participantId, s.ref, s.region ?? ''].some((x) => x.toLowerCase().includes(q.trim().toLowerCase()))))
   const open = (s: Session) => navigate(studyPath(studyId, { ...screenById.R19, path: screenById.R19.path.replace(':sessionId', s.id) }))
 
   const columns: Column<Session>[] = [
@@ -72,6 +76,16 @@ export function SessionsTab({ doc, studyId, withdrawn, onOpenConsent }: FWProps 
         </div>
       }
     >
+      {people && (
+        <div data-testid="journey-filter" className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-mist bg-haze px-5 py-2 text-sm">
+          <span className="tabular-nums">
+            {people.size} {people.size === 1 ? 'person' : 'people'} {reached ? `reached “${reached}”` : `stopped at “${stuck}”, going no further`}.
+          </span>
+          <button type="button" onClick={() => setParams({ tab: 'sessions' })} className="font-medium text-iris-700 hover:underline">
+            Show everyone
+          </button>
+        </div>
+      )}
       <Table caption="Fieldwork sessions" columns={columns} rows={rows} rowKey={(s) => s.id} onRowClick={open} empty={<EmptyState title="No sessions match" description="Choose another filter or clear the search." />} />
     </Card>
   )

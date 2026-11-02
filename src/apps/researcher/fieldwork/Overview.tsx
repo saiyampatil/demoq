@@ -12,10 +12,11 @@ import { formatDay, formatSlot, formatStamp } from '@/lib/format'
 import { screenById, studyPath } from '@/routes/screens'
 import { SIMULATE_TIME_STEPS } from '@/mock/needsYou'
 import { advanceClock, assignEscalation, extendWindow, fieldworkNow, simulateModeratorNoShow, giveUp, lowerTarget, sendBookingLink, sendRescheduleLink, inviteFromReserve, resendLink, retrySession } from '@/state/fieldwork'
-import { ago, funnel, moderatorRoster, timeCheck, topUpStatus, needsYou, supportReport, slotLedger, verdict, type NeedsRow, regionMatrix, regionSkew } from '@/state/selectors'
+import { ago, moderatorRoster, timeCheck, topUpStatus, needsYou, supportReport, slotLedger, verdict, type NeedsRow, regionMatrix, regionSkew } from '@/state/selectors'
 import { SessionTag } from '../SessionTag'
 import { invitedIds, invitedMessage, type FWProps } from './FieldworkBits'
 import { KpiStrip } from './KpiStrip'
+import { ParticipantJourney } from './ParticipantJourney'
 import { VerdictCard } from './VerdictCard'
 
 const r19 = (studyId: string, id: string) => `${studyPath(studyId, { ...screenById.R19, path: screenById.R19.path.replace(':sessionId', id) })}?from=needs-you`
@@ -28,7 +29,6 @@ export function Overview(p: FWProps) {
   const v = verdict(doc, target, outcomes, reserve, needs.length)
   const regions = regionMatrix(doc, outcomes)
   const skew = regionSkew(regions.totals, regions.total)
-  const flow = funnel(doc, outcomes)
   const ledger = slotLedger(doc, target, outcomes)
   const blockedWhy = readOnly ? 'This is sample data. Nothing can be changed.' : closed ? 'Fieldwork is closed' : paused ? 'Study is paused' : undefined
   const inviteNow = (n: number) => {
@@ -106,54 +106,7 @@ export function Overview(p: FWProps) {
         </p>
       )}
 
-      <Card title="Participant funnel" description="Every invited participant is counted once, at the furthest stage they reached.">
-        <div className="flex flex-col gap-5">
-          <p data-testid="funnel-summary" className="text-sm text-graphite tabular-nums">
-            Target {target}: {v.gap.counting} counting, {v.gap.running} still open{v.gap.noShowHeld ? `, ${v.gap.noShowHeld} no-${v.gap.noShowHeld === 1 ? 'show' : 'shows'} holding a slot` : ''}, {v.gap.reserve} in reserve
-          </p>
-          <ol className="flex flex-col gap-3" aria-label="Funnel stages">
-            {flow.stages.map((st) => (
-              <li key={st.key} className="grid items-center gap-x-4 gap-y-1 sm:grid-cols-[7rem_minmax(0,1fr)_3rem]">
-                <span className="text-sm font-medium">{st.label}</span>
-                <div className="h-3 overflow-hidden rounded-xs bg-haze" aria-hidden="true">
-                  <div className="h-full rounded-xs bg-ink" style={{ width: `${flow.total ? (st.reached / flow.total) * 100 : 0}%` }} />
-                </div>
-                <span className="text-right font-semibold tabular-nums max-sm:text-left">{st.reached}</span>
-                {(st.left.length > 0 || st.waiting.length > 0 || st.key === 'completed') && (
-                  <ul className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-graphite sm:col-start-2 sm:col-span-2">
-                    {st.left.map((x) => (
-                      <li key={x.label} className="text-pending-fg tabular-nums">
-                        {x.n} {x.label.toLowerCase()}, {x.note ?? 'left the study'}
-                      </li>
-                    ))}
-                    {st.waiting.map((x) => (
-                      <li key={x.label} className="tabular-nums">
-                        {x.n} {x.label.toLowerCase()}
-                      </li>
-                    ))}
-                    {st.key === 'completed' && (
-                      <>
-                        <li className="tabular-nums">
-                          Inside the {flow.completed.n}: {flow.completed.accepted} accepted, {flow.completed.pending} under review, {flow.completed.excluded} excluded
-                        </li>
-                        {flow.completed.excluded > 0 && (
-                          <li className="font-medium text-pending-fg tabular-nums">
-                            {flow.completed.excluded} excluded in review{ledger.open > 0 ? ' (replacements needed)' : ''}
-                          </li>
-                        )}
-                      </>
-                    )}
-                  </ul>
-                )}
-              </li>
-            ))}
-          </ol>
-          <p className="border-t border-mist pt-3 text-sm text-graphite tabular-nums" data-testid="funnel-total">
-            {flow.total} invited = {flow.completed.n} completed ({flow.completed.accepted} accepted + {flow.completed.pending} under review + {flow.completed.excluded} excluded) + {flow.withdrew} withdrew + {flow.noShow} no-show{flow.gaveUp ? ` + ${flow.gaveUp} given up` : ''} + {flow.inProgress} still in progress
-            {flow.sum === flow.total ? '.' : `. ${flow.total - flow.sum} unaccounted for.`}
-          </p>
-        </div>
-      </Card>
+      <ParticipantJourney doc={doc} outcomes={outcomes} studyId={studyId} />
 
       {doc.log.length > 0 && (
         <Card title="Activity">

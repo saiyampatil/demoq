@@ -4,7 +4,7 @@
 import type { ReviewSession } from '@/mock/review'
 import type { FieldworkDoc } from './fieldwork'
 import { handledBySystem } from './fieldwork'
-import { countedSessions, funnel, needsYou, outcomesOf, progress, reviewCounts, slotLedger, towardSessions, validationOf } from './selectors'
+import { countedSessions, funnel, journey, needsYou, outcomesOf, progress, reviewCounts, slotLedger, towardSessions, validationOf } from './selectors'
 
 export function checkInvariants(doc: FieldworkDoc, review: ReviewSession[], target: number, stepperBadge: number | null): string[] {
   const out: string[] = []
@@ -53,5 +53,13 @@ export function checkInvariants(doc: FieldworkDoc, review: ReviewSession[], targ
     if (r.kind !== 'pulseai' && s.issues.every((i) => i.status !== 'Open') && r.kind !== 'escalation' && r.kind !== 'moderator-no-show' && r.kind !== 'left-part-way' && r.kind !== 'never-started') out.push(`8: ${r.who} is in Needs you for ${r.kind} with nothing open`)
     if (r.fault === 'Our side' && r.kind === 'pulseai' && r.giveUp) out.push(`8: ${r.who} can be given up on over an our-side PulseAI failure`)
   })
+  // 9. The journey and the funnel count the same people: invited, started and completed agree, and no stage has more people than the one before.
+  const trip = journey(doc)
+  const at = (k: string) => trip.stages.find((x) => x.key === k)?.reached
+  const funnelStarted = flow.stages.find((x) => x.key === 'started')?.reached
+  if (at('invited') !== flow.total) out.push(`9: the journey has ${at('invited')} invited, the funnel ${flow.total}`)
+  if (at('started') !== funnelStarted) out.push(`9: the journey has ${at('started')} started, the funnel ${funnelStarted}`)
+  if (at('completed') !== flow.completed.n) out.push(`9: the journey has ${at('completed')} completed, the funnel ${flow.completed.n}`)
+  if (trip.steps.some((x) => x.lost < 0)) out.push('9: a journey stage has more people than the one before it')
   return out
 }
