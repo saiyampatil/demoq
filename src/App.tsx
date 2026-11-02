@@ -12,7 +12,6 @@ import { CommandCenter } from '@/apps/researcher/fieldwork/CommandCenter'
 import { SessionRecord } from '@/apps/researcher/fieldwork/SessionRecord'
 import { SessionReview } from '@/apps/researcher/review/SessionReview'
 import { AnalysisBase } from '@/apps/researcher/analysis/AnalysisBase'
-import { EvidenceAudit } from '@/apps/researcher/evidence/EvidenceAudit'
 import { ReviewQueue } from '@/apps/researcher/review/ReviewQueue'
 import { LaunchReadiness } from '@/apps/researcher/launch/LaunchReadiness'
 import { PreflightLaunch } from '@/apps/researcher/launch/PreflightLaunch'
@@ -64,7 +63,6 @@ const builtResearcher: Record<string, ReactNode> = {
   R18: <CommandCenter />,
   R19: <SessionRecord />,
   R21: <ReviewQueue />,
-  R24: <EvidenceAudit />,
   R22: <SessionReview />,
   A1: <AnalysisBase />,
 }
@@ -104,7 +102,7 @@ const router = createBrowserRouter([
           {
             path: 'studies/:studyId',
             element: <StudyWorkspace />,
-            children: [{ index: true, element: <WorkspaceIndex /> }, ...routesFor('researcher', (id) => builtResearcher[id] ?? <ResearcherScreen id={id} />)],
+            children: [{ index: true, element: <WorkspaceIndex /> }, { path: 'evidence', element: <Navigate to="../review/queue" replace /> }, ...routesFor('researcher', (id) => builtResearcher[id] ?? <ResearcherScreen id={id} />)],
           },
         ],
       },

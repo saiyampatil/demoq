@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router'
 import { Banner } from '@/components/Banner'
 import { Button } from '@/components/Button'
 import { cn } from '@/components/cn'
@@ -532,9 +531,6 @@ export function DecisionBar({ ctx }: { ctx: DecisionCtx }) {
                 {s.status} by {by(d.by, d.at)}
               </p>
             )}
-            <Link data-testid="to-evidence" to={`${studyPath(ctx.doc.studyId, screenById.R24)}?session=${s.id}`} className="mt-1 inline-block text-sm font-medium text-iris-700 hover:underline">
-              See this session in the evidence record
-            </Link>
           </div>
           {blocked ? (
             <Tooltip content={blocked} focusable>

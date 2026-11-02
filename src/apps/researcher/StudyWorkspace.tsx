@@ -126,7 +126,7 @@ export function StudyWorkspace() {
       </div>
       <div className="flex flex-1 flex-col md:flex-row">
         <aside className="border-b border-mist bg-paper md:w-stepper md:shrink-0 md:border-r md:border-b-0">
-          <div className="flex flex-col gap-4 px-5 py-4 md:py-5">
+          <div className="flex flex-col gap-4 px-3.5 py-4 md:py-5">
             <Link to="/researcher" className="inline-flex items-center gap-1 self-start rounded-xs text-sm text-graphite hover:text-ink">
               <ChevronLeftIcon size={14} />
               Studies
@@ -226,7 +226,7 @@ function StudySummary({ study }: { study: StudyRecord }) {
     <div>
       <h2 className="text-md leading-snug font-semibold">{study.name}</h2>
       <p className="text-sm text-graphite">{study.client}</p>
-      <div className="mt-2 flex flex-wrap items-center gap-2">
+      <div className="mt-2 flex flex-wrap items-center gap-x-1 gap-y-1">
         <StatusChip status={study.status} size="sm" />
         <span className="text-xs text-graphite">{study.moderatorType}</span>
         {study.releaseVersion && <span className="text-xs text-graphite">{study.releaseVersion}</span>}

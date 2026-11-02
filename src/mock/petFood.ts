@@ -1,4 +1,4 @@
-// Pet Food Subscription Churn (Burrow Pet): a finished study, filled in from the brief to the evidence record, so a
+// Pet Food Subscription Churn (Burrow Pet): a finished study, filled in from the brief to the review decisions, so a
 // second study can be followed end to end. It is built from the same shapes as the seed study (Moisturizer Concept
 // Study) but says its own things: the brief, the audience and screener, the guide, the concepts, the interviews.
 

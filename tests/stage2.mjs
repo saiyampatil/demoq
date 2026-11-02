@@ -78,7 +78,7 @@ try {
   await b.evaluate(`__click('Screen jump')`); await b.sleep(300)
   await b.evaluate(`__click('Dev demo: decide every session')`); await b.sleep(600)
   await b.evaluate(`__click('Screen jump')`); await b.sleep(300)
-  await b.goto(root + '/evidence'); await b.waitFor('Study governance'); await b.sleep(800)
+  await b.goto(root + '/review/queue'); await b.waitFor('Completed interviews'); await b.sleep(800)
   console.log('analysis unlocked (no lock reason left):', await b.evaluate(`!/still needs? a Review decision/.test(document.documentElement.innerHTML)`), '| invariants:', JSON.stringify(await b.evaluate('window.__invariants')))
   await b.shot('s2-analysis-open')
 } finally { b.close() }

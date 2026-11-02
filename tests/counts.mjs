@@ -27,8 +27,6 @@ try {
   const [cards, stepper] = await read('/review/queue', 'Completed interviews', `document.querySelector('section[aria-label=Summary]')?.innerText.replace(/\\s+/g,' ')`, `[...document.querySelectorAll('a,button')].map(x=>x.innerText.replace(/\\s+/g,' ')).find(t=>/^Review \\d+ awaiting/.test(t)) ?? document.body.innerText.match(/Review\\s+\\d+ awaiting/)?.[0]`)
   rows['R21 cards'] = cards
   rows['Stepper Review badge'] = stepper
-  const [ev] = await read('/evidence', 'Evidence and audit trail', `JSON.stringify({rows: document.querySelectorAll('[data-testid=evidence-row]').length, missingSomething: document.querySelector('[data-testid=incomplete-count]')?.innerText})`)
-  rows['R24'] = ev
   await b.goto('/researcher'); await b.waitFor('Moisturizer'); await b.sleep(600)
   rows['R0 (seed)'] = await b.evaluate(`[...document.querySelectorAll('main tr')].find(r=>r.innerText.includes('Moisturizer Concept Study'))?.innerText.replace(/\\s+/g,' ')`)
   rows['R0 (Oat Milk)'] = await b.evaluate(`[...document.querySelectorAll('main tr')].find(r=>r.innerText.includes('Oat Milk'))?.innerText.replace(/\\s+/g,' ')`)

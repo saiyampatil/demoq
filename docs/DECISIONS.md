@@ -267,3 +267,16 @@ One line per change: the decision, then the reason. Newest stage at the bottom.
 - New status chips "Ready to approve" and "Needs re-approval" (pending family) in a new `analysis` vocabulary; "Approved" is reused. The sub-stepper's later steps are locked with "Approve the base first". "Approve base" is shown disabled until Stage 3.
 - On this step only, the workspace content width is 1280px instead of 1120px. The table drops its padding below 1280px so all seven columns fit at 1024px with no sideways scroll.
 - Probe: `tests/analysis-base.mjs`. No test chain.
+
+## Evidence step (R24) removed
+
+- The Evidence step is removed from the study stepper, which is back to seven steps: Brief, Audience, Moderator & Guide, Launch, Fieldwork, Review, Analysis. The R24 page, its route, `state/evidence.ts` and the "Evidence (mock)" dev modes (Live review records, Missing artifacts, Mixed scores) are deleted. Reason: it duplicated Review. It showed the same scores and the same decisions as R21 and R22, read-only, and the Analysis base now owns the gate between Review and Analysis. The earlier entries about R24 above are kept as history.
+- `/researcher/studies/:id/evidence` redirects to the study's Review queue. There is no placeholder page. R21's "Everything is reviewed" banner now ends with "Next: Analysis", linking to the Analysis base when the Analysis step is open, or saying why it is locked. R22's decision record no longer links to an evidence record.
+- The Analysis step's lock rule is unchanged: it opens when every counted session has a Review decision. `handoffGate()` in `state/selectors.ts` has no callers and is left as it was.
+- The Study governance card (release, guide version, consent wording, retention, who has access) is kept, unused and not rendered anywhere, in `src/apps/researcher/governance/GovernanceCard.tsx`, with the retention text it reads. The browser key `pulseai-qual:evidence-mock` is no longer read or written; an old browser may still hold it, which is harmless.
+- Screen jump keeps "Dev demo: decide every session" (it records real Accepted decisions on every session still Under review), now under a "Review (dev demo)" heading, because the Evidence modes were the only other thing in that section.
+- The audit trail was never built (R24 stages 2 and 3), so nothing from it is lost. Open questions #50, #68 (the R24 part), #107 to #109 and #116 are marked superseded.
+- R21: the row checkboxes, the select-all box and the "N selected / Clear selection" line are removed. They only drove a count; no bulk decision existed.
+- The left rail shows "Release v1.0" on the same line as the status chips (the rail's side padding is 14px, not 20px, and the gaps are 4px, so the row fits). A long status such as "Ready to Launch" still wraps.
+- Probes that visited `/evidence` (`counts.mjs`, `pet.mjs`, `pet-shots.mjs`, `shots.mjs`, `stage2.mjs`) no longer do; `stage2.mjs` checks the Analysis lock from the Review queue instead.
+- R21's footer button "Continue to analysis" followed the old rule (always disabled, "Analysis is out of scope"). It now follows the banner: a link to the Analysis base when the Analysis step is open, otherwise disabled with the step's locked reason.

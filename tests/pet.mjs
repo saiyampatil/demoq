@@ -8,7 +8,7 @@ const screens = [
   ['R6 audience', '/audience/definition'], ['R7 screener', '/audience/screener'], ['R8 sourcing', '/audience/sourcing'], ['R9 screening', '/audience/screening'], ['R11 pool', '/audience/pool'],
   ['R12 moderator', '/guide/moderator'], ['R13 stimuli', '/guide/stimuli'], ['R14 guide', '/guide/editor'],
   ['R15 launch', '/launch/readiness'], ['R17 preflight', '/launch/preflight'],
-  ['R18 fieldwork', '/fieldwork/command-center'], ['R21 queue', '/review/queue'], ['R22 session', '/review/session/P-3107-1'], ['R24 evidence', '/evidence'],
+  ['R18 fieldwork', '/fieldwork/command-center'], ['R21 queue', '/review/queue'], ['R22 session', '/review/session/P-3107-1'],
 ]
 try {
   await b.goto('/researcher'); await b.evaluate('localStorage.clear(); sessionStorage.clear(); true'); await b.goto('/researcher'); await b.waitFor('Pet Food')

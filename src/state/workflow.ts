@@ -95,13 +95,6 @@ export function stepInfo(study: StudyRecord, sessions?: { awaitingReview: number
       hint: sessions?.awaitingReview === null ? 'Sample study: no live session data' : isLaunched ? 'Sessions arrive here after they finish' : 'Sample data until the study launches',
     },
     {
-      key: 'evidence',
-      label: label('evidence'),
-      // The record of Review. Like Review, it can always be opened; before launch it shows sample data.
-      state: 'open',
-      hint: 'The record of what was found and decided',
-    },
-    {
       key: 'analysis',
       label: label('analysis'),
       ...analysis(isLaunched, sessions),
@@ -110,8 +103,8 @@ export function stepInfo(study: StudyRecord, sessions?: { awaitingReview: number
 }
 
 /**
- * Analysis unlocks only when every counted session has a Review decision, so the handoff gate in R24
- * is complete. Until then the step says why it is locked.
+ * Analysis unlocks only when every counted session has a Review decision, so it opens on a complete set
+ * of decisions. Until then the step says why it is locked.
  */
 function analysis(isLaunched: boolean, sessions?: { awaitingReview: number | null; total?: number }): Pick<StepInfo, 'state' | 'lockedReason' | 'hint'> {
   const locked = (lockedReason: string) => ({ state: 'locked' as const, lockedReason })

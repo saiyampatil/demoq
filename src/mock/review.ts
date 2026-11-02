@@ -1,4 +1,4 @@
-// Review (4.8) and Evidence and audit (4.9) data. The sessions come from the study's one session list
+// Review (4.8) data. The sessions come from the study's one session list
 // (mock/sessions.ts): every completed session is here, and nothing else is. Moderator type is fixed per study.
 import { SEED_SESSIONS, sessionIdOf, type SeedSession } from './sessions'
 

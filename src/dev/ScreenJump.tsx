@@ -6,7 +6,6 @@ import { CloseIcon, SearchIcon } from '@/components/icons'
 import { mockTestRuns, type MockRuns } from '@/mock/launch'
 import { MOISTURIZER_ID, stagePresets } from '@/mock/moisturizerStudy'
 import { appLabel, screenHref, screens, type AppKey } from '@/routes/screens'
-import { evidenceMockLabel, setEvidenceMock, useEvidenceMock, type EvidenceMock } from '@/state/evidence'
 import { addReviewEvent, useReviewState } from '@/state/reviewState'
 import { reviewList } from '@/state/studySessions'
 import { featureInfo, useFeatures, type FeatureKey } from '@/state/features'
@@ -27,7 +26,6 @@ export function ScreenJump() {
     if (change) updateLaunch(MOISTURIZER_ID, change)
   }
   const { flags, setFlag } = useFeatures()
-  const evidenceMock = useEvidenceMock()
   const reviewState = useReviewState()
   const demoDecide = () => {
     const doc = getFieldwork(MOISTURIZER_ID)
@@ -100,16 +98,8 @@ export function ScreenJump() {
             </section>
 
             <section className="border-b border-mist px-4 py-3">
-              <h3 className="text-sm font-semibold">Evidence (mock)</h3>
-              <p className="text-xs text-graphite">How the Evidence screen shows artifacts and scores. It never invents a decision. “Live” reads the real review records.</p>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {(Object.keys(evidenceMockLabel) as EvidenceMock[]).map((m) => (
-                  <Button key={m} size="sm" variant={evidenceMock === m ? 'primary' : 'secondary'} onClick={() => setEvidenceMock(m)}>
-                    {evidenceMockLabel[m]}
-                  </Button>
-                ))}
-              </div>
-              <p className="mt-3 text-xs text-graphite">Records a real decision (Accepted, by “Dev demo”) on every session still Under review. Reset the study stage to undo.</p>
+              <h3 className="text-sm font-semibold">Review (dev demo)</h3>
+              <p className="mt-1 text-xs text-graphite">Records a real decision (Accepted, by “Dev demo”) on every session still Under review. Reset the study stage to undo.</p>
               <Button size="sm" className="mt-2" onClick={demoDecide}>
                 Dev demo: decide every session
               </Button>

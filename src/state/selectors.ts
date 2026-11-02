@@ -1,5 +1,5 @@
 // The one place every derived number comes from: what R18 tells the Researcher (am I on track, what needs me),
-// what R21 and the stepper count, and what R24 records. All of it is computed from the study's session list
+// and what R21 and the stepper count. All of it is computed from the study's session list
 // (state/fieldwork.ts) and the review records on it, so no screen counts for itself and two screens cannot disagree.
 //
 // The counted session of a participant is their latest session that is Completed. A participant counts once,
@@ -66,7 +66,7 @@ export function fieldworkStatus(s: Session): FieldworkStatus {
   }
 }
 
-/** What the Review queue, the stepper and R24 count. `total` is the Completed interviews and is the funnel's Completed. */
+/** What the Review queue and the stepper count. `total` is the Completed interviews and is the funnel's Completed. */
 export function reviewCounts(review: ReviewSession[]) {
   const n = (st: ReviewStatus) => review.filter((x) => x.status === st).length
   return {

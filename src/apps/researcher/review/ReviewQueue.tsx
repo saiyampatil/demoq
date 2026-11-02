@@ -11,6 +11,7 @@ import { Tooltip } from '@/components/Tooltip'
 import { FLAG_TRACKS, FLAG_TYPES, MODERATOR_TYPES, scoreBand, trackLabel, type FlagSeverity, type ReviewFlag, type ReviewSession, type ScoreBand } from '@/mock/review'
 import { screenById, studyPath } from '@/routes/screens'
 import { reviewCounts } from '@/state/selectors'
+import { stepInfo } from '@/state/workflow'
 import { loadQueue, NO_FILTERS, queueOrder, saveQueue, type QueueFilters } from '@/state/reviewQueue'
 import { formatClock, formatDay } from '@/lib/format'
 import { PageHeader } from '../../shared/PageHeader'
@@ -26,7 +27,7 @@ const dayText = formatDay
 const clockText = formatClock
 
 export function ReviewQueue() {
-  const { studyId, review, preview, doc } = useStudySessions()
+  const { studyId, study, review, preview, doc } = useStudySessions()
   const [params] = useSearchParams()
   // ?demo=loading|empty shows the other queue states.
   const demo = params.get('demo')
@@ -39,7 +40,6 @@ export function ReviewQueue() {
   const [page, setPage] = useState(0)
   const [pageSize, setPageSize] = useState(saved.pageSize)
   useEffect(() => saveQueue({ filters, search, asc, pageSize }), [filters, search, asc, pageSize])
-  const [selected, setSelected] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     const t = setTimeout(() => setLoaded(true), 700)
@@ -89,6 +89,8 @@ export function ReviewQueue() {
     )
 
   const sum = reviewCounts(all)
+  // The banner's next step is Analysis, or why it is still locked.
+  const analysis = study ? stepInfo(study, { awaitingReview: sum.underReview, total: sum.total }).find((x) => x.key === 'analysis') : undefined
   const filtered = queueOrder(all, { filters, search, asc, pageSize })
   const pages = Math.max(1, Math.ceil(filtered.length / pageSize))
   const pageNo = Math.min(page, pages - 1)
@@ -98,9 +100,6 @@ export function ReviewQueue() {
     setFilters((f) => ({ ...f, [k]: v }))
     setPage(0)
   }
-  const pageIds = rows.map((r) => r.id)
-  const allOnPage = pageIds.length > 0 && pageIds.every((id) => selected.has(id))
-  const someOnPage = pageIds.some((id) => selected.has(id))
   const href = (id: string) => studyPath(studyId, { ...screenById.R22, path: screenById.R22.path.replace(':sessionId', id) })
 
   return (
@@ -117,9 +116,17 @@ export function ReviewQueue() {
       {sum.underReview === 0 && (
         <p className="flex items-center gap-2 rounded-md border border-positive-line bg-positive-bg px-4 py-3 text-sm">
           <span className="font-medium">Everything is reviewed.</span> {sum.accepted} accepted and {sum.excluded} excluded. Open a session to reopen it if you need to change a decision.{' '}
-          <Link data-testid="to-evidence" to={studyPath(studyId, screenById.R24)} className="font-medium text-iris-700 hover:underline">
-            Next: check the evidence record
-          </Link>
+          {analysis?.state === 'open' ? (
+            <Link data-testid="to-analysis" to={studyPath(studyId, screenById.A1)} className="font-medium text-iris-700 hover:underline">
+              Next: Analysis
+            </Link>
+          ) : (
+            analysis && (
+              <span data-testid="to-analysis" className="text-graphite">
+                Next: Analysis is locked. {analysis.lockedReason}.
+              </span>
+            )
+          )}
         </p>
       )}
 
@@ -159,15 +166,6 @@ export function ReviewQueue() {
         )}
       </section>
 
-      {selected.size > 0 && (
-        <p className="flex items-center gap-3 text-sm">
-          <span className="font-medium tabular-nums">{selected.size} selected</span>
-          <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>
-            Clear selection
-          </Button>
-        </p>
-      )}
-
       <div className="rounded-md border border-mist bg-surface">
         {filtered.length === 0 ? (
           <EmptyState
@@ -190,24 +188,6 @@ export function ReviewQueue() {
               <caption className="sr-only">Completed interviews to review</caption>
               <thead>
                 <tr className="border-b border-mist bg-haze">
-                  <th scope="col" className="h-9 w-10 px-3">
-                    <input
-                      type="checkbox"
-                      aria-label="Select all on this page"
-                      checked={allOnPage}
-                      ref={(el) => {
-                        if (el) el.indeterminate = !allOnPage && someOnPage
-                      }}
-                      onChange={(e) =>
-                        setSelected((s) => {
-                          const n = new Set(s)
-                          pageIds.forEach((id) => (e.target.checked ? n.add(id) : n.delete(id)))
-                          return n
-                        })
-                      }
-                      className="accent-[var(--color-iris-600)]"
-                    />
-                  </th>
                   <Th>Participant ID</Th>
                   <Th>Moderator</Th>
                   <th scope="col" aria-sort={asc ? 'ascending' : 'descending'} className="h-9 px-3 text-sm font-medium whitespace-nowrap text-graphite">
@@ -243,23 +223,7 @@ export function ReviewQueue() {
               </thead>
               <tbody className="text-sm">
                 {rows.map((s) => (
-                  <tr key={s.id} className={cn('border-b border-mist last:border-0', selected.has(s.id) && 'bg-paper')}>
-                    <td className="px-3 py-2.5">
-                      <input
-                        type="checkbox"
-                        aria-label={`Select ${sessionText(s.participantId, s.sessionNo, s.sessionCount)}`}
-                        checked={selected.has(s.id)}
-                        onChange={(e) =>
-                          setSelected((p) => {
-                            const n = new Set(p)
-                            if (e.target.checked) n.add(s.id)
-                            else n.delete(s.id)
-                            return n
-                          })
-                        }
-                        className="accent-[var(--color-iris-600)]"
-                      />
-                    </td>
+                  <tr key={s.id} className="border-b border-mist last:border-0">
                     <td className="px-3 py-2.5">
                       <Link to={href(s.id)} className="font-medium tabular-nums text-iris-700 underline-offset-2 hover:underline">
                         <SessionTag participantId={s.participantId} no={s.sessionNo} count={s.sessionCount} />
@@ -331,11 +295,17 @@ export function ReviewQueue() {
       </div>
 
       <WizardFooter previous={{ to: studyPath(studyId, screenById.R18), label: 'Fieldwork' }} message={sum.underReview ? `${sum.underReview} sessions are still awaiting review.` : 'Every session is reviewed.'}>
-        <Tooltip focusable content="Analysis is out of scope for this prototype.">
-          <Button variant="primary" disabled>
+        {analysis?.state === 'open' ? (
+          <Button variant="primary" to={studyPath(studyId, screenById.A1)}>
             Continue to analysis
           </Button>
-        </Tooltip>
+        ) : (
+          <Tooltip focusable content={analysis?.lockedReason ?? 'Analysis is locked.'}>
+            <Button variant="primary" disabled>
+              Continue to analysis
+            </Button>
+          </Tooltip>
+        )}
       </WizardFooter>
     </div>
   )
