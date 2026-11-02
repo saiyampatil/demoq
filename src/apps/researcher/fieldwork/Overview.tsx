@@ -12,19 +12,14 @@ import { formatDay, formatSlot, formatStamp } from '@/lib/format'
 import { screenById, studyPath } from '@/routes/screens'
 import { SIMULATE_TIME_STEPS } from '@/mock/needsYou'
 import { advanceClock, assignEscalation, extendWindow, fieldworkNow, simulateModeratorNoShow, giveUp, lowerTarget, sendBookingLink, sendRescheduleLink, inviteFromReserve, resendLink, retrySession } from '@/state/fieldwork'
-import { ago, funnel, moderatorRoster, timeCheck, topUpStatus, needsYou, supportReport, slotLedger, verdict, type NeedsRow, type VerdictAction, type VerdictLevel, regionMatrix, regionSkew } from '@/state/selectors'
+import { ago, funnel, moderatorRoster, timeCheck, topUpStatus, needsYou, supportReport, slotLedger, verdict, type NeedsRow, regionMatrix, regionSkew } from '@/state/selectors'
 import { SessionTag } from '../SessionTag'
 import { invitedIds, invitedMessage, type FWProps } from './FieldworkBits'
 import { KpiStrip } from './KpiStrip'
-import { SlotLedger } from './SlotLedger'
+import { VerdictCard } from './VerdictCard'
 
 const r19 = (studyId: string, id: string) => `${studyPath(studyId, { ...screenById.R19, path: screenById.R19.path.replace(':sessionId', id) })}?from=needs-you`
 
-const TONE: Record<VerdictLevel, { box: string; word: string }> = {
-  'At risk': { box: 'border-negative-line bg-negative-bg', word: 'text-negative-fg' },
-  'Behind pace': { box: 'border-pending-line bg-pending-bg', word: 'text-pending-fg' },
-  'On track': { box: 'border-positive-line bg-positive-bg', word: 'text-positive-fg' },
-}
 
 export function Overview(p: FWProps) {
   const { doc, audience, target, studyId, outcomes, reserve, awaiting, readOnly, paused, closed, update, me } = p
@@ -50,63 +45,19 @@ export function Overview(p: FWProps) {
     <div className="flex flex-col gap-6">
       <KpiStrip doc={doc} target={target} outcomes={outcomes} awaiting={awaiting} studyId={studyId} />
 
-      <section aria-label="Verdict" className={cn('flex flex-wrap items-start gap-x-6 gap-y-3 rounded-md border px-5 py-4', TONE[v.level].box)}>
-        <div className="min-w-0 flex-1 basis-80">
-          <p className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-            <span className={cn('text-xl font-semibold', TONE[v.level].word)}>{v.level}</span>
-            <span className="text-base text-ink tabular-nums">{v.sentence}</span>
-          </p>
-          {v.warning && (
-            <p className="mt-2 flex items-start gap-2 text-sm text-pending-fg">
-              <AlertIcon size={14} className="mt-0.5 shrink-0" />
-              {v.warning}
-            </p>
-          )}
-          {v.plan && (
-            <p className="mt-2 text-sm font-medium tabular-nums" data-testid="closing-plan">
-              {v.plan.line}
-            </p>
-          )}
-          {v.plan && topUp.newInReserve > 0 && (
-            <p className="mt-1 text-sm text-positive-fg tabular-nums" data-testid="new-in-reserve">
-              {topUp.newInReserve} new in reserve ·{' '}
-              {blockedWhy ? (
-                <span className="text-graphite">Invite</span>
-              ) : (
-                <button type="button" onClick={() => inviteNow(reserve.length)} className="font-medium underline">
-                  Invite
-                </button>
-              )}
-            </p>
-          )}
-          {v.plan && v.plan.source > 0 && time.short && !closed && (
-            <div className="mt-2 rounded-sm border border-negative-line bg-surface px-3 py-2 text-sm" data-testid="not-enough-time">
-              <p className="flex items-start gap-2 font-medium text-negative-fg">
-                <AlertIcon size={14} className="mt-0.5 shrink-0" />
-                Not enough time left in the window
-              </p>
-              <p className="mt-0.5 text-graphite tabular-nums">
-                {time.left} {time.left === 1 ? 'day' : 'days'} left, and a new person needs about {time.needed} days to be sourced, screened and interviewed.
-              </p>
-              <div className="mt-2 flex flex-wrap gap-2">
-                <Button size="sm" disabled={!!blockedWhy} onClick={() => setAdjust('extend')}>
-                  Extend window
-                </Button>
-                <Button size="sm" disabled={!!blockedWhy} onClick={() => setAdjust('lower')}>
-                  Lower target
-                </Button>
-              </div>
-            </div>
-          )}
-          <p className="mt-2 text-xs text-graphite">{v.basis}</p>
-          <SlotLedger ledger={ledger} />
-        </div>
-        <div className="flex shrink-0 flex-wrap items-start gap-2" aria-label="Verdict actions">
-          {v.actions.map((a, i) => (
-            <VerdictButton key={a.label} action={a} primary={i === 0} blockedWhy={blockedWhy} studyId={studyId} goTab={p.goTab} onInvite={inviteNow} />
-          ))}
-        </div>
-      </section>
+      <VerdictCard
+        v={v}
+        ledger={ledger}
+        reserve={reserve}
+        studyId={studyId}
+        blockedWhy={blockedWhy}
+        newInReserve={topUp.newInReserve}
+        closed={closed}
+        notEnoughTime={time.short ? { left: time.left, needed: time.needed } : undefined}
+        goTab={p.goTab}
+        onInvite={inviteNow}
+        onAdjust={setAdjust}
+      />
 
       {topUp.running && (
         <Card title="Top-up in progress" description="Applicants you sourced after launch go through screening into the reserve. They never go straight to an interview.">
@@ -320,24 +271,6 @@ function AdjustModal({ kind, onClose, p, counting }: { kind?: 'extend' | 'lower'
 }
 
 /** One button from the verdict. Inviting and sourcing are blocked while the study is paused. */
-function VerdictButton({ action, primary, blockedWhy, studyId, goTab, onInvite }: { action: VerdictAction; primary: boolean; blockedWhy?: string; studyId: string; goTab: (t: string) => void; onInvite: (n: number) => void }) {
-  const fills = action.kind === 'invite' || action.kind === 'source'
-  const variant = primary ? 'primary' : 'secondary'
-  if (fills && blockedWhy)
-    return (
-      <Tooltip content={blockedWhy} focusable>
-        <Button variant={variant} disabled>
-          {action.label}
-        </Button>
-      </Tooltip>
-    )
-  if (action.kind === 'invite') return <Button variant={variant} onClick={() => onInvite(action.n ?? 0)}>{action.label}</Button>
-  // Source more opens R8 as a top-up with the number to source filled in.
-  if (action.kind === 'source') return <Button variant={variant} data-testid="source-more" to={`${studyPath(studyId, screenById.R8)}?topup=${action.n}`}>{action.label}</Button>
-  if (action.kind === 'sessions') return <Button variant="primary" onClick={() => goTab('sessions')}>{action.label}</Button>
-  if (action.kind === 'needs') return <Button variant="primary" onClick={() => document.getElementById('needs-you')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>{action.label}</Button>
-  return <Button variant="primary" to={studyPath(studyId, screenById.R21)}>{action.label}</Button>
-}
 
 function NeedsYou({ doc, rows, studyId, me, update, readOnly, blockedWhy }: FWProps & { rows: NeedsRow[]; blockedWhy?: string }) {
   const [all, setAll] = useState(false)

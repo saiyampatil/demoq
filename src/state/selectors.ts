@@ -649,7 +649,7 @@ export function verdict(doc: FieldworkDoc, target: number, outcomes: Outcomes, r
   if (gap.gap > 0)
     return {
       level: 'At risk',
-      sentence: `Only ${gap.ceiling} of ${target} can finish. ${gap.gap} more ${gap.gap === 1 ? 'person is' : 'people are'} needed.`,
+      sentence: `${gap.ceiling} of ${target} can finish. ${gap.gap} more ${gap.gap === 1 ? 'person' : 'people'} needed.`,
       warning,
       basis,
       actions: gapActions(gap.gap, gap.reserve, rate),
