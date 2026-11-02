@@ -270,6 +270,8 @@ export type FieldworkDoc = {
   lines?: string[]
   /** A top-up: the Researcher asked for more applicants after launch to close a gap. */
   topUp?: { requested: number; by: string; at: string }
+  /** Dev only: minutes added to the prototype clock by "Simulate time passing", to see grace periods end. */
+  clockSkewMin?: number
   /** The Researcher lowered the target. It replaces the audience's target for every count. */
   targetChange?: { from: number; to: number; by: string; at: string; reason: string }
   log: LogEntry[]
@@ -281,6 +283,8 @@ export type FieldworkDoc = {
 
 /** The prototype's clock for fieldwork data. */
 export const FIELDWORK_NOW = '2026-11-11T17:00:00-05:00'
+/** The clock a study's screens read: the prototype clock plus whatever the dev control "Simulate time passing" added. */
+export const fieldworkNow = (doc: Pick<FieldworkDoc, 'clockSkewMin'>) => new Date(new Date(FIELDWORK_NOW).getTime() + (doc.clockSkewMin ?? 0) * 60000).toISOString()
 const FIELDWORK_START = '2026-11-03T09:00:00-05:00'
 const MIN = 60000
 const at = (iso: string, minutes: number) => new Date(new Date(iso).getTime() + minutes * MIN).toISOString()
@@ -631,7 +635,7 @@ export const submitNotes = (doc: FieldworkDoc, id: string, notes: Notes) => patc
  * recorded, so new entries always come after the seeded ones.
  */
 export function tick(doc: FieldworkDoc): string {
-  const latest = [FIELDWORK_NOW, ...doc.log.map((l) => l.at), ...doc.sessions.flatMap((s) => s.events.map((e) => e.at))].reduce((m, x) => Math.max(m, new Date(x).getTime()), 0)
+  const latest = [fieldworkNow(doc), ...doc.log.map((l) => l.at), ...doc.sessions.flatMap((s) => s.events.map((e) => e.at))].reduce((m, x) => Math.max(m, new Date(x).getTime()), 0)
   return new Date(latest + MIN).toISOString()
 }
 
@@ -1005,6 +1009,9 @@ export function allDeclined(doc: FieldworkDoc, sessionId: string): FieldworkDoc 
     return { ...acc, escalation: { ...e, status: 'Waiting for moderator', offers, fellThroughAt: t } }
   })
 }
+
+/** Dev: moves the clock on (or back to the start with 0), so grace periods run out. */
+export const advanceClock = (doc: FieldworkDoc, minutes: number): FieldworkDoc => ({ ...doc, clockSkewMin: minutes === 0 ? 0 : (doc.clockSkewMin ?? 0) + minutes })
 
 /** Dev: adds hours to how long a participant has been waiting, to see the time left on the promise run down. */
 export const addWait = (doc: FieldworkDoc, sessionId: string, hours: number): FieldworkDoc => escalate(doc, sessionId, (s, e) => (e.status === 'Waiting for moderator' ? { ...s, escalation: { ...e, extraWaitMin: (e.extraWaitMin ?? 0) + hours * 60 } } : s))

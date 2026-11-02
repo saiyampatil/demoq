@@ -11,7 +11,8 @@ import { SplitBar } from '@/components/ProgressBar'
 import { Tooltip } from '@/components/Tooltip'
 import { formatDay, formatStamp } from '@/lib/format'
 import { screenById, studyPath } from '@/routes/screens'
-import { assignEscalation, extendWindow, giveUp, lowerTarget, sendBookingLink, sendRescheduleLink, inviteFromReserve, resendLink, retrySession } from '@/state/fieldwork'
+import { SIMULATE_TIME_STEPS } from '@/mock/needsYou'
+import { advanceClock, assignEscalation, extendWindow, fieldworkNow, simulateModeratorNoShow, giveUp, lowerTarget, sendBookingLink, sendRescheduleLink, inviteFromReserve, resendLink, retrySession } from '@/state/fieldwork'
 import { ago, funnel, moderatorRoster, timeCheck, topUpStatus, needsYou, supportReport, slotLedger, verdict, type NeedsRow, type VerdictAction, type VerdictLevel, durationStats, regionMatrix, regionSkew, targetFill } from '@/state/selectors'
 import { SessionTag } from '../SessionTag'
 import { invitedIds, invitedMessage, type FWProps } from './FieldworkBits'
@@ -427,6 +428,34 @@ function NeedsYou({ doc, rows, studyId, me, update, readOnly, blockedWhy }: FWPr
           {notice}
         </p>
       )}
+      {import.meta.env.DEV && !readOnly && (
+        <div data-testid="needs-dev" className="flex flex-wrap items-center gap-2 border-b border-dashed border-mist-strong bg-haze px-5 py-2 text-sm">
+          <span className="font-medium">Dev</span>
+          <span className="text-graphite">Simulate time passing{doc.clockSkewMin ? ` (clock is +${duration(doc.clockSkewMin)})` : ''}:</span>
+          {SIMULATE_TIME_STEPS.map((x) => (
+            <Button key={x.label} size="sm" onClick={() => update((d) => advanceClock(d, x.minutes))}>
+              {x.label}
+            </Button>
+          ))}
+          {!!doc.clockSkewMin && (
+            <Button size="sm" variant="ghost" onClick={() => update((d) => advanceClock(d, 0))}>
+              Reset clock
+            </Button>
+          )}
+          <span className="mx-1 h-4 w-px bg-mist-strong" aria-hidden />
+          <Button
+            size="sm"
+            data-testid="mock-moderator-no-show"
+            onClick={() => {
+              const next = simulateModeratorNoShow(doc)
+              if (next === doc) setNotice('Nobody is waiting to start, so there is no slot for a moderator to miss.')
+              else update(() => next)
+            }}
+          >
+            Mock a moderator no-show
+          </Button>
+        </div>
+      )}
       {rows.length === 0 ? (
         <p className="px-5 py-6 text-sm text-graphite">Nothing needs you. Everyone unfinished is in progress or waiting on the participant.</p>
       ) : (
@@ -496,7 +525,7 @@ function NeedsYou({ doc, rows, studyId, me, update, readOnly, blockedWhy }: FWPr
                       </span>
                     )}
                   </span>
-                  <span className="text-sm text-graphite tabular-nums sm:text-right">{ago(row.since)}</span>
+                  <span className="text-sm text-graphite tabular-nums sm:text-right">{ago(row.since, fieldworkNow(doc))}</span>
                   <span className="flex flex-wrap gap-2 sm:justify-self-end">
                     {blocked ? (
                       <Tooltip content={blocked} focusable>

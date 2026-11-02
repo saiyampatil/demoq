@@ -9,9 +9,11 @@
 import { formatDate, formatStamp } from '@/lib/format'
 import type { AudienceDoc } from './audience'
 import { ESCALATION_PROMISE_HOURS, MODERATOR_ROSTER, type ModeratorState } from '@/mock/moderation'
+import { NEEDS_YOU_GRACE_MIN } from '@/mock/needsYou'
 import type { ReviewSession, ReviewStatus } from '@/mock/review'
 import {
   FIELDWORK_NOW,
+  fieldworkNow,
   handledBySystem,
   moderatorName,
   ISSUE_FIX,
@@ -116,8 +118,8 @@ export function closeBlockers(doc: FieldworkDoc) {
 export const sessionTotals = (doc: FieldworkDoc) => ({ sessions: doc.sessions.length, participants: participantsOf(doc).length })
 
 /** "12 min ago", "5 h ago", "3 days ago", on the fieldwork clock. */
-export function ago(iso: string): string {
-  const ms = Math.max(0, new Date(FIELDWORK_NOW).getTime() - new Date(iso).getTime())
+export function ago(iso: string, now: string = FIELDWORK_NOW): string {
+  const ms = Math.max(0, new Date(now).getTime() - new Date(iso).getTime())
   if (ms < HOUR) return `${Math.max(1, Math.round(ms / 60000))} min ago`
   if (ms < 24 * HOUR) return `${Math.round(ms / HOUR)} h ago`
   const d = Math.round(ms / (24 * HOUR))
@@ -131,7 +133,7 @@ const dayLabel = (d: string) => formatDate(`${d}T12:00:00-05:00`)
 
 const windowEnd = (doc: FieldworkDoc) => (doc.window ? new Date(`${doc.window.end}T23:59:59-05:00`).getTime() : Infinity)
 /** True once the fieldwork window has ended on the prototype clock. */
-export const windowClosed = (doc: FieldworkDoc) => new Date(FIELDWORK_NOW).getTime() > windowEnd(doc)
+export const windowClosed = (doc: FieldworkDoc) => new Date(fieldworkNow(doc)).getTime() > windowEnd(doc)
 
 // ─── the reserve ────────────────────────────────────────────────────────────
 
@@ -256,7 +258,10 @@ const lastEvent = (s: Session) => s.events.reduce((m, e) => (e.at > m ? e.at : m
  */
 export function needsYou(doc: FieldworkDoc): NeedsRow[] {
   const closed = windowClosed(doc)
+  const now = new Date(fieldworkNow(doc)).getTime()
   const rows: (NeedsRow & { tier: 1 | 2 | 3 })[] = []
+  /** A row never appears before its grace period ends. */
+  const past = (since: string, graceMin: number) => now - new Date(since).getTime() >= graceMin * 60000
 
   for (const { latest: s } of participantsOf(doc)) {
     if (s.gaveUp || s.status === 'Withdrawn') continue
@@ -267,7 +272,7 @@ export function needsYou(doc: FieldworkDoc): NeedsRow[] {
 
     // 1. Waiting for moderator: someone asked for a human and nobody accepted. An accepted escalation never comes here.
     if (s.escalation?.status === 'Waiting for moderator') {
-      const waited = Math.max(0, (new Date(FIELDWORK_NOW).getTime() - new Date(s.escalation.requestedAt).getTime()) / 60000 + (s.escalation.extraWaitMin ?? 0))
+      const waited = Math.max(0, (now - new Date(s.escalation.requestedAt).getTime()) / 60000 + (s.escalation.extraWaitMin ?? 0))
       rows.push({ ...base, tier: 1, kind: 'escalation', what: 'Asked for a human and no moderator accepted.', fault: 'Participant side', since: s.escalation.requestedAt, action: 'Assign moderator', invites: true, giveUp: true, escalation: { waitedMin: waited, leftMin: ESCALATION_PROMISE_HOURS * 60 - waited } })
       continue
     }
@@ -282,31 +287,37 @@ export function needsYou(doc: FieldworkDoc): NeedsRow[] {
 
       // 2. Moderator didn't show (human-led). Our fault: free reschedule, never a No-show.
       if (s.mode === 'human' && (s.moderatorNoShow || droppedMod)) {
+        if (past(s.moderatorNoShow?.at ?? droppedMod!.at, NEEDS_YOU_GRACE_MIN.moderatorNoShow))
         rows.push({ ...base, tier: 2, kind: 'moderator-no-show', what: s.moderatorNoShow ? 'The moderator didn’t join the booked slot.' : 'The moderator disconnected and the interview didn’t finish.', fault: 'Our side', since: s.moderatorNoShow?.at ?? droppedMod!.at, action: 'Send booking link', invites: true, giveUp: true })
         continue
       }
       // 3. Self-service failed: they tried the on-screen steps and one retry, and it still isn't fixed. No attempt, no row.
       if (deviceIssue && failedSS) {
+        if (past(failedSS.at, NEEDS_YOU_GRACE_MIN.selfServiceFailed))
         rows.push({ ...base, tier: 3, kind: 'self-service', what: `${deviceIssue.type}. The on-screen steps didn’t fix it.`, fault: 'Participant side', since: failedSS.at, action: 'Resend link', invites: true, giveUp: true, note })
         continue
       }
       // 4. Connection lost and they never came back.
       if (connection && (s.status === 'Technical Error' || s.status === 'Incomplete (resumable)')) {
+        if (past(connection.at, NEEDS_YOU_GRACE_MIN.connectionLost))
         rows.push({ ...base, tier: 3, kind: 'connection-lost', what: 'Connection lost and they haven’t come back.', fault: 'Participant side', since: connection.at, action: s.status === 'Incomplete (resumable)' ? 'Resume' : 'Retry', invites: true, giveUp: true, note })
         continue
       }
       // 5. Link expired or invalid: they can't start until a new link is issued.
       if (expired) {
+        if (past(expired.at, NEEDS_YOU_GRACE_MIN.linkExpired))
         rows.push({ ...base, tier: 3, kind: 'link-expired', what: 'Their link is expired or invalid, so they can’t start.', fault: 'Participant side', since: expired.at, action: 'Reissue link', invites: true, giveUp: true })
         continue
       }
       // 6. Left part-way and never returned.
       if (s.status === 'Incomplete (resumable)') {
+        if (past(lastEvent(s), NEEDS_YOU_GRACE_MIN.leftPartWay))
         rows.push({ ...base, tier: 3, kind: 'left-part-way', what: 'Left part-way and hasn’t come back.', fault: 'Participant side', since: lastEvent(s), action: 'Resend link', invites: true, giveUp: true })
         continue
       }
       // 7. Consented (or opened the link) and never started. A no-show after the window closes opens a slot instead; the gap shows it.
       if (s.status === 'Not started' && s.access !== 'Invited' && !(s.access === 'No-show' && closed)) {
+        if (past(lastEvent(s), NEEDS_YOU_GRACE_MIN.neverStarted))
         rows.push({ ...base, tier: 3, kind: 'never-started', what: s.consent || s.access === 'No-show' || s.access === 'Consented' ? 'Consented but never started.' : 'Opened the link but never started.', fault: 'Participant side', since: lastEvent(s), action: 'Resend link', invites: true, giveUp: true })
         continue
       }
@@ -314,7 +325,7 @@ export function needsYou(doc: FieldworkDoc): NeedsRow[] {
 
     // 8. PulseAI hasn't recovered from what it was handling. The Researcher can only report it. A finished interview is in Review, not here.
     const system = s.status === 'Completed' ? undefined : oldest(open.filter((i) => handledBySystem(i.type)))
-    if (system) rows.push({ ...base, tier: 2, kind: 'pulseai', what: `${system.type}. PulseAI is still working on it.`, fault: 'Our side', since: system.at, action: 'Copy report for support', invites: false, giveUp: false, issue: system })
+    if (system && past(system.at, NEEDS_YOU_GRACE_MIN.pulseAiUnrecovered)) rows.push({ ...base, tier: 2, kind: 'pulseai', what: `${system.type}. PulseAI is still working on it.`, fault: 'Our side', since: system.at, action: 'Copy report for support', invites: false, giveUp: false, issue: system })
   }
 
   // Waiting for moderator first, then our-side failures, then the rest. Oldest first within each.
