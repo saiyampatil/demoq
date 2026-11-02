@@ -5,3 +5,8 @@ dist
 .vite
 *.tsbuildinfo
 tests/.out
+.env
+.env.*
+!.env.example
+*.pem
+*.key
