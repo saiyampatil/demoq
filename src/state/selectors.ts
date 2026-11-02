@@ -273,7 +273,7 @@ export function needsYou(doc: FieldworkDoc): NeedsRow[] {
     // 1. Waiting for moderator: someone asked for a human and nobody accepted. An accepted escalation never comes here.
     if (s.escalation?.status === 'Waiting for moderator') {
       const waited = Math.max(0, (now - new Date(s.escalation.requestedAt).getTime()) / 60000 + (s.escalation.extraWaitMin ?? 0))
-      rows.push({ ...base, tier: 1, kind: 'escalation', what: 'Asked for a human and no moderator accepted.', fault: 'Participant side', since: s.escalation.requestedAt, action: 'Assign moderator', invites: true, giveUp: true, escalation: { waitedMin: waited, leftMin: ESCALATION_PROMISE_HOURS * 60 - waited } })
+      rows.push({ ...base, tier: 1, kind: 'escalation', what: 'Asked for a human and no moderator accepted.', fault: 'Our side', since: s.escalation.requestedAt, action: 'Assign moderator', invites: true, giveUp: true, escalation: { waitedMin: waited, leftMin: ESCALATION_PROMISE_HOURS * 60 - waited } })
       continue
     }
 

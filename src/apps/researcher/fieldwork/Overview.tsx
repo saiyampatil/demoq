@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router'
+import { Link, useLocation } from 'react-router'
 import { Button } from '@/components/Button'
 import { Card } from '@/components/Card'
 import { cn } from '@/components/cn'
@@ -9,7 +9,7 @@ import { AlertIcon } from '@/components/icons'
 import { Modal } from '@/components/Modal'
 import { SplitBar } from '@/components/ProgressBar'
 import { Tooltip } from '@/components/Tooltip'
-import { formatDay, formatStamp } from '@/lib/format'
+import { formatDay, formatSlot, formatStamp } from '@/lib/format'
 import { screenById, studyPath } from '@/routes/screens'
 import { SIMULATE_TIME_STEPS } from '@/mock/needsYou'
 import { advanceClock, assignEscalation, extendWindow, fieldworkNow, simulateModeratorNoShow, giveUp, lowerTarget, sendBookingLink, sendRescheduleLink, inviteFromReserve, resendLink, retrySession } from '@/state/fieldwork'
@@ -18,7 +18,7 @@ import { SessionTag } from '../SessionTag'
 import { invitedIds, invitedMessage, type FWProps } from './FieldworkBits'
 import { SlotLedger } from './SlotLedger'
 
-const r19 = (studyId: string, id: string) => studyPath(studyId, { ...screenById.R19, path: screenById.R19.path.replace(':sessionId', id) })
+const r19 = (studyId: string, id: string) => `${studyPath(studyId, { ...screenById.R19, path: screenById.R19.path.replace(':sessionId', id) })}?from=needs-you`
 
 const TONE: Record<VerdictLevel, { box: string; word: string }> = {
   'At risk': { box: 'border-negative-line bg-negative-bg', word: 'text-negative-fg' },
@@ -272,6 +272,32 @@ export function Overview(p: FWProps) {
 
 const FIRST_SHOWN = 5
 
+/** Whose side the failure was on. "Our side" is never penalised, and the tip says what that means. */
+function FaultChip({ fault }: { fault: NeedsRow['fault'] }) {
+  const ours = fault === 'Our side'
+  return (
+    <Tooltip
+      focusable
+      align="left"
+      content={ours ? 'On us, not the participant. They are never marked No-show, keep their incentive and their slot, and a reschedule is free.' : 'The cause is on the participant’s end. Their slot is kept until you give up on them.'}
+    >
+      <span data-testid="fault-chip" data-fault={fault} className={cn('inline-block whitespace-nowrap rounded-xs border px-1.5 py-0.5 text-xs font-medium', ours ? 'border-pending-line bg-pending-bg text-pending-fg' : 'border-mist bg-haze text-graphite')}>
+        {fault}
+      </span>
+    </Tooltip>
+  )
+}
+
+/** How long ago, with the exact time and its zone under it. */
+function Since({ iso, now, className }: { iso: string; now: string; className?: string }) {
+  return (
+    <time dateTime={iso} title={formatStamp(iso)} className={cn('flex flex-col leading-tight tabular-nums', className)}>
+      <span className="text-sm text-graphite">{ago(iso, now)}</span>
+      <span data-testid="needs-time" className="text-xs text-muted">{formatSlot(iso)}</span>
+    </time>
+  )
+}
+
 /** "4 h 12 min" or "38 min". */
 const duration = (min: number) => {
   const m = Math.max(0, Math.round(min))
@@ -366,6 +392,11 @@ function VerdictButton({ action, primary, blockedWhy, studyId, goTab, onInvite }
 
 function NeedsYou({ doc, rows, studyId, me, update, readOnly, blockedWhy }: FWProps & { rows: NeedsRow[]; blockedWhy?: string }) {
   const [all, setAll] = useState(false)
+  const { hash } = useLocation()
+  // Coming back from a session opened from a row lands on the list.
+  useEffect(() => {
+    if (hash === '#needs-you') document.getElementById('needs-you')?.scrollIntoView({ block: 'start' })
+  }, [hash])
   const [notice, setNotice] = useState<string>()
   const [giving, setGiving] = useState<NeedsRow>()
   const [assigning, setAssigning] = useState<NeedsRow>()
@@ -420,7 +451,7 @@ function NeedsYou({ doc, rows, studyId, me, update, readOnly, blockedWhy }: FWPr
           <h2 className="text-md font-semibold">
             Needs you <span className="ml-1 rounded-full bg-haze px-2 text-sm font-medium tabular-nums text-graphite">{rows.length}</span>
           </h2>
-          <p className="mt-0.5 text-sm text-graphite">Unfinished sessions only, most urgent first. A stuck participant keeps their slot until you give up on them. Finished interviews are in Review.</p>
+          <p className="mt-0.5 text-sm text-graphite">Only what you can move forward. Waiting for a moderator first, then failures on our side, then the rest, oldest first. A row leaves when the next event happens, so nothing is marked resolved.</p>
         </div>
       </header>
       {notice && (
@@ -473,10 +504,11 @@ function NeedsYou({ doc, rows, studyId, me, update, readOnly, blockedWhy }: FWPr
                         <SessionTag participantId={row.session.participantId} no={row.session.no} count={doc.sessions.filter((x) => x.participantId === row.session.participantId).length} />
                       </Link>
                       <span className="rounded-xs border border-pending-line bg-surface px-1.5 py-0.5 text-xs font-medium text-pending-fg">Waiting for moderator</span>
+                      <FaultChip fault={row.fault} />
                       <span className="text-sm">{row.what}</span>
                     </div>
                     <p className="text-sm tabular-nums" data-testid="escalation-clock">
-                      Waiting {duration(e.waitedMin)}.{' '}
+                      Asked {formatSlot(row.since)}. Waiting {duration(e.waitedMin)}.{' '}
                       <span className={late ? 'font-medium text-negative-fg' : 'font-medium'}>{late ? `Overdue by ${duration(-e.leftMin)} against` : `${duration(e.leftMin)} left on`} the promise: “We’ll contact you within 24 hours.”</span>
                     </p>
                     <span className="flex flex-wrap gap-2">
@@ -513,20 +545,23 @@ function NeedsYou({ doc, rows, studyId, me, update, readOnly, blockedWhy }: FWPr
                 )
               }
               return (
-                <li key={row.key} className="grid items-center gap-x-4 gap-y-1 px-5 py-3 sm:grid-cols-[minmax(0,11rem)_minmax(0,1fr)_5.5rem_auto]">
+                <li key={row.key} data-testid="needs-row" data-kind={row.kind} data-who={row.who} className="grid items-center gap-x-4 gap-y-1.5 px-5 py-3 sm:grid-cols-[minmax(0,6.5rem)_minmax(0,1fr)_9.5rem_15.5rem]">
                   <Link to={r19(studyId, row.session.id)} className="font-medium text-iris-700 hover:underline">
                     <SessionTag participantId={row.session.participantId} no={row.session.no} count={doc.sessions.filter((x) => x.participantId === row.session.participantId).length} />
                   </Link>
                   <span className="min-w-0 text-sm">
-                    {row.what}
+                    <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <span>{row.what}</span>
+                      <FaultChip fault={row.fault} />
+                    </span>
                     {row.note && (
                       <span data-testid="self-service-note" className="mt-0.5 block text-xs text-graphite">
                         {row.note}
                       </span>
                     )}
                   </span>
-                  <span className="text-sm text-graphite tabular-nums sm:text-right">{ago(row.since, fieldworkNow(doc))}</span>
-                  <span className="flex flex-wrap gap-2 sm:justify-self-end">
+                  <Since iso={row.since} now={fieldworkNow(doc)} className="sm:items-end sm:text-right" />
+                  <span className="flex flex-wrap items-center gap-2 sm:justify-end">
                     {blocked ? (
                       <Tooltip content={blocked} focusable>
                         <Button size="sm" disabled>

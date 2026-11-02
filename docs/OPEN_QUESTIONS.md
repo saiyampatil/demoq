@@ -127,7 +127,10 @@ PRD gaps and conflicts found while building. Each entry says what the prototype 
 | 121 | M | Results Analysis, base: which segments does the Researcher cut by? Pet type (dog or cat) is not a structured field, and the study is one cohort. | The Segment column shows US region and state, from the session. Dog vs cat would need transcript coding. | Open |
 | 122 | M | Results Analysis, base: should an audio-only participant (P12 alternative access mode) count the same as a video one? Their sessions have no facial or visual signals, so coverage differs from question to question. | They are in the base, tagged Audio only; the KPI says how many have video. Nothing excludes them. | Open |
 | 123 | L | Results Analysis, base: a flagged session the Researcher accepted anyway. Which flags are a whole-session caveat and which only remove one answer from one question? | Two flag types (Incorrect stimulus presentation, Missed core theme) are question-level; every other flag is a whole-session caveat. See docs/DECISIONS.md. | Open |
-
+| 124 | M | Needs you: is "Waiting for moderator" an our-side failure? The brief's ordering lists only "moderator didn't show" and "PulseAI hasn't recovered" as our-side. | A participant who asked for a human and nobody answered carries the chip "Our side" (the participant did nothing wrong), but it keeps its own first tier in the order. | Open |
+| 125 | M | Needs you: a human-led interview where the moderator disconnected part-way (issue "Moderator disconnected", fixed by the Researcher). Is it row 2? | Treated as row 2 (Moderator didn't show), Our side, Send booking link. Otherwise it would have no path in Needs you. | Open |
+| 126 | M | Needs you: should an unrecovered PulseAI issue on a finished interview (for example an upload that never completed) show here? | No. A finished interview is in Review, so row 8 is only for sessions that are not Completed. Nothing in the seed is affected. | Open |
+| 127 | L | Needs you: "Retry or Resume" for a lost connection. Which states count as resumable? | Resume only when the session is Incomplete (resumable); every other lost connection (Technical Error) is Retry, a new session that resumes from the saved state. | Open |
 
 ## Future ideas (not built)
 

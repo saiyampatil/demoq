@@ -283,8 +283,16 @@ export type FieldworkDoc = {
 
 /** The prototype's clock for fieldwork data. */
 export const FIELDWORK_NOW = '2026-11-11T17:00:00-05:00'
-/** The clock a study's screens read: the prototype clock plus whatever the dev control "Simulate time passing" added. */
-export const fieldworkNow = (doc: Pick<FieldworkDoc, 'clockSkewMin'>) => new Date(new Date(FIELDWORK_NOW).getTime() + (doc.clockSkewMin ?? 0) * 60000).toISOString()
+/**
+ * The clock a study's screens read: the prototype clock plus whatever "Simulate time passing" added, and never behind the
+ * newest thing recorded on the study (a new event is stamped a minute after the last), so something that just happened
+ * is never "in the future".
+ */
+export function fieldworkNow(doc: Pick<FieldworkDoc, 'clockSkewMin' | 'sessions' | 'log'>): string {
+  const base = new Date(FIELDWORK_NOW).getTime() + (doc.clockSkewMin ?? 0) * 60000
+  const latest = Math.max(base, ...doc.log.map((l) => new Date(l.at).getTime()), ...doc.sessions.flatMap((s) => s.events.map((e) => new Date(e.at).getTime())))
+  return new Date(latest).toISOString()
+}
 const FIELDWORK_START = '2026-11-03T09:00:00-05:00'
 const MIN = 60000
 const at = (iso: string, minutes: number) => new Date(new Date(iso).getTime() + minutes * MIN).toISOString()

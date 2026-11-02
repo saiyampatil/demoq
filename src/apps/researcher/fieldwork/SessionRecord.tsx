@@ -30,7 +30,8 @@ export function SessionRecord() {
   const [reason, setReason] = useState('')
   const [problem, setProblem] = useState<string>(SELF_SERVICE[0].type)
   if (!editable || !study || !doc) return <FieldworkGate studyId={studyId} editable={editable} />
-  const back = { to: studyPath(studyId, screenById.R18), label: 'Fieldwork command center' }
+  // A row in Needs you opens its session with ?from=needs-you, so the way back is the list, not the top of the page.
+  const back = params.get('from') === 'needs-you' ? { to: `${studyPath(studyId, screenById.R18)}#needs-you`, label: 'Needs you' } : { to: studyPath(studyId, screenById.R18), label: 'Fieldwork command center' }
   const found = resolveSession(doc, sessionId)
   // A participant ID with no session number means their latest session. Send it to the canonical address.
   if (found && !found.exact) return <Navigate replace to={`${studyPath(studyId, { ...screenById.R19, path: screenById.R19.path.replace(':sessionId', found.session.id) })}${params.toString() ? `?${params}` : ''}`} />
