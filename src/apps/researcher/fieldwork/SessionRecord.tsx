@@ -4,16 +4,15 @@ import { AIGeneratedTag } from '@/components/AIGenerated'
 import { Breadcrumb } from '@/components/Breadcrumb'
 import { Button } from '@/components/Button'
 import { Card } from '@/components/Card'
-import { CheckIcon, CloseIcon } from '@/components/icons'
+import { CheckIcon, ChevronRightIcon, CloseIcon } from '@/components/icons'
 import { EmptyState } from '@/components/States'
 import { StatusChip } from '@/components/StatusChip'
 import { Tooltip } from '@/components/Tooltip'
 import { formatSlot, formatStamp } from '@/lib/format'
-import { controlBase, TextArea } from '@/components/Field'
+import { TextArea } from '@/components/Field'
 import { Modal } from '@/components/Modal'
-import { sample, screenById, studyPath } from '@/routes/screens'
-import { SELF_SERVICE } from '@/state/selfService'
-import { addWait, allDeclined, type ConsentRecord, assignedJoins, closeWithoutFix, endSession, requestEscalation, standbyAccepts, handledBySystem, ISSUE_FIX, ISSUE_META, moderatorName, openLink, recoverSystem, resolveSession, sessionCountOf, sessionsOfParticipant, simulateTurn } from '@/state/fieldwork'
+import { screenById, studyPath } from '@/routes/screens'
+import { closeWithoutFix, handledBySystem, ISSUE_FIX, ISSUE_META, moderatorName, resolveSession, sessionCountOf, sessionsOfParticipant } from '@/state/fieldwork'
 import { PageHeader } from '../../shared/PageHeader'
 import { FieldworkGate, slotText } from './FieldworkBits'
 import { Banner } from '@/components/Banner'
@@ -22,21 +21,12 @@ import { maskEmail } from '@/mock/participants'
 import { sessionText } from '../SessionTag'
 import { useStudySessions } from '../useStudySessions'
 
-/** Consent status as one line: what was agreed to and whether they may be contacted again. */
-function consentLine(c: ConsentRecord) {
-  const agreed = [c.recording && 'recording', c.aiModerator && 'AI moderator', c.dataUse && 'data use'].filter(Boolean) as string[]
-  const list = agreed.length > 1 ? `${agreed.slice(0, -1).join(', ')} and ${agreed[agreed.length - 1]}` : agreed[0]
-  return `${list ? `Consented to ${list}.` : 'No consent given for recording or data use.'} Recontact: ${c.recontact ? 'yes' : 'no'}.`
-}
-
 export function SessionRecord() {
   const { sessionId = '' } = useParams()
   const [params] = useSearchParams()
   const { studyId, study, editable, doc, review, preview, update, me } = useStudySessions()
-  const [simulated, setSimulated] = useState<string>()
   const [closing, setClosing] = useState<{ id: string; type: string }>()
   const [reason, setReason] = useState('')
-  const [problem, setProblem] = useState<string>(SELF_SERVICE[0].type)
   if (!editable || !study || !doc) return <FieldworkGate studyId={studyId} editable={editable} />
   // A row in Needs you opens its session with ?from=needs-you, so the way back is the list, not the top of the page.
   const back = params.get('from') === 'needs-you' ? { to: `${studyPath(studyId, screenById.R18)}#needs-you`, label: 'Needs you' } : { to: studyPath(studyId, screenById.R18), label: 'Fieldwork command center' }
@@ -64,8 +54,6 @@ export function SessionRecord() {
   const target = doc.plan.durationMin
   const mandatory = doc.plan.mandatoryCount
   const reviewed = review.find((r) => r.id === s.id)
-  // Consent is given once, in the participant's first session, and still applies to later ones.
-  const consent = s.consent ?? sessionsOfParticipant(doc, s.participantId)[0]?.consent ?? null
 
   return (
     <div className="flex flex-col gap-6">
@@ -77,13 +65,7 @@ export function SessionRecord() {
         meta={
           <>
             {count > 1 && <span className="font-medium text-ink">Session {s.no} of {count}</span>}
-            <StatusChip status={s.access} size="sm" />
             <StatusChip status={s.status} size="sm" />
-            <span>{s.mode === 'ai' ? moderatorName(null) : `Human: ${moderatorName(s.moderatorId)}`}</span>
-            <span>{doc.releaseVersion}, guide v{doc.plan.guideVersion}</span>
-            {s.slot && <span>Slot {slotText(s.slot)}</span>}
-            {s.region && <span>{s.state}, {s.region}</span>}
-            <span>{s.device}</span>
           </>
         }
         actions={
@@ -99,103 +81,6 @@ export function SessionRecord() {
         <Banner tone="warning" title="Given up, slot opened">
           {s.gaveUp.by} gave up on {s.participantId}, {formatStamp(s.gaveUp.at)}: “{s.gaveUp.reason}”. Their slot is open again and shows in the gap. Their data and this record are kept.
         </Banner>
-      )}
-
-      {import.meta.env.DEV && !preview && update && (
-        <Card title="Dev: simulate the participant" description="Stands in for the participant app until it is built. Use it to see what a pause does.">
-          <div className="flex flex-wrap items-center gap-3">
-            {(s.status === 'Not started' || s.status === 'Booked' || s.status === 'Incomplete (resumable)') && (
-              <Button
-                size="sm"
-                onClick={() => {
-                  const paused = study.status === 'Paused' || !!doc.paused
-                  const out = openLink(doc, s.id, paused)
-                  update((d) => openLink(d, s.id, paused).doc)
-                  setSimulated(out.result === 'unavailable' ? 'This study is temporarily unavailable' : out.result === 'opened' ? 'Link opened' : out.result === 'started' ? 'Interview started' : undefined)
-                }}
-              >
-                {s.status === 'Incomplete (resumable)' || s.carried ? 'Simulate: participant resumes' : 'Simulate: participant opens their link'}
-              </Button>
-            )}
-            {s.issues.some((x) => x.status === 'Open' && handledBySystem(x.type)) && (
-              <Button
-                size="sm"
-                data-testid="simulate-recover"
-                onClick={() => {
-                  update((d) => recoverSystem(d, s.id))
-                  setSimulated('PulseAI recovered. What it was handling is resolved.')
-                }}
-              >
-                Simulate: PulseAI recovers
-              </Button>
-            )}
-            {s.status === 'Active' && (
-              <span className="flex flex-wrap items-center gap-2">
-                <select value={problem} onChange={(e) => setProblem(e.target.value)} aria-label="Problem to simulate" className={`${controlBase} h-8 pr-7 text-sm`}>
-                  {SELF_SERVICE.map((x) => (
-                    <option key={x.type}>{x.type}</option>
-                  ))}
-                </select>
-                <Button size="sm" to={`/p/${sample.inviteId}/technical-issue?session=${s.id}&issue=${encodeURIComponent(problem)}`}>
-                  Simulate: the participant hits a problem
-                </Button>
-              </span>
-            )}
-            {s.status === 'Active' && !s.escalation && (
-              <Button size="sm" data-testid="sim-escalate" onClick={() => { update((d) => requestEscalation(d, s.id)); setSimulated('The participant asked for a human. A standby moderator was offered the session.') }}>
-                Simulate: participant asks for a human
-              </Button>
-            )}
-            {s.escalation?.status === 'Offering' && (
-              <>
-                <Button size="sm" data-testid="sim-accepted" onClick={() => { update((d) => standbyAccepts(d, s.id)); setSimulated('The standby moderator accepted and joined. It never reached the Researcher.') }}>
-                  Simulate: escalation accepted by standby
-                </Button>
-                <Button size="sm" data-testid="sim-declined" onClick={() => { update((d) => allDeclined(d, s.id)); setSimulated('Every standby moderator declined or timed out. It is waiting for the Researcher.') }}>
-                  Simulate: all declined
-                </Button>
-              </>
-            )}
-            {s.escalation?.status === 'Waiting for moderator' && (
-              <Button size="sm" data-testid="sim-23h" onClick={() => { update((d) => addWait(d, s.id, 23)); setSimulated('Added 23 hours to the wait.') }}>
-                Simulate: 23 h waiting
-              </Button>
-            )}
-            {s.escalation?.status === 'Assigned' && (
-              <Button size="sm" data-testid="sim-assigned-joins" onClick={() => { update((d) => assignedJoins(d, s.id)); setSimulated('The assigned moderator joined.') }}>
-                Simulate: assigned moderator joins
-              </Button>
-            )}
-            {s.status === 'Active' && (
-              <Button
-                size="sm"
-                data-testid="simulate-complete"
-                onClick={() => {
-                  update((d) => endSession(d, s.id, 'Dev', 'Completed'))
-                  setSimulated('The session completed. It is Under review and in the Review queue now, with no scores yet.')
-                }}
-              >
-                Simulate: session completes
-              </Button>
-            )}
-            {s.status === 'Active' && (
-              <Button
-                size="sm"
-                onClick={() => {
-                  update((d) => simulateTurn(d, s.id))
-                  setSimulated('The participant answered the next question. A running session carries on, paused or not.')
-                }}
-              >
-                Simulate: running session takes its next turn
-              </Button>
-            )}
-            {simulated && (
-              <p role="status" data-testid="simulated" className="rounded-sm border border-mist bg-paper px-3 py-1.5 text-sm">
-                {simulated}
-              </p>
-            )}
-          </div>
-        </Card>
       )}
 
       {params.get('from') === 'review' && (
@@ -374,17 +259,6 @@ export function SessionRecord() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <Card title="Consent record" description={s.no > 1 && consent ? `Given in session 1 of ${s.participantId}. It still applies.` : undefined}>
-          {consent ? (
-            <p className="text-sm">
-              {consentLine(consent)}
-              {consent.withdrawn && <span className="text-pending-fg"> Withdrawn {formatStamp(consent.withdrawn.at)}.</span>}
-            </p>
-          ) : (
-            <p className="text-sm text-graphite">No consent on record yet. The participant consents before booking or starting.</p>
-          )}
-        </Card>
-
         {(s.selfService?.length ?? 0) > 0 && (
           <Card title="Self-service" description="What the participant tried on their own before anyone else was needed.">
             <ul data-testid="self-service" className="flex flex-col gap-3 text-sm">
@@ -472,6 +346,39 @@ export function SessionRecord() {
           )}
         </Card>
       </div>
+
+      <details className="group rounded-md border border-mist bg-surface" data-testid="session-details">
+        <summary className="flex cursor-pointer list-none items-center gap-2 px-5 py-3 text-md font-semibold [&::-webkit-details-marker]:hidden">
+          <ChevronRightIcon size={14} className="text-graphite transition-transform group-open:rotate-90" />
+          Session details
+        </summary>
+        <dl className="grid gap-x-8 gap-y-3 border-t border-mist px-5 py-4 text-sm sm:grid-cols-2 lg:grid-cols-3">
+          <div>
+            <dt className="text-graphite">Moderator</dt>
+            <dd className="font-medium">{s.mode === 'ai' ? moderatorName(null) : `Human: ${moderatorName(s.moderatorId)}`}</dd>
+          </div>
+          <div>
+            <dt className="text-graphite">Release and guide</dt>
+            <dd className="font-medium tabular-nums">{doc.releaseVersion}, guide v{doc.plan.guideVersion}</dd>
+          </div>
+          <div>
+            <dt className="text-graphite">Device</dt>
+            <dd className="font-medium">{s.device}</dd>
+          </div>
+          {s.region && (
+            <div>
+              <dt className="text-graphite">Region</dt>
+              <dd className="font-medium">{s.state}, {s.region}</dd>
+            </div>
+          )}
+          {s.slot && (
+            <div>
+              <dt className="text-graphite">Slot</dt>
+              <dd className="font-medium tabular-nums">{slotText(s.slot)}</dd>
+            </div>
+          )}
+        </dl>
+      </details>
 
       <Modal
         open={!!closing}

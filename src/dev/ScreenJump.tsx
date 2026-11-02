@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router'
+import { Link, matchPath, useLocation, useNavigate } from 'react-router'
 import { Button } from '@/components/Button'
 import { cn } from '@/components/cn'
 import { CloseIcon, SearchIcon } from '@/components/icons'
@@ -10,6 +10,7 @@ import { addReviewEvent, useReviewState } from '@/state/reviewState'
 import { reviewList } from '@/state/studySessions'
 import { featureInfo, useFeatures, type FeatureKey } from '@/state/features'
 import { useStudies } from '@/state/StudyContext'
+import { SessionSimulator } from './SessionSimulator'
 
 const apps: AppKey[] = ['researcher', 'participant', 'moderator', 'observer']
 
@@ -49,6 +50,10 @@ export function ScreenJump() {
   }, [query])
 
   const here = pathname + search
+  // On a session page (R19) the panel also carries the controls that stand in for the participant.
+  const onSession = matchPath('/researcher/studies/:studyId/fieldwork/sessions/:sessionId', pathname)
+  const sessionDoc = onSession ? getFieldwork(onSession.params.studyId) : undefined
+  const sessionStudy = onSession ? getStudy(onSession.params.studyId) : undefined
 
 
   return (
@@ -82,6 +87,14 @@ export function ScreenJump() {
           </header>
 
           <div className="flex-1 overflow-y-auto">
+            {onSession && sessionDoc && (
+              <SessionSimulator
+                doc={sessionDoc}
+                sessionId={onSession.params.sessionId ?? ''}
+                paused={sessionStudy?.status === 'Paused' || !!sessionDoc.paused}
+                update={(fn) => updateFieldwork(onSession.params.studyId ?? '', fn)}
+              />
+            )}
             <section className="border-b border-mist px-4 py-3">
               <h3 className="text-sm font-semibold">Fieldwork window (mock)</h3>
               <p className="text-xs text-graphite">Moves the end of the seed study’s window, to see the “Not enough time left” warning. The clock is Nov 11.</p>
