@@ -11,9 +11,8 @@ import { WizardFooter } from '@/components/WizardFooter'
 import { formatStamp } from '@/lib/format'
 import { screenById, studyPath } from '@/routes/screens'
 import { closeFieldwork, pauseFieldwork, resumeFieldwork } from '@/state/fieldwork'
-import { closeBlockers, consentSummary, issueSummary, progress, reviewCounts, sessionTotals, waitingFor } from '@/state/selectors'
+import { closeBlockers, issueSummary, progress, reviewCounts, sessionTotals, waitingFor } from '@/state/selectors'
 import { PageHeader } from '../../shared/PageHeader'
-import { ConsentTab } from './ConsentTab'
 import { FieldworkGate, type FWProps } from './FieldworkBits'
 import { IssuesTab } from './IssuesTab'
 import { Overview } from './Overview'
@@ -34,15 +33,11 @@ export function CommandCenter() {
 
   if (!editable || !study || !doc) return <FieldworkGate studyId={studyId} editable={editable} />
 
-  // The consent log used to be a tab. It is a view inside Sessions now; an old ?tab=consent link lands there.
-  const legacyConsent = params.get('tab') === 'consent'
-  const tab: Tab = legacyConsent ? 'sessions' : (TABS as readonly string[]).includes(params.get('tab') ?? '') ? (params.get('tab') as Tab) : 'overview'
-  const consentView = tab === 'sessions' && (legacyConsent || params.get('view') === 'consent')
+  const tab: Tab = (TABS as readonly string[]).includes(params.get('tab') ?? '') ? (params.get('tab') as Tab) : 'overview'
   const goTab = (t: string) => setParams(t === 'overview' ? {} : { tab: t })
   const prog = progress(doc, outcomes)
   const awaiting = reviewCounts(review).underReview
   const issues = issueSummary(doc)
-  const consent = consentSummary(doc)
   const target = tgt
   const pausedForVersion = study.status === 'Paused' && !doc.paused
   // Paused by the Researcher, or paused for a version change: either way, nothing that sends an invitation can run.
@@ -63,7 +58,7 @@ export function CommandCenter() {
       <PageHeader
         id="R18"
         title="Fieldwork command center"
-        description="Sessions for this study as they happen: progress, the reserve, technical problems and consent."
+        description="Sessions for this study as they happen: progress, the reserve and technical problems."
         meta={
           <>
             <StatusChip status={preview ? 'Not Ready' : study.status} size="sm" />
@@ -139,7 +134,7 @@ export function CommandCenter() {
 
       <div id="fw-panel" role="tabpanel" aria-labelledby={`tab-${tab}`}>
         {tab === 'overview' && <Overview {...props} />}
-        {tab === 'sessions' && (consentView ? <ConsentTab {...props} onBack={() => setParams({ tab: 'sessions' })} /> : <SessionsTab {...props} withdrawn={consent.withdrawn} onOpenConsent={() => setParams({ tab: 'sessions', view: 'consent' })} />)}
+        {tab === 'sessions' && <SessionsTab {...props} />}
         {tab === 'reserve' && <ReserveTab {...props} />}
         {tab === 'issues' && <IssuesTab {...props} />}
       </div>

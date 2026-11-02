@@ -41,7 +41,7 @@ try {
   // B. accepted by standby: never in Needs you; shows under Escalated
   await fresh(); await r19(); await click('sim-escalate'); await click('sim-accepted'); await card(); await timeline()
   await needs('accepted by standby')
-  await b.goto(root + '/fieldwork/command-center?tab=sessions'); await b.waitFor('Consent log'); await b.sleep(600)
+  await b.goto(root + '/fieldwork/command-center?tab=sessions'); await b.waitFor('Search participant'); await b.sleep(600)
   await b.evaluate(`(() => { const sel=document.querySelector('#fw-panel select'); sel.value='Escalated'; sel.dispatchEvent(new Event('change',{bubbles:true})); return true })()`); await b.sleep(400)
   console.log('Escalated filter rows:', await b.evaluate(`[...document.querySelectorAll('#fw-panel tbody tr')].map(r=>r.innerText.replace(/\\s+/g,' ').slice(0,120)).join(' || ')`))
 

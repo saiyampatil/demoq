@@ -7,7 +7,7 @@ try {
   await b.goto('/researcher'); await b.evaluate('localStorage.clear(); sessionStorage.clear(); true'); await b.goto('/researcher'); await b.waitFor('Screen jump')
   await b.evaluate(`__click('Screen jump')`); await b.sleep(300)
   await b.evaluate(`[...document.querySelectorAll('[role=dialog] label')].find(l=>l.textContent.startsWith('Live in fieldwork')).click(); true`); await b.sleep(500)
-  await b.goto(root + '/fieldwork/command-center?tab=sessions'); await b.waitFor('Consent log'); await b.sleep(500)
+  await b.goto(root + '/fieldwork/command-center?tab=sessions'); await b.waitFor('Search participant'); await b.sleep(500)
   const active = await b.evaluate(`[...document.querySelectorAll('#fw-panel tbody tr')].find(r=>/Active/.test(r.innerText))?.querySelector('a, td')?.innerText.trim().split('\\n')[0]`)
   console.log('active session:', active)
   const sid = active.replace(/\\s+/g,'').slice(0,6) + '-1'

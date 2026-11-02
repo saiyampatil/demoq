@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router'
-import { Button } from '@/components/Button'
 import { Card } from '@/components/Card'
 import { cn } from '@/components/cn'
 import { controlBase } from '@/components/Field'
@@ -27,7 +26,7 @@ const match: Record<Exclude<Filter, 'Needs you'>, (s: Session) => boolean> = {
   Escalated: (s) => !!s.escalation,
 }
 
-export function SessionsTab({ doc, studyId, withdrawn, onOpenConsent }: FWProps & { withdrawn: number; onOpenConsent: () => void }) {
+export function SessionsTab({ doc, studyId }: FWProps) {
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
   const asked = params.get('filter')
@@ -73,9 +72,6 @@ export function SessionsTab({ doc, studyId, withdrawn, onOpenConsent }: FWProps 
       flush
       actions={
         <div className="flex flex-wrap items-center gap-2">
-          <Button size="sm" onClick={onOpenConsent}>
-            Consent log{withdrawn > 0 ? ` (${withdrawn} withdrawn)` : ''}
-          </Button>
           <span className="flex h-8 items-center gap-2 rounded-sm border border-mist-strong bg-surface px-2 focus-within:border-iris-600">
             <SearchIcon size={14} className="text-graphite" />
             <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search participant, email, country" aria-label="Search sessions" className="w-52 bg-transparent text-sm outline-none" />

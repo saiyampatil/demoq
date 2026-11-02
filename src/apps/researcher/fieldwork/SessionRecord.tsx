@@ -13,7 +13,7 @@ import { controlBase, TextArea } from '@/components/Field'
 import { Modal } from '@/components/Modal'
 import { sample, screenById, studyPath } from '@/routes/screens'
 import { SELF_SERVICE } from '@/state/selfService'
-import { addWait, allDeclined, assignedJoins, closeWithoutFix, endSession, requestEscalation, standbyAccepts, handledBySystem, ISSUE_FIX, ISSUE_META, moderatorName, openLink, recoverSystem, resolveSession, sessionCountOf, sessionsOfParticipant, simulateTurn } from '@/state/fieldwork'
+import { addWait, allDeclined, type ConsentRecord, assignedJoins, closeWithoutFix, endSession, requestEscalation, standbyAccepts, handledBySystem, ISSUE_FIX, ISSUE_META, moderatorName, openLink, recoverSystem, resolveSession, sessionCountOf, sessionsOfParticipant, simulateTurn } from '@/state/fieldwork'
 import { PageHeader } from '../../shared/PageHeader'
 import { FieldworkGate, slotText } from './FieldworkBits'
 import { Banner } from '@/components/Banner'
@@ -21,6 +21,13 @@ import { SampleDataBanner } from '../SampleDataBanner'
 import { maskEmail } from '@/mock/participants'
 import { sessionText } from '../SessionTag'
 import { useStudySessions } from '../useStudySessions'
+
+/** Consent status as one line: what was agreed to and whether they may be contacted again. */
+function consentLine(c: ConsentRecord) {
+  const agreed = [c.recording && 'recording', c.aiModerator && 'AI moderator', c.dataUse && 'data use'].filter(Boolean) as string[]
+  const list = agreed.length > 1 ? `${agreed.slice(0, -1).join(', ')} and ${agreed[agreed.length - 1]}` : agreed[0]
+  return `${list ? `Consented to ${list}.` : 'No consent given for recording or data use.'} Recontact: ${c.recontact ? 'yes' : 'no'}.`
+}
 
 export function SessionRecord() {
   const { sessionId = '' } = useParams()
@@ -369,23 +376,10 @@ export function SessionRecord() {
       <div className="grid gap-6 lg:grid-cols-2">
         <Card title="Consent record" description={s.no > 1 && consent ? `Given in session 1 of ${s.participantId}. It still applies.` : undefined}>
           {consent ? (
-            <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
-              <div className="sm:col-span-2">
-                <dt className="text-graphite">Agreed to</dt>
-                <dd className="font-medium">{consent.wording}, {formatStamp(consent.at)}</dd>
-              </div>
-              <div><dt className="text-graphite">Recording</dt><dd className="font-medium">{consent.recording ? 'Yes' : 'No'}</dd></div>
-              <div><dt className="text-graphite">AI moderator</dt><dd className="font-medium">{consent.aiModerator ? 'Yes' : 'Not used'}</dd></div>
-              <div><dt className="text-graphite">Data use</dt><dd className="font-medium">{consent.dataUse ? 'Yes' : 'No'}</dd></div>
-              <div><dt className="text-graphite">Contact again</dt><dd className="font-medium">{consent.recontact ? 'Yes' : 'No'}</dd></div>
-              <div><dt className="text-graphite">18 or older</dt><dd className="font-medium">{consent.over18 ? 'Confirmed' : 'No'}</dd></div>
-              <div><dt className="text-graphite">Device</dt><dd className="font-medium">{consent.device}</dd></div>
-              {consent.withdrawn && (
-                <p className="rounded-sm border border-pending-line bg-pending-bg px-3 py-2 text-pending-fg sm:col-span-2">
-                  Withdrawn {formatStamp(consent.withdrawn.at)}. {consent.withdrawn.reason}
-                </p>
-              )}
-            </dl>
+            <p className="text-sm">
+              {consentLine(consent)}
+              {consent.withdrawn && <span className="text-pending-fg"> Withdrawn {formatStamp(consent.withdrawn.at)}.</span>}
+            </p>
           ) : (
             <p className="text-sm text-graphite">No consent on record yet. The participant consents before booking or starting.</p>
           )}

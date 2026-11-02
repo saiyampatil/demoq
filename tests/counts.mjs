@@ -22,7 +22,7 @@ try {
   rows['Target card'] = (ov.match(/\d+ of \d+ \d+ confirmed, \d+ pending review\./) ?? [])[0]
   rows['Needs you'] = await b.evaluate(`document.querySelector('#needs-you h2')?.innerText.replace(/\\s+/g,' ')`)
   rows['Awaiting-review link'] = (ov.match(/\d+ sessions? awaiting review/) ?? [])[0]
-  const [tabs] = await read('/fieldwork/command-center?tab=sessions', 'Consent log', `[...document.querySelectorAll('[role=tab]')].map(x=>x.innerText.replace(/\\s+/g,' ')).join(' | ')`)
+  const [tabs] = await read('/fieldwork/command-center?tab=sessions', 'Search participant', `[...document.querySelectorAll('[role=tab]')].map(x=>x.innerText.replace(/\\s+/g,' ')).join(' | ')`)
   rows['R18 tab badges'] = tabs
   const [cards, stepper] = await read('/review/queue', 'Completed interviews', `document.querySelector('section[aria-label=Summary]')?.innerText.replace(/\\s+/g,' ')`, `[...document.querySelectorAll('a,button')].map(x=>x.innerText.replace(/\\s+/g,' ')).find(t=>/^Review \\d+ awaiting/.test(t)) ?? document.body.innerText.match(/Review\\s+\\d+ awaiting/)?.[0]`)
   rows['R21 cards'] = cards
