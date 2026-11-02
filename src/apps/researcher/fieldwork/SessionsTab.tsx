@@ -39,7 +39,8 @@ export function SessionsTab({ doc, studyId, withdrawn, onOpenConsent }: FWProps 
   const reached = params.get('reached') as JourneyKey | null
   const stuck = params.get('stuck') as JourneyKey | null
   const people = reached || stuck ? journeyPeople(doc, reached ? { reached } : { stuck: stuck! }) : undefined
-  const rows = doc.sessions.filter((s) => test(s) && (!people || people.has(s.participantId)) && (!q.trim() || [s.id, s.participantId, s.email, s.country].some((x) => x.toLowerCase().includes(q.trim().toLowerCase()))))
+  const issueType = params.get('issue')
+  const rows = doc.sessions.filter((s) => test(s) && (!people || people.has(s.participantId)) && (!issueType || s.issues.some((i) => i.type === issueType)) && (!q.trim() || [s.id, s.participantId, s.email, s.country].some((x) => x.toLowerCase().includes(q.trim().toLowerCase()))))
   const open = (s: Session) => navigate(studyPath(studyId, { ...screenById.R19, path: screenById.R19.path.replace(':sessionId', s.id) }))
 
   const columns: Column<Session>[] = [
@@ -90,6 +91,16 @@ export function SessionsTab({ doc, studyId, withdrawn, onOpenConsent }: FWProps 
         </div>
       }
     >
+      {issueType && (
+        <div data-testid="issue-filter" className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-mist bg-haze px-5 py-2 text-sm">
+          <span className="tabular-nums">
+            {rows.length} {rows.length === 1 ? 'session' : 'sessions'} with “{issueType}”.
+          </span>
+          <button type="button" onClick={() => setParams({ tab: 'sessions' })} className="font-medium text-iris-700 hover:underline">
+            Show everyone
+          </button>
+        </div>
+      )}
       {people && (
         <div data-testid="journey-filter" className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-mist bg-haze px-5 py-2 text-sm">
           <span className="tabular-nums">
