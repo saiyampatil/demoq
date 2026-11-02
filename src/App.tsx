@@ -128,7 +128,10 @@ const router = createBrowserRouter([
       { path: '*', element: <NotFound /> },
     ],
   },
-])
+], {
+  // Routes resolve under the Vite base ('/demoq/' on GitHub Pages, '/' in dev).
+  basename: import.meta.env.BASE_URL.replace(/\/$/, '') || '/',
+})
 
 export function App() {
   return (
