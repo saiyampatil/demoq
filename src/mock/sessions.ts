@@ -28,6 +28,8 @@ export type SeedSession = {
   review?: SeedReview
   /** What was recorded. Video unless the participant used the audio-only access mode. */
   media?: 'Video' | 'Audio only'
+  /** The participant tried the on-screen steps for this problem and it still wasn't fixed. */
+  selfService?: { issue: SeedIssue[0]; checks: number }
 }
 
 const ET = (day: number, hm: string) => `2026-11-${String(day).padStart(2, '0')}T${hm}:00-05:00`
@@ -61,7 +63,7 @@ export const SEED_SESSIONS: SeedSession[] = [
   { participant: 'P-2053', state: 'New York', variant: 'noshow', at: ET(5, '10:00') },
   { participant: 'P-2056', state: 'Texas', variant: 'noshow', at: ET(6, '13:00') },
   { participant: 'P-2058', state: 'California', variant: 'opened', at: ET(9, '19:10'), issues: [['Unsupported browser or device', 'Blocking', 'Resolved', 'Sent a link to open in Chrome']] },
-  { participant: 'P-2061', state: 'Illinois', variant: 'opened', at: ET(10, '12:25'), issues: [['Microphone permission denied', 'Blocking', 'Open']] },
+  { participant: 'P-2061', state: 'Illinois', variant: 'opened', at: ET(10, '12:25'), issues: [['Microphone permission denied', 'Blocking', 'Open']], selfService: { issue: 'Microphone permission denied', checks: 2 } },
   { participant: 'P-2065', state: 'Georgia', variant: 'invited', at: ET(8, '09:00'), issues: [['Link expired or invalid', 'Blocking', 'Open']] },
 ]
 

@@ -6,7 +6,7 @@
 // however many sessions they have. Validation (Under review, Accepted, Excluded) belongs to a Completed session
 // only: it is Under review the moment the session completes, and only a Researcher's decision changes it.
 
-import { formatDate } from '@/lib/format'
+import { formatDate, formatStamp } from '@/lib/format'
 import type { AudienceDoc } from './audience'
 import { ESCALATION_PROMISE_HOURS, MODERATOR_ROSTER, type ModeratorState } from '@/mock/moderation'
 import type { ReviewSession, ReviewStatus } from '@/mock/review'
@@ -25,6 +25,7 @@ import {
   type Region,
   type ReserveCandidate,
   type Session,
+  type TechIssue,
 } from './fieldwork'
 import { mockApplicants, regionOf } from './screening'
 
@@ -201,86 +202,139 @@ export function bucketOf(p: Participant): Bucket {
 }
 
 // ─── Needs you ──────────────────────────────────────────────────────────────
+//
+// A row belongs here only if the participant cannot recover alone and a Researcher action is the only thing that
+// moves it forward. It is the slow-path safety net: the participant's own screens handle the first minutes, and what
+// PulseAI is handling stays in the Issues tab. Eight kinds, nothing else.
 
-export type NeedsAction = 'Assign moderator' | 'Resend link' | 'Reissue link' | 'Resume' | 'Retry' | 'Reschedule'
+export type NeedsKind = 'escalation' | 'moderator-no-show' | 'self-service' | 'connection-lost' | 'link-expired' | 'left-part-way' | 'never-started' | 'pulseai'
+
+export type NeedsAction = 'Assign moderator' | 'Send booking link' | 'Resend link' | 'Reissue link' | 'Resume' | 'Retry' | 'Copy report for support'
 
 export type NeedsRow = {
   key: string
   session: Session
   /** The participant ID. */
   who: string
-  /** What happened, in a few words. */
+  kind: NeedsKind
+  /** What happened, in plain words. */
   what: string
+  /** Whose side the failure was on. "Our side" is never penalised: no No-show, no lost incentive or slot, a free reschedule. */
+  fault: 'Participant side' | 'Our side'
   /** When it happened. */
   since: string
+  /** The primary action. */
   action: NeedsAction
   /** The action sends the participant a link or an invitation, so a paused study blocks it. */
   invites: boolean
-  /** The participant is stuck: the Researcher can resume them, or give up and open their slot. */
-  stuck: boolean
+  /** "Give up and replace" is offered. Not on PulseAI hasn't recovered: the Researcher can't replace someone over our own failure. */
+  giveUp: boolean
   /** Said under what happened: that the participant already tried to fix it themselves, so nobody repeats a step. */
   note?: string
-  /** Higher is more urgent. */
-  urgency: number
-  /** A participant who asked for a human and nobody accepted: pinned above everything, with the promise clock. */
-  kind?: 'escalation'
+  /** The open PulseAI issue, for the support report. */
+  issue?: TechIssue
+  /** Waiting for moderator: the promise clock. */
   escalation?: { waitedMin: number; leftMin: number }
 }
+
+const timesWord = (n: number) => (n === 1 ? 'once' : n === 2 ? 'twice' : `${n} times`)
 
 /** The participant already tried the on-screen steps for this problem and it didn't work. */
 export function selfServiceNote(s: Session): string | undefined {
   const last = [...(s.selfService ?? [])].reverse().find((x) => x.outcome === 'unresolved')
   if (!last || !s.issues.some((i) => i.status === 'Open' && i.type === last.issue)) return undefined
-  return `Self-service was already tried: the participant followed the steps for “${last.issue.toLowerCase()}” and checked ${last.checks} ${last.checks === 1 ? 'time' : 'times'}. It didn’t help, so there is no need to repeat them.`
+  return `Self-service tried ${timesWord(last.checks)}, didn’t fix it.`
 }
 
-const hoursSince = (iso: string) => (new Date(FIELDWORK_NOW).getTime() - new Date(iso).getTime()) / HOUR
 const lastEvent = (s: Session) => s.events.reduce((m, e) => (e.at > m ? e.at : m), s.events[0]?.at ?? FIELDWORK_NOW)
 
 /**
- * Unfinished sessions that need the Researcher, most urgent first. Only a participant's latest session counts, and
- * only if it hasn't ended in Review: a finished interview is never here. A session the Researcher already acted on
- * leaves. Replacement needs are never rows: a withdrawal, an exclusion or a no-show after the window opens a slot,
- * and an open slot shows as the gap on the verdict.
+ * What the Researcher can do about unfinished sessions, in this order: a participant waiting for a moderator (oldest
+ * first), then our-side failures, then everything else by age, oldest first. Only a participant's latest session
+ * counts. A row leaves when the next event happens (they resume, open the link, start, PulseAI recovers) or when the
+ * Researcher acts or gives up with a reason. Nobody marks anything resolved.
  */
 export function needsYou(doc: FieldworkDoc): NeedsRow[] {
-  const human = doc.sessions.some((s) => s.mode === 'human')
   const closed = windowClosed(doc)
-  const rows: NeedsRow[] = []
+  const rows: (NeedsRow & { tier: 1 | 2 | 3 })[] = []
 
   for (const { latest: s } of participantsOf(doc)) {
-    // Someone who asked for a human and nobody accepted goes first. An accepted escalation never comes here.
-    if (s.escalation?.status === 'Waiting for moderator' && !s.gaveUp) {
+    if (s.gaveUp || s.status === 'Withdrawn') continue
+    const base = { key: s.id, session: s, who: s.participantId }
+    const open = s.issues.filter((i) => i.status === 'Open')
+    const rank = { Blocking: 0, Degraded: 1, Minor: 2 } as const
+    const oldest = (list: TechIssue[]) => [...list].sort((a, b) => rank[a.severity] - rank[b.severity] || b.at.localeCompare(a.at))[0]
+
+    // 1. Waiting for moderator: someone asked for a human and nobody accepted. An accepted escalation never comes here.
+    if (s.escalation?.status === 'Waiting for moderator') {
       const waited = Math.max(0, (new Date(FIELDWORK_NOW).getTime() - new Date(s.escalation.requestedAt).getTime()) / 60000 + (s.escalation.extraWaitMin ?? 0))
-      rows.push({ key: s.id, session: s, who: s.participantId, what: 'Asked for a human and no moderator accepted.', since: s.escalation.requestedAt, action: 'Assign moderator', invites: true, stuck: true, urgency: 1000 + waited, kind: 'escalation', escalation: { waitedMin: waited, leftMin: ESCALATION_PROMISE_HOURS * 60 - waited } })
+      rows.push({ ...base, tier: 1, kind: 'escalation', what: 'Asked for a human and no moderator accepted.', fault: 'Participant side', since: s.escalation.requestedAt, action: 'Assign moderator', invites: true, giveUp: true, escalation: { waitedMin: waited, leftMin: ESCALATION_PROMISE_HOURS * 60 - waited } })
       continue
     }
-    if (s.status === 'Completed' || s.status === 'Withdrawn' || s.handled || s.gaveUp) continue
-    const since = lastEvent(s)
-    // The problem to name is the most serious open one, newest first: a participant who has just hit a blocking error
-    // must not be described by a minor note that was already open on their session.
-    const rank = { Blocking: 0, Degraded: 1, Minor: 2 } as const
-    // What PulseAI is handling is never the Researcher's to act on: it names no row and gives none an action.
-    const openIssue = s.issues.filter((i) => i.status === 'Open' && !handledBySystem(i.type)).sort((a, b) => rank[a.severity] - rank[b.severity] || b.at.localeCompare(a.at))[0]
-    const row = (action: NeedsAction, what: string, urgency: number, extra: Partial<NeedsRow> = {}) =>
-      rows.push({ key: s.id, session: s, who: s.participantId, what, since, action, invites: action !== 'Assign moderator', stuck: false, urgency: urgency + Math.min(9, hoursSince(since) / 24), note: selfServiceNote(s), ...extra })
 
-    if (s.status === 'Technical Error' && !openIssue && s.issues.some((i) => i.status === 'Open')) continue
-    if (s.status === 'Technical Error') row('Retry', `Technical error: ${(openIssue?.type ?? 'the session stopped').toLowerCase()}. The interview didn’t finish.`, 90, { stuck: true })
-    else if (human && s.status === 'Booked' && !s.moderatorId) row('Assign moderator', 'Booked a slot, but no moderator is assigned.', 85)
-    else if (human && s.status === 'Rescheduled') row('Reschedule', 'Missed or moved their slot and needs a new one.', 80)
-    else if (s.status === 'Incomplete (resumable)') row('Resume', 'Left part-way. They can resume from their link.', 70, { stuck: true })
-    else if (s.status === 'Not started' || s.status === 'Booked') {
-      if (openIssue?.type === 'Link expired or invalid') row('Reissue link', `${openIssue.type}. They can’t start until a new link is issued.`, 75, { stuck: true })
-      else if (openIssue) row('Resend link', `${openIssue.type}. They can’t start until it’s fixed.`, 75, { stuck: true })
-      // A no-show holds their slot until the window closes. After that the slot is open and the gap shows it.
-      else if (s.access === 'No-show') {
-        if (!closed) row('Resend link', 'Consented but never started.', 60)
-      } else if (s.access === 'Opened' && hoursSince(since) > 24) row('Resend link', 'Opened the link but hasn’t started.', 50)
-      else if (s.access === 'Invited' && hoursSince(since) > 48) row('Resend link', 'Invited but hasn’t opened the link.', 45)
+    if (s.status !== 'Completed' && !s.handled) {
+      const connection = open.find((i) => i.type === 'Connection lost')
+      const expired = open.find((i) => i.type === 'Link expired or invalid')
+      const droppedMod = open.find((i) => i.type === 'Moderator disconnected')
+      const failedSS = [...(s.selfService ?? [])].reverse().find((x) => x.outcome === 'unresolved')
+      const deviceIssue = failedSS ? open.find((i) => i.type === failedSS.issue && ISSUE_FIX[i.type].via === 'session-start') : undefined
+      const note = selfServiceNote(s)
+
+      // 2. Moderator didn't show (human-led). Our fault: free reschedule, never a No-show.
+      if (s.mode === 'human' && (s.moderatorNoShow || droppedMod)) {
+        rows.push({ ...base, tier: 2, kind: 'moderator-no-show', what: s.moderatorNoShow ? 'The moderator didn’t join the booked slot.' : 'The moderator disconnected and the interview didn’t finish.', fault: 'Our side', since: s.moderatorNoShow?.at ?? droppedMod!.at, action: 'Send booking link', invites: true, giveUp: true })
+        continue
+      }
+      // 3. Self-service failed: they tried the on-screen steps and one retry, and it still isn't fixed. No attempt, no row.
+      if (deviceIssue && failedSS) {
+        rows.push({ ...base, tier: 3, kind: 'self-service', what: `${deviceIssue.type}. The on-screen steps didn’t fix it.`, fault: 'Participant side', since: failedSS.at, action: 'Resend link', invites: true, giveUp: true, note })
+        continue
+      }
+      // 4. Connection lost and they never came back.
+      if (connection && (s.status === 'Technical Error' || s.status === 'Incomplete (resumable)')) {
+        rows.push({ ...base, tier: 3, kind: 'connection-lost', what: 'Connection lost and they haven’t come back.', fault: 'Participant side', since: connection.at, action: s.status === 'Incomplete (resumable)' ? 'Resume' : 'Retry', invites: true, giveUp: true, note })
+        continue
+      }
+      // 5. Link expired or invalid: they can't start until a new link is issued.
+      if (expired) {
+        rows.push({ ...base, tier: 3, kind: 'link-expired', what: 'Their link is expired or invalid, so they can’t start.', fault: 'Participant side', since: expired.at, action: 'Reissue link', invites: true, giveUp: true })
+        continue
+      }
+      // 6. Left part-way and never returned.
+      if (s.status === 'Incomplete (resumable)') {
+        rows.push({ ...base, tier: 3, kind: 'left-part-way', what: 'Left part-way and hasn’t come back.', fault: 'Participant side', since: lastEvent(s), action: 'Resend link', invites: true, giveUp: true })
+        continue
+      }
+      // 7. Consented (or opened the link) and never started. A no-show after the window closes opens a slot instead; the gap shows it.
+      if (s.status === 'Not started' && s.access !== 'Invited' && !(s.access === 'No-show' && closed)) {
+        rows.push({ ...base, tier: 3, kind: 'never-started', what: s.consent || s.access === 'No-show' || s.access === 'Consented' ? 'Consented but never started.' : 'Opened the link but never started.', fault: 'Participant side', since: lastEvent(s), action: 'Resend link', invites: true, giveUp: true })
+        continue
+      }
     }
+
+    // 8. PulseAI hasn't recovered from what it was handling. The Researcher can only report it.
+    const system = oldest(open.filter((i) => handledBySystem(i.type)))
+    if (system) rows.push({ ...base, tier: 2, kind: 'pulseai', what: `${system.type}. PulseAI is still working on it.`, fault: 'Our side', since: system.at, action: 'Copy report for support', invites: false, giveUp: false, issue: system })
   }
-  return rows.sort((a, b) => b.urgency - a.urgency)
+
+  // Waiting for moderator first, then our-side failures, then the rest. Oldest first within each.
+  return rows.sort((a, b) => a.tier - b.tier || (a.tier === 1 ? b.escalation!.waitedMin - a.escalation!.waitedMin : a.since.localeCompare(b.since))).map(({ tier: _tier, ...row }) => row)
+}
+
+/** The text the Researcher pastes to support for a problem PulseAI hasn't recovered from. */
+export function supportReport(doc: FieldworkDoc, row: NeedsRow): string {
+  const s = row.session
+  const i = row.issue
+  return [
+    'PulseAI support report',
+    `Study: ${doc.studyId} (${doc.releaseVersion})`,
+    `Session: ${s.id}${s.mode === 'human' ? ' (human-led)' : ' (AI-led)'}`,
+    `Participant: ${s.participantId}`,
+    `Device: ${s.device}`,
+    i ? `Problem: ${i.type} (${i.severity})` : `Problem: ${row.what}`,
+    i ? `Started: ${formatStamp(i.at)}` : `Since: ${formatStamp(row.since)}`,
+    'Status: still open after the 2 hour timeout',
+  ].join('\n')
 }
 
 // ─── Funnel ─────────────────────────────────────────────────────────────────

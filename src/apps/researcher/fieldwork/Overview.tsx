@@ -11,8 +11,8 @@ import { SplitBar } from '@/components/ProgressBar'
 import { Tooltip } from '@/components/Tooltip'
 import { formatDay, formatStamp } from '@/lib/format'
 import { screenById, studyPath } from '@/routes/screens'
-import { assignEscalation, assignModerator, extendWindow, giveUp, lowerTarget, sendBookingLink, HUMAN_MODERATOR_IDS, inviteFromReserve, rescheduleSession, resendLink, retrySession } from '@/state/fieldwork'
-import { ago, funnel, moderatorRoster, timeCheck, topUpStatus, needsYou, slotLedger, verdict, type NeedsRow, type VerdictAction, type VerdictLevel, durationStats, regionMatrix, regionSkew, targetFill } from '@/state/selectors'
+import { assignEscalation, extendWindow, giveUp, lowerTarget, sendBookingLink, sendRescheduleLink, inviteFromReserve, resendLink, retrySession } from '@/state/fieldwork'
+import { ago, funnel, moderatorRoster, timeCheck, topUpStatus, needsYou, supportReport, slotLedger, verdict, type NeedsRow, type VerdictAction, type VerdictLevel, durationStats, regionMatrix, regionSkew, targetFill } from '@/state/selectors'
 import { SessionTag } from '../SessionTag'
 import { invitedIds, invitedMessage, type FWProps } from './FieldworkBits'
 import { SlotLedger } from './SlotLedger'
@@ -395,12 +395,12 @@ function NeedsYou({ doc, rows, studyId, me, update, readOnly, blockedWhy }: FWPr
     } else if (row.action === 'Retry') {
       update((d) => retrySession(d, id, me))
       setNotice(`Retry link sent to ${who}. A new session was created.`)
-    } else if (row.action === 'Reschedule') {
-      update((d) => rescheduleSession(d, id, me))
-      setNotice(`${who} rescheduled.`)
-    } else {
-      update((d) => assignModerator(d, id, HUMAN_MODERATOR_IDS[0], me))
-      setNotice(`Moderator assigned to ${who}.`)
+    } else if (row.action === 'Send booking link') {
+      update((d) => sendRescheduleLink(d, id, me))
+      setNotice(`Booking link sent to ${who}. The reschedule is free.`)
+    } else if (row.action === 'Copy report for support') {
+      void navigator.clipboard?.writeText(supportReport(doc, row)).catch(() => undefined)
+      setNotice(`Report for ${who} copied. Paste it to support.`)
     }
   }
   const why = (row: NeedsRow) => (readOnly ? 'This is sample data. Nothing can be changed.' : row.invites ? blockedWhy : undefined)
@@ -509,7 +509,7 @@ function NeedsYou({ doc, rows, studyId, me, update, readOnly, blockedWhy }: FWPr
                         {row.action}
                       </Button>
                     )}
-                    {row.stuck && !readOnly && (
+                    {row.giveUp && !readOnly && (
                       <Button size="sm" variant="ghost" onClick={() => setGiving(row)} aria-label={`Give up and replace: ${row.who}`}>
                         Give up and replace
                       </Button>

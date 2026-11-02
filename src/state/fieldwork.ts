@@ -224,6 +224,8 @@ export type Session = {
   gaveUp?: { reason: string; at: string; by: string }
   /** The participant's own attempts at fixing a technical problem (P18), oldest first. */
   selfService?: SelfService[]
+  /** Human-led: the moderator didn't join the booked slot. Our fault, so the participant is never marked No-show. Mock-driven until the moderator flow exists. */
+  moderatorNoShow?: { at: string }
 }
 
 /**
@@ -315,7 +317,7 @@ export type GenInput = {
 }
 
 /** Bumped when the seed session list changes, so saved fieldwork is rebuilt from it. */
-export const SESSION_SEED = 7
+export const SESSION_SEED = 8
 
 const DEVICES = ['Mobile · iOS Safari', 'Mobile · Android Chrome', 'Desktop · Chrome', 'Desktop · Safari', 'Desktop · Edge']
 
@@ -408,6 +410,11 @@ export function generateFieldwork(i: GenInput): FieldworkDoc {
       { at: at(t0, j * 3 + 1), speaker: 'Participant', ai: false, text: lines[(n + j) % lines.length] },
     ])
 
+    // A participant who tried the on-screen steps and still couldn't fix it: the seed's one visible example of a failed self-service.
+    const failedSS = r.selfService
+    const selfService: SelfService[] | undefined = failedSS ? [{ id: `${sessionIdOf(r)}-ss1`, issue: failedSS.issue as IssueType, startedAt: at(t0, 20), checks: failedSS.checks, outcome: 'unresolved', at: at(t0, 26) }] : undefined
+    if (failedSS) events.push(ev(at(t0, 26), 'system', `${failedSS.issue}: the participant followed the on-screen steps and checked ${failedSS.checks} times. It still isn’t fixed, so the research team was told.`))
+
     const issues: TechIssue[] = (r.issues ?? [])
       .map(([type, severity, st, resolution], j): TechIssue => {
         // Human-led sessions have a moderator who can drop, not an AI agent that can time out.
@@ -459,6 +466,7 @@ export function generateFieldwork(i: GenInput): FieldworkDoc {
       followUps: {},
       transcript,
       issues,
+      selfService,
       consent,
       notes:
         human && v === 'done' && n === 0
@@ -1043,6 +1051,44 @@ export function sendBookingLink(doc: FieldworkDoc, sessionId: string, by: string
     when,
     by,
     `Sent ${s.participantId} a booking link for a human follow-up`,
+  )
+}
+
+/**
+ * The moderator didn't show, so it is our fault: the participant is sent a booking link for a free reschedule. They are
+ * never marked No-show, keep their incentive and their slot in the study, and the session leaves Needs you.
+ */
+export function sendRescheduleLink(doc: FieldworkDoc, sessionId: string, by: string): FieldworkDoc {
+  const when = tick(doc)
+  const s = doc.sessions.find((x) => x.id === sessionId)
+  if (!s) return doc
+  return logged(
+    patch(doc, sessionId, (x) => handledBy(addEventAt(when, x, 'system', `${by} sent ${x.participantId} a booking link for a free reschedule. The missed slot was our fault: no No-show, no penalty, the incentive and the slot are kept.`), when, by, 'Send booking link')),
+    when,
+    by,
+    `Sent ${s.participantId} a booking link for a free reschedule after the moderator didn’t join`,
+  )
+}
+
+/**
+ * Dev: the moderator doesn't join a booked slot. Uses the first human-led booking that can have it. An AI-led study has
+ * none, so it turns the first participant who consented and hasn't started into a human-led booking whose slot just passed.
+ * Returns the doc unchanged when there is nobody to use.
+ */
+export function simulateModeratorNoShow(doc: FieldworkDoc): FieldworkDoc {
+  const free = (x: Session) => !x.handled && !x.gaveUp && !x.moderatorNoShow
+  const booked = doc.sessions.find((x) => x.mode === 'human' && x.status === 'Booked' && free(x))
+  const waiting = booked ?? doc.sessions.find((x) => x.status === 'Not started' && x.access === 'Consented' && !x.startedAt && free(x))
+  if (!waiting) return doc
+  const when = tick(doc)
+  const moderatorId = waiting.moderatorId ?? HUMAN_MODERATOR_IDS[0]
+  return patch(doc, waiting.id, (x) =>
+    addEventAt(
+      when,
+      { ...x, mode: 'human' as const, status: 'Booked' as const, moderatorId, slot: x.slot ?? at(when, -30), moderatorNoShow: { at: when } },
+      'system',
+      `${moderatorName(moderatorId)} didn’t join the booked slot. This one is on us, not the participant.`,
+    ),
   )
 }
 
