@@ -7,15 +7,15 @@ import { controlBase, TextArea } from '@/components/Field'
 import { useToast } from '@/components/Toast'
 import { AlertIcon } from '@/components/icons'
 import { Modal } from '@/components/Modal'
-import { SplitBar } from '@/components/ProgressBar'
 import { Tooltip } from '@/components/Tooltip'
 import { formatDay, formatSlot, formatStamp } from '@/lib/format'
 import { screenById, studyPath } from '@/routes/screens'
 import { SIMULATE_TIME_STEPS } from '@/mock/needsYou'
 import { advanceClock, assignEscalation, extendWindow, fieldworkNow, simulateModeratorNoShow, giveUp, lowerTarget, sendBookingLink, sendRescheduleLink, inviteFromReserve, resendLink, retrySession } from '@/state/fieldwork'
-import { ago, funnel, moderatorRoster, timeCheck, topUpStatus, needsYou, supportReport, slotLedger, verdict, type NeedsRow, type VerdictAction, type VerdictLevel, durationStats, regionMatrix, regionSkew, targetFill } from '@/state/selectors'
+import { ago, funnel, moderatorRoster, timeCheck, topUpStatus, needsYou, supportReport, slotLedger, verdict, type NeedsRow, type VerdictAction, type VerdictLevel, regionMatrix, regionSkew } from '@/state/selectors'
 import { SessionTag } from '../SessionTag'
 import { invitedIds, invitedMessage, type FWProps } from './FieldworkBits'
+import { KpiStrip } from './KpiStrip'
 import { SlotLedger } from './SlotLedger'
 
 const r19 = (studyId: string, id: string) => `${studyPath(studyId, { ...screenById.R19, path: screenById.R19.path.replace(':sessionId', id) })}?from=needs-you`
@@ -27,14 +27,12 @@ const TONE: Record<VerdictLevel, { box: string; word: string }> = {
 }
 
 export function Overview(p: FWProps) {
-  const { doc, audience, target, studyId, outcomes, reserve, awaiting, waiting, readOnly, paused, closed, update, me } = p
+  const { doc, audience, target, studyId, outcomes, reserve, awaiting, readOnly, paused, closed, update, me } = p
   const toast = useToast()
   const needs = needsYou(doc)
   const v = verdict(doc, target, outcomes, reserve, needs.length)
-  const fill = targetFill(doc, audience, outcomes)
   const regions = regionMatrix(doc, outcomes)
   const skew = regionSkew(regions.totals, regions.total)
-  const dur = durationStats(doc)
   const flow = funnel(doc, outcomes)
   const ledger = slotLedger(doc, target, outcomes)
   const blockedWhy = readOnly ? 'This is sample data. Nothing can be changed.' : closed ? 'Fieldwork is closed' : paused ? 'Study is paused' : undefined
@@ -50,6 +48,8 @@ export function Overview(p: FWProps) {
 
   return (
     <div className="flex flex-col gap-6">
+      <KpiStrip doc={doc} target={target} outcomes={outcomes} awaiting={awaiting} studyId={studyId} />
+
       <section aria-label="Verdict" className={cn('flex flex-wrap items-start gap-x-6 gap-y-3 rounded-md border px-5 py-4', TONE[v.level].box)}>
         <div className="min-w-0 flex-1 basis-80">
           <p className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
@@ -203,57 +203,6 @@ export function Overview(p: FWProps) {
           </p>
         </div>
       </Card>
-
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-        <Card title="Progress toward the target">
-          <div>
-            <div className="flex flex-wrap items-baseline gap-x-3 text-sm">
-              <span className="flex-1 font-medium">{fill.name}</span>
-              <span className="tabular-nums">
-                <span className="font-semibold">{fill.completed}</span> of {fill.target}
-              </span>
-            </div>
-            <SplitBar className="mt-1.5" confirmed={fill.accepted} pending={fill.pending} total={fill.target} label={`${fill.accepted} accepted, ${fill.pending} under review, of ${fill.target}`} />
-            <p className="mt-1 text-xs text-graphite tabular-nums">
-              {fill.accepted} confirmed, {fill.pending} pending review{fill.excluded ? `. ${fill.excluded} excluded, not counted` : ''}
-            </p>
-          </div>
-          <p className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-mist pt-3 text-xs text-graphite">
-            <span className="flex items-center gap-1.5">
-              <span className="inline-block h-2 w-4 rounded-xs bg-ink" /> Accepted
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="hatched inline-block h-2 w-4 rounded-xs bg-haze" /> Under review
-            </span>
-          </p>
-        </Card>
-
-        <Card title="At a glance">
-          <dl className="flex flex-col gap-4 text-sm">
-            <div>
-              <dt className="font-medium">Interview length</dt>
-              <dd className="mt-0.5 text-graphite tabular-nums">
-                {dur.n === 0
-                  ? 'No completed interviews yet.'
-                  : `Averaging ${dur.avg} min against the ${dur.target} min target. ${dur.over} of ${dur.n} ran over.`}
-              </dd>
-            </div>
-            <div>
-              <dt className="font-medium">Review</dt>
-              <dd className="mt-0.5">
-                <Link to={studyPath(studyId, screenById.R21)} className="text-iris-700 hover:underline tabular-nums">
-                  {awaiting} {awaiting === 1 ? 'session' : 'sessions'} awaiting review
-                </Link>
-                {(waiting.participant > 0 || waiting.moderator > 0) && (
-                  <span className="mt-0.5 block text-graphite tabular-nums" data-testid="waiting-line">
-                    {[waiting.participant > 0 && `${waiting.participant} waiting for participant`, waiting.moderator > 0 && `${waiting.moderator} waiting for moderator`].filter(Boolean).join(', ')}
-                  </span>
-                )}
-              </dd>
-            </div>
-          </dl>
-        </Card>
-      </div>
 
       {doc.log.length > 0 && (
         <Card title="Activity">

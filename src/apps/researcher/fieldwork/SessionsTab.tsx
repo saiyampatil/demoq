@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router'
+import { useNavigate, useSearchParams } from 'react-router'
 import { Button } from '@/components/Button'
 import { Card } from '@/components/Card'
 import { cn } from '@/components/cn'
@@ -27,7 +27,9 @@ const match: Record<Exclude<Filter, 'Needs you'>, (s: Session) => boolean> = {
 
 export function SessionsTab({ doc, studyId, withdrawn, onOpenConsent }: FWProps & { withdrawn: number; onOpenConsent: () => void }) {
   const navigate = useNavigate()
-  const [filter, setFilter] = useState<Filter>('All')
+  const [params] = useSearchParams()
+  const asked = params.get('filter')
+  const [filter, setFilter] = useState<Filter>(FILTERS.includes(asked as Filter) ? (asked as Filter) : 'All')
   const [q, setQ] = useState('')
   const needing = new Set(needsYou(doc).flatMap((r) => (r.session ? [r.session.id] : [])))
   const test = (s: Session) => (filter === 'Needs you' ? needing.has(s.id) : match[filter](s))
