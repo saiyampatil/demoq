@@ -7,7 +7,6 @@ import { SearchIcon } from '@/components/icons'
 import { EmptyState } from '@/components/States'
 import { StatusChip } from '@/components/StatusChip'
 import { Table, type Column } from '@/components/Table'
-import { Tooltip } from '@/components/Tooltip'
 import { screenById, studyPath } from '@/routes/screens'
 import { moderatorName, sessionCountOf, type Session } from '@/state/fieldwork'
 import { journeyPeople, needsYou, type JourneyKey } from '@/state/selectors'
@@ -49,20 +48,6 @@ export function SessionsTab({ doc, studyId }: FWProps) {
     { key: 'mode', header: 'Moderator', cell: (s) => <span className="whitespace-nowrap">{moderatorName(s.moderatorId)}</span> },
     { key: 'status', header: 'Session', cell: (s) => (<span className="flex items-center gap-2"><StatusChip status={s.status} size="sm" />{s.gaveUp && <span className="text-xs text-pending-fg">Given up, slot opened</span>}{s.escalation && <span className="text-xs text-graphite">Escalated: {s.escalation.status.toLowerCase()}</span>}</span>) },
     { key: 'dur', header: 'Length', cell: (s) => (s.durationMin !== null ? <span className="whitespace-nowrap tabular-nums">{s.durationMin} min</span> : <span className="text-muted">—</span>) },
-    {
-      key: 'issues',
-      header: 'Issues',
-      cell: (s) => {
-        const open = s.issues.filter((i) => i.status === 'Open').length
-        const total = s.issues.length
-        const tip = total === 0 ? 'No issues on this session.' : `${total} ${total === 1 ? 'issue' : 'issues'} in total, ${open} open.`
-        return (
-          <Tooltip content={tip} focusable align="left">
-            <span className={cn('whitespace-nowrap tabular-nums', open > 0 ? 'font-medium text-negative-fg' : 'text-muted')}>{open > 0 ? open : 'None'}</span>
-          </Tooltip>
-        )
-      },
-    },
     { key: 'when', header: 'Slot or start', cell: (s) => <span className="whitespace-nowrap">{slotText(s.slot ?? s.startedAt)}</span> },
   ]
 
