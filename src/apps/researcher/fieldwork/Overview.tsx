@@ -57,6 +57,8 @@ export function Overview(p: FWProps) {
         notEnoughTime={time.short ? { left: time.left, needed: time.needed } : undefined}
         daysLeft={doc.window ? time.left : null}
         clockStopped={paused && !closed}
+        paused={paused}
+        resumable={!!doc.paused}
         goTab={p.goTab}
         onInvite={inviteNow}
         onAdjust={setAdjust}
@@ -114,7 +116,7 @@ export function Overview(p: FWProps) {
       <NeedsYou {...p} rows={needs} blockedWhy={blockedWhy} />
 
       {skew && (
-        <p role="status" className="flex items-start gap-2 rounded-md border border-pending-line bg-pending-bg px-4 py-2 text-sm text-pending-fg">
+        <p role="status" className="flex items-start gap-2 rounded-md border border-mist bg-haze px-4 py-2 text-sm text-ink">
           <AlertIcon size={14} className="mt-0.5 shrink-0" />
           Regions are uneven. {skew}
         </p>
@@ -150,7 +152,7 @@ function FaultChip({ fault }: { fault: NeedsRow['fault'] }) {
       align="left"
       content={ours ? 'On us, not the participant. They are never marked No-show, keep their incentive and their slot, and a reschedule is free.' : 'The cause is on the participant’s end. Their slot is kept until you give up on them.'}
     >
-      <span data-testid="fault-chip" data-fault={fault} className={cn('inline-block whitespace-nowrap rounded-xs border px-1.5 py-0.5 text-xs font-medium', ours ? 'border-pending-line bg-pending-bg text-pending-fg' : 'border-mist bg-haze text-graphite')}>
+      <span data-testid="fault-chip" data-fault={fault} className={cn('inline-block whitespace-nowrap rounded-xs border px-1.5 py-0.5 text-xs font-medium', ours ? 'border-mist-strong bg-surface text-ink' : 'border-mist bg-haze text-graphite')}>
         {fault}
       </span>
     </Tooltip>
@@ -322,12 +324,12 @@ function NeedsYou({ doc, rows, studyId, me, update, readOnly, blockedWhy }: FWPr
                 const e = row.escalation
                 const late = e.leftMin < 0
                 return (
-                  <li key={row.key} data-testid="escalation-row" className="flex flex-col gap-2 border-l-4 border-pending-fg bg-pending-bg px-5 py-3">
+                  <li key={row.key} data-testid="escalation-row" className="flex flex-col gap-2 border-l-4 border-graphite bg-haze px-5 py-3">
                     <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
                       <Link to={r19(studyId, row.session.id)} className="font-medium text-iris-700 hover:underline">
                         <SessionTag participantId={row.session.participantId} no={row.session.no} count={doc.sessions.filter((x) => x.participantId === row.session.participantId).length} />
                       </Link>
-                      <span className="rounded-xs border border-pending-line bg-surface px-1.5 py-0.5 text-xs font-medium text-pending-fg">Waiting for moderator</span>
+                      <span className="rounded-xs border border-mist-strong bg-surface px-1.5 py-0.5 text-xs font-medium text-ink">Waiting for moderator</span>
                       <FaultChip fault={row.fault} />
                       <span className="text-sm">{row.what}</span>
                     </div>

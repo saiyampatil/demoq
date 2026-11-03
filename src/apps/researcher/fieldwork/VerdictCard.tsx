@@ -29,6 +29,10 @@ type Props = {
   daysLeft: number | null
   /** The clock is stopped, so no days are counted down. */
   clockStopped: boolean
+  /** The study is paused (or closed). */
+  paused: boolean
+  /** The Researcher paused it, so Resume in the header is the primary action, not the launch screen. */
+  resumable: boolean
   goTab: (t: string) => void
   onInvite: (n: number) => void
   onAdjust: (k: 'extend' | 'lower') => void
@@ -38,19 +42,22 @@ type Props = {
  * Three zones: the verdict in one sentence (left), the slots (middle), the one thing to do (right). The arithmetic and
  * the list of slots that opened are in "How these numbers are calculated" at the bottom of the Overview.
  */
-export function VerdictCard({ v, ledger, reserve, studyId, blockedWhy, newInReserve, closed, notEnoughTime, daysLeft, clockStopped, goTab, onInvite, onAdjust }: Props) {
+export function VerdictCard({ v, ledger, reserve, studyId, blockedWhy, newInReserve, closed, notEnoughTime, daysLeft, clockStopped, paused, resumable, goTab, onInvite, onAdjust }: Props) {
   const tone = TONE[v.level]
   const plan = v.plan
   // At risk leads with coverage, which is already one sentence. The other two say how far along the study is.
   const sentence = v.level === 'At risk' ? v.sentence : `${v.figures.toward} of ${v.gap.target} done${daysLeft === null || clockStopped ? '' : `, ${daysLeft} ${daysLeft === 1 ? 'day' : 'days'} left`}.`
   // On track needs nothing from the Researcher here, so it has no button; Needs you below carries what is left to do.
-  const actions = v.level === 'On track' ? [] : v.actions
+  // While the study is on hold, filling slots is blocked, so the way forward is the launch screen (a new version) or
+  // the Resume button in the header (the Researcher paused it).
+  const actions = v.level === 'On track' || (paused && !closed) ? [] : v.actions
+  const launchAction = paused && !closed && !resumable
 
   return (
     <section aria-label="Verdict" data-level={v.level} className={cn('rounded-md border border-l-4 border-mist bg-surface', tone.edge)}>
-      <div className="grid gap-x-8 gap-y-5 p-5 xl:grid-cols-[minmax(0,5fr)_minmax(0,6fr)_auto]">
+      <div className="grid gap-x-8 gap-y-6 p-6 xl:grid-cols-[minmax(0,5fr)_minmax(0,6fr)_auto]">
         <div className="min-w-0">
-          <p className={cn('text-xl font-semibold', tone.word)}>{v.level}</p>
+          <p className={cn('text-[32px] leading-10 font-semibold tracking-tight', tone.word)}>{v.level}</p>
           <p className="mt-1 text-md text-ink tabular-nums" data-testid="verdict-sentence">
             {sentence}
           </p>
@@ -73,6 +80,13 @@ export function VerdictCard({ v, ledger, reserve, studyId, blockedWhy, newInRese
           <SlotLedger ledger={ledger} />
         </div>
 
+        {launchAction && (
+          <div className="flex shrink-0 flex-col items-start gap-2 max-xl:order-2 xl:items-stretch" aria-label="Verdict actions">
+            <Button variant="primary" className="h-10 px-5 text-md" to={studyPath(studyId, screenById.R15)}>
+              Go to launch
+            </Button>
+          </div>
+        )}
         {actions.length > 0 && (
           <div className="flex shrink-0 flex-col items-start gap-2 max-xl:order-2 xl:items-stretch" aria-label="Verdict actions">
             {actions.map((a, i) => (
@@ -131,11 +145,12 @@ function VerdictButton({ action, primary, blockedWhy, studyId, goTab, onInvite }
         {action.label}
       </Button>
     )
+  // Not an action on the study, only a way to look: a text link, never the primary button.
   if (action.kind === 'sessions')
     return (
-      <Button variant="primary" className={big} onClick={() => goTab('sessions')}>
+      <button type="button" onClick={() => goTab('sessions')} className="text-sm font-medium text-iris-700 hover:underline">
         {action.label}
-      </Button>
+      </button>
     )
   if (action.kind === 'needs')
     return (

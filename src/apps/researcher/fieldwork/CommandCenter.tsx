@@ -6,7 +6,6 @@ import { cn } from '@/components/cn'
 import { TextArea } from '@/components/Field'
 import { Modal } from '@/components/Modal'
 import { StatusChip } from '@/components/StatusChip'
-import { Tooltip } from '@/components/Tooltip'
 import { WizardFooter } from '@/components/WizardFooter'
 import { formatStamp } from '@/lib/format'
 import { screenById, studyPath } from '@/routes/screens'
@@ -91,11 +90,18 @@ export function CommandCenter() {
                 </Button>
               ) : null}
               {blockers.blocked ? (
-                <Tooltip content={blockers.reason!} focusable>
+                // Hover gives the full reason; keyboard focus gives the short one under the button.
+                <span className="group/close relative inline-flex" tabIndex={0} aria-describedby="close-why" data-testid="close-blocked">
                   <Button disabled data-testid="close-fieldwork">
                     Close fieldwork
                   </Button>
-                </Tooltip>
+                  <span role="tooltip" className="pointer-events-none absolute top-full right-0 z-30 mt-2 hidden w-max max-w-64 rounded-sm bg-ink px-2.5 py-1.5 text-xs text-white shadow-overlay group-hover/close:block">
+                    {blockers.reason}
+                  </span>
+                  <span id="close-why" className="pointer-events-none absolute top-full right-0 mt-1.5 hidden text-xs whitespace-nowrap text-graphite group-focus-within/close:block group-hover/close:hidden">
+                    Sessions are still open.
+                  </span>
+                </span>
               ) : (
                 <Button data-testid="close-fieldwork" onClick={() => setClosing(true)}>
                   Close fieldwork

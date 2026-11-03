@@ -17,12 +17,12 @@ function Kpi({ to, label, tone = 'plain', children, line, testId }: { to: string
       to={to}
       data-testid={testId}
       className={cn(
-        'group flex min-w-0 flex-col gap-1 rounded-md border bg-surface p-5 transition-colors hover:border-mist-strong',
+        'group flex min-w-0 flex-col gap-0.5 rounded-md border bg-surface p-4 transition-colors hover:border-mist-strong',
         tone === 'amber' ? 'border-pending-line bg-pending-bg hover:border-pending-fg/40' : 'border-mist',
       )}
     >
       <span className="text-sm font-medium text-graphite">{label}</span>
-      <span className={cn('flex items-baseline gap-1.5 whitespace-nowrap text-[32px] leading-10 font-semibold tracking-tight tabular-nums', tone === 'amber' ? 'text-pending-fg' : tone === 'green' ? 'text-positive-fg' : 'text-ink')}>{children}</span>
+      <span className={cn('flex items-baseline gap-1.5 whitespace-nowrap text-xl font-semibold tabular-nums', tone === 'amber' ? 'text-pending-fg' : tone === 'green' ? 'text-positive-fg' : 'text-ink')}>{children}</span>
       <span className="text-sm text-graphite">{line}</span>
     </Link>
   )
