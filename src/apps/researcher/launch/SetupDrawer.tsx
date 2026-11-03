@@ -6,14 +6,14 @@ import { SideDrawer } from '@/components/SideDrawer'
 import { StatusChip } from '@/components/StatusChip'
 import { formatDateTime } from '@/lib/format'
 import { now } from '@/state/brief'
-import type { GuideDoc } from '@/state/guide'
-import { consentTemplate, EXTRA_LANGUAGES, editSetup, primaryLanguage, supportedLanguages, type LaunchDoc } from '@/state/launch'
+import { consentTemplate, EXTRA_LANGUAGES, editSetup, supportedLanguages, type LaunchDoc } from '@/state/launch'
 
 type Props = {
   open: boolean
   onClose: () => void
   client: string
-  guide?: GuideDoc
+  /** The study language, from the brief. Read only here. */
+  language: string | null
   launch: LaunchDoc | undefined
   me: string
   update: (fn: (d: LaunchDoc) => LaunchDoc) => void
@@ -23,10 +23,10 @@ type Props = {
  * Consent wording, languages, translations, links and the fieldwork window. No earlier module owns these,
  * so they sit here for now; the Study settings screen (R23, Phase 9) takes them over.
  */
-export function SetupDrawer({ open, onClose, client, guide, launch, me, update }: Props) {
+export function SetupDrawer({ open, onClose, client, language, launch, me, update }: Props) {
   const setup = launch?.setup
-  const langs = supportedLanguages(guide, launch)
-  const primary = primaryLanguage(guide)
+  const langs = supportedLanguages(language, launch)
+  const primary = language
   const edit = (fn: Parameters<typeof editSetup>[1]) => update((d) => editSetup(d, fn))
 
   return (
@@ -56,7 +56,7 @@ export function SetupDrawer({ open, onClose, client, guide, launch, me, update }
               <li key={l} className="flex items-center gap-2 text-sm">
                 <span className="flex-1">
                   {l}
-                  {l === primary && <span className="ml-2 text-graphite">from moderator setup</span>}
+                  {l === primary && <span className="ml-2 text-graphite">from your market</span>}
                 </span>
                 {l !== primary && (
                   <Button size="sm" variant="ghost" onClick={() => edit((s) => ({ ...s, extraLanguages: s.extraLanguages.filter((x) => x !== l) }))}>

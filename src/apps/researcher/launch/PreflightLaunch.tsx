@@ -18,7 +18,7 @@ import { useLaunch } from './useLaunch'
 const ownerScreen = { R6: screenById.R6, R13: screenById.R13, R14: screenById.R14, R15: screenById.R15 }
 
 export function PreflightLaunch() {
-  const { studyId, study, editable, audience, guide, launch, readiness: r, me, update } = useLaunch()
+  const { studyId, study, editable, audience, guide, launch, language, readiness: r, me, update } = useLaunch()
   const navigate = useNavigate()
   const [override, setOverride] = useState<Check>()
   const [reason, setReason] = useState('')
@@ -29,13 +29,13 @@ export function PreflightLaunch() {
   const blockers = authorizeBlockers(r)
   const live = study.status === 'Live'
   const plan = r.compile.state === 'ok' ? r.compile.plan : undefined
-  const langs = supportedLanguages(guide, launch)
+  const langs = supportedLanguages(language, launch)
   const nextRelease = (launch?.releases.length ?? 0) + 1
   const fw = launch?.setup.fieldwork
 
   const authorize = () => {
     if (!plan || !guide) return
-    update((d) => authorizeLaunch(d, { study, audience, guide, launch: d, plan }, me))
+    update((d) => authorizeLaunch(d, { study, audience, guide, launch: d, plan, language }, me))
     navigate(studyPath(studyId, screenById.R18))
   }
 
@@ -166,7 +166,7 @@ export function PreflightLaunch() {
         </div>
       </Modal>
 
-      <SetupDrawer open={setup} onClose={() => setSetup(false)} client={study.client} guide={guide} launch={launch} me={me} update={update} />
+      <SetupDrawer open={setup} onClose={() => setSetup(false)} client={study.client} language={language} launch={launch} me={me} update={update} />
     </div>
   )
 }

@@ -8,7 +8,7 @@ import { EmptyState } from '@/components/States'
 import { StatusChip } from '@/components/StatusChip'
 import { useToast } from '@/components/Toast'
 import { formatDateTime } from '@/lib/format'
-import { HUMAN_MODERATORS, LANGUAGES } from '@/mock/moderation'
+import { HUMAN_MODERATORS } from '@/mock/moderation'
 import { addMyself, coverage, hoursIn, inviteTeam, removeMember, requestPulseAI, requestRoster, resendMember, teamOf, type GuideDoc, type ModSource } from '@/state/guide'
 
 const SOURCE_LABEL: Record<ModSource, string> = { Myself: 'Myself', PulseAI: 'PulseAI', 'My team': 'My team' }
@@ -17,6 +17,8 @@ const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
 type Props = {
   doc: GuideDoc
   me: string
+  /** The study language, from the brief. Null until the brief gives one. */
+  language: string | null
   /** Edits the setup, so on an approved guide it makes a new version like any other edit. */
   update: (fn: (d: GuideDoc) => GuideDoc) => void
   /** Interviews the study needs, and weeks in its fieldwork window, for the coverage line. */
@@ -28,7 +30,7 @@ type Props = {
  * R12, human moderator. The person setting up the study may not be a researcher, so the choices are three plain
  * options that can be combined, one list of who was asked and where they stand, and one line on whether they cover it.
  */
-export function HumanModerators({ doc, me, update, interviews, weeks }: Props) {
+export function HumanModerators({ doc, me, language, update, interviews, weeks }: Props) {
   const m = doc.moderator
   const team = teamOf(m)
   const toast = useToast()
@@ -48,7 +50,7 @@ export function HumanModerators({ doc, me, update, interviews, weeks }: Props) {
           <CheckIcon size={14} /> Added, accepted
         </span>
       ) : (
-        <Button size="sm" onClick={() => update((d) => addMyself(d, me))} data-testid="add-myself">
+        <Button size="sm" onClick={() => update((d) => addMyself(d, me, language ?? ''))} data-testid="add-myself">
           Add me
         </Button>
       ),
@@ -95,8 +97,8 @@ export function HumanModerators({ doc, me, update, interviews, weeks }: Props) {
         </div>
       </section>
 
-      {pulseOpen && <PulseAIPanel doc={doc} me={me} update={update} />}
-      {teamOpen && <TeamPanel doc={doc} me={me} update={update} />}
+      {pulseOpen && <PulseAIPanel doc={doc} me={me} language={language} update={update} />}
+      {teamOpen && <TeamPanel doc={doc} me={me} language={language} update={update} />}
 
       <Card title="Selected moderators" description="Everyone you asked, and where they stand." flush>
         {team.length === 0 ? (
@@ -125,9 +127,9 @@ export function HumanModerators({ doc, me, update, interviews, weeks }: Props) {
                     <td className="px-4 py-3 whitespace-nowrap">{SOURCE_LABEL[t.source]}</td>
                     <td className="px-4 py-3">
                       <span className="whitespace-nowrap">{t.language}</span>
-                      {t.language !== m.language && (
+                      {language && t.language !== language && (
                         <span className="mt-0.5 block text-xs font-medium text-pending-fg" data-testid="language-warning">
-                          Doesn’t match the study language, {m.language}.
+                          Doesn’t match the study language, {language}.
                         </span>
                       )}
                     </td>
@@ -168,12 +170,11 @@ export function HumanModerators({ doc, me, update, interviews, weeks }: Props) {
   )
 }
 
-function PulseAIPanel({ doc, me, update }: { doc: GuideDoc; me: string; update: Props['update'] }) {
+function PulseAIPanel({ doc, me, language, update }: { doc: GuideDoc; me: string; language: string | null; update: Props['update'] }) {
   const m = doc.moderator
   const team = teamOf(m)
   const [mode, setMode] = useState<'assign' | 'choose'>('assign')
   const [count, setCount] = useState(1)
-  const [language, setLanguage] = useState(m.language)
   const toast = useToast()
   return (
     <Card title="PulseAI moderators" description="Trained moderators from the PulseAI team. Recommended if you’re new to interviews.">
@@ -195,31 +196,23 @@ function PulseAIPanel({ doc, me, update }: { doc: GuideDoc; me: string; update: 
               <span className="text-sm font-medium">How many moderators</span>
               <input type="number" min={1} max={10} value={count} onChange={(e) => setCount(Math.min(10, Math.max(1, Math.floor(Number(e.target.value)) || 1)))} className={cn(controlBase, 'h-9 w-24 tabular-nums')} />
             </label>
-            <label className="flex flex-col gap-1.5">
-              <span className="text-sm font-medium">Language</span>
-              <select value={language} onChange={(e) => setLanguage(e.target.value)} className={cn(controlBase, 'h-9 pr-7')}>
-                {LANGUAGES.map((l) => (
-                  <option key={l}>{l}</option>
-                ))}
-              </select>
-            </label>
             <Button
               variant="primary"
               onClick={() => {
-                update((d) => requestPulseAI(d, me, count, language))
+                update((d) => requestPulseAI(d, me, count, language ?? ''))
                 toast(`Requested ${count} PulseAI ${count === 1 ? 'moderator' : 'moderators'}. They show as Requested until PulseAI confirms.`)
               }}
               data-testid="request-pulseai"
             >
               Request {count} {count === 1 ? 'moderator' : 'moderators'}
             </Button>
-            <p className="basis-full text-xs text-graphite">PulseAI matches people to your language and confirms. Status stays Requested until then.</p>
+            <p className="basis-full text-xs text-graphite">PulseAI matches people to your study language and confirms. Status stays Requested until then.</p>
           </div>
         ) : (
           <ul className="grid gap-3 md:grid-cols-2" data-testid="roster">
             {HUMAN_MODERATORS.map((h) => {
               const asked = team.find((t) => t.rosterId === h.id)
-              const speaks = h.languages.includes(m.language)
+              const speaks = !language || h.languages.includes(language)
               return (
                 <li key={h.id} className="flex flex-col gap-2 rounded-md border border-mist bg-surface p-3">
                   <div className="flex items-start gap-3">
@@ -227,9 +220,9 @@ function PulseAIPanel({ doc, me, update }: { doc: GuideDoc; me: string; update: 
                       <p className="font-semibold">{h.name}</p>
                       <p className="text-sm text-graphite">{h.title}</p>
                       <p className="text-xs text-graphite">{h.languages.join(', ')} · <span className="tabular-nums">{h.weeklyHours}</span> hours a week</p>
-                      {!speaks && <p className="mt-0.5 text-xs font-medium text-pending-fg">Doesn’t speak {m.language}.</p>}
+                      {!speaks && <p className="mt-0.5 text-xs font-medium text-pending-fg">Doesn’t speak {language}.</p>}
                     </div>
-                    {asked ? <StatusChip status={asked.status} size="sm" /> : <Button size="sm" onClick={() => update((d) => requestRoster(d, me, h.id))} aria-label={`Request ${h.name}`}>Request</Button>}
+                    {asked ? <StatusChip status={asked.status} size="sm" /> : <Button size="sm" onClick={() => update((d) => requestRoster(d, me, h.id, language ?? ''))} aria-label={`Request ${h.name}`}>Request</Button>}
                   </div>
                 </li>
               )
@@ -241,7 +234,7 @@ function PulseAIPanel({ doc, me, update }: { doc: GuideDoc; me: string; update: 
   )
 }
 
-function TeamPanel({ doc, me, update }: { doc: GuideDoc; me: string; update: Props['update'] }) {
+function TeamPanel({ doc, me, language, update }: { doc: GuideDoc; me: string; language: string | null; update: Props['update'] }) {
   const [rows, setRows] = useState([{ name: '', email: '' }])
   const toast = useToast()
   const valid = rows.filter((r) => r.name.trim() && EMAIL.test(r.email.trim()))
@@ -258,7 +251,7 @@ function TeamPanel({ doc, me, update }: { doc: GuideDoc; me: string; update: Pro
           e.preventDefault()
           const fresh = valid.filter((r) => !taken.has(r.email.trim().toLowerCase()))
           if (!fresh.length) return
-          update((d) => inviteTeam(d, me, fresh))
+          update((d) => inviteTeam(d, me, fresh, language ?? ''))
           toast(`${fresh.length === 1 ? 'Invitation' : 'Invitations'} sent to ${fresh.map((r) => r.name.trim()).join(', ')}.`)
           setRows([{ name: '', email: '' }])
         }}

@@ -13,6 +13,7 @@ import {
 } from '@/state/audience'
 import { generateFieldwork, type FieldworkContent, type FieldworkDoc } from '@/state/fieldwork'
 import { emptyModerator, type Guide, type GuideDoc, type GuideSection, type Question, type Stimulus, type Survey } from '@/state/guide'
+import { studyLanguage } from '@/state/language'
 import { compileStudyPlan } from '@/state/launch'
 import { seedReward } from '@/state/reward'
 import { regionOf, mockApplicants, poolView } from '@/state/screening'
@@ -231,7 +232,7 @@ function petGuideContent(): Guide {
 }
 
 function petGuide(): GuideDoc {
-  const moderator = { ...emptyModerator('English (US)'), mode: 'ai' as const, agentId: 'ava', style: 'warm' as const, durationMin: 25, surveys }
+  const moderator = { ...emptyModerator(), mode: 'ai' as const, agentId: 'ava', style: 'warm' as const, durationMin: 25, surveys }
   const ev = (at: string, by: string, version: number, type: GuideDoc['events'][number]['type'], extra: { note?: string; feedback?: string } = {}) => ({ id: uid('ge'), at, by, version, type, ...extra })
   return {
     studyId: PET_ID,
@@ -363,7 +364,6 @@ export const PET_RECORD: StudyRecord = {
   clientContact: dana,
   category: 'Pet care: subscription food',
   moderatorType: 'AI-led',
-  interviewLanguage: 'English (US)',
   targetCompletes: 20,
   completedSessions: 22,
   timeZone: 'America/New_York',
@@ -383,7 +383,7 @@ export function seedPetFood(): PetSeed {
   const audience = petAudience(brief)
   const guide = petGuide()
   const launch = seedLaunchDoc(PET_ID, 'live', CLIENT, launchSeed(guide))
-  const plan = compileStudyPlan(guide)
+  const plan = compileStudyPlan(guide, studyLanguage(brief))
   if (plan.state !== 'ok') throw new Error('The Pet Food guide does not compile')
   const base = generateFieldwork({ studyId: PET_ID, audience, guide, plan: plan.plan, releaseNumber: 1, releaseVersion: 'Release v1.0', launch, content: PET_CONTENT })
   const invited = (id: string, state: string, at: string) => ({

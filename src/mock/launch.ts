@@ -85,12 +85,12 @@ export type MockRuns = 'pass' | 'issue' | 'none' | 'outdated'
  * so the reports are the ones a real run would give. It does nothing if the plan doesn't compile.
  */
 export function mockTestRuns(kind: MockRuns, i: Inputs): ((d: LaunchDoc) => LaunchDoc) | undefined {
-  const compile = compileStudyPlan(i.guide)
+  const compile = compileStudyPlan(i.guide, i.language)
   if (compile.state !== 'ok') return undefined
   const version = i.guide?.version ?? 0
   return (d) => {
     if (kind === 'none') return { ...d, runs: {} }
-    const langs = supportedLanguages(i.guide, d)
+    const langs = supportedLanguages(i.language, d)
     let doc: LaunchDoc = { ...d, runs: {} }
     langs.forEach((lang, li) =>
       DEVICES.forEach((dev, di) => {

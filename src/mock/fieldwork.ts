@@ -1,3 +1,4 @@
+import { studyLanguage } from '@/state/language'
 import { compileStudyPlan } from '@/state/launch'
 import { generateFieldwork, type FieldworkDoc } from '@/state/fieldwork'
 import { seedAudienceWithPool } from './audience'
@@ -16,7 +17,7 @@ export function sampleFieldwork(): FieldworkDoc | undefined {
   if (cached) return cached
   const brief = seedApprovedBrief(MOISTURIZER_ID)
   const guide = seedGuideDoc(MOISTURIZER_ID, brief, 'approved')
-  const plan = compileStudyPlan(guide)
+  const plan = compileStudyPlan(guide, studyLanguage(brief))
   if (plan.state !== 'ok') return undefined
   cached = generateFieldwork({
     studyId: MOISTURIZER_ID,

@@ -104,10 +104,11 @@ export const editSetup = (doc: LaunchDoc, fn: (s: Setup) => Setup): LaunchDoc =>
 
 // ─── inputs ─────────────────────────────────────────────────────────────────
 
-export type Inputs = { study: StudyRecord; audience?: AudienceDoc; guide?: GuideDoc; launch?: LaunchDoc }
+/** `language` is the study language, read from the brief's market. Null until the brief gives one. */
+export type Inputs = { study: StudyRecord; audience?: AudienceDoc; guide?: GuideDoc; launch?: LaunchDoc; language: string | null }
 
-export const primaryLanguage = (g?: GuideDoc) => g?.moderator.language || 'English (US)'
-export const supportedLanguages = (g?: GuideDoc, l?: LaunchDoc) => [primaryLanguage(g), ...(l?.setup.extraLanguages ?? []).filter((x) => x !== primaryLanguage(g))]
+/** The study language first, then the extra languages added in the setup drawer. */
+export const supportedLanguages = (language: string | null, l?: LaunchDoc) => [...(language ? [language] : []), ...(l?.setup.extraLanguages ?? []).filter((x) => x !== language)]
 
 
 // ─── compile ────────────────────────────────────────────────────────────────
@@ -152,8 +153,9 @@ export const moderatorLabel = (g: GuideDoc) =>
     : humanNames(g.moderator).join(', ') || 'No moderator assigned'
 
 /** Turns the approved guide into the plan the interview runs from. Pure, so it recompiles whenever the guide changes. */
-export function compileStudyPlan(g: GuideDoc | undefined): CompileResult {
+export function compileStudyPlan(g: GuideDoc | undefined, language: string | null): CompileResult {
   if (!g?.guide) return { state: 'waiting', reason: 'There is no guide yet.' }
+  if (!language) return { state: 'waiting', reason: 'The study language isn’t set. Add your market in the brief.' }
   if (g.status !== 'Approved') return { state: 'waiting', reason: `Guide version ${g.version} is ${g.status === 'Draft' ? 'a Draft' : 'In Review'}. Only an approved guide is compiled.` }
   const guide = g.guide
   const qs = allQuestions(guide)
@@ -191,7 +193,7 @@ export function compileStudyPlan(g: GuideDoc | undefined): CompileResult {
     guideVersion: g.version,
     mode: g.moderator.mode ?? 'ai',
     moderator: moderatorLabel(g),
-    language: primaryLanguage(g),
+    language,
     durationMin: g.moderator.durationMin,
     sections: guide.sections.map((s) => ({ title: s.title, minutes: s.minutes, items: s.questions.map(item) })),
     wrapUp: guide.wrapUp.filter((w) => w.trim()),
@@ -234,11 +236,11 @@ export function entryContract(i: Inputs): Row[] {
   const noAccepted = human && !!g && blockers.length === 0 && acceptedOf(g.moderator).length === 0
   const cover = human && g ? coverage(g.moderator, i.audience?.def?.total ?? null, windowWeeks(i.launch?.setup.fieldwork)) : undefined
   const pending = human && g ? pendingOf(g.moderator).length : 0
-  const mismatch = human && g ? languageMismatches(g.moderator) : []
+  const mismatch = human && g ? languageMismatches(g.moderator, i.language) : []
   const warns = [
     cover?.short ? `Accepted moderators have ${cover.available} hours. About ${cover.needed} are needed.` : '',
     pending ? `${pending} ${pending === 1 ? 'invitation is' : 'invitations are'} still pending.` : '',
-    mismatch.length ? `${mismatch.map((x) => x.name).join(', ')} ${mismatch.length === 1 ? 'doesn’t' : 'don’t'} speak ${g!.moderator.language}.` : '',
+    mismatch.length ? `${mismatch.map((x) => x.name).join(', ')} ${mismatch.length === 1 ? 'doesn’t' : 'don’t'} speak ${i.language}.` : '',
   ].filter(Boolean)
   rows.push({
     id: 'moderator',
@@ -248,7 +250,7 @@ export function entryContract(i: Inputs): Row[] {
     value:
       g && blockers.length === 0
         ? g.moderator.mode === 'ai'
-          ? `AI: ${moderatorLabel(g)}, ${g.moderator.language}, ${g.moderator.durationMin} min`
+          ? `AI: ${moderatorLabel(g)}, ${i.language}, ${g.moderator.durationMin} min`
           : noAccepted
             ? 'No moderator has accepted yet'
             : `Human: ${moderatorLabel(g)}, ${g.moderator.durationMin} min`
@@ -291,7 +293,7 @@ export function entryContract(i: Inputs): Row[] {
   })
 
   // Only the approval status is shown here, never the wording. The wording is edited in the study setup drawer.
-  const langs = supportedLanguages(g, i.launch)
+  const langs = supportedLanguages(i.language, i.launch)
   const consent = i.launch?.setup.consent ?? {}
   const missing = langs.filter((l) => !consent[l]?.approved)
   rows.push({
@@ -343,7 +345,7 @@ export function buildRunReport(i: Inputs & { plan: StudyPlan }, language: string
   const used = new Set(i.plan.sections.flatMap((s) => s.items.map((x) => x.stimulus)).filter(Boolean))
   const stimuli = g.stimuli.items.filter((s) => s.active && used.has(s.name)).map((s) => ({ name: s.name, ok: s.renderOk !== false }))
   stimuli.filter((s) => !s.ok).forEach((s) => issue('Media rendering', `“${s.name}” failed to load on ${device}.`))
-  if (language !== primaryLanguage(g) && !i.launch?.setup.translated[language]) issue('Translations', `The guide has no ${language} text. Participants would see English.`)
+  if (language !== i.language && !i.launch?.setup.translated[language]) issue('Translations', `The guide has no ${language} text. Participants would see English.`)
   if (!i.launch?.setup.consent[language]?.approved) issue('Consent language', `No approved consent wording for ${language}.`)
   i.launch?.setup.links.filter((l) => !l.ok).forEach((l) => issue('Links', `“${l.label}” does not open.`))
   // Mobile screens run a little longer, which the duration line shows.
@@ -415,7 +417,7 @@ const categoryCheck: Record<IssueCategory, CheckId> = {
 export function preflight(i: Inputs & { compile: CompileResult }): Check[] {
   const g = i.guide
   const version = g?.version ?? 0
-  const langs = supportedLanguages(g, i.launch)
+  const langs = supportedLanguages(i.language, i.launch)
   // Issues found by test runs against this guide version feed the matching check.
   const fromRuns = (id: CheckId) =>
     langs.flatMap((lang) =>
@@ -490,7 +492,7 @@ export type Readiness = {
 
 export function readiness(i: Inputs): Readiness {
   const rows = entryContract(i)
-  const compile = compileStudyPlan(i.guide)
+  const compile = compileStudyPlan(i.guide, i.language)
   const checks = preflight({ ...i, compile })
   const entryOk = rows.every((r) => r.ok)
   const preflightOk = checks.every((c) => c.status !== 'fail')
@@ -499,7 +501,7 @@ export function readiness(i: Inputs): Readiness {
     entryOk,
     compile,
     checks,
-    progress: runProgress(i.launch, supportedLanguages(i.guide, i.launch), i.guide?.version ?? 0),
+    progress: runProgress(i.launch, supportedLanguages(i.language, i.launch), i.guide?.version ?? 0),
     preflightOk,
     ready: entryOk && compile.state === 'ok' && preflightOk,
   }
@@ -528,7 +530,7 @@ export function authorizeLaunch(doc: LaunchDoc, i: Inputs & { plan: StudyPlan },
     at: now(),
     guideVersion: g.version,
     moderator: moderatorLabel(g),
-    language: primaryLanguage(g),
+    language: i.plan.language,
     stimuli: g.stimuli.items.filter((s) => s.active).map((s) => ({ id: s.id, name: s.name })),
     planSignature: i.plan.signature,
   }

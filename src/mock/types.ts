@@ -41,7 +41,6 @@ export type StudyRecord = {
   clientContact?: string
   category: string
   moderatorType: 'AI-led' | 'Human-led'
-  interviewLanguage: string
   targetCompletes: number
   completedSessions: number
   /** IANA time zone every timestamp is shown in. Edited in Study settings (R23). Defaults to Eastern. */

@@ -34,7 +34,7 @@ function matchScreen(studyId: string, pathname: string): Screen | undefined {
 export function StudyWorkspace() {
   const { studyId = '' } = useParams()
   const { pathname, search } = useLocation()
-  const { getStudy, getAudience, getGuide, getLaunch } = useStudies()
+  const { getStudy, getLanguage, getAudience, getGuide, getLaunch } = useStudies()
   const study = getStudy(studyId)
   // Every timestamp on every screen in this study is shown in its time zone.
   setStudyTimeZone(study?.timeZone)
@@ -81,7 +81,7 @@ export function StudyWorkspace() {
   })
   const audience = getAudience(study.id)
   const guideDoc = getGuide(study.id)
-  const launchState = currentStep === 'launch' ? readiness({ study, audience, guide: guideDoc, launch: getLaunch(study.id) }) : undefined
+  const launchState = currentStep === 'launch' ? readiness({ study, audience, guide: guideDoc, launch: getLaunch(study.id), language: getLanguage(study.id) }) : undefined
   const subItems: SubStep[] = currentStep
     ? screensForStep(currentStep).map((i) => ({
         id: i.id,

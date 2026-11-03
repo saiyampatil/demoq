@@ -8,7 +8,7 @@ import { CloseIcon, PlusIcon, SparkIcon } from '@/components/icons'
 import { AIGeneratedTag } from '@/components/AIGenerated'
 import { Tooltip } from '@/components/Tooltip'
 import { WizardFooter } from '@/components/WizardFooter'
-import { AGENTS, LANGUAGES, STYLES, SUGGESTED_AGENT } from '@/mock/moderation'
+import { AGENTS, STYLES, SUGGESTED_AGENT } from '@/mock/moderation'
 import { screenById, studyPath } from '@/routes/screens'
 import { uid } from '@/state/brief'
 import { configBlockers, editModerator, switchMode, windowWeeks, type Mode, type Style } from '@/state/guide'
@@ -24,7 +24,7 @@ const MODES: { value: Mode; title: string; description: string }[] = [
 ]
 
 export function ModeratorSetup() {
-  const { studyId, editable, doc, me, update, ensure, approved, stale, audience } = useGuide()
+  const { studyId, editable, doc, me, update, ensure, approved, stale, audience, language } = useGuide()
   const { getLaunch } = useStudies()
   const launch = getLaunch(studyId)
   const [switching, setSwitching] = useState<Mode>()
@@ -133,16 +133,6 @@ export function ModeratorSetup() {
 
           <Card title="Interview settings">
             <div className="flex flex-col gap-5">
-              <label className="flex max-w-xs flex-col gap-1.5">
-                <span className="text-sm font-medium">Interview language</span>
-                <select value={m.language} onChange={(e) => edit((x) => ({ ...x, language: e.target.value }), 'Language changed')} className={cn(controlBase, 'h-9 pr-7')}>
-                  {LANGUAGES.includes(m.language) ? null : <option>{m.language}</option>}
-                  {LANGUAGES.map((l) => (
-                    <option key={l}>{l}</option>
-                  ))}
-                </select>
-                <span className="text-xs text-graphite">Starts as English (US). Change it if the interviews run in another language.</span>
-              </label>
               <fieldset>
                 <legend className="mb-1.5 text-sm font-medium">Moderation style</legend>
                 <div role="radiogroup" className="grid gap-3 md:grid-cols-3">
@@ -169,7 +159,7 @@ export function ModeratorSetup() {
         </>
       )}
 
-      {m.mode === 'human' && <HumanModerators doc={doc} me={me} update={update} interviews={audience?.def?.total ?? null} weeks={windowWeeks(launch?.setup.fieldwork)} />}
+      {m.mode === 'human' && <HumanModerators doc={doc} me={me} language={language} update={update} interviews={audience?.def?.total ?? null} weeks={windowWeeks(launch?.setup.fieldwork)} />}
 
       {m.mode && (
         <Card title="Target duration" description="One value, used by the guide’s duration check.">

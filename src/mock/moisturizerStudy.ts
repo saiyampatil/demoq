@@ -9,7 +9,6 @@ const base: Omit<StudyRecord, 'status' | 'brief' | 'audience' | 'guide' | 'updat
   client: 'Verdane Skincare',
   category: 'Skincare: facial moisturizer',
   moderatorType: 'AI-led',
-  interviewLanguage: 'English (US)',
   targetCompletes: 24,
   completedSessions: 0,
   timeZone: 'America/New_York',

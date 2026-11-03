@@ -67,6 +67,13 @@ export const OFFER_SECONDS = 60
 
 export const LANGUAGES = ['English (US)', 'English (UK)', 'Spanish (US)', 'French (Canada)', 'German', 'Hindi']
 
+/** The language interviews run in for a market. Only markets with one clear default are listed. */
+export const MARKET_LANGUAGE: Record<string, string> = {
+  'United States': 'English (US)',
+  'United Kingdom': 'English (UK)',
+  Germany: 'German',
+}
+
 export const STYLES = [
   { value: 'warm', label: 'Warm', note: 'Friendly and encouraging. Puts people at ease, good for personal topics.' },
   { value: 'neutral', label: 'Neutral', note: 'Even and unobtrusive. Keeps the moderator out of the answer.' },

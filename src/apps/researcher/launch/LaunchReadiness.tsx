@@ -19,7 +19,7 @@ import { useLaunch } from './useLaunch'
 const ownerScreen: Record<Exclude<RowOwner, 'setup'>, Screen> = { R8: screenById.R8, R11: screenById.R11, R12: screenById.R12, R13: screenById.R13, R14: screenById.R14 }
 
 export function LaunchReadiness() {
-  const { studyId, study, editable, audience, guide, launch, readiness: r, me, update } = useLaunch()
+  const { studyId, study, editable, audience, guide, launch, language, readiness: r, me, update } = useLaunch()
   const [compiling, setCompiling] = useState(false)
   const [setup, setSetup] = useState(false)
 
@@ -143,7 +143,7 @@ export function LaunchReadiness() {
         </div>
       </section>
 
-      <TestMatrix languages={supportedLanguages(guide, launch)} launch={launch} guideVersion={guide?.version ?? 0} compile={r.compile} inputs={{ study, audience, guide, launch }} me={me} studyId={studyId} update={update} />
+      <TestMatrix languages={supportedLanguages(language, launch)} launch={launch} guideVersion={guide?.version ?? 0} compile={r.compile} inputs={{ study, audience, guide, launch, language }} me={me} studyId={studyId} update={update} />
 
       <WizardFooter
         previous={{ to: studyPath(studyId, screenById.R14), label: 'Discussion guide' }}
@@ -162,7 +162,7 @@ export function LaunchReadiness() {
         )}
       </WizardFooter>
 
-      <SetupDrawer open={setup} onClose={() => setSetup(false)} client={study.client} guide={guide} launch={launch} me={me} update={update} />
+      <SetupDrawer open={setup} onClose={() => setSetup(false)} client={study.client} language={language} launch={launch} me={me} update={update} />
     </div>
   )
 }

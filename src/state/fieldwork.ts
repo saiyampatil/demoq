@@ -348,7 +348,7 @@ export function generateFieldwork(i: GenInput): FieldworkDoc {
   const failed = i.guide.stimuli.items.filter((s) => s.renderOk === false).map((s) => s.name)
   const surveyItems = items.filter((x) => x.survey)
   const options = (text: string) => i.guide.moderator.surveys.find((s) => s.text === text)?.options ?? ['Yes', 'No']
-  const lang = i.guide.moderator.language
+  const lang = i.plan.language
   const consentAt = i.launch?.setup.consent[lang]?.at
   const wording = `${lang}, approved ${formatDate(consentAt ?? '2026-10-26T15:00:00-04:00')}`
 

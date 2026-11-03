@@ -21,10 +21,10 @@ export function ScreenJump() {
   const [query, setQuery] = useState('')
   const { pathname, search } = useLocation()
   const navigate = useNavigate()
-  const { stage, setStage, resetSeed, getStudy, getAudience, getGuide, updateGuide, getLaunch, updateLaunch, getFieldwork, updateFieldwork } = useStudies()
+  const { stage, setStage, resetSeed, getStudy, getLanguage, getAudience, getGuide, updateGuide, getLaunch, updateLaunch, getFieldwork, updateFieldwork } = useStudies()
   const mockRuns = (kind: MockRuns) => {
     const study = getStudy(MOISTURIZER_ID)
-    const change = study && mockTestRuns(kind, { study, audience: getAudience(MOISTURIZER_ID), guide: getGuide(MOISTURIZER_ID), launch: getLaunch(MOISTURIZER_ID) })
+    const change = study && mockTestRuns(kind, { study, audience: getAudience(MOISTURIZER_ID), guide: getGuide(MOISTURIZER_ID), launch: getLaunch(MOISTURIZER_ID), language: getLanguage(MOISTURIZER_ID) })
     if (change) updateLaunch(MOISTURIZER_ID, change)
   }
   const { flags, setFlag } = useFeatures()

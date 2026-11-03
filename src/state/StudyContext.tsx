@@ -13,6 +13,7 @@ import { acceptedRoster, guideSummary, withTeam, type GuideDoc } from './guide'
 import { DEFAULT_TIME_ZONE } from '@/lib/timeZone'
 import { generateFieldwork, SESSION_SEED, type FieldworkDoc } from './fieldwork'
 import { resetReview } from './reviewState'
+import { studyLanguage } from './language'
 import { compileStudyPlan, emptyLaunchDoc, readiness, type LaunchDoc } from './launch'
 
 const STORAGE_KEY = 'pulseai-qual:v2'
@@ -38,6 +39,8 @@ type StudyContextValue = {
   isEditable: (id: string | undefined) => boolean
   createStudy: (name: string) => StudyRecord
   getBrief: (id: string | undefined) => BriefDoc | undefined
+  /** The study language, read from the brief's market. The only place it is read from. */
+  getLanguage: (id: string | undefined) => string | null
   setBrief: (id: string, doc: BriefDoc) => void
   updateBrief: (id: string, fn: (doc: BriefDoc) => BriefDoc) => void
   getAudience: (id: string | undefined) => AudienceDoc | undefined
@@ -76,7 +79,7 @@ function seedStage(stage: StagePresetKey): Pick<Persisted, 'stage' | 'moisturize
           : stage === 'compile-error'
             ? seedGuideDoc(MOISTURIZER_ID, brief, 'approved', 'compile-error')
             : undefined
-  const plan = guide ? compileStudyPlan(guide) : undefined
+  const plan = guide ? compileStudyPlan(guide, studyLanguage(brief)) : undefined
   const launch = launchStage ? seedLaunchDoc(MOISTURIZER_ID, stage === 'live' ? 'live' : 'ready', moisturizer.client) : undefined
   const fieldwork =
     stage === 'live' && guide && audience && plan?.state === 'ok'
@@ -138,7 +141,7 @@ function load(): Persisted {
             if (id === PET_ID) return [id, seedPetFood().fieldwork]
             const guide = guides[id]
             const audience = audiences[id]
-            const plan = compileStudyPlan(guide)
+            const plan = compileStudyPlan(guide, studyLanguage(briefs[id]))
             if (!guide || !audience || plan.state !== 'ok') return [id, fw]
             return [id, { ...generateFieldwork({ studyId: id, audience, guide, plan: plan.plan, releaseNumber: fw.releaseNumber, releaseVersion: fw.releaseVersion, launch: launches[id] }), paused: fw.paused, log: fw.log }]
           }),
@@ -206,7 +209,6 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       client: 'Client not set',
       category: 'Not set',
       moderatorType: 'AI-led',
-      interviewLanguage: 'Not set',
       targetCompletes: 0,
       completedSessions: 0,
       timeZone: DEFAULT_TIME_ZONE,
@@ -285,7 +287,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       if (newRelease) {
         const guide = prev.guides[id]
         const audience = prev.audiences[id]
-        const plan = compileStudyPlan(guide)
+        const plan = compileStudyPlan(guide, studyLanguage(prev.briefs[id]))
         const existing = prev.fieldworks[id]
         if (existing) fieldworks = { ...fieldworks, [id]: { ...existing, releaseNumber: doc.release!.number, releaseVersion: doc.release!.version, paused: null, ...(plan.state === 'ok' ? { plan: plan.plan } : {}) } }
         else if (guide && audience && plan.state === 'ok')
@@ -320,9 +322,9 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       if (!guide) return prev
       const next: GuideDoc = {
         ...guide,
-        moderator: withTeam({ ...guide.moderator, mode, agentId: mode === 'ai' ? 'ava' : null, style: mode === 'ai' ? 'warm' : null }, mode === 'human' ? acceptedRoster(['u-jordan', 'u-priya'], guide.moderator.language) : []),
+        moderator: withTeam({ ...guide.moderator, mode, agentId: mode === 'ai' ? 'ava' : null, style: mode === 'ai' ? 'warm' : null }, mode === 'human' ? acceptedRoster(['u-jordan', 'u-priya'], studyLanguage(prev.briefs[MOISTURIZER_ID]) ?? '') : []),
       }
-      const plan = compileStudyPlan(next)
+      const plan = compileStudyPlan(next, studyLanguage(prev.briefs[MOISTURIZER_ID]))
       const old = prev.fieldworks[MOISTURIZER_ID]
       const audience = prev.audiences[MOISTURIZER_ID]
       const fieldwork = old && audience && plan.state === 'ok' ? { ...generateFieldwork({ studyId: MOISTURIZER_ID, audience, guide: next, plan: plan.plan, releaseNumber: old.releaseNumber, releaseVersion: old.releaseVersion, launch: prev.launches[MOISTURIZER_ID] }), paused: old.paused, log: old.log } : old
@@ -353,7 +355,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     // Not Ready and Ready to Launch are worked out from the launch checks; Live, Paused and the rest are stored.
     const derive = (s: StudyRecord): StudyRecord => {
       if (s.status !== 'Not Ready' && s.status !== 'Ready to Launch') return s
-      const r = readiness({ study: s, audience: state.audiences[s.id], guide: state.guides[s.id], launch: state.launches[s.id] })
+      const r = readiness({ study: s, audience: state.audiences[s.id], guide: state.guides[s.id], launch: state.launches[s.id], language: studyLanguage(state.briefs[s.id]) })
       return r.ready === (s.status === 'Ready to Launch') ? s : { ...s, status: r.ready ? 'Ready to Launch' : 'Not Ready' }
     }
     const studies = [...state.created.map(derive), derive(state.moisturizer), derive(state.pet), ...otherStudies]
@@ -364,6 +366,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       isEditable: (id) => Boolean(id && editable.has(id)),
       createStudy,
       getBrief: (id) => (id ? state.briefs[id] : undefined),
+      getLanguage: (id) => (id ? studyLanguage(state.briefs[id]) : null),
       setBrief,
       updateBrief,
       getAudience: (id) => (id ? state.audiences[id] : undefined),

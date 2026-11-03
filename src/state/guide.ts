@@ -21,7 +21,6 @@ export type Survey = { id: string; text: string; options: string[] }
 export type ModeratorConfig = {
   mode: Mode | null
   agentId: string | null
-  language: string
   style: Style | null
   /** One value, in minutes, used by the guide's duration check in both modes. */
   durationMin: number
@@ -60,7 +59,7 @@ export function teamOf(m: ModeratorConfig): TeamMember[] {
   if (m.team) return m.team
   return m.humanIds.map((id) => {
     const h = HUMAN_MODERATORS.find((x) => x.id === id)
-    return { id, name: h?.name ?? id, source: 'PulseAI', language: m.language, status: 'Accepted', weeklyHours: h?.weeklyHours ?? 10, rosterId: id, by: 'PulseAI', sentAt: '' }
+    return { id, name: h?.name ?? id, source: 'PulseAI', language: h?.languages[0] ?? '', status: 'Accepted', weeklyHours: h?.weeklyHours ?? 10, rosterId: id, by: 'PulseAI', sentAt: '' }
   })
 }
 
@@ -99,14 +98,13 @@ export function coverage(m: ModeratorConfig, interviews: number | null, weeks: n
 }
 
 /** People whose language isn't the study's. They can't moderate an interview in another language. */
-export const languageMismatches = (m: ModeratorConfig) => teamOf(m).filter((t) => t.language !== m.language)
+export const languageMismatches = (m: ModeratorConfig, language: string | null) => (language ? teamOf(m).filter((t) => t.language !== language) : [])
 
 export const DEFAULT_DURATION = 20
 
-export const emptyModerator = (language = 'English (US)'): ModeratorConfig => ({
+export const emptyModerator = (): ModeratorConfig => ({
   mode: null,
   agentId: null,
-  language: language && language !== 'Not set' ? language : 'English (US)',
   style: null,
   durationMin: DEFAULT_DURATION,
   surveys: [],
@@ -120,7 +118,6 @@ export function configBlockers(m: ModeratorConfig): string[] {
   if (!m.durationMin || m.durationMin < 1) out.push('Set a target duration')
   if (m.mode === 'ai') {
     if (!m.agentId) out.push('Select an AI agent')
-    if (!m.language.trim()) out.push('Set the interview language')
     if (!m.style) out.push('Choose a moderation style')
   } else if (teamOf(m).length === 0) out.push('Add at least one human moderator')
   return out
@@ -229,9 +226,9 @@ export type GuideDoc = {
   events: GuideEvent[]
 }
 
-export const emptyGuideDoc = (studyId: string, language?: string): GuideDoc => ({
+export const emptyGuideDoc = (studyId: string): GuideDoc => ({
   studyId,
-  moderator: emptyModerator(language),
+  moderator: emptyModerator(),
   stimuli: { items: [], skipped: false },
   guide: null,
   status: 'Draft',
@@ -280,12 +277,12 @@ const addMembers = (doc: GuideDoc, by: string, make: (at: string) => TeamMember[
   editModerator(doc, by, (m) => withTeam(m, [...hasTeam(m), ...make(now())]), note)
 
 /** "I'll moderate": the current user, accepted at once. */
-export const addMyself = (doc: GuideDoc, by: string) =>
+export const addMyself = (doc: GuideDoc, by: string, language: string) =>
   teamOf(doc.moderator).some((t) => t.source === 'Myself')
     ? doc
-    : addMembers(doc, by, (at) => [{ id: uid('mod'), name: by, source: 'Myself', language: doc.moderator.language, status: 'Accepted', weeklyHours: 8, by, sentAt: at }], 'Added themselves as a moderator')
+    : addMembers(doc, by, (at) => [{ id: uid('mod'), name: by, source: 'Myself', language, status: 'Accepted', weeklyHours: 8, by, sentAt: at }], 'Added themselves as a moderator')
 
-/** "Let PulseAI assign": a request for a number of moderators in one language. Requested until PulseAI confirms. */
+/** "Let PulseAI assign": a request for a number of moderators in the study language. Requested until PulseAI confirms. */
 export const requestPulseAI = (doc: GuideDoc, by: string, count: number, language: string) =>
   addMembers(
     doc,
@@ -295,16 +292,16 @@ export const requestPulseAI = (doc: GuideDoc, by: string, count: number, languag
   )
 
 /** "Choose specific moderators": one person from the roster, Requested until they accept. */
-export function requestRoster(doc: GuideDoc, by: string, rosterId: string): GuideDoc {
+export function requestRoster(doc: GuideDoc, by: string, rosterId: string, studyLanguage: string): GuideDoc {
   const h = HUMAN_MODERATORS.find((x) => x.id === rosterId)
   if (!h || teamOf(doc.moderator).some((t) => t.rosterId === rosterId)) return doc
-  const language = h.languages.includes(doc.moderator.language) ? doc.moderator.language : h.languages[0]
+  const language = h.languages.includes(studyLanguage) ? studyLanguage : h.languages[0]
   return addMembers(doc, by, (at) => [{ id: uid('mod'), name: h.name, source: 'PulseAI', language, status: 'Requested', weeklyHours: h.weeklyHours, rosterId, by, sentAt: at }], `Requested ${h.name}`)
 }
 
 /** "Someone from my team": each gets an email invitation and is Invited until they accept. */
-export const inviteTeam = (doc: GuideDoc, by: string, people: { name: string; email: string }[]) =>
-  addMembers(doc, by, (at) => people.map((p) => ({ id: uid('mod'), name: p.name.trim(), email: p.email.trim(), source: 'My team' as const, language: doc.moderator.language, status: 'Invited' as const, weeklyHours: 6, by, sentAt: at })), `Invited ${people.length} ${people.length === 1 ? 'person' : 'people'} from the team`)
+export const inviteTeam = (doc: GuideDoc, by: string, people: { name: string; email: string }[], language: string) =>
+  addMembers(doc, by, (at) => people.map((p) => ({ id: uid('mod'), name: p.name.trim(), email: p.email.trim(), source: 'My team' as const, language, status: 'Invited' as const, weeklyHours: 6, by, sentAt: at })), `Invited ${people.length} ${people.length === 1 ? 'person' : 'people'} from the team`)
 
 export const removeMember = (doc: GuideDoc, by: string, id: string) => editModerator(doc, by, (m) => withTeam(m, teamOf(m).filter((t) => t.id !== id)), 'Removed a moderator')
 
@@ -724,10 +721,10 @@ export function applyDraft(doc: GuideDoc, guide: Guide, by = AI_NAME): GuideDoc 
 // ─── download ───────────────────────────────────────────────────────────────
 
 /** Plain-text version of the guide for emailing to the client outside the platform. */
-export function guideAsText(doc: GuideDoc, studyName: string): string {
+export function guideAsText(doc: GuideDoc, studyName: string, language: string | null): string {
   const g = doc.guide
   if (!g) return ''
-  const lines: string[] = [`${studyName}: discussion guide, version ${doc.version}`, `Moderator: ${doc.moderator.mode === 'ai' ? `AI (${agentName(doc.moderator.agentId) ?? 'agent not set'}, ${doc.moderator.style ?? ''} style)` : `Human (${humanNames(doc.moderator).join(', ')})`}`, `Language: ${doc.moderator.language}`, `Target duration: ${doc.moderator.durationMin} minutes`, '', 'RESEARCH OBJECTIVES']
+  const lines: string[] = [`${studyName}: discussion guide, version ${doc.version}`, `Moderator: ${doc.moderator.mode === 'ai' ? `AI (${agentName(doc.moderator.agentId) ?? 'agent not set'}, ${doc.moderator.style ?? ''} style)` : `Human (${humanNames(doc.moderator).join(', ')})`}`, `Language: ${language ?? 'Not set'}`, `Target duration: ${doc.moderator.durationMin} minutes`, '', 'RESEARCH OBJECTIVES']
   g.objectives.forEach((o, n) => lines.push(`  ${n + 1}. ${o.text}`))
   lines.push('')
   let n = 0

@@ -7,7 +7,7 @@ import { useStudies } from '@/state/StudyContext'
 
 export function useGuide() {
   const { studyId = '' } = useParams()
-  const { getStudy, getBrief, getAudience, getGuide, setGuide, updateGuide, isEditable } = useStudies()
+  const { getStudy, getBrief, getLanguage, getAudience, getGuide, setGuide, updateGuide, isEditable } = useStudies()
   const study = getStudy(studyId)
   const update = useCallback((fn: (doc: GuideDoc) => GuideDoc) => updateGuide(studyId, fn), [studyId, updateGuide])
   const brief = getBrief(studyId)
@@ -20,7 +20,9 @@ export function useGuide() {
     doc: getGuide(studyId),
     me: currentUser.name,
     /** Creates the empty document the first time Module 3 is opened. */
-    ensure: () => setGuide(studyId, emptyGuideDoc(studyId, study?.interviewLanguage)),
+    ensure: () => setGuide(studyId, emptyGuideDoc(studyId)),
+    /** The study language, read from the brief's market. Null until the brief gives one. */
+    language: getLanguage(studyId),
     update,
     brief,
     approved,

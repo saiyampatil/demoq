@@ -25,7 +25,7 @@ export const seedStimuli: Stimulus[] = [
 
 /** A configured AI study with a drafted guide. `approved` also records the approval and the history behind it. */
 export function seedGuideDoc(studyId: string, brief: BriefDoc, kind: 'in-review' | 'approved', variant?: 'media-issue' | 'compile-error'): GuideDoc {
-  const moderator = { ...emptyModerator('English (US)'), mode: 'ai' as const, agentId: 'ava', style: 'warm' as const, durationMin: 20, surveys: seedSurveys }
+  const moderator = { ...emptyModerator(), mode: 'ai' as const, agentId: 'ava', style: 'warm' as const, durationMin: 20, surveys: seedSurveys }
   const stimuli = { items: structuredClone(seedStimuli), skipped: false }
   if (variant === 'media-issue') stimuli.items = stimuli.items.map((s) => (s.id === 'st-b' ? { ...s, renderOk: false } : s))
   const sections = approvedBriefSections(brief)?.sections

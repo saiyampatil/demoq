@@ -27,7 +27,7 @@ import { useLaunch } from './useLaunch'
 type Cell = { language: string; device: Device }
 
 export function TestRuns() {
-  const { studyId, study, editable, guide, audience, launch, readiness: r, me, update } = useLaunch()
+  const { studyId, study, editable, guide, audience, launch, language, readiness: r, me, update } = useLaunch()
   const [selected, setSelected] = useState<Cell>()
   const [running, setRunning] = useState<{ key: string; step: number; steps: string[] }>()
   const [reporting, setReporting] = useState(false)
@@ -38,7 +38,7 @@ export function TestRuns() {
   latest.current = { r, guide, audience, launch }
 
   const version = guide?.version ?? 0
-  const languages = supportedLanguages(guide, launch)
+  const languages = supportedLanguages(language, launch)
 
   // A run that was left "In progress" by a refresh can't resume, so it goes back to Not run.
   useEffect(() => {
@@ -70,7 +70,7 @@ export function TestRuns() {
       clearInterval(timer.current)
       const cur = latest.current
       if (cur.r?.compile.state === 'ok') {
-        const report = buildRunReport({ study: study, audience: cur.audience, guide: cur.guide, launch: cur.launch, plan: cur.r.compile.plan }, cell.language, cell.device)
+        const report = buildRunReport({ study: study, audience: cur.audience, guide: cur.guide, launch: cur.launch, language, plan: cur.r.compile.plan }, cell.language, cell.device)
         update((d) => finishRun(d, key, version, report))
       }
       setRunning(undefined)

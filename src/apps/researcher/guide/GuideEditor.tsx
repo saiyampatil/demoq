@@ -55,7 +55,7 @@ import { useGuide } from './useGuide'
 const small = cn(controlBase, 'h-8 px-2 text-sm')
 
 export function GuideEditor() {
-  const { studyId, study, editable, doc, me, update, ensure, stale } = useGuide()
+  const { studyId, study, editable, doc, me, update, ensure, stale, language } = useGuide()
   const [history, setHistory] = useState(false)
   const [sharing, setSharing] = useState(false)
   const [regenerate, setRegenerate] = useState(false)
@@ -401,7 +401,7 @@ export function GuideEditor() {
             setSharing(false)
           }}
           onDownload={() => {
-            downloadGuide(doc, study?.name ?? 'Study')
+            downloadGuide(doc, study?.name ?? 'Study', language)
             update((d) => shareGuide(d, me, 'pdf'))
             setSharing(false)
           }}
