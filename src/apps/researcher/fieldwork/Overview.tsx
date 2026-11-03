@@ -11,8 +11,7 @@ import { InfoTip } from '@/components/InfoTip'
 import { Tooltip } from '@/components/Tooltip'
 import { formatDay, formatSlot, formatStamp } from '@/lib/format'
 import { screenById, studyPath } from '@/routes/screens'
-import { SIMULATE_TIME_STEPS } from '@/mock/needsYou'
-import { advanceClock, assignEscalation, extendWindow, fieldworkNow, simulateModeratorNoShow, giveUp, lowerTarget, sendBookingLink, sendRescheduleLink, inviteFromReserve, resendLink, retrySession } from '@/state/fieldwork'
+import { assignEscalation, extendWindow, fieldworkNow, giveUp, lowerTarget, sendBookingLink, sendRescheduleLink, inviteFromReserve, resendLink, retrySession } from '@/state/fieldwork'
 import { ago, moderatorRoster, timeCheck, topUpStatus, needsYou, supportReport, slotLedger, verdict, type NeedsRow, regionMatrix, regionSkew } from '@/state/selectors'
 import { SessionTag } from '../SessionTag'
 import { invitedIds, invitedMessage, type FWProps } from './FieldworkBits'
@@ -45,7 +44,7 @@ export function Overview(p: FWProps) {
 
   return (
     <div className="flex flex-col gap-6">
-      <KpiStrip doc={doc} target={target} outcomes={outcomes} awaiting={awaiting} studyId={studyId} />
+      <KpiStrip doc={doc} target={target} outcomes={outcomes} awaiting={awaiting} studyId={studyId} clock={paused && !closed ? (doc.paused ? 'stopped' : 'stopped-relaunch') : 'running'} />
 
       <VerdictCard
         v={v}
@@ -57,6 +56,7 @@ export function Overview(p: FWProps) {
         closed={closed}
         notEnoughTime={time.short ? { left: time.left, needed: time.needed } : undefined}
         daysLeft={doc.window ? time.left : null}
+        clockStopped={paused && !closed}
         goTab={p.goTab}
         onInvite={inviteNow}
         onAdjust={setAdjust}
@@ -64,19 +64,30 @@ export function Overview(p: FWProps) {
 
       {topUp.running && (
         <Card title="Top-up in progress" description="Applicants you sourced after launch go through screening into the reserve. They never go straight to an interview.">
-          <dl className="flex flex-wrap gap-x-8 gap-y-2 text-sm tabular-nums" data-testid="topup-card">
-            <div>
-              <dt className="text-graphite">Sourced</dt>
-              <dd className="text-lg font-semibold">{topUp.sourced}</dd>
-            </div>
-            <div>
-              <dt className="text-graphite">In screening</dt>
-              <dd className="text-lg font-semibold">{topUp.inScreening}</dd>
-            </div>
-            <div>
-              <dt className="text-graphite">Eligible</dt>
-              <dd className="text-lg font-semibold">{topUp.eligible}</dd>
-            </div>
+          <dl className="flex flex-wrap items-end gap-x-3 gap-y-3 text-sm tabular-nums" data-testid="topup-card">
+            {(
+              [
+                ['Sourced', topUp.sourced, 'topup-sourced'],
+                ['In screening', topUp.inScreening, 'topup-screening'],
+                ['Eligible', topUp.eligible, 'topup-eligible'],
+                ['Ineligible', topUp.ineligible, 'topup-ineligible'],
+                ['Not yet screened', topUp.notYetScreened, 'topup-notyet'],
+              ] as const
+            ).map(([label, n, id], i) => (
+              <div key={label} className="flex items-end gap-3">
+                {i > 0 && (
+                  <span aria-hidden className="pb-0.5 text-lg text-muted">
+                    {i === 1 ? '=' : '+'}
+                  </span>
+                )}
+                <div>
+                  <dt className="text-graphite">{label}</dt>
+                  <dd className="text-lg font-semibold" data-testid={id}>
+                    {n}
+                  </dd>
+                </div>
+              </div>
+            ))}
           </dl>
           <p className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
             {topUp.newInReserve > 0 && (
@@ -299,34 +310,6 @@ function NeedsYou({ doc, rows, studyId, me, update, readOnly, blockedWhy }: FWPr
         <p role="status" className="border-b border-positive-line bg-positive-bg px-5 py-2 text-sm text-positive-fg">
           {notice}
         </p>
-      )}
-      {import.meta.env.DEV && !readOnly && (
-        <div data-testid="needs-dev" className="flex flex-wrap items-center gap-2 border-b border-dashed border-mist-strong bg-haze px-5 py-2 text-sm">
-          <span className="font-medium">Dev</span>
-          <span className="text-graphite">Simulate time passing{doc.clockSkewMin ? ` (clock is +${duration(doc.clockSkewMin)})` : ''}:</span>
-          {SIMULATE_TIME_STEPS.map((x) => (
-            <Button key={x.label} size="sm" onClick={() => update((d) => advanceClock(d, x.minutes))}>
-              {x.label}
-            </Button>
-          ))}
-          {!!doc.clockSkewMin && (
-            <Button size="sm" variant="ghost" onClick={() => update((d) => advanceClock(d, 0))}>
-              Reset clock
-            </Button>
-          )}
-          <span className="mx-1 h-4 w-px bg-mist-strong" aria-hidden />
-          <Button
-            size="sm"
-            data-testid="mock-moderator-no-show"
-            onClick={() => {
-              const next = simulateModeratorNoShow(doc)
-              if (next === doc) setNotice('Nobody is waiting to start, so there is no slot for a moderator to miss.')
-              else update(() => next)
-            }}
-          >
-            Mock a moderator no-show
-          </Button>
-        </div>
       )}
       {rows.length === 0 ? (
         <p className="px-5 py-6 text-sm text-graphite">Nothing needs you. Everyone unfinished is in progress or waiting on the participant.</p>

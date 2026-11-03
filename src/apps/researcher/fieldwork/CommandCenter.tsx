@@ -21,6 +21,14 @@ import { SessionsTab } from './SessionsTab'
 import { SampleDataBanner } from '../SampleDataBanner'
 import { useStudySessions } from '../useStudySessions'
 
+/** "15 min", "2 h", "1 day 2 h". */
+const simulated = (min: number) => {
+  const d = Math.floor(min / 1440)
+  const h = Math.floor((min % 1440) / 60)
+  const m = min % 60
+  return [d && `${d} ${d === 1 ? 'day' : 'days'}`, h && `${h} h`, m && `${m} min`].filter(Boolean).join(' ')
+}
+
 const TABS = ['overview', 'sessions', 'reserve', 'issues'] as const
 type Tab = (typeof TABS)[number]
 
@@ -47,7 +55,8 @@ export function CommandCenter() {
 
   const labels: Record<Tab, { label: string; badge?: string; alert?: boolean }> = {
     overview: { label: 'Overview' },
-    sessions: { label: 'Sessions', badge: String(sessionTotals(doc).sessions) },
+    // People, like the journey. The table still lists each session.
+    sessions: { label: 'Sessions', badge: String(sessionTotals(doc).participants) },
     reserve: { label: 'Reserve', badge: reserve.length ? String(reserve.length) : undefined },
     issues: { label: 'Issues', badge: issues.open ? String(issues.open) : undefined, alert: issues.blocking > 0 },
   }
@@ -57,6 +66,13 @@ export function CommandCenter() {
       <PageHeader
         id="R18"
         title="Fieldwork command center"
+        titleAside={
+          doc.clockSkewMin ? (
+            <span data-testid="simulated-time" className="rounded-xs border border-dashed border-mist-strong bg-haze px-1.5 py-0.5 text-xs font-medium text-graphite">
+              Simulated time +{simulated(doc.clockSkewMin)}
+            </span>
+          ) : undefined
+        }
         description="Sessions for this study as they happen: progress, the reserve and technical problems."
         meta={
           <>

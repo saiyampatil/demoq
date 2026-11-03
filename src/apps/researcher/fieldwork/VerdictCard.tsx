@@ -27,6 +27,8 @@ type Props = {
   notEnoughTime?: { left: number; needed: number }
   /** Days left in the window, or null when no window is set. */
   daysLeft: number | null
+  /** The clock is stopped, so no days are counted down. */
+  clockStopped: boolean
   goTab: (t: string) => void
   onInvite: (n: number) => void
   onAdjust: (k: 'extend' | 'lower') => void
@@ -36,11 +38,11 @@ type Props = {
  * Three zones: the verdict in one sentence (left), the slots (middle), the one thing to do (right). The arithmetic and
  * the list of slots that opened are in "How these numbers are calculated" at the bottom of the Overview.
  */
-export function VerdictCard({ v, ledger, reserve, studyId, blockedWhy, newInReserve, closed, notEnoughTime, daysLeft, goTab, onInvite, onAdjust }: Props) {
+export function VerdictCard({ v, ledger, reserve, studyId, blockedWhy, newInReserve, closed, notEnoughTime, daysLeft, clockStopped, goTab, onInvite, onAdjust }: Props) {
   const tone = TONE[v.level]
   const plan = v.plan
   // At risk leads with coverage, which is already one sentence. The other two say how far along the study is.
-  const sentence = v.level === 'At risk' ? v.sentence : `${v.figures.toward} of ${v.gap.target} done${daysLeft === null ? '' : `, ${daysLeft} ${daysLeft === 1 ? 'day' : 'days'} left`}.`
+  const sentence = v.level === 'At risk' ? v.sentence : `${v.figures.toward} of ${v.gap.target} done${daysLeft === null || clockStopped ? '' : `, ${daysLeft} ${daysLeft === 1 ? 'day' : 'days'} left`}.`
   // On track needs nothing from the Researcher here, so it has no button; Needs you below carries what is left to do.
   const actions = v.level === 'On track' ? [] : v.actions
 
@@ -67,6 +69,7 @@ export function VerdictCard({ v, ledger, reserve, studyId, blockedWhy, newInRese
         </div>
 
         <div className="min-w-0 max-xl:order-3">
+          <p className="mb-2 text-sm font-medium text-graphite">Interview slots</p>
           <SlotLedger ledger={ledger} />
         </div>
 

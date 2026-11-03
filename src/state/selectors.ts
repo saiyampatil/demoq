@@ -690,10 +690,15 @@ export function topUpStatus(doc: FieldworkDoc, audience: AudienceDoc | undefined
   const applicants = audience ? mockApplicants(audience).filter((a) => a.afterLaunch) : []
   const inReserve = new Set(reserveRows(doc, audience).filter((r) => r.label === 'Available').map((r) => r.id))
   const sourced = candidates.length
-  const inScreening = sourced - applicants.length + applicants.filter((a) => a.outcome === 'Pending review').length
+  // Every sourced person is in exactly one of these, so they always add up to `sourced`.
+  const notYetScreened = sourced - applicants.length
+  const inScreening = applicants.filter((a) => a.outcome === 'Pending review').length
+  const eligible = applicants.filter((a) => a.outcome === 'Eligible').length
+  const ineligible = applicants.filter((a) => a.outcome === 'Ineligible').length
   const newInReserve = applicants.filter((a) => inReserve.has(a.id)).length
-  const running = sourced > 0 && (inScreening > 0 || newInReserve > 0)
-  return { sourced, inScreening, eligible: newInReserve, newInReserve, running, requested: doc.topUp?.requested ?? sourced }
+  // The card is for people still being screened. Once everyone has an answer, the reserve says the rest.
+  const running = notYetScreened + inScreening > 0
+  return { sourced, notYetScreened, inScreening, eligible, ineligible, newInReserve, running, requested: doc.topUp?.requested ?? sourced }
 }
 
 /** Days left in the window against the days a new person needs to be sourced, screened and interviewed. */

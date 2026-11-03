@@ -34,12 +34,13 @@ const unit = (text: string) => <span className="text-md font-medium text-graphit
  * The four numbers a Researcher checks first. Every figure comes from the same selectors as the verdict, the funnel and
  * the review queue, and every card opens the screen that shows what it is made of.
  */
-export function KpiStrip({ doc, target, outcomes, awaiting, studyId }: { doc: FieldworkDoc; target: number; outcomes: Outcomes; awaiting: number; studyId: string }) {
+export function KpiStrip({ doc, target, outcomes, awaiting, studyId, clock }: { doc: FieldworkDoc; target: number; outcomes: Outcomes; awaiting: number; studyId: string; clock: 'running' | 'stopped' | 'stopped-relaunch' }) {
   const prog = progress(doc, outcomes)
   const pace = pacing(doc, target, outcomes)
   const dur = durationStats(doc)
   const sessions = `${studyPath(studyId, screenById.R18)}?tab=sessions&filter=Completed`
-  const over = dur.avg !== null && dur.avg > dur.target
+  // Amber only when the average is well past the target: more than 20% over.
+  const over = dur.avg !== null && dur.avg > dur.target * 1.2
 
   return (
     <section aria-label="Key figures" data-testid="kpi-strip" className="flex flex-col gap-3">
@@ -57,9 +58,17 @@ export function KpiStrip({ doc, target, outcomes, awaiting, studyId }: { doc: Fi
           testId="kpi-days"
           to={studyPath(studyId, screenById.R15)}
           label="Days left"
-          line={doc.window ? `Fieldwork closes ${formatDate(`${doc.window.end}T12:00:00-05:00`)}, ${zoneLabel()}.` : 'No fieldwork window is set.'}
+          line={
+            clock !== 'running'
+              ? clock === 'stopped-relaunch'
+                ? 'Clock stopped. Resumes when you relaunch.'
+                : 'Clock stopped. Resumes when you resume fieldwork.'
+              : doc.window
+                ? `Fieldwork closes ${formatDate(`${doc.window.end}T12:00:00-05:00`)}, ${zoneLabel()}.`
+                : 'No fieldwork window is set.'
+          }
         >
-          {doc.window ? pace.left : '–'}
+          {clock !== 'running' ? 'Paused' : doc.window ? pace.left : '–'}
         </Kpi>
         <Kpi
           testId="kpi-length"

@@ -6,6 +6,8 @@ import { CloseIcon, SearchIcon } from '@/components/icons'
 import { mockTestRuns, type MockRuns } from '@/mock/launch'
 import { MOISTURIZER_ID, stagePresets } from '@/mock/moisturizerStudy'
 import { appLabel, screenHref, screens, type AppKey } from '@/routes/screens'
+import { SIMULATE_TIME_STEPS } from '@/mock/needsYou'
+import { advanceClock, simulateModeratorNoShow } from '@/state/fieldwork'
 import { addReviewEvent, useReviewState } from '@/state/reviewState'
 import { reviewList } from '@/state/studySessions'
 import { featureInfo, useFeatures, type FeatureKey } from '@/state/features'
@@ -27,6 +29,7 @@ export function ScreenJump() {
     const change = study && mockTestRuns(kind, { study, audience: getAudience(MOISTURIZER_ID), guide: getGuide(MOISTURIZER_ID), launch: getLaunch(MOISTURIZER_ID), language: getLanguage(MOISTURIZER_ID) })
     if (change) updateLaunch(MOISTURIZER_ID, change)
   }
+  const [clockNote, setClockNote] = useState<string>()
   const { flags, setFlag } = useFeatures()
   const reviewState = useReviewState()
   const demoDecide = () => {
@@ -58,6 +61,9 @@ export function ScreenJump() {
   // On the moderator setup (R12) the panel also carries the controls that answer a moderator invitation.
   const onModerators = matchPath('/researcher/studies/:studyId/guide/moderator', pathname)
   const moderatorGuide = onModerators ? getGuide(onModerators.params.studyId) : undefined
+  // On the fieldwork command center (R18) the panel also carries the simulated clock.
+  const onFieldwork = matchPath('/researcher/studies/:studyId/fieldwork/command-center', pathname)
+  const fieldworkDoc = onFieldwork ? getFieldwork(onFieldwork.params.studyId) : undefined
 
 
   return (
@@ -114,6 +120,43 @@ export function ScreenJump() {
                 ))}
               </div>
             </section>
+
+            {onFieldwork && fieldworkDoc && (
+              <section className="border-b border-mist px-4 py-3" data-testid="needs-dev">
+                <h3 className="text-sm font-semibold">Fieldwork clock (mock)</h3>
+                <p className="text-xs text-graphite">
+                  Moves the fieldwork clock forward so “ago” times and waiting clocks change. The page shows a Simulated time tag while it is not zero.
+                  {fieldworkDoc.clockSkewMin ? ` The clock is +${fieldworkDoc.clockSkewMin} min.` : ''}
+                </p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {SIMULATE_TIME_STEPS.map((x) => (
+                    <Button key={x.label} size="sm" onClick={() => updateFieldwork(onFieldwork.params.studyId ?? '', (d) => advanceClock(d, x.minutes))}>
+                      {x.label}
+                    </Button>
+                  ))}
+                  {!!fieldworkDoc.clockSkewMin && (
+                    <Button size="sm" variant="ghost" onClick={() => updateFieldwork(onFieldwork.params.studyId ?? '', (d) => advanceClock(d, 0))}>
+                      Reset clock
+                    </Button>
+                  )}
+                  <Button
+                    size="sm"
+                    data-testid="mock-moderator-no-show"
+                    onClick={() => {
+                      const next = simulateModeratorNoShow(fieldworkDoc)
+                      if (next === fieldworkDoc) setClockNote('Nobody is waiting to start, so there is no slot for a moderator to miss.')
+                      else {
+                        setClockNote(undefined)
+                        updateFieldwork(onFieldwork.params.studyId ?? '', () => next)
+                      }
+                    }}
+                  >
+                    Mock a moderator no-show
+                  </Button>
+                </div>
+                {clockNote && <p className="mt-2 text-xs text-graphite">{clockNote}</p>}
+              </section>
+            )}
 
             <section className="border-b border-mist px-4 py-3">
               <h3 className="text-sm font-semibold">Review (dev demo)</h3>
