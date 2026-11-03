@@ -9,7 +9,7 @@ import { PET_ID, PET_RECORD, seedPetFood } from '@/mock/petFood'
 import type { StudyRecord } from '@/mock/types'
 import { audienceSummary, emptySourcing, migrateAudience, type AudienceDoc } from './audience'
 import { briefSummary, now, type BriefDoc } from './brief'
-import { guideSummary, type GuideDoc } from './guide'
+import { acceptedRoster, guideSummary, withTeam, type GuideDoc } from './guide'
 import { DEFAULT_TIME_ZONE } from '@/lib/timeZone'
 import { generateFieldwork, SESSION_SEED, type FieldworkDoc } from './fieldwork'
 import { resetReview } from './reviewState'
@@ -320,7 +320,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       if (!guide) return prev
       const next: GuideDoc = {
         ...guide,
-        moderator: { ...guide.moderator, mode, agentId: mode === 'ai' ? 'ava' : null, style: mode === 'ai' ? 'warm' : null, humanIds: mode === 'human' ? ['u-jordan', 'u-priya'] : [] },
+        moderator: withTeam({ ...guide.moderator, mode, agentId: mode === 'ai' ? 'ava' : null, style: mode === 'ai' ? 'warm' : null }, mode === 'human' ? acceptedRoster(['u-jordan', 'u-priya'], guide.moderator.language) : []),
       }
       const plan = compileStudyPlan(next)
       const old = prev.fieldworks[MOISTURIZER_ID]

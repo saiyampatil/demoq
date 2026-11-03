@@ -26,6 +26,8 @@ export const vocabularies = {
   preflight: ['Passed', 'Failed', 'Overridden'],
   // Not in CLAUDE.md's list; see docs/OPEN_QUESTIONS.md #1
   audience: ['Draft', 'Confirmed'],
+  // Moderators on a human-led study (R12). Invited, Accepted and Declined come from the other vocabularies.
+  moderator: ['Requested'],
   // Results Analysis (docs/ANALYSIS_PLAN.md). "Approved" comes from the brief and guide vocabulary.
   analysis: ['Ready to approve', 'Needs re-approval'],
 } as const
@@ -43,6 +45,7 @@ export const vocabularyLabels: Record<keyof typeof vocabularies, string> = {
   testRun: 'Test run (launch)',
   preflight: 'Preflight check (launch)',
   audience: 'Audience definition',
+  moderator: 'Moderator request (R12)',
   analysis: 'Analysis base',
 }
 
@@ -70,6 +73,7 @@ export const statusFamily: Record<Status, StatusFamily> = {
   'Not run': 'neutral',
 
   'In Review': 'pending',
+  Requested: 'pending',
   Pending: 'pending',
   'Pending review': 'pending',
   Paused: 'pending',

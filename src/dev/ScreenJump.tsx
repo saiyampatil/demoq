@@ -10,6 +10,7 @@ import { addReviewEvent, useReviewState } from '@/state/reviewState'
 import { reviewList } from '@/state/studySessions'
 import { featureInfo, useFeatures, type FeatureKey } from '@/state/features'
 import { useStudies } from '@/state/StudyContext'
+import { ModeratorSimulator } from './ModeratorSimulator'
 import { SessionSimulator } from './SessionSimulator'
 
 const apps: AppKey[] = ['researcher', 'participant', 'moderator', 'observer']
@@ -20,7 +21,7 @@ export function ScreenJump() {
   const [query, setQuery] = useState('')
   const { pathname, search } = useLocation()
   const navigate = useNavigate()
-  const { stage, setStage, resetSeed, getStudy, getAudience, getGuide, getLaunch, updateLaunch, getFieldwork, updateFieldwork } = useStudies()
+  const { stage, setStage, resetSeed, getStudy, getAudience, getGuide, updateGuide, getLaunch, updateLaunch, getFieldwork, updateFieldwork } = useStudies()
   const mockRuns = (kind: MockRuns) => {
     const study = getStudy(MOISTURIZER_ID)
     const change = study && mockTestRuns(kind, { study, audience: getAudience(MOISTURIZER_ID), guide: getGuide(MOISTURIZER_ID), launch: getLaunch(MOISTURIZER_ID) })
@@ -54,6 +55,9 @@ export function ScreenJump() {
   const onSession = matchPath('/researcher/studies/:studyId/fieldwork/sessions/:sessionId', pathname)
   const sessionDoc = onSession ? getFieldwork(onSession.params.studyId) : undefined
   const sessionStudy = onSession ? getStudy(onSession.params.studyId) : undefined
+  // On the moderator setup (R12) the panel also carries the controls that answer a moderator invitation.
+  const onModerators = matchPath('/researcher/studies/:studyId/guide/moderator', pathname)
+  const moderatorGuide = onModerators ? getGuide(onModerators.params.studyId) : undefined
 
 
   return (
@@ -87,6 +91,7 @@ export function ScreenJump() {
           </header>
 
           <div className="flex-1 overflow-y-auto">
+            {onModerators && moderatorGuide && <ModeratorSimulator doc={moderatorGuide} update={(fn) => updateGuide(onModerators.params.studyId ?? '', fn)} />}
             {onSession && sessionDoc && (
               <SessionSimulator
                 doc={sessionDoc}

@@ -26,8 +26,80 @@ export type ModeratorConfig = {
   /** One value, in minutes, used by the guide's duration check in both modes. */
   durationMin: number
   surveys: Survey[]
+  /** The moderator ids Fieldwork assigns sessions to: the accepted people. Kept in step with `team`. */
   humanIds: string[]
+  /** Human-led: who was asked to moderate, and whether they accepted. Absent in studies saved before R12 had options. */
+  team?: TeamMember[]
 }
+
+// ─── human moderators (R12) ─────────────────────────────────────────────────
+
+export type ModSource = 'Myself' | 'PulseAI' | 'My team'
+export type ModStatus = 'Invited' | 'Requested' | 'Accepted' | 'Declined'
+export const MOD_STATUSES: ModStatus[] = ['Invited', 'Requested', 'Accepted', 'Declined']
+
+export type TeamMember = {
+  id: string
+  name: string
+  email?: string
+  source: ModSource
+  language: string
+  status: ModStatus
+  /** Hours a week this person offers. Hours in the fieldwork window follow from it. */
+  weeklyHours: number
+  /** A moderator chosen from the PulseAI roster. */
+  rosterId?: string
+  /** A PulseAI request that hasn't been matched to a person yet. */
+  assign?: boolean
+  by: string
+  sentAt: string
+}
+
+/** The team, whether it was saved with options or only as a list of moderator IDs. */
+export function teamOf(m: ModeratorConfig): TeamMember[] {
+  if (m.team) return m.team
+  return m.humanIds.map((id) => {
+    const h = HUMAN_MODERATORS.find((x) => x.id === id)
+    return { id, name: h?.name ?? id, source: 'PulseAI', language: m.language, status: 'Accepted', weeklyHours: h?.weeklyHours ?? 10, rosterId: id, by: 'PulseAI', sentAt: '' }
+  })
+}
+
+/** Roster moderators who have already accepted: the seed study's human-led setup. */
+export const acceptedRoster = (ids: string[], language: string): TeamMember[] =>
+  ids.map((id) => {
+    const h = HUMAN_MODERATORS.find((x) => x.id === id)!
+    return { id: `mod-${id}`, name: h.name, source: 'PulseAI', language, status: 'Accepted', weeklyHours: h.weeklyHours, rosterId: id, by: 'PulseAI', sentAt: '' }
+  })
+
+/** The id Fieldwork knows a moderator by: the roster id, or the name for someone outside the roster. */
+const moderatorKey = (t: TeamMember) => t.rosterId ?? t.name
+
+/** Sets the team and keeps `humanIds` (what Fieldwork reads) to the accepted people. */
+export function withTeam(m: ModeratorConfig, team: TeamMember[]): ModeratorConfig {
+  return { ...m, team, humanIds: team.filter((t) => t.status === 'Accepted' && !t.assign).map(moderatorKey) }
+}
+
+export const acceptedOf = (m: ModeratorConfig) => teamOf(m).filter((t) => t.status === 'Accepted' && !t.assign)
+export const pendingOf = (m: ModeratorConfig) => teamOf(m).filter((t) => t.status === 'Invited' || t.status === 'Requested')
+
+/** Weeks in the fieldwork window, from its two dates. One week when no window is set. */
+export function windowWeeks(w: { start: string; end: string } | null | undefined) {
+  if (!w?.start || !w.end) return 1
+  const days = (Date.parse(`${w.end}T12:00:00`) - Date.parse(`${w.start}T12:00:00`)) / 86_400_000 + 1
+  return Number.isFinite(days) && days > 0 ? Math.max(1 / 7, days / 7) : 1
+}
+export const hoursIn = (t: TeamMember, weeks: number) => Math.round(t.weeklyHours * weeks)
+
+/** What the accepted moderators can cover against what the interviews need. Only Accepted people count. */
+export function coverage(m: ModeratorConfig, interviews: number | null, weeks: number) {
+  const accepted = acceptedOf(m)
+  const available = accepted.reduce((n, t) => n + hoursIn(t, weeks), 0)
+  const needed = interviews ? Math.ceil((interviews * m.durationMin) / 60) : 0
+  return { accepted: accepted.length, available, needed, short: needed > 0 && available < needed, interviews }
+}
+
+/** People whose language isn't the study's. They can't moderate an interview in another language. */
+export const languageMismatches = (m: ModeratorConfig) => teamOf(m).filter((t) => t.language !== m.language)
 
 export const DEFAULT_DURATION = 20
 
@@ -50,12 +122,13 @@ export function configBlockers(m: ModeratorConfig): string[] {
     if (!m.agentId) out.push('Select an AI agent')
     if (!m.language.trim()) out.push('Set the interview language')
     if (!m.style) out.push('Choose a moderation style')
-  } else if (m.humanIds.length === 0) out.push('Assign at least one human moderator')
+  } else if (teamOf(m).length === 0) out.push('Add at least one human moderator')
   return out
 }
 
 export const agentName = (id: string | null) => AGENTS.find((a) => a.id === id)?.name
 export const humanName = (id: string) => HUMAN_MODERATORS.find((h) => h.id === id)?.name ?? id
+export const humanNames = (m: ModeratorConfig) => acceptedOf(m).map((t) => t.name)
 
 // ─── stimuli ────────────────────────────────────────────────────────────────
 
@@ -198,6 +271,67 @@ export const nextVersionFor = (doc: GuideDoc) => (doc.guide ? doc.version + 1 : 
 
 export const editModerator = (doc: GuideDoc, by: string, fn: (m: ModeratorConfig) => ModeratorConfig, note = 'Moderator setup changed') =>
   mutate(doc, by, (d) => ({ ...d, moderator: fn(d.moderator) }), note)
+
+// Human moderators. Adding or removing a person is an edit to the setup (like any other). What the person does next
+// (accepts, declines, PulseAI confirms) happens outside the guide, so it never makes a new version.
+
+const hasTeam = (m: ModeratorConfig) => teamOf(m)
+const addMembers = (doc: GuideDoc, by: string, make: (at: string) => TeamMember[], note: string) =>
+  editModerator(doc, by, (m) => withTeam(m, [...hasTeam(m), ...make(now())]), note)
+
+/** "I'll moderate": the current user, accepted at once. */
+export const addMyself = (doc: GuideDoc, by: string) =>
+  teamOf(doc.moderator).some((t) => t.source === 'Myself')
+    ? doc
+    : addMembers(doc, by, (at) => [{ id: uid('mod'), name: by, source: 'Myself', language: doc.moderator.language, status: 'Accepted', weeklyHours: 8, by, sentAt: at }], 'Added themselves as a moderator')
+
+/** "Let PulseAI assign": a request for a number of moderators in one language. Requested until PulseAI confirms. */
+export const requestPulseAI = (doc: GuideDoc, by: string, count: number, language: string) =>
+  addMembers(
+    doc,
+    by,
+    (at) => Array.from({ length: Math.max(1, Math.floor(count)) }, (_, i) => ({ id: uid('mod'), name: `PulseAI moderator ${i + 1}`, source: 'PulseAI' as const, language, status: 'Requested' as const, weeklyHours: 10, assign: true, by, sentAt: at })),
+    `Requested ${count} PulseAI ${count === 1 ? 'moderator' : 'moderators'}`,
+  )
+
+/** "Choose specific moderators": one person from the roster, Requested until they accept. */
+export function requestRoster(doc: GuideDoc, by: string, rosterId: string): GuideDoc {
+  const h = HUMAN_MODERATORS.find((x) => x.id === rosterId)
+  if (!h || teamOf(doc.moderator).some((t) => t.rosterId === rosterId)) return doc
+  const language = h.languages.includes(doc.moderator.language) ? doc.moderator.language : h.languages[0]
+  return addMembers(doc, by, (at) => [{ id: uid('mod'), name: h.name, source: 'PulseAI', language, status: 'Requested', weeklyHours: h.weeklyHours, rosterId, by, sentAt: at }], `Requested ${h.name}`)
+}
+
+/** "Someone from my team": each gets an email invitation and is Invited until they accept. */
+export const inviteTeam = (doc: GuideDoc, by: string, people: { name: string; email: string }[]) =>
+  addMembers(doc, by, (at) => people.map((p) => ({ id: uid('mod'), name: p.name.trim(), email: p.email.trim(), source: 'My team' as const, language: doc.moderator.language, status: 'Invited' as const, weeklyHours: 6, by, sentAt: at })), `Invited ${people.length} ${people.length === 1 ? 'person' : 'people'} from the team`)
+
+export const removeMember = (doc: GuideDoc, by: string, id: string) => editModerator(doc, by, (m) => withTeam(m, teamOf(m).filter((t) => t.id !== id)), 'Removed a moderator')
+
+export const setMemberLanguage = (doc: GuideDoc, by: string, id: string, language: string) => editModerator(doc, by, (m) => withTeam(m, teamOf(m).map((t) => (t.id === id ? { ...t, language } : t))), 'Moderator language changed')
+
+const touchTeam = (doc: GuideDoc, fn: (team: TeamMember[]) => TeamMember[]): GuideDoc => ({ ...doc, moderator: withTeam(doc.moderator, fn(teamOf(doc.moderator))) })
+
+/** Resend an invitation or request. A declined person is asked again. */
+export const resendMember = (doc: GuideDoc, id: string) =>
+  touchTeam(doc, (team) => team.map((t) => (t.id === id ? { ...t, sentAt: now(), status: t.status === 'Declined' ? (t.source === 'My team' ? 'Invited' : 'Requested') : t.status } : t)))
+
+/** Dev: the person accepts or declines. */
+export const setMemberStatus = (doc: GuideDoc, id: string, status: ModStatus) => touchTeam(doc, (team) => team.map((t) => (t.id === id ? { ...t, status } : t)))
+
+/** Dev: PulseAI confirms its assignments. Each request is matched to a roster moderator who speaks the language and isn't on the list yet. */
+export function confirmAssignments(doc: GuideDoc): GuideDoc {
+  return touchTeam(doc, (team) => {
+    const taken = new Set(team.map((t) => t.rosterId).filter(Boolean))
+    return team.map((t) => {
+      if (!t.assign || t.status !== 'Requested') return t
+      const h = HUMAN_MODERATORS.find((x) => !taken.has(x.id) && x.languages.includes(t.language))
+      if (!h) return t
+      taken.add(h.id)
+      return { ...t, name: h.name, rosterId: h.id, assign: false, status: 'Accepted', weeklyHours: h.weeklyHours }
+    })
+  })
+}
 
 /** Switching AI/human. Surveys stop applying, and the guide is drafted again for the new mode. */
 export function switchMode(doc: GuideDoc, by: string, mode: Mode): GuideDoc {
@@ -593,7 +727,7 @@ export function applyDraft(doc: GuideDoc, guide: Guide, by = AI_NAME): GuideDoc 
 export function guideAsText(doc: GuideDoc, studyName: string): string {
   const g = doc.guide
   if (!g) return ''
-  const lines: string[] = [`${studyName}: discussion guide, version ${doc.version}`, `Moderator: ${doc.moderator.mode === 'ai' ? `AI (${agentName(doc.moderator.agentId) ?? 'agent not set'}, ${doc.moderator.style ?? ''} style)` : `Human (${doc.moderator.humanIds.map(humanName).join(', ')})`}`, `Language: ${doc.moderator.language}`, `Target duration: ${doc.moderator.durationMin} minutes`, '', 'RESEARCH OBJECTIVES']
+  const lines: string[] = [`${studyName}: discussion guide, version ${doc.version}`, `Moderator: ${doc.moderator.mode === 'ai' ? `AI (${agentName(doc.moderator.agentId) ?? 'agent not set'}, ${doc.moderator.style ?? ''} style)` : `Human (${humanNames(doc.moderator).join(', ')})`}`, `Language: ${doc.moderator.language}`, `Target duration: ${doc.moderator.durationMin} minutes`, '', 'RESEARCH OBJECTIVES']
   g.objectives.forEach((o, n) => lines.push(`  ${n + 1}. ${o.text}`))
   lines.push('')
   let n = 0

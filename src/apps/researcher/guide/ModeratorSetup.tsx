@@ -8,12 +8,14 @@ import { CloseIcon, PlusIcon, SparkIcon } from '@/components/icons'
 import { AIGeneratedTag } from '@/components/AIGenerated'
 import { Tooltip } from '@/components/Tooltip'
 import { WizardFooter } from '@/components/WizardFooter'
-import { AGENTS, HUMAN_MODERATORS, LANGUAGES, STYLES, SUGGESTED_AGENT } from '@/mock/moderation'
+import { AGENTS, LANGUAGES, STYLES, SUGGESTED_AGENT } from '@/mock/moderation'
 import { screenById, studyPath } from '@/routes/screens'
 import { uid } from '@/state/brief'
-import { configBlockers, editModerator, switchMode, type Mode, type Style } from '@/state/guide'
+import { configBlockers, editModerator, switchMode, windowWeeks, type Mode, type Style } from '@/state/guide'
+import { useStudies } from '@/state/StudyContext'
 import { PageHeader } from '../../shared/PageHeader'
 import { GuideGate, ReplaceGuideModal, VersionBanner } from './GuideBits'
+import { HumanModerators } from './HumanModerators'
 import { useGuide } from './useGuide'
 
 const MODES: { value: Mode; title: string; description: string }[] = [
@@ -22,7 +24,9 @@ const MODES: { value: Mode; title: string; description: string }[] = [
 ]
 
 export function ModeratorSetup() {
-  const { studyId, editable, doc, me, update, ensure, approved, stale } = useGuide()
+  const { studyId, editable, doc, me, update, ensure, approved, stale, audience } = useGuide()
+  const { getLaunch } = useStudies()
+  const launch = getLaunch(studyId)
   const [switching, setSwitching] = useState<Mode>()
 
   useEffect(() => {
@@ -165,32 +169,7 @@ export function ModeratorSetup() {
         </>
       )}
 
-      {m.mode === 'human' && (
-        <Card title="Human moderators" description="Assign one or more. They run the live sessions from the moderator console.">
-          <ul className="grid gap-3 md:grid-cols-2">
-            {HUMAN_MODERATORS.map((h) => {
-              const on = m.humanIds.includes(h.id)
-              return (
-                <li key={h.id}>
-                  <label className={cn('flex cursor-pointer gap-3 rounded-md border bg-surface p-3', on ? 'border-ink ring-1 ring-ink' : 'border-mist hover:border-graphite')}>
-                    <input
-                      type="checkbox"
-                      checked={on}
-                      onChange={() => edit((x) => ({ ...x, humanIds: on ? x.humanIds.filter((i) => i !== h.id) : [...x.humanIds, h.id] }), 'Moderators changed')}
-                      className="mt-1 accent-[var(--color-iris-600)]"
-                    />
-                    <span>
-                      <span className="block font-semibold">{h.name}</span>
-                      <span className="block text-sm text-graphite">{h.title}</span>
-                      <span className="block text-xs text-graphite">{h.note}</span>
-                    </span>
-                  </label>
-                </li>
-              )
-            })}
-          </ul>
-        </Card>
-      )}
+      {m.mode === 'human' && <HumanModerators doc={doc} me={me} update={update} interviews={audience?.def?.total ?? null} weeks={windowWeeks(launch?.setup.fieldwork)} />}
 
       {m.mode && (
         <Card title="Target duration" description="One value, used by the guide’s duration check.">

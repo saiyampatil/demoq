@@ -2,7 +2,7 @@
 // Everything the researcher sees is computed live from the brief, audience, guide and the LaunchDoc below,
 // so a fix in an earlier module shows up the next time a launch screen renders.
 
-import { agentName, allQuestions, configBlockers, humanName, totalMinutes, type GuideDoc, type Question } from './guide'
+import { acceptedOf, agentName, allQuestions, configBlockers, coverage, humanNames, languageMismatches, pendingOf, totalMinutes, windowWeeks, type GuideDoc, type Question } from './guide'
 import type { AudienceDoc } from './audience'
 import { now, uid } from './brief'
 import { lengthMismatch, rewardComplete, rewardLine, rewardOf, studyCountry } from './reward'
@@ -149,7 +149,7 @@ const hash = (s: string) => {
 export const moderatorLabel = (g: GuideDoc) =>
   g.moderator.mode === 'ai'
     ? `${agentName(g.moderator.agentId) ?? 'AI agent'}, ${g.moderator.style ?? 'style not set'} style`
-    : g.moderator.humanIds.map(humanName).join(', ') || 'No moderator assigned'
+    : humanNames(g.moderator).join(', ') || 'No moderator assigned'
 
 /** Turns the approved guide into the plan the interview runs from. Pure, so it recompiles whenever the guide changes. */
 export function compileStudyPlan(g: GuideDoc | undefined): CompileResult {
@@ -229,17 +229,31 @@ export function entryContract(i: Inputs): Row[] {
   })
 
   const blockers = g ? configBlockers(g.moderator) : ['Set up the moderator']
+  const human = g?.moderator.mode === 'human'
+  // A human-led study can't launch until somebody has accepted. Short cover or invitations still pending only warn.
+  const noAccepted = human && !!g && blockers.length === 0 && acceptedOf(g.moderator).length === 0
+  const cover = human && g ? coverage(g.moderator, i.audience?.def?.total ?? null, windowWeeks(i.launch?.setup.fieldwork)) : undefined
+  const pending = human && g ? pendingOf(g.moderator).length : 0
+  const mismatch = human && g ? languageMismatches(g.moderator) : []
+  const warns = [
+    cover?.short ? `Accepted moderators have ${cover.available} hours. About ${cover.needed} are needed.` : '',
+    pending ? `${pending} ${pending === 1 ? 'invitation is' : 'invitations are'} still pending.` : '',
+    mismatch.length ? `${mismatch.map((x) => x.name).join(', ')} ${mismatch.length === 1 ? 'doesn’t' : 'don’t'} speak ${g!.moderator.language}.` : '',
+  ].filter(Boolean)
   rows.push({
     id: 'moderator',
     label: 'Moderator',
     owner: 'R12',
-    ok: !!g && blockers.length === 0,
+    ok: !!g && blockers.length === 0 && !noAccepted,
     value:
       g && blockers.length === 0
         ? g.moderator.mode === 'ai'
           ? `AI: ${moderatorLabel(g)}, ${g.moderator.language}, ${g.moderator.durationMin} min`
-          : `Human: ${moderatorLabel(g)}, ${g.moderator.durationMin} min`
+          : noAccepted
+            ? 'No moderator has accepted yet'
+            : `Human: ${moderatorLabel(g)}, ${g.moderator.durationMin} min`
         : `Missing: ${blockers.join(', ').toLowerCase()}`,
+    warn: !noAccepted && warns.length ? warns.join(' ') : undefined,
   })
 
   const def = i.audience?.def

@@ -41,13 +41,13 @@ export const AGENTS: Agent[] = [
 ]
 export const SUGGESTED_AGENT = 'ava'
 
-export type HumanModerator = { id: string; name: string; title: string; note: string }
+export type HumanModerator = { id: string; name: string; title: string; note: string; languages: string[]; weeklyHours: number }
 
 export const HUMAN_MODERATORS: HumanModerator[] = [
-  { id: 'u-jordan', name: 'Jordan Lee', title: 'Freelance moderator, beauty and personal care', note: 'Available weekdays, US Eastern.' },
-  { id: 'u-priya', name: 'Priya Shah', title: 'Moderator', note: 'Available weekday evenings, US Eastern.' },
-  { id: 'u-sam', name: 'Sam Okafor', title: 'Moderator, beauty and wellness', note: 'Available Tuesday to Saturday, US Pacific.' },
-  { id: 'u-elena', name: 'Elena Brooks', title: 'Moderator, concept testing', note: 'Available weekdays, US Central.' },
+  { id: 'u-jordan', name: 'Jordan Lee', title: 'Freelance moderator, beauty and personal care', note: 'Available weekdays, US Eastern.', languages: ['English (US)'], weeklyHours: 20 },
+  { id: 'u-priya', name: 'Priya Shah', title: 'Moderator', note: 'Available weekday evenings, US Eastern.', languages: ['English (US)', 'Hindi'], weeklyHours: 12 },
+  { id: 'u-sam', name: 'Sam Okafor', title: 'Moderator, beauty and wellness', note: 'Available Tuesday to Saturday, US Pacific.', languages: ['English (US)', 'Spanish (US)'], weeklyHours: 18 },
+  { id: 'u-elena', name: 'Elena Brooks', title: 'Moderator, concept testing', note: 'Available weekdays, US Central.', languages: ['English (US)', 'French (Canada)'], weeklyHours: 16 },
 ]
 
 /**
