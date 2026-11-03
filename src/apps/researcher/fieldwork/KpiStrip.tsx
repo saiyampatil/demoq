@@ -3,6 +3,7 @@ import { Link } from 'react-router'
 import { cn } from '@/components/cn'
 import { formatDate } from '@/lib/format'
 import { zoneLabel } from '@/lib/timeZone'
+import { CheckIcon } from '@/components/icons'
 import { screenById, studyPath } from '@/routes/screens'
 import type { FieldworkDoc, Outcomes } from '@/state/fieldwork'
 import { durationStats, pacing, progress } from '@/state/selectors'
@@ -41,32 +42,42 @@ export function KpiStrip({ doc, target, outcomes, awaiting, studyId }: { doc: Fi
   const over = dur.avg !== null && dur.avg > dur.target
 
   return (
-    <section aria-label="Key figures" data-testid="kpi-strip" className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-      <Kpi testId="kpi-counting" to={studyPath(studyId, screenById.R21)} label="Toward target" line={`${prog.confirmed} accepted, ${prog.pending} under review.`}>
-        {prog.toward}
-        {unit(`of ${target}`)}
-      </Kpi>
-      <Kpi testId="kpi-awaiting" to={studyPath(studyId, screenById.R21)} label="Awaiting review" tone={awaiting === 0 ? 'green' : 'plain'} line="Finished interviews you haven’t decided on.">
-        {awaiting === 0 ? <span className="text-xl leading-10">All reviewed</span> : awaiting}
-      </Kpi>
-      <Kpi
-        testId="kpi-days"
-        to={studyPath(studyId, screenById.R15)}
-        label="Days left"
-        line={doc.window ? `Fieldwork closes ${formatDate(`${doc.window.end}T12:00:00-05:00`)}, ${zoneLabel()}.` : 'No fieldwork window is set.'}
-      >
-        {doc.window ? pace.left : '–'}
-      </Kpi>
-      <Kpi
-        testId="kpi-length"
-        to={sessions}
-        label="Interview length"
-        tone={over ? 'amber' : 'plain'}
-        line={dur.n === 0 ? 'No finished interviews yet.' : `Target ${dur.target} min. ${dur.over} of ${dur.n} ran over.`}
-      >
-        {dur.avg === null ? '–' : dur.avg}
-        {dur.avg !== null && unit('min')}
-      </Kpi>
+    <section aria-label="Key figures" data-testid="kpi-strip" className="flex flex-col gap-3">
+      <div className={cn('grid grid-cols-2 gap-4', awaiting > 0 ? 'lg:grid-cols-4' : 'lg:grid-cols-3')}>
+        <Kpi testId="kpi-counting" to={studyPath(studyId, screenById.R21)} label="Toward target" line={`${prog.confirmed} accepted, ${prog.pending} under review.`}>
+          {prog.toward}
+          {unit(`of ${target}`)}
+        </Kpi>
+        {awaiting > 0 && (
+          <Kpi testId="kpi-awaiting" to={studyPath(studyId, screenById.R21)} label="Awaiting review" line="Finished interviews you haven’t decided on.">
+            {awaiting}
+          </Kpi>
+        )}
+        <Kpi
+          testId="kpi-days"
+          to={studyPath(studyId, screenById.R15)}
+          label="Days left"
+          line={doc.window ? `Fieldwork closes ${formatDate(`${doc.window.end}T12:00:00-05:00`)}, ${zoneLabel()}.` : 'No fieldwork window is set.'}
+        >
+          {doc.window ? pace.left : '–'}
+        </Kpi>
+        <Kpi
+          testId="kpi-length"
+          to={sessions}
+          label="Interview length"
+          tone={over ? 'amber' : 'plain'}
+          line={dur.n === 0 ? 'No finished interviews yet.' : `Target ${dur.target} min. ${dur.over} of ${dur.n} ran over.`}
+        >
+          {dur.avg === null ? '–' : dur.avg}
+          {dur.avg !== null && unit('min')}
+        </Kpi>
+      </div>
+      {awaiting === 0 && (
+        <Link to={studyPath(studyId, screenById.R21)} data-testid="kpi-awaiting" className="flex w-fit items-center gap-1.5 text-sm text-graphite hover:text-ink">
+          <CheckIcon size={14} />
+          All reviewed
+        </Link>
+      )}
     </section>
   )
 }

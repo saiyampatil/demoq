@@ -7,6 +7,7 @@ import { controlBase, TextArea } from '@/components/Field'
 import { useToast } from '@/components/Toast'
 import { AlertIcon } from '@/components/icons'
 import { Modal } from '@/components/Modal'
+import { InfoTip } from '@/components/InfoTip'
 import { Tooltip } from '@/components/Tooltip'
 import { formatDay, formatSlot, formatStamp } from '@/lib/format'
 import { screenById, studyPath } from '@/routes/screens'
@@ -17,6 +18,7 @@ import { SessionTag } from '../SessionTag'
 import { invitedIds, invitedMessage, type FWProps } from './FieldworkBits'
 import { KpiStrip } from './KpiStrip'
 import { ParticipantJourney } from './ParticipantJourney'
+import { HowCalculated } from './HowCalculated'
 import { VerdictCard } from './VerdictCard'
 
 const r19 = (studyId: string, id: string) => `${studyPath(studyId, { ...screenById.R19, path: screenById.R19.path.replace(':sessionId', id) })}?from=needs-you`
@@ -30,7 +32,7 @@ export function Overview(p: FWProps) {
   const regions = regionMatrix(doc, outcomes)
   const skew = regionSkew(regions.totals, regions.total)
   const ledger = slotLedger(doc, target, outcomes)
-  const blockedWhy = readOnly ? 'This is sample data. Nothing can be changed.' : closed ? 'Fieldwork is closed' : paused ? 'Study is paused' : undefined
+  const blockedWhy = readOnly ? 'This is sample data. Nothing can be changed.' : closed ? 'Fieldwork is closed' : paused ? 'Resume fieldwork to do this.' : undefined
   const inviteNow = (n: number) => {
     const next = inviteFromReserve(doc, me, reserve.slice(0, n))
     const ids = invitedIds(doc, next)
@@ -54,6 +56,7 @@ export function Overview(p: FWProps) {
         newInReserve={topUp.newInReserve}
         closed={closed}
         notEnoughTime={time.short ? { left: time.left, needed: time.needed } : undefined}
+        daysLeft={doc.window ? time.left : null}
         goTab={p.goTab}
         onInvite={inviteNow}
         onAdjust={setAdjust}
@@ -106,7 +109,7 @@ export function Overview(p: FWProps) {
         </p>
       )}
 
-      <ParticipantJourney doc={doc} outcomes={outcomes} studyId={studyId} />
+      <ParticipantJourney doc={doc} studyId={studyId} needsCount={needs.length} />
 
       {doc.log.length > 0 && (
         <Card title="Activity">
@@ -119,6 +122,8 @@ export function Overview(p: FWProps) {
           </ul>
         </Card>
       )}
+
+      <HowCalculated v={v} ledger={ledger} doc={doc} outcomes={outcomes} />
     </div>
   )
 }
@@ -283,10 +288,11 @@ function NeedsYou({ doc, rows, studyId, me, update, readOnly, blockedWhy }: FWPr
     <section id="needs-you" aria-label="Needs you" className="scroll-mt-4 rounded-md border border-mist bg-surface">
       <header className="flex items-start gap-4 border-b border-mist px-5 py-3.5">
         <div className="min-w-0 flex-1">
-          <h2 className="text-md font-semibold">
-            Needs you <span className="ml-1 rounded-full bg-haze px-2 text-sm font-medium tabular-nums text-graphite">{rows.length}</span>
+          <h2 className="flex items-center gap-1.5 text-md font-semibold">
+            Needs you <span className="ml-0.5 rounded-full bg-haze px-2 text-sm font-medium tabular-nums text-graphite">{rows.length}</span>
+            <InfoTip label="How Needs you is ordered">Waiting for a moderator first, then failures on our side, then the rest, oldest first. A row leaves when the next event happens, so nothing is marked resolved.</InfoTip>
           </h2>
-          <p className="mt-0.5 text-sm text-graphite">Only what you can move forward. Waiting for a moderator first, then failures on our side, then the rest, oldest first. A row leaves when the next event happens, so nothing is marked resolved.</p>
+          <p className="mt-0.5 text-sm text-graphite">Only what you can move forward. Oldest first.</p>
         </div>
       </header>
       {notice && (

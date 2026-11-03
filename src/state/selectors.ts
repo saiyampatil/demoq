@@ -533,6 +533,8 @@ export type SlotRelease = { participantId: string; why: 'Excluded' | 'Withdrew' 
 export type Ledger = {
   target: number
   slots: SlotState[]
+  /** Who holds each slot, in the same order as `slots`. Null for an open slot. For the hover text only. */
+  slotWho: (string | null)[]
   counting: number
   confirmed: number
   pending: number
@@ -569,8 +571,13 @@ export function slotLedger(doc: FieldworkDoc, target: number, outcomes: Outcomes
   const r = at(running, c)
   const h = at(noShowHeld, c + r)
   const open = Math.max(0, target - held)
+  const toward = towardSessions(doc, outcomes)
+  const acceptedIds = toward.filter((x) => outcomeOf(outcomes, x) === 'Accepted').map((x) => x.participantId)
+  const reviewIds = toward.filter((x) => outcomeOf(outcomes, x) !== 'Accepted').map((x) => x.participantId)
+  const runningIds = ps.filter((p) => bucketOf(p) === 'inProgress').map((p) => p.id)
   return {
     target,
+    slotWho: [...acceptedIds.slice(0, acc), ...reviewIds.slice(0, c - acc), ...runningIds.slice(0, r), ...noShows.map((p) => p.id).slice(0, h), ...Array(open).fill(null)],
     slots: [...Array(acc).fill('accepted'), ...Array(c - acc).fill('review'), ...Array(r).fill('running'), ...Array(h).fill('noShow'), ...Array(open).fill('open')] as SlotState[],
     counting: prog.toward,
     confirmed: prog.confirmed,

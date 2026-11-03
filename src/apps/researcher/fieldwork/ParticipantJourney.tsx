@@ -3,8 +3,8 @@ import { Card } from '@/components/Card'
 import { cn } from '@/components/cn'
 import { ChevronRightIcon } from '@/components/icons'
 import { screenById, studyPath } from '@/routes/screens'
-import type { FieldworkDoc, Outcomes } from '@/state/fieldwork'
-import { funnel, journey, type JourneyKey } from '@/state/selectors'
+import type { FieldworkDoc } from '@/state/fieldwork'
+import { journey, type JourneyKey } from '@/state/selectors'
 
 const sessionsFor = (studyId: string, q: Record<string, string>) => `${studyPath(studyId, screenById.R18)}?${new URLSearchParams({ tab: 'sessions', ...q })}`
 
@@ -12,13 +12,12 @@ const sessionsFor = (studyId: string, q: Record<string, string>) => `${studyPath
  * Where invited people are being lost, so the Researcher knows what to fix. Each person is counted once, at the furthest
  * stage reached. Every tile and every arrow opens Sessions filtered to those people.
  */
-export function ParticipantJourney({ doc, outcomes, studyId }: { doc: FieldworkDoc; outcomes: Outcomes; studyId: string }) {
+export function ParticipantJourney({ doc, studyId, needsCount }: { doc: FieldworkDoc; studyId: string; /** Rows in Needs you. The note under the stages only shows while there are some. */ needsCount: number }) {
   const j = journey(doc)
-  const flow = funnel(doc, outcomes)
   const cols = `repeat(${j.stages.length - 1}, minmax(0, 1fr) auto) minmax(0, 1fr)`
 
   return (
-    <Card title="Participant journey" description="Where invited people drop out. Each person is counted once, at the furthest stage they reached.">
+    <Card title="Participant journey (people)">
       <div className="flex flex-col gap-5">
         <ol aria-label="Journey stages" data-testid="journey" className="grid items-stretch gap-y-3 max-sm:grid-cols-1 sm:[grid-template-columns:var(--cols)]" style={{ ['--cols' as string]: cols }}>
           {j.stages.flatMap((st, i) => {
@@ -59,32 +58,20 @@ export function ParticipantJourney({ doc, outcomes, studyId }: { doc: FieldworkD
           })}
         </ol>
 
-        <p className="text-sm text-ink" data-testid="journey-reading">
-          {j.reading.text}
-          {j.reading.link && (
-            <>
-              {' '}
-              <Link to={sessionsFor(studyId, { stuck: j.reading.link.stuck as JourneyKey })} className="font-medium text-iris-700 hover:underline">
-                {j.reading.link.label}
-              </Link>
-              .
-            </>
-          )}
-        </p>
-
-        <details className="group border-t border-mist pt-3 text-sm">
-          <summary className="flex w-fit cursor-pointer list-none items-center gap-1.5 rounded-xs font-medium text-graphite hover:text-ink [&::-webkit-details-marker]:hidden">
-            <ChevronRightIcon size={14} className="transition-transform group-open:rotate-90" />
-            How this is counted
-          </summary>
-          <div className="mt-3 flex flex-col gap-2 text-graphite">
-            <p>An arrow shows how many of the people at the stage before it went on, and how many stopped there. Completed includes interviews that were later excluded in review.</p>
-            <p className="tabular-nums" data-testid="funnel-total">
-              {flow.total} invited = {flow.completed.n} completed ({flow.completed.accepted} accepted + {flow.completed.pending} under review + {flow.completed.excluded} excluded) + {flow.withdrew} withdrew + {flow.noShow} no-show{flow.gaveUp ? ` + ${flow.gaveUp} given up` : ''} + {flow.inProgress} still in progress
-              {flow.sum === flow.total ? '.' : `. ${flow.total - flow.sum} unaccounted for.`}
-            </p>
-          </div>
-        </details>
+        {needsCount > 0 && (
+          <p className="text-sm text-ink" data-testid="journey-reading">
+            {j.reading.text}
+            {j.reading.link && (
+              <>
+                {' '}
+                <Link to={sessionsFor(studyId, { stuck: j.reading.link.stuck as JourneyKey })} className="font-medium text-iris-700 hover:underline">
+                  {j.reading.link.label}
+                </Link>
+                .
+              </>
+            )}
+          </p>
+        )}
       </div>
     </Card>
   )

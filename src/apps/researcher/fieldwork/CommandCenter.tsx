@@ -11,7 +11,7 @@ import { WizardFooter } from '@/components/WizardFooter'
 import { formatStamp } from '@/lib/format'
 import { screenById, studyPath } from '@/routes/screens'
 import { closeFieldwork, pauseFieldwork, resumeFieldwork } from '@/state/fieldwork'
-import { closeBlockers, issueSummary, progress, reviewCounts, sessionTotals, waitingFor } from '@/state/selectors'
+import { closeBlockers, issueSummary, reviewCounts, sessionTotals, waitingFor } from '@/state/selectors'
 import { PageHeader } from '../../shared/PageHeader'
 import { FieldworkGate, type FWProps } from './FieldworkBits'
 import { IssuesTab } from './IssuesTab'
@@ -35,7 +35,6 @@ export function CommandCenter() {
 
   const tab: Tab = (TABS as readonly string[]).includes(params.get('tab') ?? '') ? (params.get('tab') as Tab) : 'overview'
   const goTab = (t: string) => setParams(t === 'overview' ? {} : { tab: t })
-  const prog = progress(doc, outcomes)
   const awaiting = reviewCounts(review).underReview
   const issues = issueSummary(doc)
   const target = tgt
@@ -63,9 +62,6 @@ export function CommandCenter() {
           <>
             <StatusChip status={preview ? 'Not Ready' : study.status} size="sm" />
             <span>{preview ? 'Sample data' : `${doc.releaseVersion}, guide v${doc.plan.guideVersion}`}</span>
-            <span className="tabular-nums" data-testid="progress-line">
-              {prog.confirmed} confirmed, {prog.pending} pending review, {prog.toward} of {target} toward target
-            </span>
           </>
         }
         actions={

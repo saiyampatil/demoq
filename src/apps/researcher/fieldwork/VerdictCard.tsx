@@ -1,11 +1,11 @@
 import { cn } from '@/components/cn'
 import { Button } from '@/components/Button'
-import { AlertIcon, ChevronRightIcon } from '@/components/icons'
+import { AlertIcon } from '@/components/icons'
 import { Tooltip } from '@/components/Tooltip'
 import { screenById, studyPath } from '@/routes/screens'
 import type { ReserveCandidate } from '@/state/fieldwork'
 import type { Ledger, Verdict, VerdictAction, VerdictLevel } from '@/state/selectors'
-import { SlotLedger, SlotsOpened } from './SlotLedger'
+import { SlotLedger } from './SlotLedger'
 
 /** The colour carries the verdict and nothing else: an accent on the card edge and the status word. */
 const TONE: Record<VerdictLevel, { edge: string; word: string }> = {
@@ -25,35 +25,33 @@ type Props = {
   closed: boolean
   /** Fewer days left than a new person needs. */
   notEnoughTime?: { left: number; needed: number }
+  /** Days left in the window, or null when no window is set. */
+  daysLeft: number | null
   goTab: (t: string) => void
   onInvite: (n: number) => void
   onAdjust: (k: 'extend' | 'lower') => void
 }
 
 /**
- * Three zones: the verdict in words (left), the slots (middle), the one thing to do (right). The arithmetic and the list
- * of slots that opened are behind "How this is calculated".
+ * Three zones: the verdict in one sentence (left), the slots (middle), the one thing to do (right). The arithmetic and
+ * the list of slots that opened are in "How these numbers are calculated" at the bottom of the Overview.
  */
-export function VerdictCard({ v, ledger, reserve, studyId, blockedWhy, newInReserve, closed, notEnoughTime, goTab, onInvite, onAdjust }: Props) {
+export function VerdictCard({ v, ledger, reserve, studyId, blockedWhy, newInReserve, closed, notEnoughTime, daysLeft, goTab, onInvite, onAdjust }: Props) {
   const tone = TONE[v.level]
   const plan = v.plan
+  // At risk leads with coverage, which is already one sentence. The other two say how far along the study is.
+  const sentence = v.level === 'At risk' ? v.sentence : `${v.figures.toward} of ${v.gap.target} done${daysLeft === null ? '' : `, ${daysLeft} ${daysLeft === 1 ? 'day' : 'days'} left`}.`
   // On track needs nothing from the Researcher here, so it has no button; Needs you below carries what is left to do.
   const actions = v.level === 'On track' ? [] : v.actions
-  const support = plan
-    ? [plan.source > 0 ? (plan.inReserve > 0 ? `Invite the ${plan.inReserve} in reserve and source ${plan.source} to be safe.` : `Source ${plan.source} to be safe.`) : `The ${plan.inReserve} in reserve cover it.`, plan.rate > 0 ? `About ${plan.pct}% of invited people complete.` : 'No one has completed yet.'].join(' ')
-    : undefined
 
   return (
     <section aria-label="Verdict" data-level={v.level} className={cn('rounded-md border border-l-4 border-mist bg-surface', tone.edge)}>
       <div className="grid gap-x-8 gap-y-5 p-5 xl:grid-cols-[minmax(0,5fr)_minmax(0,6fr)_auto]">
         <div className="min-w-0">
           <p className={cn('text-xl font-semibold', tone.word)}>{v.level}</p>
-          <p className="mt-1 text-md text-ink">{v.sentence}</p>
-          {support && (
-            <p className="mt-2 text-sm text-graphite tabular-nums" data-testid="closing-plan">
-              {support}
-            </p>
-          )}
+          <p className="mt-1 text-md text-ink tabular-nums" data-testid="verdict-sentence">
+            {sentence}
+          </p>
           {newInReserve > 0 && (
             <p className="mt-1 text-sm font-medium text-positive-fg tabular-nums" data-testid="new-in-reserve">
               {newInReserve} new in reserve ·{' '}
@@ -100,25 +98,6 @@ export function VerdictCard({ v, ledger, reserve, studyId, blockedWhy, newInRese
         </div>
       )}
 
-      <details data-testid="verdict-how" className="group border-t border-mist px-5 py-3 text-sm">
-        <summary className="flex w-fit cursor-pointer list-none items-center gap-1.5 rounded-xs font-medium text-graphite hover:text-ink [&::-webkit-details-marker]:hidden">
-          <ChevronRightIcon size={14} className="transition-transform group-open:rotate-90" />
-          How this is calculated
-        </summary>
-        <div className="mt-3 flex flex-col gap-3 text-graphite">
-          <p className="tabular-nums" data-testid="verdict-basis">
-            {v.basis}
-          </p>
-          {plan && <p className="tabular-nums">{plan.line}. To source: the number still to find, divided by the share of invited people who complete, rounded up.</p>}
-          {v.warning && (
-            <p className="flex items-start gap-2 text-pending-fg">
-              <AlertIcon size={14} className="mt-0.5 shrink-0" />
-              {v.warning}
-            </p>
-          )}
-          <SlotsOpened ledger={ledger} />
-        </div>
-      </details>
     </section>
   )
 }
