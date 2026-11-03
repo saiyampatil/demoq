@@ -68,7 +68,7 @@ export function GuideEditor() {
   }, [editable, doc === undefined])
 
   // Reaching R14 with a complete setup starts the draft. There is no Generate button.
-  const ready = !!doc && configBlockers(doc.moderator).length === 0
+  const ready = !!doc && configBlockers(doc.moderator, language).length === 0
   useEffect(() => {
     if (doc && ready && !doc.guide && !doc.guidePending) update(startGuide)
   }, [doc, ready, update])
@@ -82,7 +82,7 @@ export function GuideEditor() {
   const header = (meta?: React.ReactNode, actions?: React.ReactNode) => <PageHeader id="R14" title="Discussion guide" description="Drafted by the AI from the brief, audience, stimuli and moderator setup. Edit anything." meta={meta} actions={actions} />
   const back = { to: studyPath(studyId, screenById.R13), label: 'Stimuli' }
 
-  const blockers = configBlockers(doc.moderator)
+  const blockers = configBlockers(doc.moderator, language)
   if (!doc.guide && blockers.length) {
     return (
       <div className="flex flex-col gap-6">

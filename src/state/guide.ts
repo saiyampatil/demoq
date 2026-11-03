@@ -9,6 +9,7 @@ import { AGENTS, HUMAN_MODERATORS } from '@/mock/moderation'
 import type { StudyRecord } from '@/mock/types'
 import type { Origin } from './audience'
 import { AI_NAME, now, uid, type SectionKey, type SectionSnapshot } from './brief'
+import { NO_LANGUAGE } from './language'
 
 // ─── moderator ──────────────────────────────────────────────────────────────
 
@@ -112,9 +113,10 @@ export const emptyModerator = (): ModeratorConfig => ({
 })
 
 /** What is still missing before the guide can be drafted (PRD Module 3, acceptance criteria 2 and 3). */
-export function configBlockers(m: ModeratorConfig): string[] {
+export function configBlockers(m: ModeratorConfig, language: string | null): string[] {
   if (!m.mode) return ['Choose AI or human moderator']
   const out: string[] = []
+  if (!language) out.push(NO_LANGUAGE)
   if (!m.durationMin || m.durationMin < 1) out.push('Set a target duration')
   if (m.mode === 'ai') {
     if (!m.agentId) out.push('Select an AI agent')
@@ -331,7 +333,7 @@ export function confirmAssignments(doc: GuideDoc): GuideDoc {
 }
 
 /** Switching AI/human. Surveys stop applying, and the guide is drafted again for the new mode. */
-export function switchMode(doc: GuideDoc, by: string, mode: Mode): GuideDoc {
+export function switchMode(doc: GuideDoc, by: string, mode: Mode, language: string | null): GuideDoc {
   if (doc.moderator.mode === mode) return doc
   const m = { ...doc.moderator, mode }
   if (!doc.guide) return { ...doc, moderator: m }
@@ -340,7 +342,7 @@ export function switchMode(doc: GuideDoc, by: string, mode: Mode): GuideDoc {
     ...doc,
     moderator: m,
     guide: null,
-    guidePending: configBlockers(m).length === 0,
+    guidePending: configBlockers(m, language).length === 0,
     status: 'Draft',
     version,
     edits: 0,

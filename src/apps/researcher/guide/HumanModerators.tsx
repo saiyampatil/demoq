@@ -50,7 +50,7 @@ export function HumanModerators({ doc, me, language, update, interviews, weeks }
           <CheckIcon size={14} /> Added, accepted
         </span>
       ) : (
-        <Button size="sm" onClick={() => update((d) => addMyself(d, me, language ?? ''))} data-testid="add-myself">
+        <Button size="sm" disabled={!language} onClick={() => update((d) => addMyself(d, me, language ?? ''))} data-testid="add-myself">
           Add me
         </Button>
       ),
@@ -201,6 +201,7 @@ function PulseAIPanel({ doc, me, language, update }: { doc: GuideDoc; me: string
             </label>
             <Button
               variant="primary"
+              disabled={!language}
               onClick={() => {
                 update((d) => requestPulseAI(d, me, count, language ?? ''))
                 toast(`Requested ${count} PulseAI ${count === 1 ? 'moderator' : 'moderators'}. They show as Requested until PulseAI confirms.`)
@@ -297,7 +298,7 @@ function TeamPanel({ doc, me, language, update }: { doc: GuideDoc; me: string; l
           <Button icon={<PlusIcon />} onClick={() => setRows((rs) => [...rs, { name: '', email: '' }])} data-testid="add-another">
             Add another
           </Button>
-          <Button type="submit" variant="primary" disabled={valid.filter((r) => !taken.has(r.email.trim().toLowerCase())).length === 0} data-testid="send-invites">
+          <Button type="submit" variant="primary" disabled={!language || valid.filter((r) => !taken.has(r.email.trim().toLowerCase())).length === 0} data-testid="send-invites">
             Send {valid.length > 1 ? `${valid.length} invitations` : 'invitation'}
           </Button>
         </div>

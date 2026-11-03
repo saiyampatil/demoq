@@ -11,6 +11,7 @@ import type { StudyRecord } from '@/mock/types'
 import { builtScreenIds, screenById, screenOrder, screens, screensForStep, studyPath, wizardLabel, type Screen } from '@/routes/screens'
 import { approvedBriefSections, generateQuestions, invitedCount, setScreener, startScreener } from '@/state/audience'
 import { applyDraft, configBlockers, draftGuide } from '@/state/guide'
+import { studyLanguage } from '@/state/language'
 import { readiness } from '@/state/launch'
 import { useStudies } from '@/state/StudyContext'
 import { setStudyTimeZone } from '@/lib/timeZone'
@@ -95,7 +96,7 @@ export function StudyWorkspace() {
               : study.status === 'Live'
             : currentStep === 'guide'
             ? i.id === 'R12'
-              ? !!guideDoc && configBlockers(guideDoc.moderator).length === 0
+              ? !!guideDoc && configBlockers(guideDoc.moderator, getLanguage(study.id)).length === 0
               : i.id === 'R13'
                 ? !!guideDoc && (guideDoc.stimuli.skipped || guideDoc.stimuli.items.some((s) => s.active))
                 : guideDoc?.status === 'Approved'
@@ -200,7 +201,7 @@ function GuideAutomation({ studyId }: { studyId: string }) {
       () =>
         updateGuide(studyId, (d) => {
           if (!d.guidePending) return d
-          if (configBlockers(d.moderator).length) return { ...d, guidePending: false }
+          if (configBlockers(d.moderator, studyLanguage(brief)).length) return { ...d, guidePending: false }
           const approved = approvedBriefSections(brief)
           const guide = draftGuide({
             study: { client: study?.client ?? '', category: study?.category ?? '' },

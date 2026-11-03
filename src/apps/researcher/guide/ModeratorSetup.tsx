@@ -12,6 +12,7 @@ import { WizardFooter } from '@/components/WizardFooter'
 import { AGENTS, STYLES, SUGGESTED_AGENT } from '@/mock/moderation'
 import { screenById, studyPath } from '@/routes/screens'
 import { uid } from '@/state/brief'
+import { NO_LANGUAGE } from '@/state/language'
 import { configBlockers, editModerator, switchMode, windowWeeks, type Mode, type Style } from '@/state/guide'
 import { useStudies } from '@/state/StudyContext'
 import { PageHeader } from '../../shared/PageHeader'
@@ -40,13 +41,13 @@ export function ModeratorSetup() {
   if (!doc) return null
 
   const m = doc.moderator
-  const blockers = configBlockers(m)
+  const blockers = configBlockers(m, language)
   const edit = (fn: Parameters<typeof editModerator>[2], note?: string) => update((d) => editModerator(d, me, fn, note))
   const pickMode = (mode: Mode) => {
     if (mode === m.mode) return
     // With a guide in place, switching replaces it, so ask first.
     if (doc.guide) setSwitching(mode)
-    else update((d) => switchMode(d, me, mode))
+    else update((d) => switchMode(d, me, mode, language))
   }
 
   return (
@@ -54,6 +55,14 @@ export function ModeratorSetup() {
       <PageHeader id="R12" title="Moderator setup" description="Choose who runs the interviews. The guide is drafted from this setup." />
       <VersionBanner doc={doc} />
 
+      {!language && (
+        <Banner tone="warning" title={NO_LANGUAGE}>
+          The interview language is set from the brief’s market, and the brief doesn’t name one we have a language for.{' '}
+          <Link to={studyPath(studyId, screenById.R4)} className="font-medium underline underline-offset-2" data-testid="add-market-link">
+            Open the brief
+          </Link>
+        </Banner>
+      )}
       {language && (
         <p className="text-sm text-graphite" data-testid="study-language">
           Interview language: <span className="font-medium text-ink">{language}</span>, set from your market.{' '}
@@ -217,7 +226,7 @@ export function ModeratorSetup() {
         extra={switching === 'human' ? 'AI settings and surveys no longer apply, and surveys are removed from the new guide.' : 'The guide is drafted again for an AI moderator, and surveys can be added.'}
         onCancel={() => setSwitching(undefined)}
         onConfirm={() => {
-          if (switching) update((d) => switchMode(d, me, switching))
+          if (switching) update((d) => switchMode(d, me, switching, language))
           setSwitching(undefined)
         }}
       />

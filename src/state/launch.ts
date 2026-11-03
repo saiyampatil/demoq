@@ -230,7 +230,7 @@ export function entryContract(i: Inputs): Row[] {
     hint: approved ? undefined : 'Approve the guide first.',
   })
 
-  const blockers = g ? configBlockers(g.moderator) : ['Set up the moderator']
+  const blockers = g ? configBlockers(g.moderator, i.language) : ['Set up the moderator']
   const human = g?.moderator.mode === 'human'
   // A human-led study can't launch until somebody has accepted. Short cover or invitations still pending only warn.
   const noAccepted = human && !!g && blockers.length === 0 && acceptedOf(g.moderator).length === 0
