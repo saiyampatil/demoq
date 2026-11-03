@@ -442,7 +442,33 @@ export const poolCandidates = (applicants: Applicant[]) => applicants.filter((a)
 
 /** A person moved between the pool and the reserve by hand. Replayed in order over the default split. */
 export type PoolMove = { applicantId: string; to: 'pool' | 'reserve'; by: string; at: string }
-export type PoolPlan = { reserveSize: number | null; moves: PoolMove[] }
+export type PoolEvent = { kind: 'finalized' | 'reopened'; by: string; at: string; note: string }
+export type PoolPlan = { reserveSize: number | null; moves: PoolMove[]; history?: PoolEvent[] }
+
+const plan = (doc: AudienceDoc): PoolPlan => doc.poolPlan ?? { reserveSize: null, moves: [] }
+
+export const movePerson = (doc: AudienceDoc, applicantId: string, to: PoolMove['to'], by: string): AudienceDoc => ({ ...doc, poolPlan: { ...plan(doc), moves: [...plan(doc).moves, { applicantId, to, by, at: now() }] } })
+export const setReserveSize = (doc: AudienceDoc, reserveSize: number): AudienceDoc => ({ ...doc, poolPlan: { ...plan(doc), reserveSize: Math.max(0, Math.floor(reserveSize)) } })
+export const reopenPool = (doc: AudienceDoc, by: string): AudienceDoc => ({ ...doc, pool: undefined, poolPlan: { ...plan(doc), history: [...(plan(doc).history ?? []), { kind: 'reopened', by, at: now(), note: 'Reopened to change the pool or the reserve.' }] } })
+
+/** Locks the pool and reserve for launch. Below the target it needs a reason, which is logged. */
+export function finalizePool(doc: AudienceDoc, view: ReturnType<typeof poolView>, by: string, reason: string): AudienceDoc {
+  const at = now()
+  const note = view.poolShort ? reason.trim() : `Finalized with ${view.pool.length} of ${view.target} in the pool and ${view.reserve.length} of ${view.reserveSize} in the reserve.`
+  return {
+    ...doc,
+    pool: {
+      at,
+      by,
+      members: view.pool.map((a) => ({ applicantId: a.id })),
+      reserve: view.reserve.map((a) => ({ applicantId: a.id })),
+      shortfall: view.poolShort ? { have: view.pool.length, need: view.target } : null,
+      reserveShortfall: view.reserveShort ? { have: view.reserve.length, need: view.reserveSize } : null,
+      reason: view.poolShort ? reason.trim() : undefined,
+    },
+    poolPlan: { ...plan(doc), history: [...(plan(doc).history ?? []), { kind: 'finalized', by, at, note }] },
+  }
+}
 
 export const defaultReserveSize = (target: number) => Math.ceil(target / 2)
 

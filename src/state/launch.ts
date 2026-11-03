@@ -109,7 +109,6 @@ export type Inputs = { study: StudyRecord; audience?: AudienceDoc; guide?: Guide
 export const primaryLanguage = (g?: GuideDoc) => g?.moderator.language || 'English (US)'
 export const supportedLanguages = (g?: GuideDoc, l?: LaunchDoc) => [primaryLanguage(g), ...(l?.setup.extraLanguages ?? []).filter((x) => x !== primaryLanguage(g))]
 
-const nth = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
 
 // ─── compile ────────────────────────────────────────────────────────────────
 
@@ -246,12 +245,15 @@ export function entryContract(i: Inputs): Row[] {
   const def = i.audience?.def
   const pool = i.audience?.pool
   const targetOk = !!def && !!def.total
+  const short = pool && def?.total ? Math.max(0, def.total - pool.members.length) : 0
   rows.push({
     id: 'pool',
-    label: 'Qualified pool',
+    label: 'Qualified pool and target',
     owner: 'R11',
     ok: !!pool && targetOk,
-    value: !pool ? 'The pool isn’t confirmed' : !targetOk ? 'The number of participants needed isn’t set' : `${nth(pool.members.length, 'participant')}, ${def!.total} needed`,
+    value: !pool ? 'The pool isn’t finalized' : !targetOk ? 'The number of participants needed isn’t set' : `${pool.members.length} of ${def!.total} in the pool, ${pool.reserve?.length ?? 0} in the reserve`,
+    // Finalized below the target: the row passes but is amber, with the shortfall and the reason given.
+    warn: pool && targetOk && short > 0 ? `${short} short of the target${pool.reason ? `: “${pool.reason.replace(/\.$/, '')}”` : '.'}` : undefined,
   })
 
   const reward = rewardOf(i.audience, g?.moderator.durationMin ?? null)

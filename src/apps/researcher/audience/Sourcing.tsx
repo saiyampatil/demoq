@@ -53,6 +53,9 @@ export function Sourcing() {
   const [params] = useSearchParams()
   // Opened from Fieldwork's "Source X more": the number to source is filled in.
   const topup = Math.floor(Number(params.get('topup'))) || 0
+  // Opened from Finalize pool's "Source more": the same audience, screener and reward, with a number to add.
+  const fromPool = params.get('from') === 'pool'
+  const [moreN, setMoreN] = useState<number>()
   const [showAll, setShowAll] = useState(false)
   const [arrivals, setArrivals] = useState<number>()
   const [arrived, setArrived] = useState<number>()
@@ -87,7 +90,7 @@ export function Sourcing() {
   const send = () => {
     update((d) => sendInvites(d, launched).doc)
     // The wait for invitees to accept and answer is simulated, so go straight to the results.
-    navigate(studyPath(studyId, screenById.R9))
+    navigate(`${studyPath(studyId, screenById.R9)}${fromPool && !launched ? '?return=pool' : ''}`)
   }
 
   const columns: Column<Candidate>[] = [
@@ -210,6 +213,30 @@ export function Sourcing() {
           </ul>
           <p className="mt-2">You can add participants now. Invites are held until all three are ready.</p>
         </Banner>
+      )}
+
+      {fromPool && !launched && (
+        <Card title="Source more people" description="Top-up for the pool. The audience, the screener and the reward stay as they are. New applicants go through screening and come back to Finalize pool.">
+          <div className="flex flex-wrap items-end gap-3" data-testid="source-more-card">
+            <label className="flex flex-col gap-1 text-sm">
+              <span className="font-medium">How many to add</span>
+              <input type="number" min={1} value={moreN ?? (topup || 5)} onChange={(e) => setMoreN(Math.max(1, Math.floor(Number(e.target.value)) || 1))} className={cn('h-9 w-24 rounded-sm border border-mist-strong bg-surface px-2.5 tabular-nums focus:border-iris-600')} />
+            </label>
+            <Button
+              disabled={!ready}
+              onClick={() => {
+                const k = moreN ?? (topup || 5)
+                const have = new Set(s.candidates.map((c) => c.value))
+                const values = Array.from({ length: k * 2 }, (_, i) => `NS-${91000 + s.candidates.length + i}`).filter((v) => !have.has(v)).slice(0, k)
+                update((d) => addCandidates(d, values, 'userId', 'External'))
+              }}
+              data-testid="add-more"
+            >
+              Add {moreN ?? (topup || 5)} External participants (mock panel)
+            </Button>
+            {pending > 0 && <p className="pb-2 text-sm text-graphite">{pending} waiting to be invited. Send the invites below.</p>}
+          </div>
+        </Card>
       )}
 
       <RewardCard audience={audience} hint={lengthHint} me={me} update={update} />

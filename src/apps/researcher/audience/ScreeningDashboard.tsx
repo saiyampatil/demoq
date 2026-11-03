@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router'
+import { useEffect, useMemo, useState } from 'react'
+import { useNavigate, useSearchParams } from 'react-router'
 import { Banner } from '@/components/Banner'
 import { Button } from '@/components/Button'
 import { Card } from '@/components/Card'
@@ -23,8 +23,15 @@ const OUTCOMES: ScreeningOutcome[] = ['Pending review', 'Eligible', 'Ineligible'
 export function ScreeningDashboard() {
   const { studyId, audience, editable, me, update } = useAudience()
   const [params, setParams] = useSearchParams()
+  const navigate = useNavigate()
   const [filter, setFilter] = useState<ScreeningOutcome | ''>('')
   const applicants = useMemo(() => (audience?.def ? mockApplicants(audience) : []), [audience])
+  // Opened after "Source more" in Finalize pool: once nobody is pending review, go back there.
+  const returning = params.get('return') === 'pool'
+  const stillPending = applicants.some((a) => !a.afterLaunch && a.outcome === 'Pending review')
+  useEffect(() => {
+    if (returning && applicants.length > 0 && !stillPending) navigate(studyPath(studyId, screenById.R11), { replace: true })
+  }, [returning, applicants.length, stillPending, navigate, studyId])
 
   if (!editable || !audience?.def) return <AudienceGate studyId={studyId} editable={editable} />
 
@@ -93,6 +100,12 @@ export function ScreeningDashboard() {
   return (
     <div className="flex flex-col gap-6">
       {header}
+
+      {returning && (
+        <Banner tone="info" title="Screening the new applicants" actions={<Button size="sm" to={studyPath(studyId, screenById.R11)}>Back to Finalize pool</Button>}>
+          Decide the ones pending review. When none are left you go back to Finalize pool automatically.
+        </Banner>
+      )}
 
       <Banner tone="info" title={`${invited} invited, ${applicants.length} have answered the screener`}>
         In the prototype, invitees are simulated as having accepted and answered, and verification is simulated too. Outcomes come from the real rules, applied to mock answers.
