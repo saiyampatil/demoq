@@ -39,14 +39,23 @@ type Props = {
 }
 
 /**
- * Three zones: the verdict in one sentence (left), the slots (middle), the one thing to do (right). The arithmetic and
+ * Three zones: the verdict word and what is left to act on (left), the slots (middle), the one thing to do (right). The arithmetic and
  * the list of slots that opened are in "How these numbers are calculated" at the bottom of the Overview.
  */
 export function VerdictCard({ v, ledger, reserve, studyId, blockedWhy, newInReserve, closed, notEnoughTime, daysLeft, clockStopped, paused, resumable, goTab, onInvite, onAdjust }: Props) {
   const tone = TONE[v.level]
   const plan = v.plan
-  // At risk leads with coverage, which is already one sentence. The other two say how far along the study is.
-  const sentence = v.level === 'At risk' ? v.sentence : `${v.figures.toward} of ${v.gap.target} done${daysLeft === null || clockStopped ? '' : `, ${daysLeft} ${daysLeft === 1 ? 'day' : 'days'} left`}.`
+  // The count and the target are on the Toward target card, so this says only what is left to act on. The status word is
+  // the heading above it, so it isn't repeated here.
+  const people = v.gap.gap
+  const sentence =
+    v.level === 'At risk'
+      ? `${people} more ${people === 1 ? 'person' : 'people'} needed.`
+      : v.level === 'Behind pace' && daysLeft !== null && !clockStopped
+        ? daysLeft > 0
+          ? `${daysLeft} ${daysLeft === 1 ? 'day' : 'days'} left.`
+          : 'Fieldwork window has ended.'
+        : null
   // On track needs nothing from the Researcher here, so it has no button; Needs you below carries what is left to do.
   // While the study is on hold, filling slots is blocked, so the way forward is the launch screen (a new version) or
   // the Resume button in the header (the Researcher paused it).
@@ -58,9 +67,11 @@ export function VerdictCard({ v, ledger, reserve, studyId, blockedWhy, newInRese
       <div className="grid gap-x-8 gap-y-6 p-6 xl:grid-cols-[minmax(0,5fr)_minmax(0,6fr)_auto]">
         <div className="min-w-0">
           <p className={cn('text-[32px] leading-10 font-semibold tracking-tight', tone.word)}>{v.level}</p>
-          <p className="mt-1 text-md text-ink tabular-nums" data-testid="verdict-sentence">
-            {sentence}
-          </p>
+          {sentence && (
+            <p className="mt-1 text-md text-ink tabular-nums" data-testid="verdict-sentence">
+              {sentence}
+            </p>
+          )}
           {newInReserve > 0 && (
             <p className="mt-1 text-sm font-medium text-positive-fg tabular-nums" data-testid="new-in-reserve">
               {newInReserve} new in reserve ·{' '}
