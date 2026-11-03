@@ -48,6 +48,7 @@ export const HUMAN_MODERATORS: HumanModerator[] = [
   { id: 'u-priya', name: 'Priya Shah', title: 'Moderator', note: 'Available weekday evenings, US Eastern.', languages: ['English (US)', 'Hindi'], weeklyHours: 12 },
   { id: 'u-sam', name: 'Sam Okafor', title: 'Moderator, beauty and wellness', note: 'Available Tuesday to Saturday, US Pacific.', languages: ['English (US)', 'Spanish (US)'], weeklyHours: 18 },
   { id: 'u-elena', name: 'Elena Brooks', title: 'Moderator, concept testing', note: 'Available weekdays, US Central.', languages: ['English (US)', 'French (Canada)'], weeklyHours: 16 },
+  { id: 'u-marta', name: 'Marta Ruiz', title: 'Moderator, Spanish-language research', note: 'Available weekdays, US Pacific.', languages: ['Spanish (US)'], weeklyHours: 14 },
 ]
 
 /**

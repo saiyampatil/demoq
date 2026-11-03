@@ -175,6 +175,9 @@ function PulseAIPanel({ doc, me, language, update }: { doc: GuideDoc; me: string
   const team = teamOf(m)
   const [mode, setMode] = useState<'assign' | 'choose'>('assign')
   const [count, setCount] = useState(1)
+  const [showOthers, setShowOthers] = useState(false)
+  const speakers = language ? HUMAN_MODERATORS.filter((h) => h.languages.includes(language)) : []
+  const others = language ? HUMAN_MODERATORS.filter((h) => !h.languages.includes(language)) : []
   const toast = useToast()
   return (
     <Card title="PulseAI moderators" description="Trained moderators from the PulseAI team. Recommended if you’re new to interviews.">
@@ -206,28 +209,47 @@ function PulseAIPanel({ doc, me, language, update }: { doc: GuideDoc; me: string
             >
               Request {count} {count === 1 ? 'moderator' : 'moderators'}
             </Button>
-            <p className="basis-full text-xs text-graphite">PulseAI matches people to your study language and confirms. Status stays Requested until then.</p>
+            <p className="basis-full text-xs text-graphite">PulseAI matches people to your study language and confirms.</p>
           </div>
         ) : (
-          <ul className="grid gap-3 md:grid-cols-2" data-testid="roster">
-            {HUMAN_MODERATORS.map((h) => {
-              const asked = team.find((t) => t.rosterId === h.id)
-              const speaks = !language || h.languages.includes(language)
-              return (
-                <li key={h.id} className="flex flex-col gap-2 rounded-md border border-mist bg-surface p-3">
-                  <div className="flex items-start gap-3">
-                    <div className="min-w-0 flex-1">
-                      <p className="font-semibold">{h.name}</p>
-                      <p className="text-sm text-graphite">{h.title}</p>
-                      <p className="text-xs text-graphite">{h.languages.join(', ')} · <span className="tabular-nums">{h.weeklyHours}</span> hours a week</p>
-                      {!speaks && <p className="mt-0.5 text-xs font-medium text-pending-fg">Doesn’t speak {language}.</p>}
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-sm text-graphite">
+                {language ? `Showing moderators who speak ${language}.` : 'Moderators are listed once the study language is set.'}
+              </p>
+              {language && others.length > 0 && (
+                <label className="flex cursor-pointer items-center gap-2 text-sm">
+                  <input type="checkbox" checked={showOthers} onChange={(e) => setShowOthers(e.target.checked)} data-testid="show-other-languages" />
+                  Show other languages
+                </label>
+              )}
+            </div>
+            <ul className="grid gap-3 md:grid-cols-2" data-testid="roster">
+              {[...speakers, ...(showOthers ? others : [])].map((h) => {
+                const asked = team.find((t) => t.rosterId === h.id)
+                const speaks = speakers.includes(h)
+                return (
+                  <li key={h.id} className={cn('flex flex-col gap-2 rounded-md border border-mist p-3', speaks ? 'bg-surface' : 'bg-haze')} data-speaks={speaks}>
+                    <div className="flex items-start gap-3">
+                      <div className={cn('min-w-0 flex-1', !speaks && 'text-graphite')}>
+                        <p className="font-semibold">{h.name}</p>
+                        <p className="text-sm text-graphite">{h.title}</p>
+                        <p className="text-xs text-graphite">{h.languages.join(', ')} · <span className="tabular-nums">{h.weeklyHours}</span> hours a week</p>
+                        {!speaks && <p className="mt-0.5 text-xs font-medium text-pending-fg">Doesn’t speak {language}, so can’t moderate this study.</p>}
+                      </div>
+                      {asked ? (
+                        <StatusChip status={asked.status} size="sm" />
+                      ) : (
+                        <Button size="sm" disabled={!speaks} onClick={() => update((d) => requestRoster(d, me, h.id, language ?? ''))} aria-label={`Request ${h.name}`}>
+                          Request
+                        </Button>
+                      )}
                     </div>
-                    {asked ? <StatusChip status={asked.status} size="sm" /> : <Button size="sm" onClick={() => update((d) => requestRoster(d, me, h.id, language ?? ''))} aria-label={`Request ${h.name}`}>Request</Button>}
-                  </div>
-                </li>
-              )
-            })}
-          </ul>
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
         )}
       </div>
     </Card>

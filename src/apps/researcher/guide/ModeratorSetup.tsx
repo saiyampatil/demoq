@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router'
 import { Banner } from '@/components/Banner'
 import { Button } from '@/components/Button'
 import { Card } from '@/components/Card'
@@ -52,6 +53,15 @@ export function ModeratorSetup() {
     <div className="flex flex-col gap-6">
       <PageHeader id="R12" title="Moderator setup" description="Choose who runs the interviews. The guide is drafted from this setup." />
       <VersionBanner doc={doc} />
+
+      {language && (
+        <p className="text-sm text-graphite" data-testid="study-language">
+          Interview language: <span className="font-medium text-ink">{language}</span>, set from your market.{' '}
+          <Link to={studyPath(studyId, screenById.R4)} className="font-medium text-iris-700 underline underline-offset-2 hover:text-iris-800">
+            Change in brief
+          </Link>
+        </p>
+      )}
 
       <fieldset>
         <legend className="mb-2 text-sm font-medium">Who moderates?</legend>
