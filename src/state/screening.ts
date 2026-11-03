@@ -7,7 +7,7 @@ import { US_STATES } from '@/mock/usStates'
 import type { AudienceDoc, Candidate, Cohort, Exclusion, Filter, FilterField, ScreenerQuestion, SourceTag } from './audience'
 import { now, uid } from './brief'
 
-export type ScreeningOutcome = 'Eligible' | 'Ineligible' | 'Needs Review' | 'Reserve'
+export type ScreeningOutcome = 'Eligible' | 'Ineligible' | 'Pending review'
 export type VerificationStatus = 'Not started' | 'Pending' | 'Passed' | 'Failed'
 
 // ─── activity log ───────────────────────────────────────────────────────────
@@ -21,8 +21,6 @@ export type ScreeningEntry = {
   from: string
   to: string
   reason: string
-  /** A Reserve applicant promoted to replace someone: skips the target-full rule. */
-  replacement?: boolean
 }
 
 export type ScreeningState = { log: ScreeningEntry[] }
@@ -31,8 +29,14 @@ export type PoolRecord = {
   at: string
   by: string
   members: { applicantId: string }[]
+  /** The reserve locked with the pool. Fieldwork takes its replacements from here. */
+  reserve?: { applicantId: string }[]
   /** Set when the confirmed pool is smaller than the study's target. */
   shortfall: { have: number; need: number } | null
+  /** Set when the reserve is smaller than its size. */
+  reserveShortfall?: { have: number; need: number } | null
+  /** Why the Researcher finalized below the target. */
+  reason?: string
 }
 
 export function addEntry(doc: AudienceDoc, entry: Omit<ScreeningEntry, 'id' | 'at'>): AudienceDoc {
@@ -40,8 +44,8 @@ export function addEntry(doc: AudienceDoc, entry: Omit<ScreeningEntry, 'id' | 'a
   return { ...doc, screening: { log: [...(doc.screening?.log ?? []), e] } }
 }
 
-export function confirmPool(doc: AudienceDoc, by: string, members: PoolRecord['members'], shortfall: PoolRecord['shortfall']): AudienceDoc {
-  return { ...doc, pool: { at: now(), by, members, shortfall } }
+export function confirmPool(doc: AudienceDoc, record: Omit<PoolRecord, 'at'>): AudienceDoc {
+  return { ...doc, pool: { at: now(), ...record } }
 }
 
 // ─── location helpers (mock) ────────────────────────────────────────────────
@@ -313,7 +317,7 @@ export function evaluate(doc: AudienceDoc, answers: Record<string, string>, last
 
   if (excludedHard) return { outcome: 'Ineligible', groups, reason: text(exclusions.find((x) => x.result === 'fail')) }
   if (fails > 0) return { outcome: 'Ineligible', groups, reason: text(checks.find((x) => x.result === 'fail')) }
-  if (unclear > 0 || unclearAny) return { outcome: 'Needs Review', groups, reason: text(firstOf('unclear')) }
+  if (unclear > 0 || unclearAny) return { outcome: 'Pending review', groups, reason: text(firstOf('unclear')) }
   return { outcome: 'Eligible', groups, reason: 'Meets every filter and no exclusion applies.' }
 }
 
@@ -325,8 +329,12 @@ export type Applicant = {
   source: SourceTag
   autoOutcome: ScreeningOutcome
   outcome: ScreeningOutcome
-  /** Set when the target was already met, or the applicant arrived after launch, so an eligible applicant became Reserve. */
+  /** Said in the drawer when the applicant was screened after launch, so Fieldwork holds them in its reserve. */
   note?: string
+  /** Eligible, but screened after launch: Fieldwork's reserve holds them until the Researcher invites them. Never straight into an interview. */
+  reserveBound: boolean
+  /** Why the applicant is Ineligible or Pending review: the person's reason, or the rule that decided it. */
+  statusReason: string
   /** Screened after launch: a top-up applicant. */
   afterLaunch: boolean
   /** The audience version they were screened under. */
@@ -375,35 +383,19 @@ export function mockApplicants(doc: AudienceDoc): Applicant[] {
   // Manual decisions, newest wins.
   const lastOf = (id: string, kind: ScreeningEntry['kind']) => [...log].reverse().find((e) => e.applicantId === id && e.kind === kind)
 
-  // Slots go out in applicant order, up to the target. Eligible people beyond it go to Reserve.
-  // Only Eligible applicants take a slot: an Ineligible or Needs Review applicant never does.
-  let filled = 0
-  const room = () => filled < (def.total ?? Infinity)
-
   return base.map(({ c, idx, answers, lastResearch, ev }) => {
     const id = `A-${1001 + idx}`
     const manual = lastOf(id, 'outcome')
     const vManual = lastOf(id, 'verification')
     const auto = ev.outcome
-    let outcome: ScreeningOutcome = auto
-    let note: string | undefined
-
-    if (manual) outcome = manual.to as ScreeningOutcome
-    if (outcome === 'Eligible' && c.afterLaunch && !manual?.replacement) {
-      // Someone screened after launch never goes straight into an interview: they wait in the reserve to be invited.
-      outcome = 'Reserve'
-      note = 'Screened after the study launched, so this eligible applicant is in the reserve. Invite them from Fieldwork.'
-    } else if (outcome === 'Eligible' && !manual?.replacement) {
-      if (room()) filled += 1
-      else {
-        outcome = 'Reserve'
-        note = `The study’s target of ${def.total} is already met, so this eligible applicant is in Reserve.`
-      }
-    } else if (outcome === 'Eligible') filled += 1
+    const outcome: ScreeningOutcome = manual ? (manual.to as ScreeningOutcome) : auto
+    // Someone screened after launch never goes straight into an interview: Fieldwork holds them in its reserve.
+    const reserveBound = outcome === 'Eligible' && !!c.afterLaunch
+    const note = reserveBound ? 'Screened after the study launched, so this eligible applicant waits in the reserve. Invite them from Fieldwork.' : undefined
 
     // Verification starts from the screening result and the profile; an override replaces it.
     const autoV: VerificationStatus =
-      auto === 'Ineligible' ? 'Not started' : auto === 'Needs Review' ? 'Pending' : idx % 10 === 7 ? 'Failed' : idx % 6 === 2 ? 'Pending' : 'Passed'
+      auto === 'Ineligible' ? 'Not started' : auto === 'Pending review' ? 'Pending' : idx % 10 === 7 ? 'Failed' : idx % 6 === 2 ? 'Pending' : 'Passed'
     const verification = (vManual?.to as VerificationStatus | undefined) ?? autoV
     const done = autoV === 'Passed' || autoV === 'Failed'
     const failedCheck = idx % 2 ? 'language' : 'human'
@@ -423,6 +415,8 @@ export function mockApplicants(doc: AudienceDoc): Applicant[] {
       autoOutcome: auto,
       outcome,
       note,
+      reserveBound,
+      statusReason: manual ? manual.reason : ev.reason,
       groups: ev.groups,
       reason: ev.reason,
       verification,
@@ -439,24 +433,81 @@ export function mockApplicants(doc: AudienceDoc): Applicant[] {
   })
 }
 
-/** Eligible applicants against the study's target, with the reserve beside it. One cohort, one bar. */
-export function targetFill(applicants: Applicant[], doc: AudienceDoc) {
-  return {
-    target: doc.def?.total ?? null,
-    eligible: applicants.filter((a) => a.outcome === 'Eligible').length,
-    reserve: applicants.filter((a) => a.outcome === 'Reserve').length,
-  }
+// ─── pool and reserve (R11) ─────────────────────────────────────────────────
+
+const byScreened = (a: Applicant, b: Applicant) => a.submittedAt.localeCompare(b.submittedAt) || a.id.localeCompare(b.id)
+
+/** Eligible and verified, screened before launch: the people the pool and reserve are chosen from, first screened first. */
+export const poolCandidates = (applicants: Applicant[]) => applicants.filter((a) => a.outcome === 'Eligible' && a.verification === 'Passed' && !a.afterLaunch).sort(byScreened)
+
+/** A person moved between the pool and the reserve by hand. Replayed in order over the default split. */
+export type PoolMove = { applicantId: string; to: 'pool' | 'reserve'; by: string; at: string }
+export type PoolPlan = { reserveSize: number | null; moves: PoolMove[] }
+
+export const defaultReserveSize = (target: number) => Math.ceil(target / 2)
+
+/**
+ * The first N screened fill the pool (N is the target) and the rest go to the reserve. Moving someone keeps the pool at the
+ * target: out of the pool, the first person in the reserve steps in; into a full pool, the last person screened steps out.
+ */
+export function splitPool(candidates: Applicant[], target: number, moves: PoolMove[]) {
+  let pool = candidates.slice(0, target).map((a) => a.id)
+  let reserve = candidates.slice(target).map((a) => a.id)
+  const order = new Map(candidates.map((a, i) => [a.id, i]))
+  const sort = (ids: string[]) => [...ids].sort((x, y) => order.get(x)! - order.get(y)!)
+  moves.forEach((m) => {
+    if (!order.has(m.applicantId)) return
+    if (m.to === 'reserve' && pool.includes(m.applicantId)) {
+      pool = pool.filter((x) => x !== m.applicantId)
+      reserve = sort([...reserve, m.applicantId])
+      const next = reserve.find((x) => x !== m.applicantId)
+      if (next) {
+        reserve = reserve.filter((x) => x !== next)
+        pool = sort([...pool, next])
+      }
+    } else if (m.to === 'pool' && reserve.includes(m.applicantId)) {
+      reserve = reserve.filter((x) => x !== m.applicantId)
+      pool = sort([...pool, m.applicantId])
+      if (pool.length > target) {
+        const last = pool.filter((x) => x !== m.applicantId).at(-1)!
+        pool = pool.filter((x) => x !== last)
+        reserve = sort([...reserve, last])
+      }
+    }
+  })
+  const by = new Map(candidates.map((a) => [a.id, a]))
+  return { pool: sort(pool).map((id) => by.get(id)!), reserve: sort(reserve).map((id) => by.get(id)!) }
 }
 
-// ─── pool (R11) ─────────────────────────────────────────────────────────────
-
-export const inPool = (a: Applicant) => a.outcome === 'Eligible' && a.verification === 'Passed'
-
 export function poolView(applicants: Applicant[], doc: AudienceDoc) {
+  const target = doc.def?.total ?? 0
+  const reserveSize = doc.poolPlan?.reserveSize ?? defaultReserveSize(target)
+  const split = splitPool(poolCandidates(applicants), target, doc.poolPlan?.moves ?? [])
+  const before = applicants.filter((a) => !a.afterLaunch)
+  const decided = before.filter((a) => a.outcome !== 'Pending review')
+  const eligible = split.pool.length + split.reserve.length
+  const poolShort = Math.max(0, target - split.pool.length)
+  const reserveShort = Math.max(0, reserveSize - split.reserve.length)
+  const short = poolShort + reserveShort
   return {
-    members: applicants.filter(inPool),
-    reserve: applicants.filter((a) => a.outcome === 'Reserve' && a.verification === 'Passed'),
-    waiting: applicants.filter((a) => a.outcome === 'Eligible' && a.verification !== 'Passed'),
-    need: doc.def?.total ?? 0,
+    ...split,
+    /** Kept for the seeds and the launch check: the people in the pool. */
+    members: split.pool,
+    target,
+    need: target,
+    reserveSize,
+    poolShort,
+    reserveShort,
+    short,
+    /** Applicants nobody has decided yet. R11 can't be finalized while there are any. */
+    pending: before.filter((a) => a.outcome === 'Pending review'),
+    /** Eligible, but verification hasn't Passed, so they can't be in the pool yet. */
+    waiting: before.filter((a) => a.outcome === 'Eligible' && a.verification !== 'Passed'),
+    screened: decided.length,
+    eligible,
+    /** Share of the people screened who ended up eligible and verified. */
+    passRate: decided.length ? eligible / decided.length : 0,
+    /** How many to source to close the gap, scaled by how many screened people pass. */
+    sourceAbout: short > 0 && eligible > 0 && decided.length > 0 ? Math.ceil(short / (eligible / decided.length)) : 0,
   }
 }

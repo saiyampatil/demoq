@@ -1,0 +1,28 @@
+export default async ({ b, out, stage, mutate, open, text, prefix }) => {
+  await stage('Mid-way')
+  await open('/audience/screening')
+  out.cards = await b.evaluate(`[...document.querySelectorAll('button[aria-pressed]')].map(x=>x.innerText.replace(/\\s+/g,' '))`)
+  out.statuses = await b.evaluate(`[...new Set([...document.querySelectorAll('tbody tr')].map(r=>r.children[3]?.innerText.split('\\n')[0]))]`)
+  out.hasReserve = (await text()).includes('Reserve')
+  out.footer = await b.evaluate(`[...document.querySelectorAll('button,a')].find(x=>x.innerText.startsWith('Continue to'))?.innerText`)
+  await b.shot(`${prefix}-r9-1440`, true)
+  // open a pending-review applicant, then an ineligible one with verification not passed
+  const rows = await b.evaluate(`[...document.querySelectorAll('tbody tr')].map(r=>r.children[0].innerText+'|'+r.children[3].innerText.split('\\n')[0]+'|'+r.children[4].innerText.split('\\n')[0])`)
+  out.rows = rows.slice(0, 25)
+  const pick = (pred) => rows.findIndex(pred)
+  const iPending = pick((r) => r.includes('|Pending review|'))
+  await b.evaluate(`document.querySelectorAll('tbody tr')[${iPending}].click(); true`); await b.sleep(600)
+  out.drawerButtons = await b.evaluate(`[...document.querySelectorAll('[role=dialog] button')].map(x=>x.innerText+(x.disabled?' (disabled)':'')).filter(t=>/Mark|Move|Send/.test(t))`)
+  await b.shot(`${prefix}-r10-1440`, false)
+  // ineligible flow on an eligible one
+  await b.evaluate(`document.querySelector('[aria-label="Close"],[aria-label^="Close"]')?.click(); true`); await b.sleep(300)
+  const iElig = pick((r) => r.includes('|Eligible|Passed'))
+  await b.evaluate(`document.querySelectorAll('tbody tr')[${iElig}].click(); true`); await b.sleep(500)
+  await b.evaluate(`document.querySelector('[data-testid=mark-ineligible]').click(); true`); await b.sleep(300)
+  out.confirmDisabled = await b.evaluate(`[...document.querySelectorAll('[role=dialog] button')].find(x=>x.innerText==='Confirm').disabled`)
+  await b.evaluate(`(()=>{const s=document.querySelector('[role=dialog] select');const set=Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set;set.call(s,'Duplicate applicant');s.dispatchEvent(new Event('change',{bubbles:true}));return true})()`); await b.sleep(200)
+  out.confirmEnabled = await b.evaluate(`![...document.querySelectorAll('[role=dialog] button')].find(x=>x.innerText==='Confirm').disabled`)
+  await b.evaluate(`[...document.querySelectorAll('[role=dialog] button')].find(x=>x.innerText==='Confirm').click(); true`); await b.sleep(500)
+  out.after = await b.evaluate(`document.querySelectorAll('tbody tr')[${iElig}].children[3].innerText.replace(/\\s+/g,' ')`)
+  out.inv = await b.evaluate(`window.__invariants`)
+}

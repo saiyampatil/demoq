@@ -12,13 +12,13 @@ import { WizardFooter } from '@/components/WizardFooter'
 import { formatDate } from '@/lib/format'
 import { screenById, studyPath } from '@/routes/screens'
 import { invitedCount } from '@/state/audience'
-import { inPool, targetFill, mockApplicants, type Applicant, type ScreeningOutcome } from '@/state/screening'
+import { mockApplicants, type Applicant, type ScreeningOutcome } from '@/state/screening'
 import { PageHeader } from '../../shared/PageHeader'
 import { ApplicantDrawer } from './ApplicantDrawer'
 import { AudienceGate } from './AudienceGate'
 import { useAudience } from './useAudience'
 
-const OUTCOMES: ScreeningOutcome[] = ['Eligible', 'Ineligible', 'Needs Review', 'Reserve']
+const OUTCOMES: ScreeningOutcome[] = ['Pending review', 'Eligible', 'Ineligible']
 
 export function ScreeningDashboard() {
   const { studyId, audience, editable, me, update } = useAudience()
@@ -29,7 +29,7 @@ export function ScreeningDashboard() {
   if (!editable || !audience?.def) return <AudienceGate studyId={studyId} editable={editable} />
 
   const invited = invitedCount(audience.sourcing)
-  const header = <PageHeader id="R9" title="Screening dashboard" description="The system marks each applicant from their screener answers. You resolve Needs Review and fix anything it got wrong." />
+  const header = <PageHeader id="R9" title="Screening dashboard" description="The system marks each applicant from their screener answers. You decide the ones pending review and fix anything it got wrong." />
   const back = { to: studyPath(studyId, screenById.R8), label: 'Sourcing' }
 
   if (invited === 0 || !audience.screener) {
@@ -52,11 +52,11 @@ export function ScreeningDashboard() {
     )
   }
 
-  const fill = targetFill(applicants, audience)
-  const targetMet = fill.target !== null && fill.eligible >= fill.target
   const count = (o: ScreeningOutcome) => applicants.filter((a) => a.outcome === o).length
-  const needsReview = count('Needs Review')
-  const ready = applicants.filter(inPool).length
+  const pendingReview = count('Pending review')
+  const eligible = count('Eligible')
+  // Once the pool is finalized in R11, decisions are locked until it is reopened there.
+  const locked = !!audience.pool
   const rows = filter ? applicants.filter((a) => a.outcome === filter) : applicants
   const open = applicants.find((a) => a.id === params.get('applicant'))
 
@@ -68,9 +68,12 @@ export function ScreeningDashboard() {
       key: 'outcome',
       header: 'Screening',
       cell: (a) => (
-        <span className="flex items-center gap-2">
-          <StatusChip status={a.outcome} size="sm" />
-          {a.outcomeEdited && <span className="text-xs text-graphite">edited</span>}
+        <span className="flex flex-col items-start gap-0.5">
+          <span className="flex items-center gap-2">
+            <StatusChip status={a.outcome} size="sm" />
+            {a.outcomeEdited && <span className="text-xs text-graphite">edited</span>}
+          </span>
+          {a.outcome === 'Ineligible' && <span className="max-w-64 truncate text-xs text-graphite" title={a.statusReason}>{a.statusReason}</span>}
         </span>
       ),
     },
@@ -95,13 +98,13 @@ export function ScreeningDashboard() {
         In the prototype, invitees are simulated as having accepted and answered, and verification is simulated too. Outcomes come from the real rules, applied to mock answers.
       </Banner>
 
-      {needsReview > 0 && (
+      {pendingReview > 0 && (
         <Banner
           tone="warning"
-          title={`${needsReview} ${needsReview === 1 ? 'applicant needs' : 'applicants need'} your action`}
+          title={`${pendingReview} ${pendingReview === 1 ? 'applicant is' : 'applicants are'} pending review`}
           actions={
-            <Button size="sm" onClick={() => setFilter('Needs Review')}>
-              Show Needs Review
+            <Button size="sm" onClick={() => setFilter('Pending review')}>
+              Show pending review
             </Button>
           }
         >
@@ -110,6 +113,15 @@ export function ScreeningDashboard() {
       )}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <button
+          type="button"
+          onClick={() => setFilter('')}
+          aria-pressed={filter === ''}
+          className={`rounded-md border bg-surface p-4 text-left ${filter === '' ? 'border-ink ring-1 ring-ink' : 'border-mist hover:border-graphite'}`}
+        >
+          <p className="text-sm font-medium text-graphite">Applicants</p>
+          <p className="mt-2 text-xl font-semibold tabular-nums">{applicants.length}</p>
+        </button>
         {OUTCOMES.map((o) => (
           <button
             key={o}
@@ -124,32 +136,13 @@ export function ScreeningDashboard() {
         ))}
       </div>
 
-      <Card title="Target fill" description={`Eligible applicants against the ${audience.def?.cohort.name ?? 'study'} target. Once the target is met, further eligible applicants go to Reserve. Ineligible and Needs Review applicants never take a slot.`}>
-        <div className="flex flex-col gap-2">
-          <p className="tabular-nums">
-            <span className="text-lg font-semibold">{fill.eligible}</span> of {fill.target ?? 'not set'} eligible
-            <span className="ml-2 text-sm text-graphite">{fill.reserve} in reserve</span>
-          </p>
-          <div
-            role="progressbar"
-            aria-label="Eligible applicants against the target"
-            aria-valuemin={0}
-            aria-valuemax={fill.target ?? 0}
-            aria-valuenow={Math.min(fill.eligible, fill.target ?? fill.eligible)}
-            className="h-2 overflow-hidden rounded-full bg-haze"
-          >
-            <span className="block h-full rounded-full bg-iris-600" style={{ width: `${fill.target ? Math.min(100, (fill.eligible / fill.target) * 100) : 0}%` }} />
-          </div>
-        </div>
-      </Card>
-
       <Card
         title="Applicants"
         flush
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <Button size="sm" variant={filter === 'Needs Review' ? 'primary' : 'secondary'} onClick={() => setFilter(filter === 'Needs Review' ? '' : 'Needs Review')}>
-              Needs Review ({needsReview})
+            <Button size="sm" variant={filter === 'Pending review' ? 'primary' : 'secondary'} onClick={() => setFilter(filter === 'Pending review' ? '' : 'Pending review')}>
+              Pending review ({pendingReview})
             </Button>
             <label className="flex items-center gap-2 text-sm">
               <span className="text-graphite">Screening</span>
@@ -175,22 +168,22 @@ export function ScreeningDashboard() {
 
       <WizardFooter
         previous={back}
-        message={ready ? `${ready} ${ready === 1 ? 'applicant is' : 'applicants are'} Eligible and verified.` : 'Select an applicant to see their answers. You need at least one who is Eligible and has Passed verification.'}
+        message={eligible ? `${eligible} ${eligible === 1 ? 'applicant is' : 'applicants are'} eligible.` : 'Select an applicant to see their answers. You need at least one who is eligible.'}
       >
-        {ready ? (
+        {eligible ? (
           <Button variant="primary" to={studyPath(studyId, screenById.R11)}>
-            Continue to pool
+            Continue to finalize pool
           </Button>
         ) : (
-          <Tooltip focusable content="At least one applicant must be Eligible and have Passed verification.">
+          <Tooltip focusable content="At least one applicant must be eligible.">
             <Button variant="primary" disabled>
-              Continue to pool
+              Continue to finalize pool
             </Button>
           </Tooltip>
         )}
       </WizardFooter>
 
-      <ApplicantDrawer applicant={open} targetMet={targetMet} me={me} update={update} onClose={() => setParams({})} />
+      <ApplicantDrawer applicant={open} locked={locked} me={me} update={update} onClose={() => setParams({})} />
     </div>
   )
 }

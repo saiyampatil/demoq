@@ -157,9 +157,11 @@ export function needsRescreen(c: Pick<ReserveCandidate, 'screenedUnder'>, audien
 export function reserveRows(doc: FieldworkDoc | undefined, audience: AudienceDoc | undefined): ReserveRow[] {
   const stored = doc?.reserve ?? []
   const known = new Set(stored.map((c) => c.id))
+  // The reserve locked in R11, and anyone screened after launch who qualified.
+  const inFinalReserve = new Set((audience?.pool?.reserve ?? []).map((r) => r.applicantId))
   const fromScreening = audience
     ? mockApplicants(audience)
-        .filter((a) => a.outcome === 'Reserve' && !known.has(a.id))
+        .filter((a) => (a.reserveBound || inFinalReserve.has(a.id)) && !known.has(a.id))
         .map((a): ReserveCandidate => {
           const state = a.answers.find((x) => /state/i.test(x.question))?.answer ?? ''
           return { id: a.id, contact: a.contact, state, region: (regionOf(state) as Region | undefined) ?? null, arrivedAt: a.submittedAt, source: a.source, screenedUnder: a.screenedUnder, status: 'Reserve' }
@@ -681,7 +683,7 @@ export function topUpStatus(doc: FieldworkDoc, audience: AudienceDoc | undefined
   const applicants = audience ? mockApplicants(audience).filter((a) => a.afterLaunch) : []
   const inReserve = new Set(reserveRows(doc, audience).filter((r) => r.label === 'Available').map((r) => r.id))
   const sourced = candidates.length
-  const inScreening = sourced - applicants.length + applicants.filter((a) => a.outcome === 'Needs Review').length
+  const inScreening = sourced - applicants.length + applicants.filter((a) => a.outcome === 'Pending review').length
   const newInReserve = applicants.filter((a) => inReserve.has(a.id)).length
   const running = sourced > 0 && (inScreening > 0 || newInReserve > 0)
   return { sourced, inScreening, eligible: newInReserve, newInReserve, running, requested: doc.topUp?.requested ?? sourced }

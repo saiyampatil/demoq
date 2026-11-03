@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { Button } from '@/components/Button'
 import { cn } from '@/components/cn'
-import { TextArea } from '@/components/Field'
+import { controlBase, TextArea } from '@/components/Field'
 import { CheckIcon, CloseIcon } from '@/components/icons'
 import { SideDrawer } from '@/components/SideDrawer'
 import { StatusChip } from '@/components/StatusChip'
+import { Tooltip } from '@/components/Tooltip'
 import { formatDateTime } from '@/lib/format'
 import { useFeature } from '@/state/features'
 import { addEntry, type Applicant, type CheckResult, type ScreeningOutcome, type VerificationStatus } from '@/state/screening'
@@ -12,12 +13,18 @@ import type { AudienceDoc } from '@/state/audience'
 
 type Pending = { kind: 'outcome'; to: ScreeningOutcome } | { kind: 'verification'; to: VerificationStatus }
 
-const ACTIONS: { to: ScreeningOutcome; label: string }[] = [
-  { to: 'Eligible', label: 'Mark Eligible' },
-  { to: 'Ineligible', label: 'Mark Ineligible' },
-  { to: 'Needs Review', label: 'Send to Manual Review' },
-  { to: 'Reserve', label: 'Move to Reserve' },
-]
+/** Why a person marks someone ineligible. A reason is always required; "Other" needs words. */
+const INELIGIBLE_REASONS = ['Outside the audience', 'Answers contradict each other', 'Failed verification', 'Works in market research or advertising', 'Took part in research recently', 'Duplicate applicant', 'Other']
+
+/** A disabled button says why, on hover and focus. */
+const gate = (reason: string | undefined, button: React.ReactNode, align: 'left' | 'right') =>
+  reason ? (
+    <Tooltip content={reason} focusable align={align}>
+      <span className="w-full [&>button]:w-full">{button}</span>
+    </Tooltip>
+  ) : (
+    button
+  )
 
 const resultMark: Record<CheckResult, { icon: string; label: string; cls: string }> = {
   pass: { icon: '✓', label: 'Pass', cls: 'text-positive-fg' },
@@ -28,19 +35,20 @@ const resultMark: Record<CheckResult, { icon: string; label: string; cls: string
 
 type Props = {
   applicant: Applicant | undefined
-  /** True once eligible applicants have met the study's target, so another eligible one goes to Reserve. */
-  targetMet: boolean
+  /** The pool is finalized in R11, so decisions can't change until it is reopened there. */
+  locked: boolean
   me: string
   update: (fn: (d: AudienceDoc) => AudienceDoc) => void
   onClose: () => void
 }
 
-export function ApplicantDrawer({ applicant: a, targetMet, me, update, onClose }: Props) {
+export function ApplicantDrawer({ applicant: a, locked, me, update, onClose }: Props) {
   const proofRequired = useFeature('proofRequired')
   const [pending, setPending] = useState<Pending>()
   const [overriding, setOverriding] = useState<VerificationStatus>()
   const [reason, setReason] = useState('')
   const [vReason, setVReason] = useState('')
+  const [why, setWhy] = useState('')
 
   const decide = (p: Pending, why: string) => {
     if (!a) return
@@ -54,6 +62,7 @@ export function ApplicantDrawer({ applicant: a, targetMet, me, update, onClose }
     setOverriding(undefined)
     setReason('')
     setVReason('')
+    setWhy('')
     onClose()
   }
 
@@ -71,26 +80,35 @@ export function ApplicantDrawer({ applicant: a, targetMet, me, update, onClose }
                 className="flex flex-col gap-2"
                 onSubmit={(e) => {
                   e.preventDefault()
-                  if (!reason.trim()) return
-                  decide(pending, reason)
+                  const text = pending.to === 'Ineligible' ? (why === 'Other' || !why ? reason.trim() : `${why}${reason.trim() ? `: ${reason.trim()}` : ''}`) : reason.trim()
+                  if (!text || (pending.to === 'Ineligible' && !why)) return
+                  decide(pending, text)
                   setPending(undefined)
                   setReason('')
+                  setWhy('')
                 }}
               >
+                {pending.to === 'Ineligible' && (
+                  <label className="flex flex-col gap-1.5">
+                    <span className="text-sm font-medium">Reason for “Mark ineligible” (required)</span>
+                    <select value={why} onChange={(e) => setWhy(e.target.value)} className={cn(controlBase, 'h-9 pr-7')} aria-label="Reason">
+                      <option value="">Choose a reason</option>
+                      {INELIGIBLE_REASONS.map((r) => (
+                        <option key={r}>{r}</option>
+                      ))}
+                    </select>
+                  </label>
+                )}
                 <TextArea
-                  label={`Reason for “${ACTIONS.find((x) => x.to === pending.to)!.label}”`}
+                  label={pending.to === 'Ineligible' ? (why === 'Other' ? 'Explain (required)' : 'Details (optional)') : 'Reason for “Mark eligible” (required)'}
                   rows={2}
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
                   autoFocus
-                  hint={
-                    pending.to === 'Eligible' && targetMet
-                      ? 'The study’s target is met, so they will go to Reserve.'
-                      : `Saved with your name and the time.`
-                  }
+                  hint="Saved with your name and the time. You can change this until the pool is finalized."
                 />
                 <div className="flex gap-2">
-                  <Button type="submit" variant="primary" disabled={!reason.trim()}>
+                  <Button type="submit" variant="primary" disabled={pending.to === 'Ineligible' ? !why || (why === 'Other' && !reason.trim()) : !reason.trim()}>
                     Confirm
                   </Button>
                   <Button
@@ -98,6 +116,7 @@ export function ApplicantDrawer({ applicant: a, targetMet, me, update, onClose }
                     onClick={() => {
                       setPending(undefined)
                       setReason('')
+                      setWhy('')
                     }}
                   >
                     Cancel
@@ -105,12 +124,33 @@ export function ApplicantDrawer({ applicant: a, targetMet, me, update, onClose }
                 </div>
               </form>
             ) : (
-              <div className="grid grid-cols-2 gap-2">
-                {ACTIONS.map((x) => (
-                  <Button key={x.to} size="sm" disabled={a.outcome === x.to} onClick={() => setPending({ kind: 'outcome', to: x.to })}>
-                    {x.label}
-                  </Button>
-                ))}
+              <div className="flex flex-col gap-2">
+                {locked && <p className="text-sm text-pending-fg">The pool is finalized, so this can’t change. Reopen the pool in Finalize pool first.</p>}
+                <div className="grid grid-cols-2 gap-2">
+                  {(() => {
+                    const verified = a.checks.consent === true && a.checks.language === true && a.checks.human === true
+                    const eligibleWhy = locked ? 'The pool is finalized.' : a.outcome === 'Eligible' ? 'Already eligible.' : !verified ? 'Confirm the three verification checks first: consent to record, language and human.' : undefined
+                    const ineligibleWhy = locked ? 'The pool is finalized.' : a.outcome === 'Ineligible' ? 'Already ineligible.' : undefined
+                    return (
+                      <>
+                        {gate(
+                          eligibleWhy,
+                          <Button size="sm" className="w-full" disabled={!!eligibleWhy} onClick={() => setPending({ kind: 'outcome', to: 'Eligible' })} data-testid="mark-eligible">
+                            Mark eligible
+                          </Button>,
+                          'left',
+                        )}
+                        {gate(
+                          ineligibleWhy,
+                          <Button size="sm" className="w-full" disabled={!!ineligibleWhy} onClick={() => setPending({ kind: 'outcome', to: 'Ineligible' })} data-testid="mark-ineligible">
+                            Mark ineligible
+                          </Button>,
+                          'right',
+                        )}
+                      </>
+                    )
+                  })()}
+                </div>
               </div>
             )}
           </div>
@@ -256,7 +296,7 @@ export function ApplicantDrawer({ applicant: a, targetMet, me, update, onClose }
                   <li key={e.id} className="rounded-sm border border-mist px-3 py-2 text-sm">
                     <p>
                       <span className="font-medium">{e.by}</span> changed {e.kind === 'outcome' ? 'screening' : 'verification'} from {e.from} to <span className="font-medium">{e.to}</span>
-                      {e.replacement && ' (replacement from Reserve)'}
+                     
                     </p>
                     <p className="text-graphite">“{e.reason}”</p>
                     <p className="text-xs text-graphite tabular-nums">{formatDateTime(e.at)}</p>

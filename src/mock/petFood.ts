@@ -147,7 +147,7 @@ function petAudience(brief: BriefDoc): AudienceDoc {
   }
   const view = poolView(mockApplicants(doc), doc)
   const shortfall = view.members.length < view.need ? { have: view.members.length, need: view.need } : null
-  return { ...doc, pool: { at: '2026-09-04T16:20:00-04:00', by: maya, members: view.members.map((m) => ({ applicantId: m.id })), shortfall } }
+  return { ...doc, pool: { at: '2026-09-04T16:20:00-04:00', by: maya, members: view.members.map((m) => ({ applicantId: m.id })), reserve: view.reserve.map((m) => ({ applicantId: m.id })), shortfall, reserveShortfall: view.reserveShort ? { have: view.reserve.length, need: view.reserveSize } : null, reason: shortfall ? `Launched with ${shortfall.have} of ${shortfall.need}.` : undefined } }
 }
 
 // ─── the guide ──────────────────────────────────────────────────────────────

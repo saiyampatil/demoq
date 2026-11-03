@@ -63,19 +63,14 @@ export function PoolFinalize() {
 
   const doConfirm = () => {
     update((d) =>
-      confirmPool(
-        d,
-        me,
-        view.members.map((m) => ({ applicantId: m.id })),
-        shortfall,
-      ),
+      confirmPool(d, { by: me, members: view.members.map((m) => ({ applicantId: m.id })), shortfall }),
     )
     setWarn(false)
   }
 
   const doPromote = () => {
     if (!promote || !reason.trim()) return
-    update((d) => addEntry(d, { applicantId: promote.id, by: me, kind: 'outcome', from: promote.outcome, to: 'Eligible', reason: reason.trim(), replacement: true }))
+    update((d) => addEntry(d, { applicantId: promote.id, by: me, kind: 'outcome', from: promote.outcome, to: 'Eligible', reason: reason.trim() }))
     setPromote(undefined)
     setReason('')
   }

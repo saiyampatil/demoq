@@ -3,7 +3,7 @@
 
 export const vocabularies = {
   artifact: ['Draft', 'In Review', 'Approved'],
-  screening: ['Eligible', 'Ineligible', 'Needs Review', 'Reserve'],
+  screening: ['Eligible', 'Ineligible', 'Pending review'],
   verification: ['Not started', 'Pending', 'Passed', 'Failed'],
   study: ['Not Ready', 'Ready to Launch', 'Live', 'Paused', 'Terminated', 'Complete'],
   access: ['Invited', 'Opened', 'Consented', 'No-show'],
@@ -71,7 +71,7 @@ export const statusFamily: Record<Status, StatusFamily> = {
 
   'In Review': 'pending',
   Pending: 'pending',
-  'Needs Review': 'pending',
+  'Pending review': 'pending',
   Paused: 'pending',
   'Under review': 'pending',
   Rescheduled: 'pending',
@@ -107,7 +107,6 @@ export const statusFamily: Record<Status, StatusFamily> = {
   'No-show': 'negative',
   Incomplete: 'negative',
 
-  Reserve: 'held',
   'Incomplete (resumable)': 'held',
   Skipped: 'held',
   Overridden: 'held',

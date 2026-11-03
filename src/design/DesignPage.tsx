@@ -96,8 +96,8 @@ type DemoApplicant = { id: string; name: string; source: string; screening: Stat
 
 const demoApplicants: DemoApplicant[] = [
   { id: 'A-1003', name: 'Rachel Kim', source: 'Manual', screening: 'Eligible', verification: 'Passed' },
-  { id: 'A-1007', name: 'Monica Alvarez', source: 'External', screening: 'Needs Review', verification: 'Pending' },
-  { id: 'A-1011', name: 'Tasha Greene', source: 'External', screening: 'Reserve', verification: 'Passed' },
+  { id: 'A-1007', name: 'Monica Alvarez', source: 'External', screening: 'Pending review', verification: 'Pending' },
+  { id: 'A-1011', name: 'Tasha Greene', source: 'External', screening: 'Eligible', verification: 'Passed' },
   { id: 'A-1014', name: 'Lauren Price', source: 'Manual', screening: 'Ineligible', verification: 'Not started' },
 ]
 

@@ -79,7 +79,7 @@ export function Sourcing() {
   const gap = launched && fw.doc ? shortfall(fw.doc, fw.target, fw.outcomes, fw.reserve) : undefined
   const need = gap ? Math.max(0, gap.gap - gap.reserve) : 0
   const answered = launched ? mockApplicants(audience) : []
-  const qualified = answered.filter((a) => a.outcome === 'Eligible' || a.outcome === 'Reserve').length
+  const qualified = answered.filter((a) => a.outcome === 'Eligible').length
   const passRate = answered.length ? qualified / answered.length : 0
   const estimate = need > 0 && passRate > 0 ? Math.ceil(need / passRate) : 0
   const blockedWhy = fw.doc?.closed ? 'Fieldwork is closed' : paused ? 'Study is paused' : undefined
