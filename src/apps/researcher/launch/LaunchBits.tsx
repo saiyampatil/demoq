@@ -4,10 +4,11 @@ import { Button } from '@/components/Button'
 import { EmptyState } from '@/components/States'
 
 /** A pass or fail mark that doesn't rely on colour alone. */
-export function ResultMark({ state, label }: { state: 'pass' | 'fail' | 'overridden' | 'critical'; label: string }) {
+export function ResultMark({ state, label }: { state: 'pass' | 'warn' | 'fail' | 'overridden' | 'critical'; label: string }) {
   const cls = {
     pass: 'bg-positive-bg text-positive-fg',
     fail: 'bg-pending-bg text-pending-fg',
+    warn: 'bg-pending-bg text-pending-fg',
     critical: 'bg-negative-bg text-negative-fg',
     overridden: 'bg-haze text-graphite ring-1 ring-mist-strong',
   }[state]

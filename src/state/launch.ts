@@ -5,6 +5,7 @@
 import { agentName, allQuestions, configBlockers, humanName, totalMinutes, type GuideDoc, type Question } from './guide'
 import type { AudienceDoc } from './audience'
 import { now, uid } from './brief'
+import { lengthMismatch, rewardComplete, rewardLine, rewardOf, studyCountry } from './reward'
 import type { StudyRecord } from '@/mock/types'
 
 // ─── setup (values no earlier module owns; R23 takes these over in Phase 9) ──
@@ -203,8 +204,9 @@ export function compileStudyPlan(g: GuideDoc | undefined): CompileResult {
 
 // ─── entry contract (R15) ───────────────────────────────────────────────────
 
-export type RowOwner = 'R11' | 'R12' | 'R13' | 'R14' | 'setup'
-export type Row = { id: string; label: string; value: string; ok: boolean; owner: RowOwner; hint?: string }
+export type RowOwner = 'R8' | 'R11' | 'R12' | 'R13' | 'R14' | 'setup'
+/** `warn` is an amber note on a row that still passes: it doesn't block, but the Researcher should read it. */
+export type Row = { id: string; label: string; value: string; ok: boolean; owner: RowOwner; hint?: string; warn?: string }
 
 const fmtDay = (iso: string) => new Date(`${iso}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 export { fmtDay }
@@ -250,6 +252,17 @@ export function entryContract(i: Inputs): Row[] {
     owner: 'R11',
     ok: !!pool && targetOk,
     value: !pool ? 'The pool isn’t confirmed' : !targetOk ? 'The number of participants needed isn’t set' : `${nth(pool.members.length, 'participant')}, ${def!.total} needed`,
+  })
+
+  const reward = rewardOf(i.audience, g?.moderator.durationMin ?? null)
+  const rewardText = reward.offered ? rewardLine(reward, studyCountry(i.audience)) : 'No reward. Participant copy leaves the reward line out.'
+  rows.push({
+    id: 'reward',
+    label: 'Participant reward',
+    owner: 'R8',
+    ok: rewardComplete(reward),
+    value: rewardComplete(reward) ? (rewardText ?? 'No reward') : 'The reward isn’t set',
+    warn: reward.offered && rewardComplete(reward) ? (lengthMismatch(reward.promisedMin, g?.moderator.durationMin ?? null) ?? undefined) : undefined,
   })
 
   const fw = i.launch?.setup.fieldwork

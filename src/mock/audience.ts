@@ -14,6 +14,7 @@ import {
   type AudienceDoc,
   type Filter,
 } from '@/state/audience'
+import { seedReward } from '@/state/reward'
 import { mockApplicants, poolView } from '@/state/screening'
 import { people } from './people'
 
@@ -89,6 +90,7 @@ export function seedConfirmedAudience(studyId: string): AudienceDoc {
       fromAudienceVersion: 2,
       accepted: { by: maya, at: '2026-10-18T09:00:00-04:00' },
     },
+    reward: seedReward('United States', 40, 20, maya, '2026-10-18T09:00:00-04:00'),
     sourcing: {
       option: 'external',
       panelName: 'Northstar Consumer Panel (mock)',

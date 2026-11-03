@@ -1,0 +1,43 @@
+export default async ({ b, out, stage, mutate, open, text, prefix }) => {
+  await stage('Mid-way')
+  // Before any invitation: no reward saved, nobody invited.
+  await mutate(`(s)=>{const a=s.audiences['moisturizer-concept'];delete a.reward;a.sourcing.candidates.forEach(c=>delete c.invitedAt)}`)
+  await open('/audience/sourcing')
+  out.initial = (await text()).includes('Required before invitations')
+  out.sendDisabled = await b.evaluate(`[...document.querySelectorAll('button')].find(x=>x.innerText.startsWith('Send screener invites'))?.disabled`)
+  // Fill the form
+  await b.evaluate(`(()=>{const i=document.querySelector('[aria-label=Amount]');const set=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;set.call(i,'40');i.dispatchEvent(new Event('input',{bubbles:true}));return true})()`)
+  await b.sleep(300)
+  out.preview = await b.evaluate(`document.querySelector('[data-testid=reward-preview]').innerText`)
+  await b.shot(`${prefix}-r8-reward-1440`, true)
+  await b.evaluate(`document.querySelector('[data-testid=save-reward]').click(); true`); await b.sleep(400)
+  out.saved = (await text()).includes('Reward saved and logged')
+  out.sendAfter = await b.evaluate(`[...document.querySelectorAll('button')].find(x=>x.innerText.startsWith('Send screener invites'))?.disabled`)
+  // JPY / INR formatting
+  await b.evaluate(`(()=>{const i=document.querySelector('[aria-label=Amount]');const set=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;set.call(i,'3000');i.dispatchEvent(new Event('input',{bubbles:true}));return true})()`)
+  await b.evaluate(`[...document.querySelectorAll('button[aria-haspopup=listbox]')][0].click(); true`); await b.sleep(200)
+  await b.evaluate(`[...document.querySelectorAll('[role=listbox] button')].find(x=>x.innerText.startsWith('INR')).click(); true`); await b.sleep(300)
+  out.inr = await b.evaluate(`document.querySelector('[data-testid=reward-preview]').innerText`)
+  await b.evaluate(`[...document.querySelectorAll('button[aria-haspopup=listbox]')][0].click(); true`); await b.sleep(200)
+  await b.evaluate(`[...document.querySelectorAll('[role=listbox] button')].find(x=>x.innerText.startsWith('JPY')).click(); true`); await b.sleep(300)
+  out.jpyStep = await b.evaluate(`document.querySelector('[aria-label=Amount]').step`)
+  // Seed study (invitations sent): amount can only go up, currency locked
+  await stage('Ready to launch')
+  await open('/audience/sourcing')
+  out.lockedText = (await text()).includes('Invitations have been sent')
+  out.currencyDisabled = await b.evaluate(`document.querySelector('button[aria-haspopup=listbox]').disabled`)
+  await b.evaluate(`(()=>{const i=document.querySelector('[aria-label=Amount]');const set=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;set.call(i,'30');i.dispatchEvent(new Event('input',{bubbles:true}));return true})()`)
+  await b.sleep(300)
+  out.decreaseBlocked = (await text()).includes('can only go up. It is')
+  out.saveDisabled = await b.evaluate(`document.querySelector('[data-testid=save-reward]').disabled`)
+  await b.evaluate(`(()=>{const i=document.querySelector('[aria-label=Amount]');const set=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;set.call(i,'45');i.dispatchEvent(new Event('input',{bubbles:true}));return true})()`)
+  await b.sleep(200)
+  await b.evaluate(`document.querySelector('[data-testid=save-reward]').click(); true`); await b.sleep(400)
+  await b.evaluate(`[...document.querySelectorAll('button')].find(x=>x.innerText.startsWith('History')).click(); true`); await b.sleep(200)
+  out.log = await b.evaluate(`document.querySelector('[data-testid=reward-log]').innerText`)
+  // R15 row
+  await open('/launch/readiness')
+  out.r15 = await b.evaluate(`[...document.querySelectorAll('[aria-label="Entry contract"] li')].map(l=>l.innerText.replace(/\\s+/g,' ')).filter(t=>/reward/i.test(t))`)
+  await b.shot(`${prefix}-r15-1440`, false)
+  out.inv = await b.evaluate(`window.__invariants`)
+}

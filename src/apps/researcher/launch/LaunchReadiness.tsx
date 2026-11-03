@@ -16,7 +16,7 @@ import { TestMatrix } from './TestMatrix'
 import { SetupDrawer } from './SetupDrawer'
 import { useLaunch } from './useLaunch'
 
-const ownerScreen: Record<Exclude<RowOwner, 'setup'>, Screen> = { R11: screenById.R11, R12: screenById.R12, R13: screenById.R13, R14: screenById.R14 }
+const ownerScreen: Record<Exclude<RowOwner, 'setup'>, Screen> = { R8: screenById.R8, R11: screenById.R11, R12: screenById.R12, R13: screenById.R13, R14: screenById.R14 }
 
 export function LaunchReadiness() {
   const { studyId, study, editable, audience, guide, launch, readiness: r, me, update } = useLaunch()
@@ -92,9 +92,12 @@ export function LaunchReadiness() {
         <ul className="divide-y divide-mist rounded-md border border-mist bg-surface">
           {r.rows.map((row) => (
             <li key={row.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3">
-              <ResultMark state={row.ok ? 'pass' : 'fail'} label={row.ok ? 'Ready' : 'Needs attention'} />
+              <ResultMark state={!row.ok ? 'fail' : row.warn ? 'warn' : 'pass'} label={!row.ok ? 'Needs attention' : row.warn ? 'Ready, with a warning' : 'Ready'} />
               <span className="w-44 shrink-0 font-medium">{row.label}</span>
-              <span className={cn('min-w-0 flex-1 basis-60 text-sm', row.ok ? 'text-graphite' : 'text-pending-fg')}>{row.value}</span>
+              <span className={cn('min-w-0 flex-1 basis-60 text-sm', row.ok && !row.warn ? 'text-graphite' : 'text-pending-fg')}>
+                {row.value}
+                {row.warn && <span className="mt-0.5 block font-medium" data-testid="row-warn">{row.warn}</span>}
+              </span>
               {view(row)}
             </li>
           ))}

@@ -14,6 +14,7 @@ import {
 import { generateFieldwork, type FieldworkContent, type FieldworkDoc } from '@/state/fieldwork'
 import { emptyModerator, type Guide, type GuideDoc, type GuideSection, type Question, type Stimulus, type Survey } from '@/state/guide'
 import { compileStudyPlan } from '@/state/launch'
+import { seedReward } from '@/state/reward'
 import { regionOf, mockApplicants, poolView } from '@/state/screening'
 import { seedLaunchDoc, type LaunchSeed } from './launch'
 import { people } from './people'
@@ -141,6 +142,7 @@ function petAudience(brief: BriefDoc): AudienceDoc {
       { id: 'ae-2', at: '2026-08-08T10:00:00-04:00', by: maya, version: 1, type: 'confirmed' },
     ],
     screener: { status: 'Ready', questions, generatedAt: '2026-08-08T10:10:00-04:00', fromAudienceVersion: 1, accepted: { by: maya, at: '2026-08-10T09:00:00-04:00' } },
+    reward: seedReward('United States', 50, 25, maya, '2026-08-10T09:00:00-04:00'),
     sourcing: { option: 'external', panelName: 'Northstar Consumer Panel (mock)', candidates },
   }
   const view = poolView(mockApplicants(doc), doc)

@@ -5,6 +5,7 @@ import type { AudienceStatus } from '@/components/status'
 import { US_STATES } from '@/mock/usStates'
 import type { StudyRecord } from '@/mock/types'
 import type { PoolRecord, ScreeningState } from './screening'
+import type { Reward } from './reward'
 import { AI_NAME, now, uid, type BriefDoc, type SectionKey, type SectionSnapshot } from './brief'
 
 // ─── filters ────────────────────────────────────────────────────────────────
@@ -145,6 +146,8 @@ export type AudienceDoc = {
   /** Set when the AI is writing the screener. Confirming the audience starts it; regenerating restarts it. */
   screenerPending?: boolean
   sourcing: Sourcing
+  /** What participants are paid. Set in R8 before the first invitation. */
+  reward?: Reward
   /** Manual screening decisions and verification overrides, with who, when and why. */
   screening?: ScreeningState
   /** The confirmed pool, once R11 is confirmed. */

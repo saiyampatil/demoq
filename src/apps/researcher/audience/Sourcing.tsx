@@ -30,11 +30,14 @@ import {
   type SourceTag,
 } from '@/state/audience'
 import { startTopUp } from '@/state/fieldwork'
+import { minutesFromText, rewardComplete, rewardOf } from '@/state/reward'
+import { useStudies } from '@/state/StudyContext'
 import { mockApplicants } from '@/state/screening'
 import { shortfall } from '@/state/selectors'
 import { PageHeader } from '../../shared/PageHeader'
 import { useStudySessions } from '../useStudySessions'
 import { AudienceGate } from './AudienceGate'
+import { RewardCard } from './RewardCard'
 import { useAudience } from './useAudience'
 
 const OPTIONS: { value: SourceOption; title: string; description: string }[] = [
@@ -43,7 +46,8 @@ const OPTIONS: { value: SourceOption; title: string; description: string }[] = [
 ]
 
 export function Sourcing() {
-  const { studyId, study, audience, editable, update } = useAudience()
+  const { studyId, study, brief, audience, editable, me, update } = useAudience()
+  const { getGuide } = useStudies()
   const fw = useStudySessions()
   const navigate = useNavigate()
   const [params] = useSearchParams()
@@ -59,11 +63,14 @@ export function Sourcing() {
   const def = audience.def
   const audienceReady = audience.status === 'Confirmed'
   const screenerReady = audience.screener?.status === 'Ready'
-  const ready = audienceReady && screenerReady
+  // The reward starts from the brief's target length, or the guide's once there is one.
+  const lengthHint = minutesFromText(brief?.draft?.length?.text) ?? getGuide(studyId)?.moderator.durationMin ?? null
+  const rewardReady = rewardComplete(rewardOf(audience, lengthHint))
+  const ready = audienceReady && screenerReady && rewardReady
   const target = invitesFor(def.total, def.bufferPct)
   const pending = notInvited(s)
   const invited = invitedCount(s)
-  const gateReason = !audienceReady ? 'Confirm the audience first' : !screenerReady ? 'Accept the screener first' : undefined
+  const gateReason = !audienceReady ? 'Confirm the audience first' : !screenerReady ? 'Accept the screener first' : !rewardReady ? 'Save the participant reward first' : undefined
 
   // After launch this is a top-up: the audience and screener are locked to the release, and applicants who qualify
   // go to the reserve in Fieldwork, never straight into interviews.
@@ -181,7 +188,7 @@ export function Sourcing() {
       )}
 
       {!ready && (
-        <Banner tone="warning" title="Sourcing opens once the audience and screener are ready">
+        <Banner tone="warning" title="Invitations open once the audience, screener and reward are ready">
           <ul className="mt-1 flex flex-col gap-1">
             <li className="flex flex-wrap items-center gap-2">
               {audienceReady ? 'Audience confirmed.' : 'The audience definition isn’t confirmed.'}
@@ -199,10 +206,13 @@ export function Sourcing() {
                 </Button>
               )}
             </li>
+            <li>{rewardReady ? 'Participant reward saved.' : 'The participant reward isn’t saved. Set it above.'}</li>
           </ul>
-          <p className="mt-2">You can add participants now. Invites are held until both are ready.</p>
+          <p className="mt-2">You can add participants now. Invites are held until all three are ready.</p>
         </Banner>
       )}
+
+      <RewardCard audience={audience} hint={lengthHint} me={me} update={update} />
 
       <fieldset>
         <legend className="mb-2 text-sm font-medium">Where do applicants come from?</legend>

@@ -131,6 +131,8 @@ PRD gaps and conflicts found while building. Each entry says what the prototype 
 | 125 | M | Needs you: a human-led interview where the moderator disconnected part-way (issue "Moderator disconnected", fixed by the Researcher). Is it row 2? | Treated as row 2 (Moderator didn't show), Our side, Send booking link. Otherwise it would have no path in Needs you. | Open |
 | 126 | M | Needs you: should an unrecovered PulseAI issue on a finished interview (for example an upload that never completed) show here? | No. A finished interview is in Review, so row 8 is only for sessions that are not Completed. Nothing in the seed is affected. | Open |
 | 127 | L | Needs you: "Retry or Resume" for a lost connection. Which states count as resumable? | Resume only when the session is Incomplete (resumable); every other lost connection (Technical Error) is Retry, a new session that resumes from the saved state. | Open |
+| 128 | M | Participant reward: where do the participant screens read it? The screener invitation, entry screen, booking confirmation and closing screen (P1, P9, P10, P17) are not built, and no earlier screen had a hard-coded amount. | The reward is stored once (`AudienceDoc.reward`) with helpers in `src/state/reward.ts` that write each line (`rewardInviteLine`, `rewardLine`, `rewardClosingLine`). The unbuilt screens will call them. Only R8 and R15 show the reward today. | Open |
+| 129 | L | Participant reward after invitations: may "Paid when" and the promised length change? The brief locks only currency and reward type and lets the amount go up. | Paid when can only change to the more generous "After any completed session". The promised length stays editable. Every change is logged. | Open |
 
 ## Future ideas (not built)
 
