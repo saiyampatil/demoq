@@ -114,6 +114,17 @@ export const MicIcon = (p: IconProps) => (
   </Icon>
 )
 
+export const SurveyIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M4 4v12M8 4v12M12 4v12" />
+    <path d="M2 7h12M2 12h12" />
+    <circle cx="4.5" cy="5.5" r="1" fill="currentColor" />
+    <circle cx="4.5" cy="10.5" r="1" fill="currentColor" />
+    <circle cx="11.5" cy="5.5" r="1" fill="currentColor" />
+    <circle cx="11.5" cy="10.5" r="1" fill="currentColor" />
+  </Icon>
+)
+
 export const PaperclipIcon = (p: IconProps) => (
   <Icon {...p}>
     <path d="m13.25 7.5-5.4 5.4a3.25 3.25 0 0 1-4.6-4.6l5.6-5.6a2.1 2.1 0 0 1 3 3L6.3 11.2a1 1 0 0 1-1.4-1.4l5-5" />

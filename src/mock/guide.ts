@@ -1,4 +1,4 @@
-import { draftGuide, emptyModerator, type GuideDoc, type Stimulus, type Survey } from '@/state/guide'
+import { draftGuide, emptyModerator, type GuideDoc, type Stimulus } from '@/state/guide'
 import { approvedBriefSections } from '@/state/audience'
 import type { BriefDoc } from '@/state/brief'
 import { uid } from '@/state/brief'
@@ -7,25 +7,18 @@ import { people } from './people'
 const maya = people.researcher.name
 const erin = people.client.name
 
-export const seedSurveys: Survey[] = [
-  {
-    id: 'sv-intent',
-    text: 'After seeing the concept, how likely would you be to buy it?',
-    options: ['Definitely would not', 'Probably would not', 'Might or might not', 'Probably would', 'Definitely would'],
-  },
-  { id: 'sv-scent', text: 'Which scent direction do you prefer?', options: ['Fragrance-free', 'Light floral', 'Fresh citrus', 'Soft musk'] },
-]
-
 export const seedStimuli: Stimulus[] = [
   { id: 'st-a', name: 'Concept A: 72-hour hydration', kind: 'concept', detail: '1 page', active: true, addedAt: '2026-10-19T10:00:00-04:00', addedBy: maya },
   { id: 'st-b', name: 'Concept B: Refillable jar', kind: 'concept', detail: '1 page', active: true, addedAt: '2026-10-19T10:02:00-04:00', addedBy: maya },
   { id: 'st-c', name: 'Concept C: Barrier repair', kind: 'concept', detail: '1 page', active: true, addedAt: '2026-10-19T10:04:00-04:00', addedBy: maya },
   { id: 'st-v', name: 'Texture demo, 15 seconds', kind: 'video', detail: 'MP4, 8.4 MB', active: false, addedAt: '2026-10-20T09:30:00-04:00', addedBy: maya },
+  { id: 'st-sv-intent', name: 'After seeing the concept, how likely would you be to buy it?', kind: 'survey', detail: 'Definitely would not|Probably would not|Might or might not|Probably would|Definitely would', active: true, addedAt: '2026-10-21T14:00:00-04:00', addedBy: 'PulseAI' },
+  { id: 'st-sv-scent', name: 'Which scent direction do you prefer?', kind: 'survey', detail: 'Fragrance-free|Light floral|Fresh citrus|Soft musk', active: true, addedAt: '2026-10-21T14:05:00-04:00', addedBy: 'PulseAI' },
 ]
 
 /** A configured AI study with a drafted guide. `approved` also records the approval and the history behind it. */
 export function seedGuideDoc(studyId: string, brief: BriefDoc, kind: 'in-review' | 'approved', variant?: 'media-issue' | 'compile-error'): GuideDoc {
-  const moderator = { ...emptyModerator(), mode: 'ai' as const, agentId: 'ava', style: 'warm' as const, durationMin: 20, surveys: seedSurveys }
+  const moderator = { ...emptyModerator(), mode: 'ai' as const, agentId: 'ava', style: 'warm' as const, durationMin: 20 }
   const stimuli = { items: structuredClone(seedStimuli), skipped: false }
   if (variant === 'media-issue') stimuli.items = stimuli.items.map((s) => (s.id === 'st-b' ? { ...s, renderOk: false } : s))
   const sections = approvedBriefSections(brief)?.sections

@@ -4,14 +4,12 @@ import { Banner } from '@/components/Banner'
 import { Button } from '@/components/Button'
 import { Card } from '@/components/Card'
 import { cn } from '@/components/cn'
-import { controlBase, TextArea } from '@/components/Field'
-import { CloseIcon, PlusIcon, SparkIcon } from '@/components/icons'
 import { AIGeneratedTag } from '@/components/AIGenerated'
 import { Tooltip } from '@/components/Tooltip'
 import { WizardFooter } from '@/components/WizardFooter'
+import { SparkIcon } from '@/components/icons'
 import { AGENTS, STYLES, SUGGESTED_AGENT } from '@/mock/moderation'
 import { screenById, studyPath } from '@/routes/screens'
-import { uid } from '@/state/brief'
 import { NO_LANGUAGE } from '@/state/language'
 import { configBlockers, editModerator, switchMode, windowWeeks, type Mode, type Style } from '@/state/guide'
 import { useStudies } from '@/state/StudyContext'
@@ -26,7 +24,7 @@ const MODES: { value: Mode; title: string; description: string }[] = [
 ]
 
 export function ModeratorSetup() {
-  const { studyId, editable, doc, me, update, ensure, approved, stale, audience, language } = useGuide()
+  const { studyId, editable, doc, me, update, ensure, stale, audience, language } = useGuide()
   const { getLaunch } = useStudies()
   const launch = getLaunch(studyId)
   const [switching, setSwitching] = useState<Mode>()
@@ -180,25 +178,7 @@ export function ModeratorSetup() {
 
       {m.mode === 'human' && <HumanModerators doc={doc} me={me} language={language} update={update} interviews={audience?.def?.total ?? null} weeks={windowWeeks(launch?.setup.fieldwork)} />}
 
-      {m.mode && (
-        <Card title="Target duration" description="One value, used by the guide’s duration check.">
-          <div className="flex flex-wrap items-end gap-3">
-            <label className="flex flex-col gap-1.5">
-              <span className="text-sm font-medium">Minutes per interview</span>
-              <input
-                type="number"
-                min={1}
-                value={m.durationMin || ''}
-                onChange={(e) => edit((x) => ({ ...x, durationMin: Math.max(0, Math.floor(Number(e.target.value))) }), 'Target duration changed')}
-                className={cn(controlBase, 'h-9 w-28 tabular-nums')}
-              />
-            </label>
-            {approved?.sections.length?.text && <p className="pb-2 text-sm text-graphite">The brief says: “{approved.sections.length.text}”</p>}
-          </div>
-        </Card>
-      )}
 
-      {m.mode === 'ai' && <Surveys surveys={m.surveys} onChange={(fn) => edit((x) => ({ ...x, surveys: fn(x.surveys) }), 'Surveys changed')} />}
 
       {m.mode === null && <Banner tone="info" title="Choose a moderator type to continue">The setup below depends on it. You can switch later, which drafts the guide again.</Banner>}
 
@@ -234,63 +214,3 @@ export function ModeratorSetup() {
   )
 }
 
-function Surveys({ surveys, onChange }: { surveys: { id: string; text: string; options: string[] }[]; onChange: (fn: (s: typeof surveys) => typeof surveys) => void }) {
-  const [adding, setAdding] = useState(false)
-  const [text, setText] = useState('')
-  const [options, setOptions] = useState('')
-  const opts = options.split(/\r?\n/).map((o) => o.trim()).filter(Boolean)
-  return (
-    <Card
-      title="In-session surveys"
-      description="Optional. Short questions shown during the interview. Wording and answer options are fixed once created, so to change one, remove it and add it again."
-      actions={
-        !adding && (
-          <Button size="sm" icon={<PlusIcon />} onClick={() => setAdding(true)}>
-            Add survey
-          </Button>
-        )
-      }
-    >
-      <div className="flex flex-col gap-3">
-        {surveys.length === 0 && !adding && <p className="text-sm text-graphite">No surveys. The interview is conversation only.</p>}
-        <ul className="flex flex-col gap-2">
-          {surveys.map((s) => (
-            <li key={s.id} className="flex items-start gap-3 rounded-sm border border-mist p-3">
-              <div className="min-w-0 flex-1">
-                <p className="font-medium">{s.text}</p>
-                <p className="mt-0.5 text-sm text-graphite">{s.options.join('  ·  ')}</p>
-              </div>
-              <button type="button" aria-label={`Remove survey: ${s.text}`} onClick={() => onChange((x) => x.filter((y) => y.id !== s.id))} className="rounded-sm p-1.5 text-graphite hover:bg-haze hover:text-ink">
-                <CloseIcon size={14} />
-              </button>
-            </li>
-          ))}
-        </ul>
-        {adding && (
-          <form
-            className="flex flex-col gap-3 rounded-sm border border-mist bg-paper p-3"
-            onSubmit={(e) => {
-              e.preventDefault()
-              if (!text.trim() || opts.length < 2) return
-              onChange((x) => [...x, { id: uid('sv'), text: text.trim(), options: opts }])
-              setText('')
-              setOptions('')
-              setAdding(false)
-            }}
-          >
-            <TextArea label="Survey question" rows={2} value={text} onChange={(e) => setText(e.target.value)} />
-            <TextArea label="Answer options, one per line" rows={4} value={options} onChange={(e) => setOptions(e.target.value)} hint="At least two. Participants pick one." />
-            <div className="flex gap-2">
-              <Button type="submit" variant="primary" disabled={!text.trim() || opts.length < 2}>
-                Add survey
-              </Button>
-              <Button variant="ghost" onClick={() => setAdding(false)}>
-                Cancel
-              </Button>
-            </div>
-          </form>
-        )}
-      </div>
-    </Card>
-  )
-}

@@ -4,7 +4,7 @@ import { Button, Spinner } from '@/components/Button'
 import { Card } from '@/components/Card'
 import { cn } from '@/components/cn'
 import { TextArea, TextField } from '@/components/Field'
-import { FileIcon, PaperclipIcon, PlayIcon, PlusIcon } from '@/components/icons'
+import { FileIcon, PaperclipIcon, PlayIcon, PlusIcon, SurveyIcon } from '@/components/icons'
 import { Modal } from '@/components/Modal'
 import { EmptyState } from '@/components/States'
 import { Switch } from '@/components/Switch'
@@ -26,6 +26,9 @@ export function StimulusLibrary() {
   const [card, setCard] = useState(false)
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
+  const [survey, setSurvey] = useState(false)
+  const [surveyQuestion, setSurveyQuestion] = useState('')
+  const [surveyOptions, setSurveyOptions] = useState('')
 
   useEffect(() => {
     if (editable && !doc) ensure()
@@ -43,6 +46,21 @@ export function StimulusLibrary() {
   const edit = (fn: Parameters<typeof editStimuli>[2], note: string) => update((d) => editStimuli(d, me, fn, note))
   const add = (item: Omit<Stimulus, 'id' | 'addedAt' | 'addedBy' | 'active'>) =>
     edit((s) => ({ items: [...s.items, { ...item, id: uid('st'), active: true, addedAt: now(), addedBy: me }], skipped: false }), `Added “${item.name}” to the library`)
+  const addSurvey = (question: string, options: string[]) => {
+    if (!question.trim() || options.length < 2) return
+    edit((s) => ({
+      items: [...s.items, {
+        id: uid('st'),
+        name: question.trim(),
+        kind: 'survey' as const,
+        detail: options.join('|'),
+        active: true,
+        addedAt: now(),
+        addedBy: me,
+      }],
+      skipped: false,
+    }), `Added survey “${question.trim()}”`)
+  }
 
   const upload = (files: FileList | null) => {
     if (!files) return
@@ -102,6 +120,9 @@ export function StimulusLibrary() {
               <Button size="sm" icon={<PlusIcon />} onClick={() => setCard(true)}>
                 New concept card
               </Button>
+              <Button size="sm" icon={<SurveyIcon />} onClick={() => setSurvey(true)}>
+                New survey
+              </Button>
             </>
           }
           flush
@@ -149,9 +170,9 @@ export function StimulusLibrary() {
                   <li key={s.id} className={cn('flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-3', !s.active && 'bg-paper')}>
                     <Thumb kind={s.kind} dim={!s.active} />
                     <div className="min-w-0 flex-1 basis-56">
-                      <p className={cn('font-medium', !s.active && 'text-graphite')}>{s.name}</p>
+                      <p className={cn('font-medium', !s.active && 'text-graphite')}>{s.kind === 'survey' ? s.name : s.name}</p>
                       <p className="text-sm text-graphite">
-                        {kindLabel[s.kind]} · {s.detail}
+                        {s.kind === 'survey' ? s.detail.split('|').map((o) => o.trim()).join('  ·  ') : `${kindLabel[s.kind]} · ${s.detail}`}
                         {used > 0 && ` · used by ${used} guide ${used === 1 ? 'question' : 'questions'}`}
                       </p>
                       {s.renderOk === false && <p className="text-sm text-negative-fg">This file fails to render. Replace it so participants can see it.</p>}
@@ -216,6 +237,39 @@ export function StimulusLibrary() {
           <TextArea label="Concept text" rows={5} value={body} onChange={(e) => setBody(e.target.value)} />
         </div>
       </Modal>
+      <Modal
+        open={survey}
+        onClose={() => setSurvey(false)}
+        title="New survey"
+        description="A short question asked during the interview. Participants pick one answer."
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setSurvey(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              disabled={!surveyQuestion.trim() || surveyOptions.trim() === ''}
+              onClick={() => {
+                const opts = surveyOptions.split(/\r?\n/).map((o) => o.trim()).filter(Boolean)
+                if (opts.length >= 2) {
+                  addSurvey(surveyQuestion.trim(), opts)
+                  setSurveyQuestion('')
+                  setSurveyOptions('')
+                  setSurvey(false)
+                }
+              }}
+            >
+              Add survey
+            </Button>
+          </>
+        }
+      >
+        <div className="flex flex-col gap-3">
+          <TextArea label="Survey question" rows={2} value={surveyQuestion} onChange={(e) => setSurveyQuestion(e.target.value)} />
+          <TextArea label="Answer options, one per line" rows={4} value={surveyOptions} onChange={(e) => setSurveyOptions(e.target.value)} hint="At least two. Participants pick one." />
+        </div>
+      </Modal>
     </div>
   )
 }
@@ -223,7 +277,7 @@ export function StimulusLibrary() {
 function Thumb({ kind, dim }: { kind: StimulusKind; dim: boolean }) {
   return (
     <span aria-hidden="true" className={cn('flex size-12 shrink-0 items-center justify-center rounded-sm border border-mist bg-haze text-graphite', dim && 'opacity-60')}>
-      {kind === 'video' ? <PlayIcon size={18} /> : kind === 'image' ? <FileIcon size={18} /> : <ConceptGlyph />}
+      {kind === 'video' ? <PlayIcon size={18} /> : kind === 'image' ? <FileIcon size={18} /> : kind === 'survey' ? <SurveyIcon size={18} /> : <ConceptGlyph />}
     </span>
   )
 }

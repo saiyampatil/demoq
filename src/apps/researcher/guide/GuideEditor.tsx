@@ -41,6 +41,7 @@ import {
   type Guide,
   type GuideEvent,
   type GuideSection,
+  surveysOf,
 } from '@/state/guide'
 import { uid } from '@/state/brief'
 import { OriginTag } from '../audience/OriginTag'
@@ -291,7 +292,7 @@ export function GuideEditor() {
                   q={q}
                   guide={g}
                   stimuli={doc.stimuli.items}
-                  surveys={doc.moderator.surveys}
+                  surveys={surveysOf(doc)}
                   aiMode={ai}
                   flag={flags.find((f) => f.question.id === q.id)}
                   libraryTo={studyPath(studyId, screenById.R13)}

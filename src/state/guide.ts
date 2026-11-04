@@ -131,7 +131,7 @@ export const humanNames = (m: ModeratorConfig) => acceptedOf(m).map((t) => t.nam
 
 // ─── stimuli ────────────────────────────────────────────────────────────────
 
-export type StimulusKind = 'image' | 'video' | 'concept'
+export type StimulusKind = 'image' | 'video' | 'concept' | 'survey'
 export type Stimulus = {
   id: string
   name: string
@@ -145,7 +145,11 @@ export type Stimulus = {
 }
 export type StimuliState = { items: Stimulus[]; skipped: boolean }
 
-export const kindLabel: Record<StimulusKind, string> = { image: 'Image', video: 'Video', concept: 'Concept card' }
+/** The surveys a question can run: the survey items in the stimulus library that are in the active set. */
+export const surveysOf = (doc: { stimuli: StimuliState }): Survey[] =>
+  doc.stimuli.items.filter((s) => s.kind === 'survey' && s.active).map((s) => ({ id: s.id, text: s.name, options: s.detail.split('|').map((o) => o.trim()) }))
+
+export const kindLabel: Record<StimulusKind, string> = { image: 'Image', video: 'Video', concept: 'Concept card', survey: 'Survey' }
 
 const IMAGE_EXT = ['png', 'jpg', 'jpeg', 'webp', 'gif']
 const VIDEO_EXT = ['mp4', 'mov', 'webm']
@@ -535,7 +539,9 @@ export function handoffPackage(doc: GuideDoc) {
     guideVersion: doc.approved?.version ?? doc.version,
     moderator: doc.moderator,
     activeStimuli: doc.stimuli.items.filter((s) => s.active),
-    surveys: doc.moderator.mode === 'ai' ? doc.moderator.surveys : [],
+    surveys: doc.stimuli.items
+      .filter((s) => s.kind === 'survey' && s.active)
+      .map((s) => ({ id: s.id, text: s.name, options: s.detail.split('|').map((o) => o.trim()) })),
     guide: doc.guide,
   }
 }
@@ -600,8 +606,9 @@ export function draftGuide(i: DraftInput): Guide {
   const mins = scale(m.durationMin || DEFAULT_DURATION)
   const maxFU = ai ? 2 : null
   const active = i.stimuli.items.filter((s) => s.active)
-  const survey = ai ? m.surveys[0] : undefined
-  const survey2 = ai ? m.surveys[1] : undefined
+  const surveys = surveysOf({ stimuli: i.stimuli })
+  const survey = ai ? surveys[0] : undefined
+  const survey2 = ai ? surveys[1] : undefined
 
   const intro = [
     q(
@@ -738,7 +745,7 @@ export function guideAsText(doc: GuideDoc, studyName: string, language: string |
       x.probes.forEach((p) => lines.push(`      Probe: ${p}`))
       const st = x.stimulusId && doc.stimuli.items.find((i) => i.id === x.stimulusId)
       if (st) lines.push(`      Show: ${st.name}`)
-      const sv = x.surveyId && doc.moderator.surveys.find((i) => i.id === x.surveyId)
+      const sv = x.surveyId && surveysOf(doc).find((i) => i.id === x.surveyId)
       if (sv) lines.push(`      Survey: ${sv.text} (${sv.options.join(' / ')})`)
       if (x.banned.length) lines.push(`      Never say: ${x.banned.join('; ')}`)
     })

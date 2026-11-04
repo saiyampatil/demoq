@@ -2,7 +2,7 @@
 // Everything the researcher sees is computed live from the brief, audience, guide and the LaunchDoc below,
 // so a fix in an earlier module shows up the next time a launch screen renders.
 
-import { acceptedOf, agentName, allQuestions, configBlockers, coverage, humanNames, languageMismatches, pendingOf, totalMinutes, windowWeeks, type GuideDoc, type Question } from './guide'
+import { surveysOf, acceptedOf, agentName, allQuestions, configBlockers, coverage, humanNames, languageMismatches, pendingOf, totalMinutes, windowWeeks, type GuideDoc, type Question } from './guide'
 import type { AudienceDoc } from './audience'
 import { now, uid } from './brief'
 import { lengthMismatch, rewardComplete, rewardLine, rewardOf, studyCountry } from './reward'
@@ -170,7 +170,7 @@ export function compileStudyPlan(g: GuideDoc | undefined, language: string | nul
       if (!s) errors.push({ text: `Q${n} shows a stimulus that is no longer in the library.`, questionId: q.id })
       else if (!s.active) errors.push({ text: `Q${n} shows “${s.name}”, which was deselected and is not in the active set.`, questionId: q.id })
     }
-    if (q.surveyId && (g.moderator.mode !== 'ai' || !g.moderator.surveys.some((s) => s.id === q.surveyId)))
+    if (q.surveyId && (g.moderator.mode !== 'ai' || !surveysOf(g).some((s) => s.id === q.surveyId)))
       errors.push({ text: `Q${n} runs a survey that is not part of the moderator setup.`, questionId: q.id })
     if (q.branch && (!qs.some((x) => x.id === q.branch!.ifQuestionId) || !qs.some((x) => x.id === q.branch!.targetId)))
       errors.push({ text: `Q${n} has a branching rule that points at a question that no longer exists.`, questionId: q.id })
@@ -186,7 +186,7 @@ export function compileStudyPlan(g: GuideDoc | undefined, language: string | nul
     banned: q.banned.filter((p) => p.trim()).length,
     maxFollowUps: q.maxFollowUps,
     stimulus: q.stimulusId ? g.stimuli.items.find((s) => s.id === q.stimulusId)?.name : undefined,
-    survey: q.surveyId ? g.moderator.surveys.find((s) => s.id === q.surveyId)?.text : undefined,
+    survey: q.surveyId ? surveysOf(g).find((s) => s.id === q.surveyId)?.text : undefined,
     branch: q.branch ? `If the answer to Q${num(q.branch.ifQuestionId)} is “${q.branch.answer || '…'}”, ${q.branch.action === 'skip-to' ? 'skip to' : 'branch to'} Q${num(q.branch.targetId)}` : undefined,
   })
   const body = {

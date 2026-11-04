@@ -8,7 +8,7 @@ import { formatDate, formatSlot } from '@/lib/format'
 import { studyTimeZone } from '@/lib/timeZone'
 import type { ReviewStatus } from '@/mock/review'
 import { now, uid } from './brief'
-import type { GuideDoc } from './guide'
+import { surveysOf, type GuideDoc } from './guide'
 import type { LaunchDoc, PlanItem, StudyPlan } from './launch'
 import { SEED_SESSIONS, sessionIdOf, type SeedSession } from '@/mock/sessions'
 import { MODERATOR_ROSTER, OFFER_SECONDS } from '@/mock/moderation'
@@ -362,7 +362,7 @@ export function generateFieldwork(i: GenInput): FieldworkDoc {
   const stimNames = [...new Set(items.map((x) => x.stimulus).filter((x): x is string => !!x))]
   const failed = i.guide.stimuli.items.filter((s) => s.renderOk === false).map((s) => s.name)
   const surveyItems = items.filter((x) => x.survey)
-  const options = (text: string) => i.guide.moderator.surveys.find((s) => s.text === text)?.options ?? ['Yes', 'No']
+  const options = (text: string) => surveysOf(i.guide).find((s) => s.text === text)?.options ?? ['Yes', 'No']
   const lang = i.plan.language
   const consentAt = i.launch?.setup.consent[lang]?.at
   const wording = `${lang}, approved ${formatDate(consentAt ?? '2026-10-26T15:00:00-04:00')}`
