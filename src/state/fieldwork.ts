@@ -2,6 +2,7 @@
 // actions that change them. Sessions are mock records built from the confirmed pool when a release goes live.
 // The participant and moderator runtime (4.2 to 4.5) writes through the same actions.
 
+import { TERMINATE_IN_PROGRESS_AS } from '@/config/terminate'
 import type { AudienceDoc, SourceTag } from './audience'
 import { formatDate, formatSlot } from '@/lib/format'
 import { studyTimeZone } from '@/lib/timeZone'
@@ -273,6 +274,8 @@ export type FieldworkDoc = {
   paused: { reason: string; by: string; at: string; kind?: 'version' } | null
   /** Set when the Researcher closed fieldwork: no more invitations or sessions. The study is Complete. */
   closed?: { by: string; at: string }
+  /** Set when the Researcher terminated the study: it stopped before it was done. `ended` is the sessions that were in progress. */
+  terminated?: { by: string; at: string; reason: string; ended: number }
   /** What participants say in this study, in rotation, for turns simulated later. Absent for the seed study. */
   lines?: string[]
   /** A top-up: the Researcher asked for more applicants after launch to close a gap. */
@@ -705,6 +708,23 @@ export const closeFieldwork = (doc: FieldworkDoc, by: string): FieldworkDoc => {
   if (doc.closed) return doc
   const when = tick(doc)
   return { ...doc, closed: { by, at: when }, log: [...doc.log, { id: uid('fl'), at: when, by, text: 'Closed fieldwork' }] }
+}
+
+/**
+ * Stops the study now. Needs a reason; who and when are logged. Sessions in progress end (see config/terminate.ts),
+ * finished ones stay as they are and go on to Review.
+ */
+export const terminateFieldwork = (doc: FieldworkDoc, reason: string, by: string): FieldworkDoc => {
+  if (doc.closed || doc.terminated || !reason.trim()) return doc
+  const when = tick(doc)
+  const inProgress = (s: Session) => s.status === 'Active' || s.status === 'Paused'
+  const ended = doc.sessions.filter(inProgress).length
+  return {
+    ...doc,
+    terminated: { by, at: when, reason: reason.trim(), ended },
+    sessions: doc.sessions.map((s) => (inProgress(s) ? addEventAt(when, { ...s, status: TERMINATE_IN_PROGRESS_AS }, 'system', 'Ended when the study was terminated') : s)),
+    log: [...doc.log, { id: uid('fl'), at: when, by, text: `Terminated the study: ${reason.trim()}${ended ? ` (${ended} ${ended === 1 ? 'session' : 'sessions'} in progress ended)` : ''}` }],
+  }
 }
 
 export const resumeFieldwork = (doc: FieldworkDoc, by: string): FieldworkDoc =>

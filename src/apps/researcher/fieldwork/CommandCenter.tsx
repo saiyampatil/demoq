@@ -11,7 +11,7 @@ import { WizardFooter } from '@/components/WizardFooter'
 import { useStudies } from '@/state/StudyContext'
 import { formatStamp } from '@/lib/format'
 import { screenById, studyPath } from '@/routes/screens'
-import { closeFieldwork, pauseFieldwork, resumeFieldwork } from '@/state/fieldwork'
+import { closeFieldwork, pauseFieldwork, resumeFieldwork, terminateFieldwork } from '@/state/fieldwork'
 import { closeBlockers, reviewProgress, sessionTotals, waitingFor } from '@/state/selectors'
 import { stepInfo } from '@/state/workflow'
 import { PageHeader } from '../../shared/PageHeader'
@@ -42,6 +42,8 @@ export function CommandCenter() {
   const [closing, setClosing] = useState(false)
   const [changing, setChanging] = useState(false)
   const [changeReason, setChangeReason] = useState('')
+  const [terminating, setTerminating] = useState(false)
+  const [endReason, setEndReason] = useState('')
   const navigate = useNavigate()
   const { getGuide } = useStudies()
 
@@ -61,20 +63,21 @@ export function CommandCenter() {
   // Nothing changed yet, so the Researcher can still resume the release that was running.
   const guideChanged = !!guide && (guide.version !== doc.plan.guideVersion || guide.status !== 'Approved')
   // Paused by the Researcher, or paused for a version change: either way, nothing that sends an invitation can run.
-  const closed = !preview && (!!doc.closed || study.status === 'Complete')
+  const terminated = !preview && (!!doc.terminated || study.status === 'Terminated')
+  const closed = !preview && (!!doc.closed || terminated || study.status === 'Complete')
   const paused = !preview && (study.status === 'Paused' || !!doc.paused || closed)
   // Nobody can be invited once fieldwork is closed, so the Reserve has nothing to offer.
   const tab: Tab = asked === 'reserve' && closed ? 'overview' : asked
   const blockers = closeBlockers(doc)
   // Where Analysis stands, from the same review count as the stepper.
   const analysis = stepInfo(study, { awaitingReview: awaiting, total: reviewTotal }).find((x) => x.key === 'analysis')
-  const props: FWProps = { doc, audience, target, studyId, me, update, goTab, readOnly: preview, outcomes, reserve, awaiting, reviewTotal, paused, versionPause, closed, waiting: waitingFor(review) }
+  const props: FWProps = { doc, audience, target, studyId, me, update, goTab, readOnly: preview, outcomes, reserve, awaiting, reviewTotal, paused, versionPause, closed, terminated, waiting: waitingFor(review) }
 
   const labels: Record<Tab, { label: string; badge?: string; alert?: boolean; off?: string }> = {
     overview: { label: 'Overview' },
     // People, like the journey. The table still lists each session.
     sessions: { label: 'Sessions', badge: String(sessionTotals(doc).participants) },
-    reserve: { label: 'Reserve', badge: reserve.length && !closed ? String(reserve.length) : undefined, off: closed ? 'Fieldwork is closed.' : undefined },
+    reserve: { label: 'Reserve', badge: reserve.length && !closed ? String(reserve.length) : undefined, off: closed ? (terminated ? 'Fieldwork was terminated.' : 'Fieldwork is closed.') : undefined },
   }
 
   return (
@@ -94,7 +97,11 @@ export function CommandCenter() {
           <>
             <StatusChip status={preview ? 'Not Ready' : study.status} size="sm" />
             <span>{preview ? 'Sample data' : `${doc.releaseVersion}, guide v${doc.plan.guideVersion}`}</span>
-            {closed && <span data-testid="closed-line">{doc.closed ? `Closed by ${doc.closed.by}, ${formatStamp(doc.closed.at)}.` : 'Closed.'}</span>}
+            {closed && (
+              <span data-testid="closed-line">
+                {doc.terminated ? `Terminated by ${doc.terminated.by}, ${formatStamp(doc.terminated.at)}: “${doc.terminated.reason}”.` : doc.closed ? `Closed by ${doc.closed.by}, ${formatStamp(doc.closed.at)}.` : 'Closed.'}
+              </span>
+            )}
           </>
         }
         actions={
@@ -133,6 +140,13 @@ export function CommandCenter() {
                     hint: 'Pauses invitations. The change becomes the next release.',
                     off: versionPause ? 'Already paused for a change.' : undefined,
                     onSelect: () => setChanging(true),
+                  },
+                  {
+                    key: 'terminate',
+                    label: 'Terminate study',
+                    hint: 'Stops the study now. Finished sessions go to Review.',
+                    danger: true,
+                    onSelect: () => setTerminating(true),
                   },
                 ]}
               />
@@ -276,6 +290,50 @@ export function CommandCenter() {
         }
       >
         <TextArea label="Why is it changing? (required)" rows={3} value={changeReason} onChange={(e) => setChangeReason(e.target.value)} />
+      </Modal>
+
+      <Modal
+        open={terminating}
+        onClose={() => {
+          setTerminating(false)
+          setEndReason('')
+        }}
+        title="Terminate this study?"
+        description="The study stops now and becomes Terminated. No more invitations or links can be sent, and this can’t be undone. Sessions already finished stay in Review. Your name and the time are logged."
+        footer={
+          <>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setTerminating(false)
+                setEndReason('')
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              disabled={!endReason.trim()}
+              data-testid="confirm-terminate"
+              onClick={() => {
+                update((d) => terminateFieldwork(d, endReason, me))
+                setTerminating(false)
+                setEndReason('')
+              }}
+            >
+              Terminate study
+            </Button>
+          </>
+        }
+      >
+        <div className="flex flex-col gap-3">
+          {blockers.inProgress > 0 && (
+            <p className="rounded-sm border border-mist bg-haze px-3 py-2 text-sm text-ink" data-testid="terminate-inprogress">
+              {blockers.inProgress} {blockers.inProgress === 1 ? 'session is' : 'sessions are'} in progress and will end as incomplete.
+            </p>
+          )}
+          <TextArea label="Why is it being terminated? (required)" rows={3} value={endReason} onChange={(e) => setEndReason(e.target.value)} />
+        </div>
       </Modal>
 
       <Modal

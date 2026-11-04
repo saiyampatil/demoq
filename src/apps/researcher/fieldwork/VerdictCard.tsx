@@ -35,6 +35,8 @@ type Props = {
   resumable: boolean
   /** Excluded sessions that have been replaced. Zero hides the sentence. */
   replaced: number
+  /** The Researcher stopped the study early: no verdict, nothing left to act on. */
+  terminated: boolean
   goTab: (t: string) => void
   onInvite: (n: number) => void
   onAdjust: (k: 'extend' | 'lower') => void
@@ -44,14 +46,15 @@ type Props = {
  * Three zones: the verdict word and what is left to act on (left), the slots (middle), the one thing to do (right).
  * The arithmetic is not shown to the Researcher; the dev panel has it (Screen jump, Check the numbers).
  */
-export function VerdictCard({ v, ledger, reserve, studyId, blockedWhy, newInReserve, closed, notEnoughTime, daysLeft, clockStopped, paused, resumable, replaced, goTab, onInvite, onAdjust }: Props) {
-  const tone = TONE[v.level]
+export function VerdictCard({ v, ledger, reserve, studyId, blockedWhy, newInReserve, closed, notEnoughTime, daysLeft, clockStopped, paused, resumable, replaced, terminated, goTab, onInvite, onAdjust }: Props) {
+  const tone = terminated ? { edge: 'border-l-graphite', word: 'text-ink' } : TONE[v.level]
   const plan = v.plan
   // The count and the target are on the Toward target card, so this says only what is left to act on. The status word is
   // the heading above it, so it isn't repeated here.
   const people = v.gap.gap
-  const sentence =
-    v.level === 'At risk'
+  const sentence = terminated
+    ? 'Fieldwork was stopped early.'
+    : v.level === 'At risk'
       ? `${people} more ${people === 1 ? 'person' : 'people'} needed.`
       : v.level === 'Behind pace' && daysLeft !== null && !clockStopped
         ? daysLeft > 0
@@ -61,14 +64,14 @@ export function VerdictCard({ v, ledger, reserve, studyId, blockedWhy, newInRese
   // On track needs nothing from the Researcher here, so it has no button; Needs you below carries what is left to do.
   // While the study is on hold, filling slots is blocked, so the way forward is the launch screen (a new version) or
   // the Resume button in the header (the Researcher paused it).
-  const actions = v.level === 'On track' || (paused && !closed) ? [] : v.actions
+  const actions = terminated || v.level === 'On track' || (paused && !closed) ? [] : v.actions
   const launchAction = paused && !closed && !resumable
 
   return (
     <section aria-label="Verdict" data-level={v.level} className={cn('rounded-md border border-l-4 border-mist bg-surface', tone.edge)}>
       <div className="grid gap-x-8 gap-y-6 p-6 xl:grid-cols-[minmax(0,5fr)_minmax(0,6fr)_auto]">
         <div className="min-w-0">
-          <p className={cn('text-[32px] leading-10 font-semibold tracking-tight', tone.word)}>{v.level}</p>
+          <p className={cn('text-[32px] leading-10 font-semibold tracking-tight', tone.word)}>{terminated ? 'Terminated' : v.level}</p>
           {sentence && (
             <p className="mt-1 text-md text-ink tabular-nums" data-testid="verdict-sentence">
               {sentence}
@@ -93,10 +96,13 @@ export function VerdictCard({ v, ledger, reserve, studyId, blockedWhy, newInRese
           )}
         </div>
 
-        <div className="min-w-0 max-xl:order-3">
-          <p className="mb-2 text-sm font-medium text-graphite">Interview slots</p>
-          <SlotLedger ledger={ledger} />
-        </div>
+        {/* Slots are for a study that is still filling them: once stopped early, who could still finish no longer applies. */}
+        {!terminated && (
+          <div className="min-w-0 max-xl:order-3">
+            <p className="mb-2 text-sm font-medium text-graphite">Interview slots</p>
+            <SlotLedger ledger={ledger} />
+          </div>
+        )}
 
         {launchAction && (
           <div className="flex shrink-0 flex-col items-start gap-2 max-xl:order-2 xl:items-stretch" aria-label="Verdict actions">

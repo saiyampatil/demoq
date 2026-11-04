@@ -55,6 +55,8 @@ export type FWProps = {
   versionPause: boolean
   /** Fieldwork is closed: the study is Complete and nothing more can be sent. */
   closed: boolean
+  /** Closed because the Researcher terminated it, not because it finished. */
+  terminated: boolean
 }
 
 /** The participants a change to the doc added, for "P-2070 invited" confirmations. */

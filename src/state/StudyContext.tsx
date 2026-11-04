@@ -305,8 +305,9 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       const paused = !before?.paused && !!doc.paused
       const resumed = !!before?.paused && !doc.paused
       const closed = !before?.closed && !!doc.closed
+      const terminated = !before?.terminated && !!doc.terminated
       const completed = doc.sessions.filter((x) => x.status === 'Completed').length
-      const sync = (s: StudyRecord): StudyRecord => (s.id === id ? { ...s, completedSessions: completed, status: closed ? 'Complete' : paused ? 'Paused' : resumed ? 'Live' : s.status, updatedAt: now() } : s)
+      const sync = (s: StudyRecord): StudyRecord => (s.id === id ? { ...s, completedSessions: completed, status: closed ? 'Complete' : terminated ? 'Terminated' : paused ? 'Paused' : resumed ? 'Live' : s.status, updatedAt: now() } : s)
       return { ...prev, fieldworks: { ...prev.fieldworks, [id]: doc }, moisturizer: sync(prev.moisturizer), pet: sync(prev.pet), created: prev.created.map(sync) }
     })
   }, [])

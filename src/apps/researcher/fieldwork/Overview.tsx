@@ -62,6 +62,7 @@ export function Overview(p: FWProps) {
         paused={paused}
         resumable={!!doc.paused && !p.versionPause}
         replaced={replaced}
+        terminated={p.terminated}
         goTab={p.goTab}
         onInvite={inviteNow}
         onAdjust={setAdjust}

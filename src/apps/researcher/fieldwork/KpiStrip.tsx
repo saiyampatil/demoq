@@ -72,8 +72,8 @@ export function KpiStrip({ doc, target, outcomes, awaiting, reviewTotal, studyId
           label="Days left"
           line={
             clock === 'closed'
-              ? doc.closed
-                ? `${formatDate(doc.closed.at)}, ${zoneLabel()}.`
+              ? doc.terminated || doc.closed
+                ? `${formatDate((doc.terminated ?? doc.closed)!.at)}, ${zoneLabel()}.`
                 : 'Fieldwork is closed.'
               : clock !== 'running'
               ? clock === 'stopped-relaunch'
@@ -84,7 +84,7 @@ export function KpiStrip({ doc, target, outcomes, awaiting, reviewTotal, studyId
                 : 'No fieldwork window is set.'
           }
         >
-          {clock === 'closed' ? 'Closed' : clock !== 'running' ? 'Paused' : doc.window ? pace.left : '–'}
+          {clock === 'closed' ? (doc.terminated ? 'Terminated' : 'Closed') : clock !== 'running' ? 'Paused' : doc.window ? pace.left : '–'}
         </Kpi>
         <Kpi
           testId="kpi-length"
