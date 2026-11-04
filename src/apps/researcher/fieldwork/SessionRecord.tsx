@@ -478,7 +478,7 @@ export function SessionRecord() {
           </div>
           <div>
             <dt className="text-graphite">Release and guide</dt>
-            <dd className="font-medium tabular-nums">{doc.releaseVersion}, guide v{doc.plan.guideVersion}</dd>
+            <dd className="font-medium tabular-nums">{s.releaseVersion ?? doc.releaseVersion}, guide v{s.guideVersion ?? doc.plan.guideVersion}</dd>
           </div>
           <div>
             <dt className="text-graphite">Device</dt>

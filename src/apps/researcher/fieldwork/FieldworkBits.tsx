@@ -51,6 +51,8 @@ export type FWProps = {
   reviewTotal: number
   /** Clarifications waiting on a reply, by who they are waiting for. */
   waiting: { participant: number; moderator: number }
+  /** Paused to change the guide or stimuli: the way out is a new release, so Resume isn't offered once the guide has changed. */
+  versionPause: boolean
   /** Fieldwork is closed: the study is Complete and nothing more can be sent. */
   closed: boolean
 }

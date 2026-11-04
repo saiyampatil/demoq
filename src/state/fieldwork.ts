@@ -189,6 +189,9 @@ export type Session = {
   participantId: string
   /** Which of the participant's sessions this is. */
   no: number
+  /** The release and guide version this session ran under, set when a later release replaces the study's. Absent: the study's current one. */
+  releaseVersion?: string
+  guideVersion?: number
   applicantId: string
   /** The participant's email address. Shown masked; the full address is on hover. */
   email: string
@@ -266,7 +269,8 @@ export type FieldworkDoc = {
   window: { start: string; end: string } | null
   /** Which consent wording sessions agreed to, e.g. "English (US), approved Oct 26 2026". */
   consentWording: string
-  paused: { reason: string; by: string; at: string } | null
+  /** `kind: 'version'` is a pause to change the guide or stimuli: it ends by relaunching the next release, not by resuming. */
+  paused: { reason: string; by: string; at: string; kind?: 'version' } | null
   /** Set when the Researcher closed fieldwork: no more invitations or sessions. The study is Complete. */
   closed?: { by: string; at: string }
   /** What participants say in this study, in rotation, for turns simulated later. Absent for the seed study. */
@@ -649,9 +653,10 @@ export function tick(doc: FieldworkDoc): string {
   return new Date(latest + MIN).toISOString()
 }
 
-export const pauseFieldwork = (doc: FieldworkDoc, reason: string, by: string): FieldworkDoc => {
+export const pauseFieldwork = (doc: FieldworkDoc, reason: string, by: string, kind?: 'version'): FieldworkDoc => {
   const when = tick(doc)
-  return doc.paused ? doc : { ...doc, paused: { reason: reason.trim(), by, at: when }, log: [...doc.log, { id: uid('fl'), at: when, by, text: `Paused fieldwork: ${reason.trim()}` }] }
+  const text = kind === 'version' ? `Paused fieldwork to change the guide or stimuli: ${reason.trim()}` : `Paused fieldwork: ${reason.trim()}`
+  return doc.paused ? doc : { ...doc, paused: { reason: reason.trim(), by, at: when, ...(kind ? { kind } : {}) }, log: [...doc.log, { id: uid('fl'), at: when, by, text }] }
 }
 
 /**

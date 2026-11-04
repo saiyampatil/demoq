@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Navigate, useSearchParams } from 'react-router'
+import { Navigate, useNavigate, useSearchParams } from 'react-router'
 import { Banner } from '@/components/Banner'
 import { Button } from '@/components/Button'
 import { cn } from '@/components/cn'
@@ -8,6 +8,7 @@ import { Modal } from '@/components/Modal'
 import { StatusChip } from '@/components/StatusChip'
 import { Tooltip } from '@/components/Tooltip'
 import { WizardFooter } from '@/components/WizardFooter'
+import { useStudies } from '@/state/StudyContext'
 import { formatStamp } from '@/lib/format'
 import { screenById, studyPath } from '@/routes/screens'
 import { closeFieldwork, pauseFieldwork, resumeFieldwork } from '@/state/fieldwork'
@@ -15,6 +16,7 @@ import { closeBlockers, reviewProgress, sessionTotals, waitingFor } from '@/stat
 import { stepInfo } from '@/state/workflow'
 import { PageHeader } from '../../shared/PageHeader'
 import { FieldworkGate, type FWProps } from './FieldworkBits'
+import { MoreMenu } from './MoreMenu'
 import { Overview } from './Overview'
 import { ReserveTab } from './ReserveTab'
 import { SessionsTab } from './SessionsTab'
@@ -38,6 +40,10 @@ export function CommandCenter() {
   const [pausing, setPausing] = useState(false)
   const [reason, setReason] = useState('')
   const [closing, setClosing] = useState(false)
+  const [changing, setChanging] = useState(false)
+  const [changeReason, setChangeReason] = useState('')
+  const navigate = useNavigate()
+  const { getGuide } = useStudies()
 
   if (!editable || !study || !doc) return <FieldworkGate studyId={studyId} editable={editable} />
 
@@ -49,6 +55,11 @@ export function CommandCenter() {
   const { awaiting, total: reviewTotal } = reviewProgress(review)
   const target = tgt
   const pausedForVersion = study.status === 'Paused' && !doc.paused
+  // A pause to change the guide or stimuli, whether it started here or from editing the guide: the way out is a new release.
+  const versionPause = pausedForVersion || doc.paused?.kind === 'version'
+  const guide = getGuide(studyId)
+  // Nothing changed yet, so the Researcher can still resume the release that was running.
+  const guideChanged = !!guide && (guide.version !== doc.plan.guideVersion || guide.status !== 'Approved')
   // Paused by the Researcher, or paused for a version change: either way, nothing that sends an invitation can run.
   const closed = !preview && (!!doc.closed || study.status === 'Complete')
   const paused = !preview && (study.status === 'Paused' || !!doc.paused || closed)
@@ -57,7 +68,7 @@ export function CommandCenter() {
   const blockers = closeBlockers(doc)
   // Where Analysis stands, from the same review count as the stepper.
   const analysis = stepInfo(study, { awaitingReview: awaiting, total: reviewTotal }).find((x) => x.key === 'analysis')
-  const props: FWProps = { doc, audience, target, studyId, me, update, goTab, readOnly: preview, outcomes, reserve, awaiting, reviewTotal, paused, closed, waiting: waitingFor(review) }
+  const props: FWProps = { doc, audience, target, studyId, me, update, goTab, readOnly: preview, outcomes, reserve, awaiting, reviewTotal, paused, versionPause, closed, waiting: waitingFor(review) }
 
   const labels: Record<Tab, { label: string; badge?: string; alert?: boolean; off?: string }> = {
     overview: { label: 'Overview' },
@@ -91,7 +102,7 @@ export function CommandCenter() {
             <>
               {study.status === 'Live' && !doc.paused ? (
                 <Button onClick={() => setPausing(true)}>Pause fieldwork</Button>
-              ) : doc.paused ? (
+              ) : doc.paused && (!versionPause || !guideChanged) ? (
                 <Button variant="primary" onClick={() => update((d) => resumeFieldwork(d, me))}>
                   Resume fieldwork
                 </Button>
@@ -114,20 +125,44 @@ export function CommandCenter() {
                   Close fieldwork
                 </Button>
               )}
+              <MoreMenu
+                items={[
+                  {
+                    key: 'change-guide',
+                    label: 'Change guide or stimuli',
+                    hint: 'Pauses invitations. The change becomes the next release.',
+                    off: versionPause ? 'Already paused for a change.' : undefined,
+                    onSelect: () => setChanging(true),
+                  },
+                ]}
+              />
             </>
           )
         }
       />
 
       {preview && <SampleDataBanner studyId={studyId} />}
-      {doc.paused && !closed && (
+      {doc.paused && !closed && !versionPause && (
         <Banner tone="warning" title="Fieldwork is paused">
           {doc.paused.by} paused it, {formatStamp(doc.paused.at)}: “{doc.paused.reason}”. Nothing that sends an invitation or a link can run, and a participant who opens an existing link is told the study is temporarily unavailable. Sessions in progress carry on and finish.
         </Banner>
       )}
-      {pausedForVersion && (
-        <Banner tone="warning" title="Paused for a change to the guide, stimuli or moderator setup" actions={<Button size="sm" to={studyPath(studyId, screenById.R15)}>Go to launch</Button>}>
-          Approve the new version, then relaunch it as the next release. Sessions already run stay tied to {doc.releaseVersion}.
+      {versionPause && !closed && (
+        <Banner
+          tone="warning"
+          title="Paused for a change to the guide, stimuli or moderator setup"
+          actions={
+            <>
+              <Button size="sm" to={studyPath(studyId, screenById.R14)}>
+                Edit the guide
+              </Button>
+              <Button size="sm" to={studyPath(studyId, screenById.R15)}>
+                Go to launch
+              </Button>
+            </>
+          }
+        >
+          {doc.paused ? `${doc.paused.by} paused it, ${formatStamp(doc.paused.at)}: “${doc.paused.reason}”. ` : ''}Approve the new version, then relaunch it as the next release. Sessions already run stay tied to {doc.releaseVersion}, and sessions in progress finish on it.
         </Banner>
       )}
 
@@ -204,6 +239,44 @@ export function CommandCenter() {
           </>
         }
       />
+
+      <Modal
+        open={changing}
+        onClose={() => {
+          setChanging(false)
+          setChangeReason('')
+        }}
+        title="Change the guide or stimuli?"
+        description={`Invitations stop while you change it, and sessions in progress finish on ${doc.releaseVersion}. The new version needs approval and is launched as the next release. Finished sessions stay tied to ${doc.releaseVersion}. Your name and the time are logged.`}
+        footer={
+          <>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setChanging(false)
+                setChangeReason('')
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              disabled={!changeReason.trim()}
+              data-testid="confirm-change-guide"
+              onClick={() => {
+                update((d) => pauseFieldwork(d, changeReason, me, 'version'))
+                setChanging(false)
+                setChangeReason('')
+                navigate(studyPath(studyId, screenById.R14))
+              }}
+            >
+              Pause and open the guide
+            </Button>
+          </>
+        }
+      >
+        <TextArea label="Why is it changing? (required)" rows={3} value={changeReason} onChange={(e) => setChangeReason(e.target.value)} />
+      </Modal>
 
       <Modal
         open={pausing}

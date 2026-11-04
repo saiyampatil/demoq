@@ -289,7 +289,9 @@ export function StudyProvider({ children }: { children: ReactNode }) {
         const audience = prev.audiences[id]
         const plan = compileStudyPlan(guide, studyLanguage(prev.briefs[id]))
         const existing = prev.fieldworks[id]
-        if (existing) fieldworks = { ...fieldworks, [id]: { ...existing, releaseNumber: doc.release!.number, releaseVersion: doc.release!.version, paused: null, ...(plan.state === 'ok' ? { plan: plan.plan } : {}) } }
+        // Sessions run so far keep the release and guide they ran under. Only the ones that start from now on use the new one.
+        const stamped = existing?.sessions.map((s) => (s.releaseVersion ? s : { ...s, releaseVersion: existing.releaseVersion, guideVersion: existing.plan.guideVersion }))
+        if (existing) fieldworks = { ...fieldworks, [id]: { ...existing, sessions: stamped ?? existing.sessions, releaseNumber: doc.release!.number, releaseVersion: doc.release!.version, paused: null, ...(plan.state === 'ok' ? { plan: plan.plan } : {}) } }
         else if (guide && audience && plan.state === 'ok')
           fieldworks = { ...fieldworks, [id]: generateFieldwork({ studyId: id, audience, guide, plan: plan.plan, releaseNumber: doc.release!.number, releaseVersion: doc.release!.version, launch: doc }) }
       }
