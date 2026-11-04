@@ -98,7 +98,10 @@ export function TestMatrix({
   me,
   studyId,
   update,
+  bare,
 }: {
+  /** Without its heading and intro: the Launch screen shows them above. */
+  bare?: boolean
   languages: string[]
   launch: LaunchDoc | undefined
   guideVersion: number
@@ -118,10 +121,14 @@ export function TestMatrix({
 
   return (
     <section aria-label="Test runs">
-      <h2 className="mb-1 text-md font-semibold">Test runs</h2>
-      <p className="mb-2 text-sm text-graphite">
-        Run the compiled plan once in every language on each device. Every combination has to be completed, or have its issues reported, before you can launch.
-      </p>
+      {!bare && (
+        <>
+          <h2 className="mb-1 text-md font-semibold">Test runs</h2>
+          <p className="mb-2 text-sm text-graphite">
+            Run the compiled plan once in every language on each device. Every combination has to be completed, or have its issues reported, before you can launch.
+          </p>
+        </>
+      )}
       {blocked && (
         <p role="status" data-testid="matrix-blocked" className="mb-2 rounded-sm border border-pending-line bg-pending-bg px-3 py-2 text-sm text-pending-fg">
           Test runs are off. {blocked}

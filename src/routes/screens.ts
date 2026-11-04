@@ -44,7 +44,7 @@ export const screens: Screen[] = [
 
   { id: 'R15', name: 'Launch readiness', app: 'researcher', module: '4.1', phase: 4, path: 'launch/readiness', step: 'launch' },
   { id: 'R16', name: 'Test runs', app: 'researcher', module: '4.1', phase: 4, path: 'launch/test-runs', step: 'launch', hidden: true },
-  { id: 'R17', name: 'Preflight and authorize launch', app: 'researcher', module: '4.1', phase: 4, path: 'launch/preflight', step: 'launch' },
+  { id: 'R17', name: 'Preflight and authorize launch', app: 'researcher', module: '4.1', phase: 4, path: 'launch/preflight', step: 'launch', hidden: true },
 
   { id: 'R18', name: 'Fieldwork command center', app: 'researcher', module: '4.6', phase: 7, path: 'fieldwork/command-center', step: 'fieldwork' },
   { id: 'R19', name: 'Session record', app: 'researcher', module: '4.6 / 4.7', phase: 7, path: 'fieldwork/sessions/:sessionId', step: 'fieldwork' },

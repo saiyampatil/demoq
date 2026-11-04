@@ -15,7 +15,7 @@ export function FieldworkGate({ studyId, editable }: { studyId: string; editable
           title="Fieldwork opens after launch"
           description="There are no sessions until the study is Live. Authorize the launch to start fieldwork."
           action={
-            <Button variant="primary" to={studyPath(studyId, screenById.R17)}>
+            <Button variant="primary" to={studyPath(studyId, screenById.R15)}>
               Go to launch
             </Button>
           }

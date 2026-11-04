@@ -210,7 +210,7 @@ export function CommandCenter() {
       </div>
 
       {/* Fieldwork and Review run in parallel, so there is no "continue" while it runs. The footer points at the next piece of work. */}
-      <WizardFooter sticky={false} previous={closed ? undefined : { to: studyPath(studyId, screenById.R17), label: 'Launch' }}>
+      <WizardFooter sticky={false} previous={closed ? undefined : { to: studyPath(studyId, screenById.R15), label: 'Launch' }}>
         {awaiting > 0 ? (
           <Button variant="primary" to={studyPath(studyId, screenById.R21)} data-testid="footer-review">
             Review {awaiting} {awaiting === 1 ? 'session' : 'sessions'}

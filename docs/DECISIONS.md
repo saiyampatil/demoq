@@ -374,3 +374,12 @@ A row is in Needs you only if the participant cannot recover alone and a Researc
 - Dev: Screen jump has a "Repeating problem (mock)" section on R18 that gives several participants the same resolved issue (and can remove it again). The simulated clock and moderator no-show controls are in the same panel.
 - `tests/issues-tab.mjs` was removed with the tab. `tests/issues.mjs` and `tests/needs-you-s2.mjs` still open `?tab=issues` for part of their checks, so those steps no longer apply.
 
+
+## Launch is one screen (R15)
+
+- Launch (R15) now holds everything: the entry contract, one row for the interview test runs, and Authorize launch. The preflight and authorize screen (R17) is hidden, and its old address lands on R15. The Launch step no longer has a sub-stepper.
+- **Entry contract:** the same rows as before, each with Edit, read live from the earlier steps. The compiled study plan no longer has its own section; it compiles in the background when Launch opens, and shows only when it is compiling or has errors (with a Go to guide button).
+- **Test runs:** one row with how it stands (Not run, In progress, Completed, Issues found, Out of date) and one button that runs the next combination that still needs running. A study with several languages or devices has "Show every combination", which opens the language-by-device table. The rule is unchanged: every combination has to be completed or have its issues reported.
+- **Preflight checks** (two critical, four overridable) only appear, under "Fix before launch", when one fails or has been overridden. Critical ones can't be overridden. A failed check that belongs to the test runs scrolls to them.
+- **Authorize launch:** study, language and one button. Underneath it, the first thing in the way ("A test run must be completed."), with the rest in a tooltip. Relaunching after a change shows the release number too.
+- The sticky Previous/Continue bar is gone from Launch: there is nothing to continue to.

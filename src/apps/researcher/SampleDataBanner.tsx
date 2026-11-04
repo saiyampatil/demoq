@@ -13,7 +13,7 @@ export function SampleDataBanner({ studyId }: { studyId: string }) {
       title="Sample data: this study hasn’t launched"
       actions={
         <>
-          <Button size="sm" to={studyPath(studyId, screenById.R17)}>
+          <Button size="sm" to={studyPath(studyId, screenById.R15)}>
             Go to launch
           </Button>
           {import.meta.env.DEV && studyId === MOISTURIZER_ID && (

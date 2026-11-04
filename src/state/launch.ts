@@ -511,7 +511,7 @@ export function authorizeBlockers(r: Readiness): string[] {
   const out: string[] = []
   if (!r.entryOk) out.push('Complete the entry contract')
   if (r.compile.state !== 'ok') out.push('The study plan has to compile')
-  if (!r.progress.all) out.push(`Run every test combination (${r.progress.finished} of ${r.progress.total})`)
+  if (!r.progress.all) out.push(r.progress.finished === 0 ? 'A test run must be completed' : `Run every test combination (${r.progress.finished} of ${r.progress.total})`)
   const crit = r.checks.filter((c) => c.critical && c.status === 'fail')
   if (crit.length) out.push(`Fix ${crit.map((c) => c.label.toLowerCase()).join(' and ')} (critical)`)
   const non = r.checks.filter((c) => !c.critical && c.status === 'fail')
