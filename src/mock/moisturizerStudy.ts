@@ -31,7 +31,7 @@ const audienceConfirmed = {
   approval: { by: people.researcher.name, at: '2026-10-17T11:20:00-04:00', version: 2 },
 } as const
 
-export type StagePresetKey = 'new' | 'brief-approved' | 'midway' | 'ready' | 'ready-media-issue' | 'compile-error' | 'live'
+export type StagePresetKey = 'new' | 'brief-approved' | 'midway' | 'ready' | 'ready-media-issue' | 'compile-error' | 'live' | 'live-demo'
 
 export type StagePreset = { key: StagePresetKey; label: string; description: string; study: StudyRecord }
 
@@ -144,6 +144,16 @@ export const stagePresets: StagePreset[] = [
     },
   },
 ]
+
+// "Live: demo" is the same study as "Live in fieldwork", for a walk-through: see mock/liveDemo.ts for what it adds.
+const liveStage = stagePresets.find((p) => p.key === 'live')!
+stagePresets.push({
+  ...liveStage,
+  key: 'live-demo',
+  label: 'Live: demo',
+  description: 'Live in fieldwork, with a reserve to invite from and escalations to show. For a walk-through.',
+  study: structuredClone(liveStage.study),
+})
 
 export const DEFAULT_STAGE: StagePresetKey = 'new'
 

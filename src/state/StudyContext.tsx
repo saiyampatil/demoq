@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { applyLiveDemo } from '@/mock/liveDemo'
 import { seedAudienceWithPool, seedConfirmedAudience, seedDraftAudience } from '@/mock/audience'
 import { seedGuideDoc } from '@/mock/guide'
 import { seedLaunchDoc } from '@/mock/launch'
@@ -67,12 +68,12 @@ function seedStage(stage: StagePresetKey): Pick<Persisted, 'stage' | 'moisturize
   const moisturizer = presetStudy(stage)
   if (stage === 'new') return { stage, moisturizer, briefs: {}, audiences: {}, guides: {}, launches: {}, fieldworks: {} }
   const brief = seedApprovedBrief(MOISTURIZER_ID)
-  const launchStage = stage === 'ready' || stage === 'ready-media-issue' || stage === 'compile-error' || stage === 'live'
+  const launchStage = stage === 'ready' || stage === 'ready-media-issue' || stage === 'compile-error' || stage === 'live' || stage === 'live-demo'
   const audience = stage === 'brief-approved' ? seedDraftAudience(MOISTURIZER_ID, brief) : launchStage ? seedAudienceWithPool(MOISTURIZER_ID) : seedConfirmedAudience(MOISTURIZER_ID)
   const guide =
     stage === 'midway'
       ? seedGuideDoc(MOISTURIZER_ID, brief, 'in-review')
-      : stage === 'ready' || stage === 'live'
+      : stage === 'ready' || stage === 'live' || stage === 'live-demo'
         ? seedGuideDoc(MOISTURIZER_ID, brief, 'approved')
         : stage === 'ready-media-issue'
           ? seedGuideDoc(MOISTURIZER_ID, brief, 'approved', 'media-issue')
@@ -80,11 +81,12 @@ function seedStage(stage: StagePresetKey): Pick<Persisted, 'stage' | 'moisturize
             ? seedGuideDoc(MOISTURIZER_ID, brief, 'approved', 'compile-error')
             : undefined
   const plan = guide ? compileStudyPlan(guide, studyLanguage(brief)) : undefined
-  const launch = launchStage ? seedLaunchDoc(MOISTURIZER_ID, stage === 'live' ? 'live' : 'ready', moisturizer.client) : undefined
-  const fieldwork =
-    stage === 'live' && guide && audience && plan?.state === 'ok'
+  const launch = launchStage ? seedLaunchDoc(MOISTURIZER_ID, stage === 'live' || stage === 'live-demo' ? 'live' : 'ready', moisturizer.client) : undefined
+  const generated =
+    (stage === 'live' || stage === 'live-demo') && guide && audience && plan?.state === 'ok'
       ? generateFieldwork({ studyId: MOISTURIZER_ID, audience, guide, plan: plan.plan, releaseNumber: 1, releaseVersion: 'Release v1.0', launch })
       : undefined
+  const fieldwork = generated && stage === 'live-demo' ? applyLiveDemo(generated, audience) : generated
   return {
     stage,
     moisturizer: { ...moisturizer, brief: briefSummary(brief), ...(audience ? { audience: audienceSummary(audience) } : {}), ...(guide ? { guide: guideSummary(guide) } : {}) },
