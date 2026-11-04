@@ -654,6 +654,29 @@ export const pauseFieldwork = (doc: FieldworkDoc, reason: string, by: string): F
   return doc.paused ? doc : { ...doc, paused: { reason: reason.trim(), by, at: when }, log: [...doc.log, { id: uid('fl'), at: when, by, text: `Paused fieldwork: ${reason.trim()}` }] }
 }
 
+/**
+ * Dev only: gives `people` different participants an issue of this type, already resolved, so Needs you and the close
+ * check don't move. Marked so it can be taken out again.
+ */
+export function seedRepeatingProblem(doc: FieldworkDoc, type: IssueType, people: number): FieldworkDoc {
+  const when = tick(doc)
+  const have = new Set(doc.sessions.filter((s) => s.issues.some((i) => i.type === type)).map((s) => s.participantId))
+  const chosen = new Map<string, string>()
+  for (const s of doc.sessions) if (!have.has(s.participantId) && !chosen.has(s.participantId) && chosen.size < people) chosen.set(s.participantId, s.id)
+  const ids = new Set(chosen.values())
+  return {
+    ...doc,
+    sessions: doc.sessions.map((s) =>
+      ids.has(s.id)
+        ? { ...s, issues: [...s.issues, { id: `seed-rp-${s.id}-${type}`, type, severity: 'Degraded' as const, at: when, status: 'Resolved' as const, via: 'system' as const, resolution: 'seeded for testing (mock)', resolvedBy: 'Dev panel', resolvedAt: when }] }
+        : s,
+    ),
+  }
+}
+
+/** Dev only: takes out what `seedRepeatingProblem` added. */
+export const clearSeededProblems = (doc: FieldworkDoc): FieldworkDoc => ({ ...doc, sessions: doc.sessions.map((s) => (s.issues.some((i) => i.id.startsWith('seed-rp-')) ? { ...s, issues: s.issues.filter((i) => !i.id.startsWith('seed-rp-')) } : s)) })
+
 export const startTopUp = (doc: FieldworkDoc, requested: number, by: string): FieldworkDoc => {
   const when = tick(doc)
   return { ...doc, topUp: { requested: (doc.topUp?.requested ?? 0) + requested, by, at: when }, log: [...doc.log, { id: uid('fl'), at: when, by, text: `Started a top-up: sourcing ${requested} more applicants for screening` }] }

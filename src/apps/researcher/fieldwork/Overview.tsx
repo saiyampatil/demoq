@@ -17,6 +17,7 @@ import { SessionTag } from '../SessionTag'
 import { invitedIds, invitedMessage, type FWProps } from './FieldworkBits'
 import { KpiStrip } from './KpiStrip'
 import { ParticipantJourney } from './ParticipantJourney'
+import { RepeatingProblemLine } from './RepeatingProblemLine'
 import { HowCalculated } from './HowCalculated'
 import { VerdictCard } from './VerdictCard'
 
@@ -63,6 +64,8 @@ export function Overview(p: FWProps) {
         onInvite={inviteNow}
         onAdjust={setAdjust}
       />
+
+      <RepeatingProblemLine doc={doc} studyId={studyId} behind={v.level === 'Behind pace'} hidden={paused || closed} />
 
       {topUp.running && (
         <Card title="Top-up in progress" description="Applicants you sourced after launch go through screening into the reserve. They never go straight to an interview.">

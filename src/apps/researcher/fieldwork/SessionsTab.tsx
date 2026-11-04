@@ -106,7 +106,7 @@ export function SessionsTab({ doc, studyId }: FWProps) {
       {issueType && (
         <div data-testid="issue-filter" className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-mist bg-haze px-5 py-2 text-sm">
           <span className="tabular-nums">
-            {rows.length} {rows.length === 1 ? 'session' : 'sessions'} with “{issueType}”.
+            {rows.length} {rows.length === 1 ? 'session' : 'sessions'} with {issueType.split('|').map((t) => `“${t}”`).join(' or ')}.
           </span>
           <button type="button" onClick={() => setParams({ tab: 'sessions' })} className="font-medium text-iris-700 hover:underline">
             Show everyone

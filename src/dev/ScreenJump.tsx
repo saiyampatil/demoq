@@ -7,7 +7,8 @@ import { mockTestRuns, type MockRuns } from '@/mock/launch'
 import { MOISTURIZER_ID, stagePresets } from '@/mock/moisturizerStudy'
 import { appLabel, screenHref, screens, type AppKey } from '@/routes/screens'
 import { SIMULATE_TIME_STEPS } from '@/mock/needsYou'
-import { advanceClock, simulateModeratorNoShow } from '@/state/fieldwork'
+import { REPEATING_PROBLEMS } from '@/config/repeatingProblem'
+import { advanceClock, clearSeededProblems, seedRepeatingProblem, simulateModeratorNoShow } from '@/state/fieldwork'
 import { addReviewEvent, useReviewState } from '@/state/reviewState'
 import { reviewList } from '@/state/studySessions'
 import { featureInfo, useFeatures, type FeatureKey } from '@/state/features'
@@ -155,6 +156,23 @@ export function ScreenJump() {
                   </Button>
                 </div>
                 {clockNote && <p className="mt-2 text-xs text-graphite">{clockNote}</p>}
+              </section>
+            )}
+
+            {onFieldwork && fieldworkDoc && (
+              <section className="border-b border-mist px-4 py-3" data-testid="repeating-dev">
+                <h3 className="text-sm font-semibold">Repeating problem (mock)</h3>
+                <p className="text-xs text-graphite">Gives several different participants the same resolved issue, so the Overview line appears. Resolved, so Needs you doesn’t change.</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {REPEATING_PROBLEMS.map((p, i) => (
+                    <Button key={p.key} size="sm" onClick={() => updateFieldwork(onFieldwork.params.studyId ?? '', (d) => seedRepeatingProblem(d, p.types[0], i === 0 ? 4 : 3))}>
+                      {p.label} ×{i === 0 ? 4 : 3}
+                    </Button>
+                  ))}
+                  <Button size="sm" variant="ghost" onClick={() => updateFieldwork(onFieldwork.params.studyId ?? '', clearSeededProblems)}>
+                    Remove seeded
+                  </Button>
+                </div>
               </section>
             )}
 

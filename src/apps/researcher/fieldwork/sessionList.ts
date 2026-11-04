@@ -31,7 +31,7 @@ export function sessionRows(doc: FieldworkDoc, params: URLSearchParams): Session
   const people = reached || stuck ? journeyPeople(doc, reached ? { reached } : { stuck: stuck! }) : undefined
   const issueType = params.get('issue')
   const q = (params.get('q') ?? '').trim().toLowerCase()
-  return doc.sessions.filter((s) => test(s) && (!people || people.has(s.participantId)) && (!issueType || s.issues.some((i) => i.type === issueType)) && (!q || [s.id, s.participantId, s.email, s.country].some((x) => x.toLowerCase().includes(q))))
+  return doc.sessions.filter((s) => test(s) && (!people || people.has(s.participantId)) && (!issueType || s.issues.some((i) => issueType.split('|').includes(i.type))) && (!q || [s.id, s.participantId, s.email, s.country].some((x) => x.toLowerCase().includes(q))))
 }
 
 export const sessionHref = (studyId: string, id: string, query?: Record<string, string>) => {

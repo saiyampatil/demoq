@@ -6,6 +6,7 @@
 // however many sessions they have. Validation (Under review, Accepted, Excluded) belongs to a Completed session
 // only: it is Under review the moment the session completes, and only a Researcher's decision changes it.
 
+import { REPEATING_PROBLEM_MIN_PEOPLE, REPEATING_PROBLEMS } from '@/config/repeatingProblem'
 import { formatDate, formatStamp } from '@/lib/format'
 import type { AudienceDoc } from './audience'
 import { ESCALATION_PROMISE_HOURS, MODERATOR_ROSTER, type ModeratorState } from '@/mock/moderation'
@@ -851,6 +852,19 @@ export function issueSummary(doc: FieldworkDoc) {
       return { type: t, ...ISSUE_META[t], ...ISSUE_FIX[t], count: xs.length, open: xs.filter((x) => x.status === 'Open').length, sessions: [...new Set(xs.map((x) => x.sessionId))] }
     }),
   }
+}
+
+/**
+ * Problems that have hit the same kind of person more than once: each configured problem that reached at least
+ * REPEATING_PROBLEM_MIN_PEOPLE different participants, most people first. People are counted, not sessions or issues.
+ */
+export function repeatingProblems(doc: FieldworkDoc) {
+  return REPEATING_PROBLEMS.map((k, order) => {
+    const people = new Set(doc.sessions.filter((s) => s.issues.some((i) => k.types.includes(i.type))).map((s) => s.participantId))
+    return { ...k, people: people.size, order }
+  })
+    .filter((p) => p.people >= REPEATING_PROBLEM_MIN_PEOPLE)
+    .sort((a, b) => b.people - a.people || a.order - b.order)
 }
 
 /** Consent is given once per participant, in their first session; later sessions reuse it. */
