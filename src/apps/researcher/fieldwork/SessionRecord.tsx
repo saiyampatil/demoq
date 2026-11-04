@@ -299,35 +299,7 @@ export function SessionRecord() {
         </section>
       )}
 
-      {s.escalation && (
-        <Card title="Escalation to a human">
-          <dl className="grid gap-x-8 gap-y-2 text-sm sm:grid-cols-4" data-testid="escalation-card">
-            <div>
-              <dt className="text-graphite">Status</dt>
-              <dd className="font-medium">{s.escalation.status}</dd>
-            </div>
-            <div>
-              <dt className="text-graphite">Asked</dt>
-              <dd>{slotText(s.escalation.requestedAt)}</dd>
-            </div>
-            <div>
-              <dt className="text-graphite">{s.escalation.joinedAt ? 'Joined' : s.escalation.actedBy ? s.escalation.actedBy.action === 'Assigned' ? 'Assigned by' : 'Booking link sent by' : 'Offered to'}</dt>
-              <dd>
-                {s.escalation.joinedAt
-                  ? `${moderatorName(s.escalation.acceptedBy ?? null)}, ${slotText(s.escalation.joinedAt)}`
-                  : s.escalation.actedBy
-                    ? `${s.escalation.actedBy.by}, ${slotText(s.escalation.actedBy.at)}`
-                    : s.escalation.offers.map((o) => `${moderatorName(o.moderatorId)} (${o.outcome.toLowerCase()})`).join(', ') || 'No one'}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-graphite">Counts</dt>
-              <dd>Once toward the target, across the AI and human parts</dd>
-            </div>
-          </dl>
-          <p className="mt-2 text-xs text-graphite">Each step is in the timeline below.</p>
-        </Card>
-      )}
+      {s.escalation && <EscalationCard s={s} />}
 
       <div className="grid items-start gap-6 xl:grid-cols-2">
         <Card title="Timeline" className={cn(s.issues.length === 0 && ssRecords.length === 0 && 'xl:col-span-2')}>
@@ -505,5 +477,60 @@ export function SessionRecord() {
         <TextArea label="Reason (required)" rows={3} value={reason} onChange={(e) => setReason(e.target.value)} />
       </Modal>
     </div>
+  )
+}
+
+const OUTCOME: Record<NonNullable<Session['escalation']>['status'], string> = {
+  Offering: 'Offered to a moderator',
+  'Waiting for moderator': 'Waiting for a moderator',
+  Assigned: 'Moderator assigned',
+  'Booking link sent': 'Booking link sent',
+  Joined: 'A moderator joined',
+  'Given up': 'Given up',
+  'Ended by participant': 'Ended by the participant',
+  'Booked by participant': 'Participant booked a follow-up',
+}
+
+/**
+ * The record of a request for a human: how it ended, who was offered it, and who did what next, whether that was a
+ * moderator, the Researcher or the participant themselves. Each step is also in the timeline.
+ */
+function EscalationCard({ s }: { s: Session }) {
+  const e = s.escalation!
+  // What happened after the request, in order, each with who did it and when.
+  const next: string[] = []
+  if (e.actedBy) next.push(e.actedBy.action === 'Assigned' ? `${e.actedBy.by} assigned ${moderatorName(e.actedBy.moderatorId ?? null)}, ${slotText(e.actedBy.at)}` : `${e.actedBy.by} sent a booking link, ${slotText(e.actedBy.at)}`)
+  if (e.joinedAt) next.push(`${moderatorName(e.acceptedBy ?? null)} joined, ${slotText(e.joinedAt)}`)
+  if (e.choice) next.push(e.choice.how === 'Ended the interview' ? `The participant ended the interview, ${slotText(e.choice.at)}` : `The participant booked a follow-up for ${slotText(e.choice.slot ?? null)} (chosen ${slotText(e.choice.at)})`)
+  if (next.length === 0) next.push(e.status === 'Waiting for moderator' ? 'Waiting for a moderator' : 'Nothing yet')
+
+  return (
+    <Card title="Escalation to a human">
+      <dl className="grid gap-x-8 gap-y-3 text-sm sm:grid-cols-2 lg:grid-cols-4" data-testid="escalation-card">
+        <div>
+          <dt className="text-graphite">How it ended</dt>
+          <dd className="font-medium" data-testid="escalation-outcome">
+            {OUTCOME[e.status]}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-graphite">Asked</dt>
+          <dd className="tabular-nums">{slotText(e.requestedAt)}</dd>
+        </div>
+        <div>
+          <dt className="text-graphite">Offered to</dt>
+          <dd>{e.offers.length ? e.offers.map((o) => `${moderatorName(o.moderatorId)} (${o.outcome.toLowerCase()})`).join(', ') : 'No one was on standby'}</dd>
+        </div>
+        <div>
+          <dt className="text-graphite">Then</dt>
+          <dd className="flex flex-col gap-0.5" data-testid="escalation-then">
+            {next.map((t) => (
+              <span key={t}>{t}</span>
+            ))}
+          </dd>
+        </div>
+      </dl>
+      {e.status === 'Joined' && <p className="mt-3 text-xs text-graphite">Counts once toward the target, across the AI and human parts. Each step is in the timeline below.</p>}
+    </Card>
   )
 }

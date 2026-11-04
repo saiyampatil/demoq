@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Button } from '@/components/Button'
 import { controlBase } from '@/components/Field'
 import { sample } from '@/routes/screens'
-import { addWait, allDeclined, assignedJoins, endSession, handledBySystem, openLink, recoverSystem, requestEscalation, resolveSession, simulateTurn, standbyAccepts, type FieldworkDoc } from '@/state/fieldwork'
+import { addWait, allDeclined, assignedJoins, endSession, handledBySystem, openLink, participantBooks, participantEnds, recoverSystem, requestEscalation, resolveSession, simulateTurn, standbyAccepts, type FieldworkDoc } from '@/state/fieldwork'
 import { SELF_SERVICE } from '@/state/selfService'
 
 /**
@@ -68,6 +68,16 @@ export function SessionSimulator({ doc, sessionId, paused, update }: { doc: Fiel
             </Button>
             <Button size="sm" data-testid="sim-declined" onClick={() => act((d) => allDeclined(d, s.id), 'Every standby moderator declined or timed out. It is waiting for the Researcher.')}>
               Simulate: all declined
+            </Button>
+          </>
+        )}
+        {(s.escalation?.status === 'Offering' || s.escalation?.status === 'Waiting for moderator') && (
+          <>
+            <Button size="sm" data-testid="sim-ends" onClick={() => act((d) => participantEnds(d, s.id), 'The participant chose to end the interview. The session is Withdrawn.')}>
+              Simulate: participant ends the interview
+            </Button>
+            <Button size="sm" data-testid="sim-books" onClick={() => act((d) => participantBooks(d, s.id), 'The participant booked a human follow-up. The session is Booked.')}>
+              Simulate: participant books a follow-up
             </Button>
           </>
         )}

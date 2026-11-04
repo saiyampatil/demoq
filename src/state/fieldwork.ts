@@ -170,12 +170,18 @@ export type ConsentRecord = {
 export type EscalationOffer = { moderatorId: string; at: string; outcome: 'Offered' | 'Declined' | 'Timed out' | 'Accepted' | 'Assigned' }
 export type Escalation = {
   requestedAt: string
-  status: 'Offering' | 'Waiting for moderator' | 'Assigned' | 'Booking link sent' | 'Joined' | 'Given up'
+  status: 'Offering' | 'Waiting for moderator' | 'Assigned' | 'Booking link sent' | 'Joined' | 'Given up' | 'Ended by participant' | 'Booked by participant'
   offers: EscalationOffer[]
   /** When it fell through to the Researcher. */
   fellThroughAt?: string
   acceptedBy?: string
   joinedAt?: string
+  /**
+   * What the participant chose, when they ended it themselves instead of waiting: leave the interview, or book a human
+   * follow-up straight away because a slot was free. Waiting needs no record of its own: it is the status
+   * "Waiting for moderator" and the time since `requestedAt`.
+   */
+  choice?: { by: 'Participant'; at: string; how: 'Ended the interview' | 'Booked a follow-up'; slot?: string }
   /** What the Researcher did when it fell through. */
   actedBy?: { by: string; at: string; action: 'Assigned' | 'Booking link'; moderatorId?: string }
   /** Dev only: time added to the clock, to see a long wait. */
@@ -1087,6 +1093,37 @@ export function allDeclined(doc: FieldworkDoc, sessionId: string): FieldworkDoc 
     })
     acc = addEventAt(t, acc, 'system', 'No moderator accepted. It is waiting for the Researcher.')
     return { ...acc, escalation: { ...e, status: 'Waiting for moderator', offers, fellThroughAt: t } }
+  })
+}
+
+/** Whether the participant can still choose: a moderator is being offered, or none accepted and they are waiting. */
+const undecided = (e: Escalation) => e.status === 'Offering' || e.status === 'Waiting for moderator'
+
+/** The participant stops waiting and leaves the interview. The session is Withdrawn, like any participant who leaves. */
+export function participantEnds(doc: FieldworkDoc, sessionId: string): FieldworkDoc {
+  const when = tick(doc)
+  return escalate(doc, sessionId, (s, e) => {
+    if (!undecided(e)) return s
+    return {
+      ...addEventAt(when, s, 'participant', 'Chose to end the interview instead of waiting for a moderator'),
+      status: 'Withdrawn' as const,
+      escalation: { ...e, status: 'Ended by participant', choice: { by: 'Participant', at: when, how: 'Ended the interview' } },
+    }
+  })
+}
+
+/** No moderator is free but a human slot is, so the participant books it themselves. The session is Booked for that slot. */
+export function participantBooks(doc: FieldworkDoc, sessionId: string): FieldworkDoc {
+  const when = tick(doc)
+  const slot = at(when, 24 * 60)
+  return escalate(doc, sessionId, (s, e) => {
+    if (!undecided(e)) return s
+    return {
+      ...addEventAt(when, s, 'participant', `Booked a human follow-up for ${formatSlot(slot)}`),
+      status: 'Booked' as const,
+      slot,
+      escalation: { ...e, status: 'Booked by participant', choice: { by: 'Participant', at: when, how: 'Booked a follow-up', slot } },
+    }
   })
 }
 

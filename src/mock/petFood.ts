@@ -429,6 +429,68 @@ export function seedPetFood(): PetSeed {
           },
         },
   )
+  // Two more people asked for a human, to show the other ways it can end. Same shape as P-3115 above.
+  const at = (iso: string, min: number) => new Date(new Date(iso).getTime() + min * 60000).toISOString()
+  // P-3108: nobody on standby accepted, so it fell through to the Researcher, who assigned Jordan. Jordan joined.
+  const asked2 = '2026-09-12T14:55:00-04:00'
+  // P-3123: nobody accepted, and the participant chose to leave rather than wait.
+  const asked3 = '2026-09-18T14:12:00-04:00'
+  base.sessions = base.sessions.map((s) =>
+    s.id === 'P-3108-1'
+      ? {
+          ...s,
+          moderatorId: 'u-jordan',
+          events: [
+            ...s.events,
+            esc(asked2, 'participant', 'Asked to talk to a human moderator'),
+            esc(asked2, 'system', 'Offered to Priya Shah, who has 60 seconds to answer'),
+            esc(at(asked2, 0.3), 'system', 'Priya Shah declined'),
+            esc(at(asked2, 0.3), 'system', 'Offered to Jordan Lee, who has 60 seconds to answer'),
+            esc(at(asked2, 1.3), 'system', 'Jordan Lee didn’t answer in 60 seconds (timed out)'),
+            esc(at(asked2, 1.3), 'system', 'No moderator accepted. It is waiting for the Researcher.'),
+            esc(at(asked2, 3), 'system', `${maya} assigned Jordan Lee (online) and notified them`),
+            esc(at(asked2, 5), 'moderator', 'Jordan Lee joined at Sep 12, 3:00 PM ET'),
+          ],
+          escalation: {
+            requestedAt: asked2,
+            status: 'Joined' as const,
+            fellThroughAt: at(asked2, 1.3),
+            offers: [
+              { moderatorId: 'u-priya', at: at(asked2, 0.3), outcome: 'Declined' as const },
+              { moderatorId: 'u-jordan', at: at(asked2, 1.3), outcome: 'Timed out' as const },
+              { moderatorId: 'u-jordan', at: at(asked2, 3), outcome: 'Assigned' as const },
+            ],
+            actedBy: { by: maya, at: at(asked2, 3), action: 'Assigned' as const, moderatorId: 'u-jordan' },
+            acceptedBy: 'u-jordan',
+            joinedAt: at(asked2, 5),
+          },
+        }
+      : s.id === 'P-3123-1'
+        ? {
+            ...s,
+            events: [
+              ...s.events,
+              esc(asked3, 'participant', 'Asked to talk to a human moderator'),
+              esc(asked3, 'system', 'Offered to Priya Shah, who has 60 seconds to answer'),
+              esc(at(asked3, 0.3), 'system', 'Priya Shah declined'),
+              esc(at(asked3, 0.3), 'system', 'Offered to Jordan Lee, who has 60 seconds to answer'),
+              esc(at(asked3, 1.3), 'system', 'Jordan Lee didn’t answer in 60 seconds (timed out)'),
+              esc(at(asked3, 1.3), 'system', 'No moderator accepted. It is waiting for the Researcher.'),
+              esc(at(asked3, 3), 'participant', 'Chose to end the interview instead of waiting for a moderator'),
+            ],
+            escalation: {
+              requestedAt: asked3,
+              status: 'Ended by participant' as const,
+              fellThroughAt: at(asked3, 1.3),
+              offers: [
+                { moderatorId: 'u-priya', at: at(asked3, 0.3), outcome: 'Declined' as const },
+                { moderatorId: 'u-jordan', at: at(asked3, 1.3), outcome: 'Timed out' as const },
+              ],
+              choice: { by: 'Participant' as const, at: at(asked3, 3), how: 'Ended the interview' as const },
+            },
+          }
+        : s,
+  )
   const entry = (at: string, by: string, text: string) => ({ id: uid('fl'), at, by, text })
   const fieldwork: FieldworkDoc = {
     ...base,
