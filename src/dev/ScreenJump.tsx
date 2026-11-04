@@ -7,6 +7,7 @@ import { mockTestRuns, type MockRuns } from '@/mock/launch'
 import { MOISTURIZER_ID, stagePresets } from '@/mock/moisturizerStudy'
 import { appLabel, screenHref, screens, type AppKey } from '@/routes/screens'
 import { SIMULATE_TIME_STEPS } from '@/mock/needsYou'
+import { NumbersCheck } from './NumbersCheck'
 import { REPEATING_PROBLEMS } from '@/config/repeatingProblem'
 import { advanceClock, clearSeededProblems, seedRepeatingProblem, simulateModeratorNoShow } from '@/state/fieldwork'
 import { addReviewEvent, useReviewState } from '@/state/reviewState'
@@ -158,6 +159,8 @@ export function ScreenJump() {
                 {clockNote && <p className="mt-2 text-xs text-graphite">{clockNote}</p>}
               </section>
             )}
+
+            {onFieldwork && fieldworkDoc && <NumbersCheck doc={fieldworkDoc} audience={getAudience(onFieldwork.params.studyId ?? '')} fallbackTarget={getStudy(onFieldwork.params.studyId ?? '')?.targetCompletes} />}
 
             {onFieldwork && fieldworkDoc && (
               <section className="border-b border-mist px-4 py-3" data-testid="repeating-dev">

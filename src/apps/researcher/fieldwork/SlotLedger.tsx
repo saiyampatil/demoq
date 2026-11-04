@@ -55,27 +55,3 @@ export function SlotLedger({ ledger }: { ledger: Ledger }) {
     </div>
   )
 }
-
-/** Which slots opened and why, for the "How this is calculated" section. */
-export function SlotsOpened({ ledger }: { ledger: Ledger }) {
-  // Slots that opened but are not open now: the invitations beyond the target (the over-recruitment buffer) cover them.
-  const absorbed = Math.max(0, ledger.released.length - ledger.open)
-  if (ledger.released.length === 0) return null
-  return (
-    <div data-testid="slots-opened">
-      <p className="font-medium text-ink tabular-nums" data-testid="slots-summary">
-        {ledger.released.length} {ledger.released.length === 1 ? 'slot' : 'slots'} opened
-        {absorbed > 0 && `, ${absorbed} covered by the over-recruitment buffer`}, {ledger.open} open now.
-      </p>
-      <ul className="mt-1 flex flex-col gap-0.5 text-graphite">
-        {ledger.released.map((r) => (
-          <li key={r.participantId + r.why}>
-            <span className="font-medium text-ink tabular-nums">{r.participantId}</span>: {r.why}
-            {r.detail ? `. ${r.detail}` : ''}
-          </li>
-        ))}
-      </ul>
-      {absorbed > 0 && <p className="mt-1 text-graphite">The study invited more people than it has slots, so some of the slots that opened were already covered.</p>}
-    </div>
-  )
-}

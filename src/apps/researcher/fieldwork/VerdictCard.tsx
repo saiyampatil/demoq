@@ -33,16 +33,18 @@ type Props = {
   paused: boolean
   /** The Researcher paused it, so Resume in the header is the primary action, not the launch screen. */
   resumable: boolean
+  /** Excluded sessions that have been replaced. Zero hides the sentence. */
+  replaced: number
   goTab: (t: string) => void
   onInvite: (n: number) => void
   onAdjust: (k: 'extend' | 'lower') => void
 }
 
 /**
- * Three zones: the verdict word and what is left to act on (left), the slots (middle), the one thing to do (right). The arithmetic and
- * the list of slots that opened are in "How these numbers are calculated" at the bottom of the Overview.
+ * Three zones: the verdict word and what is left to act on (left), the slots (middle), the one thing to do (right).
+ * The arithmetic is not shown to the Researcher; the dev panel has it (Screen jump, Check the numbers).
  */
-export function VerdictCard({ v, ledger, reserve, studyId, blockedWhy, newInReserve, closed, notEnoughTime, daysLeft, clockStopped, paused, resumable, goTab, onInvite, onAdjust }: Props) {
+export function VerdictCard({ v, ledger, reserve, studyId, blockedWhy, newInReserve, closed, notEnoughTime, daysLeft, clockStopped, paused, resumable, replaced, goTab, onInvite, onAdjust }: Props) {
   const tone = TONE[v.level]
   const plan = v.plan
   // The count and the target are on the Toward target card, so this says only what is left to act on. The status word is
@@ -70,6 +72,11 @@ export function VerdictCard({ v, ledger, reserve, studyId, blockedWhy, newInRese
           {sentence && (
             <p className="mt-1 text-md text-ink tabular-nums" data-testid="verdict-sentence">
               {sentence}
+            </p>
+          )}
+          {replaced > 0 && (
+            <p className="mt-2 text-sm text-graphite tabular-nums" data-testid="replaced-note">
+              {replaced} excluded {replaced === 1 ? 'session was' : 'sessions were'} replaced.
             </p>
           )}
           {newInReserve > 0 && (

@@ -18,7 +18,6 @@ import { invitedIds, invitedMessage, type FWProps } from './FieldworkBits'
 import { KpiStrip } from './KpiStrip'
 import { ParticipantJourney } from './ParticipantJourney'
 import { RepeatingProblemLine } from './RepeatingProblemLine'
-import { HowCalculated } from './HowCalculated'
 import { VerdictCard } from './VerdictCard'
 
 const r19 = (studyId: string, id: string) => `${studyPath(studyId, { ...screenById.R19, path: screenById.R19.path.replace(':sessionId', id) })}?from=needs-you`
@@ -32,6 +31,8 @@ export function Overview(p: FWProps) {
   const regions = regionMatrix(doc, outcomes)
   const skew = regionSkew(regions.totals, regions.total)
   const ledger = slotLedger(doc, target, outcomes)
+  // Excluded sessions whose slot someone else now holds. One still open is not yet replaced.
+  const replaced = Math.max(0, ledger.released.filter((r) => r.why === 'Excluded').length - ledger.open)
   const blockedWhy = readOnly ? 'This is sample data. Nothing can be changed.' : closed ? 'Fieldwork is closed' : paused ? 'Resume fieldwork to do this.' : undefined
   const inviteNow = (n: number) => {
     const next = inviteFromReserve(doc, me, reserve.slice(0, n))
@@ -60,6 +61,7 @@ export function Overview(p: FWProps) {
         clockStopped={paused && !closed}
         paused={paused}
         resumable={!!doc.paused}
+        replaced={replaced}
         goTab={p.goTab}
         onInvite={inviteNow}
         onAdjust={setAdjust}
@@ -138,8 +140,6 @@ export function Overview(p: FWProps) {
           </ul>
         </Card>
       )}
-
-      <HowCalculated v={v} ledger={ledger} doc={doc} outcomes={outcomes} />
     </div>
   )
 }
