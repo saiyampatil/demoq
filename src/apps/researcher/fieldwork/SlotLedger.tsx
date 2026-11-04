@@ -34,6 +34,8 @@ export function SlotLedger({ ledger }: { ledger: Ledger }) {
     { state: 'noShow', label: `Held by a no-show until ${until}`, n: ledger.noShowHeld },
     { state: 'open', label: 'Open', n: ledger.open },
   ]
+  // A key only helps when there is something to tell apart from something else: never a one-item legend.
+  const shown = legend.filter((x) => x.n > 0)
   const hover = (st: SlotState, who: string | null) => (st === 'open' || !who ? 'Open slot' : `${who}: ${PERSON[st]}`)
   return (
     <div className="flex flex-col gap-3" aria-label="Slot ledger">
@@ -42,16 +44,16 @@ export function SlotLedger({ ledger }: { ledger: Ledger }) {
           <li key={i} title={hover(st, ledger.slotWho[i])} aria-label={`Slot ${i + 1}: ${hover(st, ledger.slotWho[i])}`} className={cn('aspect-square max-h-6 rounded-xs', SLOT[st].cls)} />
         ))}
       </ol>
-      <ul className="flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-graphite" data-testid="slot-legend">
-        {legend
-          .filter((x) => x.n > 0)
-          .map((x) => (
+      {shown.length > 1 && (
+        <ul className="flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-graphite" data-testid="slot-legend">
+          {shown.map((x) => (
             <li key={x.state} className="flex items-center gap-1.5 whitespace-nowrap">
               <span aria-hidden className={cn('size-3 shrink-0 rounded-xs', SLOT[x.state].cls)} />
               {x.label}
             </li>
           ))}
-      </ul>
+        </ul>
+      )}
     </div>
   )
 }

@@ -6,6 +6,9 @@ import { screenById, studyPath } from '@/routes/screens'
 import type { FieldworkDoc } from '@/state/fieldwork'
 import { journey, type JourneyKey } from '@/state/selectors'
 
+/** The biggest drop is amber only when it loses at least this share of the people at the stage before. */
+const BIG_DROP_PCT = 10
+
 const sessionsFor = (studyId: string, q: Record<string, string>) => `${studyPath(studyId, screenById.R18)}?${new URLSearchParams({ tab: 'sessions', ...q })}`
 
 /**
@@ -36,14 +39,16 @@ export function ParticipantJourney({ doc, studyId, needsCount }: { doc: Fieldwor
               </li>
             )
             if (!step) return [tile]
+            // Amber only for the biggest drop, and only when it is a real share of the stage before it.
+            const notable = step.biggest && !j.tooEarly && st.reached > 0 && (step.lost / st.reached) * 100 >= BIG_DROP_PCT
             const loss = (
               <li key={`${st.key}-arrow`} className="flex items-center justify-center max-sm:py-0">
                 <Link
                   to={sessionsFor(studyId, { stuck: step.from })}
                   data-testid={`journey-step-${step.from}`}
-                  data-biggest={step.biggest && !j.tooEarly ? 'true' : undefined}
+                  data-biggest={notable ? 'true' : undefined}
                   aria-label={j.tooEarly ? `${step.lost} lost between ${st.label} and ${j.stages[i + 1].label}. Show them in Sessions.` : `${step.pct}% went on, ${step.lost} lost between ${st.label} and ${j.stages[i + 1].label}. Show them in Sessions.`}
-                  className={cn('flex w-full min-w-16 flex-col items-center gap-1 rounded-sm px-2 py-1.5 text-center text-xs tabular-nums transition-colors hover:bg-haze', step.biggest && !j.tooEarly ? 'bg-pending-bg text-pending-fg hover:bg-pending-bg' : 'text-graphite')}
+                  className={cn('flex w-full min-w-16 flex-col items-center gap-1 rounded-sm px-2 py-1.5 text-center text-xs tabular-nums transition-colors hover:bg-haze', notable ? 'bg-pending-bg text-pending-fg hover:bg-pending-bg' : 'text-graphite')}
                 >
                   {!j.tooEarly && <span className="text-sm font-semibold">{step.pct}%</span>}
                   <span className="flex w-full items-center" aria-hidden>

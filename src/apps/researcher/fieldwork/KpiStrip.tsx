@@ -3,7 +3,6 @@ import { Link } from 'react-router'
 import { cn } from '@/components/cn'
 import { formatDate } from '@/lib/format'
 import { zoneLabel } from '@/lib/timeZone'
-import { CheckIcon } from '@/components/icons'
 import { screenById, studyPath } from '@/routes/screens'
 import type { FieldworkDoc, Outcomes } from '@/state/fieldwork'
 import { durationStats, pacing, progress } from '@/state/selectors'
@@ -81,12 +80,6 @@ export function KpiStrip({ doc, target, outcomes, awaiting, studyId, clock }: { 
           {dur.avg !== null && unit('min')}
         </Kpi>
       </div>
-      {awaiting === 0 && (
-        <Link to={studyPath(studyId, screenById.R21)} data-testid="kpi-awaiting" className="flex w-fit items-center gap-1.5 text-sm text-graphite hover:text-ink">
-          <CheckIcon size={14} />
-          All reviewed
-        </Link>
-      )}
     </section>
   )
 }

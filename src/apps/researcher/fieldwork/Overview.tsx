@@ -5,7 +5,7 @@ import { Card } from '@/components/Card'
 import { cn } from '@/components/cn'
 import { controlBase, TextArea } from '@/components/Field'
 import { useToast } from '@/components/Toast'
-import { AlertIcon } from '@/components/icons'
+import { AlertIcon, ChevronRightIcon } from '@/components/icons'
 import { Modal } from '@/components/Modal'
 import { InfoTip } from '@/components/InfoTip'
 import { Tooltip } from '@/components/Tooltip'
@@ -130,15 +130,20 @@ export function Overview(p: FWProps) {
       <ParticipantJourney doc={doc} studyId={studyId} needsCount={needs.length} />
 
       {doc.log.length > 0 && (
-        <Card title="Activity">
-          <ul className="flex flex-col gap-2 text-sm">
+        <details data-testid="activity" className="group rounded-md border border-mist bg-surface">
+          <summary className="flex cursor-pointer list-none items-center gap-2 px-5 py-3.5 text-md font-semibold [&::-webkit-details-marker]:hidden">
+            <ChevronRightIcon size={14} className="text-graphite transition-transform group-open:rotate-90" />
+            Activity
+            <span className="rounded-full bg-haze px-2 text-sm font-medium tabular-nums text-graphite">{doc.log.length}</span>
+          </summary>
+          <ul className="flex flex-col gap-2 border-t border-mist px-5 py-4 text-sm">
             {[...doc.log].reverse().map((l) => (
               <li key={l.id}>
                 <span className="font-medium">{l.by}</span>: {l.text} <span className="text-xs text-graphite">{formatStamp(l.at)}</span>
               </li>
             ))}
           </ul>
-        </Card>
+        </details>
       )}
     </div>
   )
@@ -300,6 +305,19 @@ function NeedsYou({ doc, rows, studyId, me, update, readOnly, blockedWhy }: FWPr
     setReason('')
   }
 
+  // Nothing to do: one quiet line, not a card. A note about what was just done still shows.
+  if (rows.length === 0)
+    return (
+      <div id="needs-you" aria-label="Needs you" className="scroll-mt-4">
+        {notice && (
+          <p role="status" className="mb-2 rounded-md border border-positive-line bg-positive-bg px-4 py-2 text-sm text-positive-fg">
+            {notice}
+          </p>
+        )}
+        <p className="text-sm text-graphite">Nothing needs you right now.</p>
+      </div>
+    )
+
   return (
     <section id="needs-you" aria-label="Needs you" className="scroll-mt-4 rounded-md border border-mist bg-surface">
       <header className="flex items-start gap-4 border-b border-mist px-5 py-3.5">
@@ -316,93 +334,52 @@ function NeedsYou({ doc, rows, studyId, me, update, readOnly, blockedWhy }: FWPr
           {notice}
         </p>
       )}
-      {rows.length === 0 ? (
-        <p className="px-5 py-6 text-sm text-graphite">Nothing needs you. Everyone unfinished is in progress or waiting on the participant.</p>
-      ) : (
-        <>
-          <ul className="divide-y divide-mist">
-            {shown.map((row) => {
-              const blocked = why(row)
-              if (row.kind === 'escalation' && row.escalation) {
-                const e = row.escalation
-                const late = e.leftMin < 0
-                return (
-                  <li key={row.key} data-testid="escalation-row" className="flex flex-col gap-2 border-l-4 border-graphite bg-haze px-5 py-3">
-                    <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                      <Link to={r19(studyId, row.session.id)} className="font-medium text-iris-700 hover:underline">
-                        <SessionTag participantId={row.session.participantId} no={row.session.no} count={doc.sessions.filter((x) => x.participantId === row.session.participantId).length} />
-                      </Link>
-                      <span className="rounded-xs border border-mist-strong bg-surface px-1.5 py-0.5 text-xs font-medium text-ink">Waiting for moderator</span>
-                      <FaultChip fault={row.fault} />
-                      <span className="text-sm">{row.what}</span>
-                    </div>
-                    <p className="text-sm tabular-nums" data-testid="escalation-clock">
-                      Asked {formatSlot(row.since)}. Waiting {duration(e.waitedMin)}.{' '}
-                      <span className={late ? 'font-medium text-negative-fg' : 'font-medium'}>{late ? `Overdue by ${duration(-e.leftMin)} against` : `${duration(e.leftMin)} left on`} the promise: “We’ll contact you within 24 hours.”</span>
-                    </p>
-                    <span className="flex flex-wrap gap-2">
-                      {blocked ? (
-                        <Tooltip content={blocked} focusable>
-                          <Button size="sm" variant="primary" disabled>
-                            Assign moderator
-                          </Button>
-                        </Tooltip>
-                      ) : (
-                        <>
-                          <Button size="sm" variant="primary" data-testid="assign-moderator" onClick={() => { setPick(''); setAssigning(row) }}>
-                            Assign moderator
-                          </Button>
-                          <Button
-                            size="sm"
-                            data-testid="send-booking-link"
-                            onClick={() => {
-                              update((d) => sendBookingLink(d, row.session.id, me))
-                              toast(`Booking link sent to ${row.who}. They’ll book a human follow-up.`)
-                            }}
-                          >
-                            Send booking link
-                          </Button>
-                        </>
-                      )}
-                      {!readOnly && (
-                        <Button size="sm" variant="ghost" onClick={() => setGiving(row)} aria-label={`Give up and replace: ${row.who}`}>
-                          Give up and replace
-                        </Button>
-                      )}
-                    </span>
-                  </li>
-                )
-              }
+      <>
+        <ul className="divide-y divide-mist">
+          {shown.map((row) => {
+            const blocked = why(row)
+            if (row.kind === 'escalation' && row.escalation) {
+              const e = row.escalation
+              const late = e.leftMin < 0
               return (
-                <li key={row.key} data-testid="needs-row" data-kind={row.kind} data-who={row.who} className="grid items-center gap-x-4 gap-y-1.5 px-5 py-3 sm:grid-cols-[minmax(0,6.5rem)_minmax(0,1fr)_9.5rem_15.5rem]">
-                  <Link to={r19(studyId, row.session.id)} className="font-medium text-iris-700 hover:underline">
-                    <SessionTag participantId={row.session.participantId} no={row.session.no} count={doc.sessions.filter((x) => x.participantId === row.session.participantId).length} />
-                  </Link>
-                  <span className="min-w-0 text-sm">
-                    <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                      <span>{row.what}</span>
-                      <FaultChip fault={row.fault} />
-                    </span>
-                    {row.note && (
-                      <span data-testid="self-service-note" className="mt-0.5 block text-xs text-graphite">
-                        {row.note}
-                      </span>
-                    )}
-                  </span>
-                  <Since iso={row.since} now={fieldworkNow(doc)} className="sm:items-end sm:text-right" />
-                  <span className="flex flex-wrap items-center gap-2 sm:justify-end">
+                <li key={row.key} data-testid="escalation-row" className="flex flex-col gap-2 border-l-4 border-graphite bg-haze px-5 py-3">
+                  <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                    <Link to={r19(studyId, row.session.id)} className="font-medium text-iris-700 hover:underline">
+                      <SessionTag participantId={row.session.participantId} no={row.session.no} count={doc.sessions.filter((x) => x.participantId === row.session.participantId).length} />
+                    </Link>
+                    <span className="rounded-xs border border-mist-strong bg-surface px-1.5 py-0.5 text-xs font-medium text-ink">Waiting for moderator</span>
+                    <FaultChip fault={row.fault} />
+                    <span className="text-sm">{row.what}</span>
+                  </div>
+                  <p className="text-sm tabular-nums" data-testid="escalation-clock">
+                    Asked {formatSlot(row.since)}. Waiting {duration(e.waitedMin)}.{' '}
+                    <span className={late ? 'font-medium text-negative-fg' : 'font-medium'}>{late ? `Overdue by ${duration(-e.leftMin)} against` : `${duration(e.leftMin)} left on`} the promise: “We’ll contact you within 24 hours.”</span>
+                  </p>
+                  <span className="flex flex-wrap gap-2">
                     {blocked ? (
                       <Tooltip content={blocked} focusable>
-                        <Button size="sm" disabled>
-                          {row.action}
+                        <Button size="sm" variant="primary" disabled>
+                          Assign moderator
                         </Button>
                       </Tooltip>
                     ) : (
-                      <Button size="sm" onClick={() => run(row)} aria-label={`${row.action}: ${row.who}`}>
-                        {row.action}
-                      </Button>
+                      <>
+                        <Button size="sm" variant="primary" data-testid="assign-moderator" onClick={() => { setPick(''); setAssigning(row) }}>
+                          Assign moderator
+                        </Button>
+                        <Button
+                          size="sm"
+                          data-testid="send-booking-link"
+                          onClick={() => {
+                            update((d) => sendBookingLink(d, row.session.id, me))
+                            toast(`Booking link sent to ${row.who}. They’ll book a human follow-up.`)
+                          }}
+                        >
+                          Send booking link
+                        </Button>
+                      </>
                     )}
-                    {row.giveUp && !readOnly && (
+                    {!readOnly && (
                       <Button size="sm" variant="ghost" onClick={() => setGiving(row)} aria-label={`Give up and replace: ${row.who}`}>
                         Give up and replace
                       </Button>
@@ -410,17 +387,54 @@ function NeedsYou({ doc, rows, studyId, me, update, readOnly, blockedWhy }: FWPr
                   </span>
                 </li>
               )
-            })}
-          </ul>
-          {rows.length > FIRST_SHOWN && (
-            <div className="border-t border-mist px-5 py-2.5">
-              <Button size="sm" variant="ghost" onClick={() => setAll((x) => !x)}>
-                {all ? 'Show fewer' : `Show all ${rows.length}`}
-              </Button>
-            </div>
-          )}
-        </>
-      )}
+            }
+            return (
+              <li key={row.key} data-testid="needs-row" data-kind={row.kind} data-who={row.who} className="grid items-center gap-x-4 gap-y-1.5 px-5 py-3 sm:grid-cols-[minmax(0,6.5rem)_minmax(0,1fr)_9.5rem_15.5rem]">
+                <Link to={r19(studyId, row.session.id)} className="font-medium text-iris-700 hover:underline">
+                  <SessionTag participantId={row.session.participantId} no={row.session.no} count={doc.sessions.filter((x) => x.participantId === row.session.participantId).length} />
+                </Link>
+                <span className="min-w-0 text-sm">
+                  <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <span>{row.what}</span>
+                    <FaultChip fault={row.fault} />
+                  </span>
+                  {row.note && (
+                    <span data-testid="self-service-note" className="mt-0.5 block text-xs text-graphite">
+                      {row.note}
+                    </span>
+                  )}
+                </span>
+                <Since iso={row.since} now={fieldworkNow(doc)} className="sm:items-end sm:text-right" />
+                <span className="flex flex-wrap items-center gap-2 sm:justify-end">
+                  {blocked ? (
+                    <Tooltip content={blocked} focusable>
+                      <Button size="sm" disabled>
+                        {row.action}
+                      </Button>
+                    </Tooltip>
+                  ) : (
+                    <Button size="sm" onClick={() => run(row)} aria-label={`${row.action}: ${row.who}`}>
+                      {row.action}
+                    </Button>
+                  )}
+                  {row.giveUp && !readOnly && (
+                    <Button size="sm" variant="ghost" onClick={() => setGiving(row)} aria-label={`Give up and replace: ${row.who}`}>
+                      Give up and replace
+                    </Button>
+                  )}
+                </span>
+              </li>
+            )
+          })}
+        </ul>
+        {rows.length > FIRST_SHOWN && (
+          <div className="border-t border-mist px-5 py-2.5">
+            <Button size="sm" variant="ghost" onClick={() => setAll((x) => !x)}>
+              {all ? 'Show fewer' : `Show all ${rows.length}`}
+            </Button>
+          </div>
+        )}
+      </>
 
       <Modal
         open={!!assigning}

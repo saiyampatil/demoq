@@ -72,11 +72,12 @@ export function CommandCenter() {
             </span>
           ) : undefined
         }
-        description="Sessions for this study as they happen: progress, the reserve and technical problems."
+        description={closed ? 'Final numbers for this study.' : paused ? 'Fieldwork is paused.' : 'Progress, the reserve and what needs you.'}
         meta={
           <>
             <StatusChip status={preview ? 'Not Ready' : study.status} size="sm" />
             <span>{preview ? 'Sample data' : `${doc.releaseVersion}, guide v${doc.plan.guideVersion}`}</span>
+            {closed && <span data-testid="closed-line">{doc.closed ? `Closed by ${doc.closed.by}, ${formatStamp(doc.closed.at)}.` : 'Closed.'}</span>}
           </>
         }
         actions={
@@ -113,11 +114,6 @@ export function CommandCenter() {
       />
 
       {preview && <SampleDataBanner studyId={studyId} />}
-      {closed && (
-        <Banner tone="info" title="Fieldwork is closed">
-          {doc.closed ? `${doc.closed.by} closed it, ${formatStamp(doc.closed.at)}. ` : ''}No more invitations or links can be sent. The study is Complete. Sessions already finished are still in Review.
-        </Banner>
-      )}
       {doc.paused && !closed && (
         <Banner tone="warning" title="Fieldwork is paused">
           {doc.paused.by} paused it, {formatStamp(doc.paused.at)}: “{doc.paused.reason}”. Nothing that sends an invitation or a link can run, and a participant who opens an existing link is told the study is temporarily unavailable. Sessions in progress carry on and finish.
