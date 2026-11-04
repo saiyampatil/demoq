@@ -2,14 +2,16 @@ import { journeyPeople, needsYou, type JourneyKey } from '@/state/selectors'
 import type { FieldworkDoc, Session } from '@/state/fieldwork'
 import { screenById, studyPath } from '@/routes/screens'
 
-export type Filter = 'All' | 'In progress' | 'Completed' | 'Needs you' | 'Not started' | 'Has open issues' | 'Escalated'
-export const FILTERS: Filter[] = ['All', 'In progress', 'Completed', 'Needs you', 'Not started', 'Has open issues', 'Escalated']
+export type Filter = 'All' | 'In progress' | 'Completed' | 'Needs you' | 'Not started' | 'Has open issues' | 'Issues' | 'Escalated'
+export const FILTERS: Filter[] = ['All', 'In progress', 'Completed', 'Needs you', 'Not started', 'Has open issues', 'Issues', 'Escalated']
 const match: Record<Exclude<Filter, 'Needs you'>, (s: Session) => boolean> = {
   All: () => true,
   'In progress': (s) => s.status === 'Active' || s.status === 'Paused',
   Completed: (s) => s.status === 'Completed',
   'Not started': (s) => s.status === 'Not started' || s.status === 'Booked',
   'Has open issues': (s) => s.issues.some((i) => i.status === 'Open'),
+  // Any issue at all, open or resolved: how a Researcher finds the sessions that had one now the Issues tab is gone.
+  Issues: (s) => s.issues.length > 0,
   Escalated: (s) => !!s.escalation,
 }
 

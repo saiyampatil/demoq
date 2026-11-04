@@ -357,10 +357,14 @@ export function SessionRecord() {
                       {x.type} <span className="font-normal text-graphite">({x.severity}, {x.status})</span>
                       {x.selfService && <span className="ml-2 rounded-xs border border-positive-line bg-positive-bg px-1.5 py-0.5 text-xs font-medium text-positive-fg">Fixed by the participant</span>}
                     </p>
+                    <p className="text-graphite tabular-nums" data-testid="issue-when">
+                      Happened {formatStamp(x.at)}.
+                    </p>
                     {x.status === 'Resolved' ? (
                       <p className="text-positive-fg" data-testid="resolved-line">
                         Resolved: {x.resolution}
                         {x.resolvedAt ? ` · ${slotText(x.resolvedAt)}` : ''}
+                        {x.resolvedBy ? `, by ${x.resolvedBy.replace(/^The /, 'the ')}` : ''}
                         {x.detail ? <span className="text-graphite">. {x.detail}</span> : null}
                       </p>
                     ) : handledBySystem(x.type) ? (
