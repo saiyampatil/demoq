@@ -42,7 +42,7 @@ export function CommandCenter() {
   // The Issues tab is gone. An old link lands on the Overview.
   if (params.get('tab') === 'issues') return <Navigate to={studyPath(studyId, screenById.R18)} replace />
 
-  const tab: Tab = (TABS as readonly string[]).includes(params.get('tab') ?? '') ? (params.get('tab') as Tab) : 'overview'
+  const asked = (TABS as readonly string[]).includes(params.get('tab') ?? '') ? (params.get('tab') as Tab) : 'overview'
   const goTab = (t: string) => setParams(t === 'overview' ? {} : { tab: t })
   const awaiting = reviewCounts(review).underReview
   const target = tgt
@@ -50,14 +50,16 @@ export function CommandCenter() {
   // Paused by the Researcher, or paused for a version change: either way, nothing that sends an invitation can run.
   const closed = !preview && (!!doc.closed || study.status === 'Complete')
   const paused = !preview && (study.status === 'Paused' || !!doc.paused || closed)
+  // Nobody can be invited once fieldwork is closed, so the Reserve has nothing to offer.
+  const tab: Tab = asked === 'reserve' && closed ? 'overview' : asked
   const blockers = closeBlockers(doc)
   const props: FWProps = { doc, audience, target, studyId, me, update, goTab, readOnly: preview, outcomes, reserve, awaiting, paused, closed, waiting: waitingFor(review) }
 
-  const labels: Record<Tab, { label: string; badge?: string; alert?: boolean }> = {
+  const labels: Record<Tab, { label: string; badge?: string; alert?: boolean; off?: string }> = {
     overview: { label: 'Overview' },
     // People, like the journey. The table still lists each session.
     sessions: { label: 'Sessions', badge: String(sessionTotals(doc).participants) },
-    reserve: { label: 'Reserve', badge: reserve.length ? String(reserve.length) : undefined },
+    reserve: { label: 'Reserve', badge: reserve.length && !closed ? String(reserve.length) : undefined, off: closed ? 'Fieldwork is closed.' : undefined },
   }
 
   return (
@@ -136,8 +138,10 @@ export function CommandCenter() {
               id={`tab-${t}`}
               aria-selected={on}
               aria-controls="fw-panel"
+              disabled={!!labels[t].off}
+              title={labels[t].off}
               onClick={() => goTab(t)}
-              className={cn('-mb-px flex items-center gap-2 border-b-2 px-3 py-2 text-sm font-medium', on ? 'border-ink text-ink' : 'border-transparent text-graphite hover:text-ink')}
+              className={cn('-mb-px flex items-center gap-2 border-b-2 px-3 py-2 text-sm font-medium', labels[t].off ? 'cursor-not-allowed border-transparent text-muted' : on ? 'border-ink text-ink' : 'border-transparent text-graphite hover:text-ink')}
             >
               {labels[t].label}
               {labels[t].badge && <span className={cn('rounded-full px-1.5 text-xs tabular-nums', labels[t].alert ? 'bg-negative-bg text-negative-fg' : 'bg-haze text-graphite')}>{labels[t].badge}</span>}
@@ -153,7 +157,7 @@ export function CommandCenter() {
       </div>
 
       {/* Fieldwork and Review run in parallel, so there is no "continue": just a way across. */}
-      <WizardFooter sticky={false} previous={{ to: studyPath(studyId, screenById.R17), label: 'Launch' }}>
+      <WizardFooter sticky={false} previous={closed ? undefined : { to: studyPath(studyId, screenById.R17), label: 'Launch' }}>
         <Link to={studyPath(studyId, screenById.R21)} className="text-sm font-medium text-iris-700 hover:underline tabular-nums">
           {awaiting} {awaiting === 1 ? 'session' : 'sessions'} awaiting review
         </Link>

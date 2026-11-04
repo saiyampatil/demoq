@@ -33,7 +33,7 @@ const unit = (text: string) => <span className="text-md font-medium text-graphit
  * The four numbers a Researcher checks first. Every figure comes from the same selectors as the verdict, the funnel and
  * the review queue, and every card opens the screen that shows what it is made of.
  */
-export function KpiStrip({ doc, target, outcomes, awaiting, studyId, clock }: { doc: FieldworkDoc; target: number; outcomes: Outcomes; awaiting: number; studyId: string; clock: 'running' | 'stopped' | 'stopped-relaunch' }) {
+export function KpiStrip({ doc, target, outcomes, awaiting, studyId, clock }: { doc: FieldworkDoc; target: number; outcomes: Outcomes; awaiting: number; studyId: string; clock: 'running' | 'stopped' | 'stopped-relaunch' | 'closed' }) {
   const prog = progress(doc, outcomes)
   const pace = pacing(doc, target, outcomes)
   const dur = durationStats(doc)
@@ -58,7 +58,11 @@ export function KpiStrip({ doc, target, outcomes, awaiting, studyId, clock }: { 
           to={studyPath(studyId, screenById.R15)}
           label="Days left"
           line={
-            clock !== 'running'
+            clock === 'closed'
+              ? doc.closed
+                ? `${formatDate(doc.closed.at)}, ${zoneLabel()}.`
+                : 'Fieldwork is closed.'
+              : clock !== 'running'
               ? clock === 'stopped-relaunch'
                 ? 'Clock stopped. Resumes when you relaunch.'
                 : 'Clock stopped. Resumes when you resume fieldwork.'
@@ -67,7 +71,7 @@ export function KpiStrip({ doc, target, outcomes, awaiting, studyId, clock }: { 
                 : 'No fieldwork window is set.'
           }
         >
-          {clock !== 'running' ? 'Paused' : doc.window ? pace.left : '–'}
+          {clock === 'closed' ? 'Closed' : clock !== 'running' ? 'Paused' : doc.window ? pace.left : '–'}
         </Kpi>
         <Kpi
           testId="kpi-length"
