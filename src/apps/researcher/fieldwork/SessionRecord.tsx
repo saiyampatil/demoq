@@ -63,7 +63,7 @@ function story(doc: FieldworkDoc, s: Session, row: NeedsRow | undefined, reviewT
     case 'Incomplete (resumable)':
       return `Stopped${mins !== null ? ` at ${mins} min` : ''}, and the participant can resume from the last saved point.${can}`
     case 'Withdrawn':
-      return `${mins !== null ? `Stopped at ${mins} min. ` : ''}${s.consent?.withdrawn?.reason ?? 'The participant withdrew.'}`
+      return `${mins !== null ? `Stopped at ${mins} min. ` : ''}${s.consent?.withdrawn?.reason ?? (s.escalation?.status === 'Ended by participant' ? 'Ended the interview instead of waiting for a human moderator.' : 'The participant withdrew.')}`
     case 'Booked':
       return `Booked for ${slotText(s.slot)}.${can}`
     case 'Rescheduled':
@@ -148,6 +148,8 @@ export function SessionRecord() {
   const go = (id: string) => sessionHref(studyId, id, carry)
   const mine = sessionsOfParticipant(doc, s.participantId)
   const open = s.issues.filter((i) => i.status === 'Open').length
+  // Whether this session can still reach Review. A withdrawn one never does, and once fieldwork is closed an unfinished one won't.
+  const reviewNote = s.status === 'Withdrawn' ? 'A withdrawn session doesn’t go to Review.' : closed ? 'Fieldwork is closed, so this session won’t be completed or go to Review.' : 'Still in fieldwork. It moves to Review when the interview is completed.'
   const showStimuli = s.stimuli.some((x) => x.result !== 'Not shown')
   const ssRecords = s.selfService ?? []
   const sessionLabel = sessionText(s.participantId, s.no, count)
@@ -180,7 +182,7 @@ export function SessionRecord() {
               {story(doc, s, row, reviewed ? studyPath(studyId, { ...screenById.R22, path: screenById.R22.path.replace(':sessionId', s.id) }) : undefined, reviewed?.status)}
             </p>
           </div>
-          {s.status !== 'Completed' && <p className="mt-1.5 text-xs text-graphite">Still in fieldwork. It moves to Review when the interview is completed.</p>}
+          {s.status !== 'Completed' && <p className="mt-1.5 text-xs text-graphite">{reviewNote}</p>}
         </div>
 
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
@@ -221,7 +223,7 @@ export function SessionRecord() {
         </Banner>
       )}
 
-      {params.get('from') === 'review' && !reviewed && (
+      {params.get('from') === 'review' && !reviewed && s.status !== 'Withdrawn' && !closed && (
         <Banner tone="info" title="Still in fieldwork, not ready for review.">
           {s.participantId} {count > 1 ? `has an unfinished session ${s.no}` : 'hasn’t finished the interview'}. It reaches the review queue once the interview is completed.
         </Banner>

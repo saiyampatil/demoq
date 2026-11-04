@@ -468,8 +468,10 @@ export function seedPetFood(): PetSeed {
       : s.id === 'P-3123-1'
         ? {
             ...s,
+            // Left because nobody answered, not because consent was withdrawn: the recording stays, so no consent withdrawal.
+            consent: s.consent ? { ...s.consent, withdrawn: undefined } : s.consent,
             events: [
-              ...s.events,
+              ...s.events.filter((e) => !/Withdrew from the study/.test(e.text)),
               esc(asked3, 'participant', 'Asked to talk to a human moderator'),
               esc(asked3, 'system', 'Offered to Priya Shah, who has 60 seconds to answer'),
               esc(at(asked3, 0.3), 'system', 'Priya Shah declined'),
@@ -477,6 +479,7 @@ export function seedPetFood(): PetSeed {
               esc(at(asked3, 1.3), 'system', 'Jordan Lee didn’t answer in 60 seconds (timed out)'),
               esc(at(asked3, 1.3), 'system', 'No moderator accepted. It is waiting for the Researcher.'),
               esc(at(asked3, 3), 'participant', 'Chose to end the interview instead of waiting for a moderator'),
+              esc(at(asked3, 3.2), 'system', 'Left the study. The recording and consent stand.'),
             ],
             escalation: {
               requestedAt: asked3,
