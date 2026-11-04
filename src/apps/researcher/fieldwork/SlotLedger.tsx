@@ -1,23 +1,24 @@
 import { cn } from '@/components/cn'
-import { formatDate } from '@/lib/format'
 import type { Ledger, SlotState } from '@/state/selectors'
 
-/** One look per state. A no-show gets its own: teal "set aside but kept", never the same as someone who can still finish. */
-const SLOT: Record<SlotState, { cls: string; word: string }> = {
-  accepted: { cls: 'bg-positive-fg', word: 'Accepted' },
-  review: { cls: 'bg-pending-fg', word: 'Under review' },
-  running: { cls: 'border-2 border-graphite bg-surface', word: 'Held by someone who can still finish' },
-  noShow: { cls: 'border-2 border-held-fg bg-held-bg', word: 'Held by a no-show until the window closes' },
-  open: { cls: 'border-2 border-dashed border-negative-fg bg-surface', word: 'Open' },
+type Shown = Exclude<SlotState, 'noShow'>
+
+/** One look per state. A no-show who may still come is shown with everyone else who can still finish. */
+const SLOT: Record<Shown, { cls: string }> = {
+  accepted: { cls: 'bg-positive-fg' },
+  review: { cls: 'bg-pending-fg' },
+  running: { cls: 'border-2 border-graphite bg-surface' },
+  open: { cls: 'border-2 border-dashed border-negative-fg bg-surface' },
 }
 
 /** What a named person's slot says on hover. */
-const PERSON: Record<Exclude<SlotState, 'open'>, string> = {
+const PERSON: Record<Exclude<Shown, 'open'>, string> = {
   accepted: 'Accepted',
   review: 'Under review',
   running: 'can still finish',
-  noShow: 'No-show, holds the slot until the window closes',
 }
+
+const shownAs = (st: SlotState): Shown => (st === 'noShow' ? 'running' : st)
 
 /**
  * The target as slots in one row, each held or open. It lives in the verdict card on Overview and nowhere else: the
@@ -25,22 +26,20 @@ const PERSON: Record<Exclude<SlotState, 'open'>, string> = {
  * closes, or the Researcher gives up on them. The boxes share the row, so any target fits on one line.
  */
 export function SlotLedger({ ledger }: { ledger: Ledger }) {
-  const until = ledger.windowEnd ? formatDate(`${ledger.windowEnd}T12:00:00-05:00`) : 'the window closes'
   // Colour keys only: the counts are in the verdict and the KPI strip.
-  const legend: { state: SlotState; label: string; n: number }[] = [
+  const legend: { state: Shown; label: string; n: number }[] = [
     { state: 'accepted', label: 'Accepted', n: ledger.confirmed },
     { state: 'review', label: 'Under review', n: ledger.pending },
-    { state: 'running', label: 'Held by someone who can still finish', n: ledger.running },
-    { state: 'noShow', label: `Held by a no-show until ${until}`, n: ledger.noShowHeld },
-    { state: 'open', label: 'Open', n: ledger.open },
+    { state: 'running', label: 'Held by someone who can still finish', n: ledger.running + ledger.noShowHeld },
+    { state: 'open', label: 'Need to add', n: ledger.open },
   ]
   // A key only helps when there is something to tell apart from something else: never a one-item legend.
   const shown = legend.filter((x) => x.n > 0)
-  const hover = (st: SlotState, who: string | null) => (st === 'open' || !who ? 'Open slot' : `${who}: ${PERSON[st]}`)
+  const hover = (st: Shown, who: string | null) => (st === 'open' || !who ? 'Slot to add' : `${who}: ${PERSON[st]}`)
   return (
     <div className="flex flex-col gap-3" aria-label="Slot ledger">
       <ol aria-label="Slots" data-testid="slots" className="grid gap-1" style={{ gridTemplateColumns: `repeat(${Math.max(1, ledger.slots.length)}, minmax(0, 1fr))` }}>
-        {ledger.slots.map((st, i) => (
+        {ledger.slots.map(shownAs).map((st, i) => (
           <li key={i} title={hover(st, ledger.slotWho[i])} aria-label={`Slot ${i + 1}: ${hover(st, ledger.slotWho[i])}`} className={cn('aspect-square max-h-6 rounded-xs', SLOT[st].cls)} />
         ))}
       </ol>

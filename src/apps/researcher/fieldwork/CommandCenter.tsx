@@ -340,7 +340,7 @@ export function CommandCenter() {
         open={pausing}
         onClose={() => setPausing(false)}
         title="Pause fieldwork?"
-        description="You can’t invite from the reserve, resend or reissue links, retry, reschedule or source more while it’s paused. New starts from existing links see “This study is temporarily unavailable.” Sessions in progress aren’t cut off. The reason is logged with your name and the time."
+        description="You can’t invite from the reserve, resend or reissue links, retry or reschedule while it’s paused. New starts from existing links see “This study is temporarily unavailable.” Sessions in progress aren’t cut off. The reason is logged with your name and the time."
         footer={
           <>
             <Button variant="ghost" onClick={() => setPausing(false)}>

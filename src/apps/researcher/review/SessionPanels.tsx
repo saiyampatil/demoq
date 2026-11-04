@@ -1,12 +1,11 @@
-import { Link } from 'react-router'
 import { useState } from 'react'
 import { AIGeneratedTag } from '@/components/AIGenerated'
 import { Button } from '@/components/Button'
 import { cn } from '@/components/cn'
 import { TextArea } from '@/components/Field'
 import { LockIcon } from '@/components/icons'
-import { formatDateTime, formatStamp } from '@/lib/format'
-import { scoreBand, type ReviewSession, type StimulusStatus } from '@/mock/review'
+import { formatDateTime } from '@/lib/format'
+import { type ReviewSession, type StimulusStatus } from '@/mock/review'
 import { now, uid } from '@/state/brief'
 import { updateReview, useReviewState } from '@/state/reviewState'
 import { mmss } from './reviewUi'
@@ -126,50 +125,6 @@ export function SessionNotes({ session, me }: { session: ReviewSession; me: stri
           </Button>
         </form>
       </section>
-    </div>
-  )
-}
-
-/** Facts about the session, and the release and guide it was recorded under. */
-export function SessionDetails({ session, history }: { session: ReviewSession; history?: { id: string; no: number; status: string; href: string }[] }) {
-  const rows: [string, string][] = [
-    ['Participant ID', session.participantId],
-    ['Session', `${session.sessionNo} of ${session.sessionCount} (${session.id})`],
-    ['Moderator', session.moderator],
-    ['Release', session.release],
-    ['Guide', session.guide],
-    ['Completed', formatStamp(session.completedAt)],
-    ['Duration', `${session.durationMin} min`],
-    ['Transcript', `${session.turnCount.toLocaleString('en-US')} turns${session.reviewed ? `, reviewed copy v${session.reviewed.version} available` : ''}`],
-    ['Participant integrity', session.scored ? `${session.integrity}, ${scoreBand(session.integrity).toLowerCase()}` : 'Not scored yet'],
-    ['Interview quality', session.scored ? `${session.quality}, ${scoreBand(session.quality).toLowerCase()}` : 'Not scored yet'],
-    ['Flags', `${session.flags.length}`],
-  ]
-  return (
-    <div className="flex flex-col gap-6">
-      <dl className="grid gap-x-8 gap-y-3 text-sm sm:grid-cols-2">
-        {rows.map(([k, v]) => (
-          <div key={k}>
-            <dt className="text-graphite">{k}</dt>
-            <dd className="font-medium">{v}</dd>
-          </div>
-        ))}
-      </dl>
-      {history && history.length > 1 && (
-        <section aria-label="Respondent history">
-          <h3 className="text-sm font-semibold">All sessions for {session.participantId}</h3>
-          <p className="mt-0.5 text-sm text-graphite">One participant, one ID. Each time they came back it’s a new session. Only the completed one is reviewed.</p>
-          <ol className="mt-2 flex flex-col divide-y divide-mist rounded-sm border border-mist">
-            {history.map((h) => (
-              <li key={h.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 text-sm">
-                <span className="w-28 font-medium tabular-nums">Session {h.no} of {history.length}</span>
-                <span className="flex-1 text-graphite">{h.status}</span>
-                {h.id === session.id ? <span className="text-xs text-graphite">This session</span> : <Link to={h.href} className="font-medium text-iris-700 hover:underline">Open fieldwork record</Link>}
-              </li>
-            ))}
-          </ol>
-        </section>
-      )}
     </div>
   )
 }

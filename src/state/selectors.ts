@@ -6,7 +6,6 @@
 // however many sessions they have. Validation (Under review, Accepted, Excluded) belongs to a Completed session
 // only: it is Under review the moment the session completes, and only a Researcher's decision changes it.
 
-import { COVERAGE_FLAG_BELOW } from '@/config/coverage'
 import { REPEATING_PROBLEM_MIN_PEOPLE, REPEATING_PROBLEMS } from '@/config/repeatingProblem'
 import { formatDate, formatStamp } from '@/lib/format'
 import type { AudienceDoc } from './audience'
@@ -81,22 +80,6 @@ export function reviewCounts(review: ReviewSession[]) {
     accepted: n('Accepted'),
     excluded: n('Excluded'),
   }
-}
-
-/**
- * Topic coverage: for each guide section that has mandatory questions, how many finished interviews answered all of
- * them. Interviews are counted (each person once, by their counted session), not sessions. `missed` is who didn't.
- */
-export function topicCoverage(doc: FieldworkDoc) {
-  const done = countedSessions(doc)
-  const topics = doc.plan.sections
-    .map((sec) => ({ title: sec.title, mandatory: sec.items.filter((x) => x.core).map((x) => x.id) }))
-    .filter((t) => t.mandatory.length > 0)
-    .map((t) => {
-      const missed = done.filter((s) => !t.mandatory.every((id) => s.covered.includes(id))).map((s) => s.participantId)
-      return { title: t.title, questions: t.mandatory.length, covered: done.length - missed.length, interviews: done.length, missed, share: done.length ? (done.length - missed.length) / done.length : 1 }
-    })
-  return { interviews: done.length, topics, flagged: topics.filter((t) => t.share < COVERAGE_FLAG_BELOW), gaps: topics.filter((t) => t.missed.length > 0) }
 }
 
 /**
@@ -652,8 +635,8 @@ export function shortfall(doc: FieldworkDoc, target: number, outcomes: Outcomes,
 
 export type VerdictLevel = 'On track' | 'Behind pace' | 'At risk'
 
-/** What the verdict offers. `invite` and `source` fill the gap; the rest take you somewhere. */
-export type VerdictAction = { kind: 'invite' | 'source' | 'needs' | 'sessions' | 'review'; label: string; n?: number }
+/** What the verdict offers. `invite` fills the gap from the reserve; the rest take you somewhere. */
+export type VerdictAction = { kind: 'invite' | 'reserve' | 'needs' | 'sessions' | 'review'; label: string; n?: number }
 
 export type Verdict = {
   level: VerdictLevel
@@ -697,38 +680,14 @@ export function closingPlan(gap: number, reserve: number, rate: number) {
   return { need: gap, inReserve: reserve, remaining, rate, pct, source, line }
 }
 
-/** The actions for an open gap, by how much of it the reserve covers. The first is the primary one. */
-export function gapActions(gap: number, reserve: number, rate: number): VerdictAction[] {
+/** The actions for an open gap. Only the reserve fills it: invite from it, or open it when it is empty. */
+export function gapActions(gap: number, reserve: number): VerdictAction[] {
   if (gap <= 0) return []
-  const plan = closingPlan(gap, reserve, rate)
-  const invite: VerdictAction = { kind: 'invite', n: reserve, label: `Invite all ${reserve} from reserve` }
-  const source: VerdictAction = { kind: 'source', n: plan.source, label: `Source ${plan.source} more` }
-  if (reserve >= gap) return [invite]
-  if (reserve > 0) return [invite, source]
-  return [source]
+  if (reserve > 0) return [{ kind: 'invite', n: reserve, label: `Invite all ${reserve} from reserve` }]
+  return [{ kind: 'reserve', label: 'Open the reserve' }]
 }
 
-/**
- * A top-up is sourcing after launch: applicants who arrived and answered the screener go through screening into the
- * reserve, never straight to interviews. This is where each one is. Derived from the audience, so it moves with R9.
- */
-export function topUpStatus(doc: FieldworkDoc, audience: AudienceDoc | undefined) {
-  const candidates = audience?.sourcing.candidates.filter((c) => c.afterLaunch) ?? []
-  const applicants = audience ? mockApplicants(audience).filter((a) => a.afterLaunch) : []
-  const inReserve = new Set(reserveRows(doc, audience).filter((r) => r.label === 'Available').map((r) => r.id))
-  const sourced = candidates.length
-  // Every sourced person is in exactly one of these, so they always add up to `sourced`.
-  const notYetScreened = sourced - applicants.length
-  const inScreening = applicants.filter((a) => a.outcome === 'Pending review').length
-  const eligible = applicants.filter((a) => a.outcome === 'Eligible').length
-  const ineligible = applicants.filter((a) => a.outcome === 'Ineligible').length
-  const newInReserve = applicants.filter((a) => inReserve.has(a.id)).length
-  // The card is for people still being screened. Once everyone has an answer, the reserve says the rest.
-  const running = notYetScreened + inScreening > 0
-  return { sourced, notYetScreened, inScreening, eligible, ineligible, newInReserve, running, requested: doc.topUp?.requested ?? sourced }
-}
-
-/** Days left in the window against the days a new person needs to be sourced, screened and interviewed. */
+/** Days left in the window against the days a new person needs to be screened and interviewed. */
 export function timeCheck(doc: FieldworkDoc, target: number, outcomes: Outcomes) {
   const left = pacing(doc, target, outcomes).left
   return { left, needed: TOPUP_DAYS, short: !!doc.window && left < TOPUP_DAYS }
@@ -758,7 +717,7 @@ export function verdict(doc: FieldworkDoc, target: number, outcomes: Outcomes, r
       sentence: `${gap.ceiling} of ${target} can finish. ${gap.gap} more ${gap.gap === 1 ? 'person' : 'people'} needed.`,
       warning,
       basis,
-      actions: gapActions(gap.gap, gap.reserve, rate),
+      actions: gapActions(gap.gap, gap.reserve),
       plan: closingPlan(gap.gap, gap.reserve, rate),
       gap,
       figures,

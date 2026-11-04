@@ -12,18 +12,18 @@ import { transcriptFor, type ReviewFlag, type ReviewSession } from '@/mock/revie
 import { screenById, studyPath } from '@/routes/screens'
 import { DEFAULT_QUEUE, loadQueue, queueOrder } from '@/state/reviewQueue'
 import { PageHeader } from '../../shared/PageHeader'
-import { resolveSession, sessionsOfParticipant } from '@/state/fieldwork'
+import { resolveSession } from '@/state/fieldwork'
 import { SampleDataBanner } from '../SampleDataBanner'
 import { sessionText } from '../SessionTag'
 import { useStudySessions } from '../useStudySessions'
 import { FlagsPanel } from './FlagsPanel'
 import { ScorePair } from './ScorePanel'
-import { SessionDetails, SessionNotes, StimulusHistory, SurveyResponses } from './SessionPanels'
+import { SessionNotes, StimulusHistory, SurveyResponses } from './SessionPanels'
 import { ActivityPanel, DecisionBar, DismissFlagModal, type DecisionCtx } from './DecisionBar'
 import { TranscriptView, type Focus } from './TranscriptView'
 import { usePlayer, VideoPlayer } from './VideoPlayer'
 
-const TABS = ['workspace', 'transcript', 'stimulus', 'survey', 'notes', 'activity', 'details'] as const
+const TABS = ['workspace', 'transcript', 'stimulus', 'survey', 'notes', 'activity'] as const
 type Tab = (typeof TABS)[number]
 const TAB_LABEL: Record<Tab, string> = {
   workspace: 'Review workspace',
@@ -32,7 +32,6 @@ const TAB_LABEL: Record<Tab, string> = {
   survey: 'Survey responses',
   notes: 'Session notes',
   activity: 'Activity',
-  details: 'Session details',
 }
 
 export function SessionReview() {
@@ -95,16 +94,13 @@ export function SessionReview() {
       </div>
     )
 
-  const history: History = doc ? sessionsOfParticipant(doc, session.participantId).map((x) => ({ id: x.id, no: x.no, status: x.status, href: href(screenById.R19, x.id) })) : []
   const closed = !preview && (!!doc?.closed || study?.status === 'Complete')
   const paused = !preview && (study?.status === 'Paused' || !!doc?.paused || closed)
   const ctx: DecisionCtx | undefined = doc ? { session, doc, target, outcomes, reserve, me, update, paused, closed, readOnly: preview || !update } : undefined
-  return <Loaded key={session.id} session={session} all={all} studyId={studyId} crumbs={crumbs} demo={demo} history={history} ctx={ctx} />
+  return <Loaded key={session.id} session={session} all={all} studyId={studyId} crumbs={crumbs} demo={demo} ctx={ctx} />
 }
 
-type History = { id: string; no: number; status: string; href: string }[]
-
-function Loaded({ session, all, studyId, crumbs, demo, history, ctx }: { session: ReviewSession; all: ReviewSession[]; studyId: string; crumbs: React.ReactNode; demo: string | null; history: History; ctx?: DecisionCtx }) {
+function Loaded({ session, all, studyId, crumbs, demo, ctx }: { session: ReviewSession; all: ReviewSession[]; studyId: string; crumbs: React.ReactNode; demo: string | null; ctx?: DecisionCtx }) {
   const navigate = useNavigate()
   const [tab, setTab] = useState<Tab>('workspace')
   const [focus, setFocus] = useState<Focus>()
@@ -197,7 +193,7 @@ function Loaded({ session, all, studyId, crumbs, demo, history, ctx }: { session
         {tab === 'workspace' && (
           <>
             <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
-              <VideoPlayer player={player} id={session.participantId} flags={session.flags.filter((f) => !session.dismissed?.[f.id])} turns={turns} onJumpFlag={jumpFlag} />
+              <VideoPlayer player={player} id={session.participantId} sessionLabel={sessionText(session.participantId, session.sessionNo, session.sessionCount)} flags={session.flags.filter((f) => !session.dismissed?.[f.id])} turns={turns} onJumpFlag={jumpFlag} />
               <FlagsPanel flags={session.flags} onJump={jumpFlag} highlighted={flagOn} dismissed={session.dismissed} onDismiss={ctx && !ctx.readOnly && session.status === 'Under review' ? setDismissing : undefined} />
             </div>
             <TranscriptView session={session} currentSec={player.t} focus={focus} empty={demo === 'notranscript'} onSeek={(s) => player.seek(s)} />
@@ -222,11 +218,6 @@ function Loaded({ session, all, studyId, crumbs, demo, history, ctx }: { session
         {tab === 'activity' && (
           <Panel title="Activity" note="Everything that has happened to this session in review. Entries are never edited or removed.">
             <ActivityPanel session={session} />
-          </Panel>
-        )}
-        {tab === 'details' && (
-          <Panel title="Session details">
-            <SessionDetails session={session} history={history} />
           </Panel>
         )}
       </div>

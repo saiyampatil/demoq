@@ -70,7 +70,7 @@ export function ReserveTab({ doc, audience, target, outcomes, reserve, paused, c
         }
       >
         {rows.length === 0 ? (
-          <EmptyState title="Nobody is in the reserve" description="Use Source more to add applicants. They go through screening, and anyone who qualifies appears here first." />
+          <EmptyState title="Nobody is in the reserve" description="People who pass screening and aren’t in an interview appear here, ready to invite." />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-left text-sm">

@@ -3,7 +3,6 @@ import { Button } from '@/components/Button'
 import { AlertIcon } from '@/components/icons'
 import { Tooltip } from '@/components/Tooltip'
 import { screenById, studyPath } from '@/routes/screens'
-import type { ReserveCandidate } from '@/state/fieldwork'
 import type { Ledger, Verdict, VerdictAction, VerdictLevel } from '@/state/selectors'
 import { SlotLedger } from './SlotLedger'
 
@@ -17,11 +16,8 @@ const TONE: Record<VerdictLevel, { edge: string; word: string }> = {
 type Props = {
   v: Verdict
   ledger: Ledger
-  reserve: ReserveCandidate[]
   studyId: string
   blockedWhy?: string
-  /** Applicants a top-up has already moved into the reserve, not invited yet. */
-  newInReserve: number
   closed: boolean
   /** Fewer days left than a new person needs. */
   notEnoughTime?: { left: number; needed: number }
@@ -46,7 +42,7 @@ type Props = {
  * Three zones: the verdict word and what is left to act on (left), the slots (middle), the one thing to do (right).
  * The arithmetic is not shown to the Researcher; the dev panel has it (Screen jump, Check the numbers).
  */
-export function VerdictCard({ v, ledger, reserve, studyId, blockedWhy, newInReserve, closed, notEnoughTime, daysLeft, clockStopped, paused, resumable, replaced, terminated, goTab, onInvite, onAdjust }: Props) {
+export function VerdictCard({ v, ledger, studyId, blockedWhy, closed, notEnoughTime, daysLeft, clockStopped, paused, resumable, replaced, terminated, goTab, onInvite, onAdjust }: Props) {
   const tone = terminated ? { edge: 'border-l-graphite', word: 'text-ink' } : TONE[v.level]
   const plan = v.plan
   // The count and the target are on the Toward target card, so this says only what is left to act on. The status word is
@@ -82,18 +78,6 @@ export function VerdictCard({ v, ledger, reserve, studyId, blockedWhy, newInRese
               {replaced} excluded {replaced === 1 ? 'session was' : 'sessions were'} replaced.
             </p>
           )}
-          {newInReserve > 0 && (
-            <p className="mt-1 text-sm font-medium text-positive-fg tabular-nums" data-testid="new-in-reserve">
-              {newInReserve} new in reserve ·{' '}
-              {blockedWhy ? (
-                <span className="text-graphite">Invite</span>
-              ) : (
-                <button type="button" onClick={() => onInvite(reserve.length)} className="underline">
-                  Invite
-                </button>
-              )}
-            </p>
-          )}
         </div>
 
         {/* Slots are for a study that is still filling them: once stopped early, who could still finish no longer applies. */}
@@ -125,7 +109,7 @@ export function VerdictCard({ v, ledger, reserve, studyId, blockedWhy, newInRese
           <p className="flex min-w-0 flex-1 basis-72 items-start gap-2 text-negative-fg">
             <AlertIcon size={14} className="mt-0.5 shrink-0" />
             <span className="tabular-nums">
-              <span className="font-medium">Not enough time left.</span> {notEnoughTime.left} {notEnoughTime.left === 1 ? 'day' : 'days'} left, and a new person needs about {notEnoughTime.needed} days to be sourced, screened and interviewed.
+              <span className="font-medium">Not enough time left.</span> {notEnoughTime.left} {notEnoughTime.left === 1 ? 'day' : 'days'} left, and a new person needs about {notEnoughTime.needed} days to be screened and interviewed.
             </span>
           </p>
           <span className="flex gap-2">
@@ -145,7 +129,7 @@ export function VerdictCard({ v, ledger, reserve, studyId, blockedWhy, newInRese
 
 /** The primary action reads as enabled: a large solid button. When something blocks it, it is disabled and says why. */
 function VerdictButton({ action, primary, blockedWhy, studyId, goTab, onInvite }: { action: VerdictAction; primary: boolean; blockedWhy?: string; studyId: string; goTab: (t: string) => void; onInvite: (n: number) => void }) {
-  const fills = action.kind === 'invite' || action.kind === 'source'
+  const fills = action.kind === 'invite'
   const variant = primary ? 'primary' : 'secondary'
   const big = 'h-10 px-5 text-md'
   if (fills && blockedWhy)
@@ -162,17 +146,10 @@ function VerdictButton({ action, primary, blockedWhy, studyId, goTab, onInvite }
         {action.label}
       </Button>
     )
-  // Source more opens R8 as a top-up with the number to source filled in.
-  if (action.kind === 'source')
-    return (
-      <Button variant={variant} className={big} data-testid="source-more" to={`${studyPath(studyId, screenById.R8)}?topup=${action.n}`}>
-        {action.label}
-      </Button>
-    )
   // Not an action on the study, only a way to look: a text link, never the primary button.
-  if (action.kind === 'sessions')
+  if (action.kind === 'sessions' || action.kind === 'reserve')
     return (
-      <button type="button" onClick={() => goTab('sessions')} className="text-sm font-medium text-iris-700 hover:underline">
+      <button type="button" onClick={() => goTab(action.kind)} className="text-sm font-medium text-iris-700 hover:underline">
         {action.label}
       </button>
     )

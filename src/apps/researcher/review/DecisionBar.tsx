@@ -226,8 +226,8 @@ function ExcludeModal({ ctx, open, onClose }: { ctx: DecisionCtx; open: boolean;
           onConfirm={() => {
             addReviewEvent(s.id, { type: 'decision', outcome: 'Excluded', note: excludeNote(form), reasons: form.reasons, by: ctx.me }, tick(ctx.doc))
             if (ctx.closed) toast(`${s.participantId} excluded. Fieldwork is closed, so the slot can’t be refilled.`)
-            else if (ctx.reserve.length > 0) toast('Slot opened', { label: 'Invite from reserve', to: studyPath(ctx.doc.studyId, screenById.R18) })
-            else toast('Slot opened', { label: 'Source more', to: studyPath(ctx.doc.studyId, screenById.R8) })
+            else if (ctx.reserve.length > 0) toast('Slot opened', { label: 'Invite from reserve', to: `${studyPath(ctx.doc.studyId, screenById.R18)}?tab=reserve` })
+            else toast('Slot opened. The reserve is empty.', { label: 'Open reserve', to: `${studyPath(ctx.doc.studyId, screenById.R18)}?tab=reserve` })
             close()
           }}
         />
@@ -385,7 +385,7 @@ function ReplacementModal({ ctx, open, onClose }: { ctx: DecisionCtx; open: bool
         {!next ? (
           <div role="status" data-testid="reserve-empty" className="rounded-sm border border-dashed border-mist-strong px-4 py-5 text-sm">
             <p className="font-medium">The reserve is empty.</p>
-            <p className="mt-1 text-graphite">There is nobody to invite, so there is nothing to confirm. Source more people from Fieldwork, then come back.</p>
+            <p className="mt-1 text-graphite">There is nobody to invite, so there is nothing to confirm.</p>
           </div>
         ) : step === 'candidate' ? (
           <>

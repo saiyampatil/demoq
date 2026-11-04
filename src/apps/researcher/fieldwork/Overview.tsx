@@ -1,21 +1,19 @@
 import { useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router'
 import { Button } from '@/components/Button'
-import { Card } from '@/components/Card'
 import { cn } from '@/components/cn'
 import { controlBase, TextArea } from '@/components/Field'
 import { useToast } from '@/components/Toast'
-import { AlertIcon, ChevronRightIcon } from '@/components/icons'
+import { AlertIcon } from '@/components/icons'
 import { Modal } from '@/components/Modal'
 import { InfoTip } from '@/components/InfoTip'
 import { Tooltip } from '@/components/Tooltip'
 import { formatDay, formatSlot, formatStamp } from '@/lib/format'
 import { screenById, studyPath } from '@/routes/screens'
 import { assignEscalation, extendWindow, fieldworkNow, giveUp, lowerTarget, sendBookingLink, sendRescheduleLink, inviteFromReserve, resendLink, retrySession } from '@/state/fieldwork'
-import { ago, moderatorRoster, timeCheck, topUpStatus, needsYou, supportReport, slotLedger, verdict, type NeedsRow, regionMatrix, regionSkew } from '@/state/selectors'
+import { ago, moderatorRoster, timeCheck, needsYou, supportReport, slotLedger, verdict, type NeedsRow, regionMatrix, regionSkew } from '@/state/selectors'
 import { SessionTag } from '../SessionTag'
 import { invitedIds, invitedMessage, type FWProps } from './FieldworkBits'
-import { CoverageCard } from './CoverageCard'
 import { KpiStrip } from './KpiStrip'
 import { ParticipantJourney } from './ParticipantJourney'
 import { RepeatingProblemLine } from './RepeatingProblemLine'
@@ -25,7 +23,7 @@ const r19 = (studyId: string, id: string) => `${studyPath(studyId, { ...screenBy
 
 
 export function Overview(p: FWProps) {
-  const { doc, audience, target, studyId, outcomes, reserve, awaiting, readOnly, paused, closed, update, me } = p
+  const { doc, target, studyId, outcomes, reserve, awaiting, readOnly, paused, closed, update, me } = p
   const toast = useToast()
   const needs = needsYou(doc)
   const v = verdict(doc, target, outcomes, reserve, needs.length)
@@ -41,7 +39,6 @@ export function Overview(p: FWProps) {
     update(() => next)
     if (ids.length) toast(invitedMessage(ids), { label: 'View in Sessions', to: `${studyPath(studyId, screenById.R18)}?tab=sessions` })
   }
-  const topUp = topUpStatus(doc, audience)
   const time = timeCheck(doc, target, outcomes)
   const [adjust, setAdjust] = useState<'extend' | 'lower'>()
 
@@ -52,10 +49,8 @@ export function Overview(p: FWProps) {
       <VerdictCard
         v={v}
         ledger={ledger}
-        reserve={reserve}
         studyId={studyId}
         blockedWhy={blockedWhy}
-        newInReserve={topUp.newInReserve}
         closed={closed}
         notEnoughTime={time.short ? { left: time.left, needed: time.needed } : undefined}
         daysLeft={doc.window ? time.left : null}
@@ -71,56 +66,7 @@ export function Overview(p: FWProps) {
 
       <RepeatingProblemLine doc={doc} studyId={studyId} behind={v.level === 'Behind pace'} hidden={paused || closed} />
 
-      {topUp.running && (
-        <Card title="Top-up in progress" description="Applicants you sourced after launch go through screening into the reserve. They never go straight to an interview.">
-          <dl className="flex flex-wrap items-end gap-x-3 gap-y-3 text-sm tabular-nums" data-testid="topup-card">
-            {(
-              [
-                ['Sourced', topUp.sourced, 'topup-sourced'],
-                ['In screening', topUp.inScreening, 'topup-screening'],
-                ['Eligible', topUp.eligible, 'topup-eligible'],
-                ['Ineligible', topUp.ineligible, 'topup-ineligible'],
-                ['Not yet screened', topUp.notYetScreened, 'topup-notyet'],
-              ] as const
-            ).map(([label, n, id], i) => (
-              <div key={label} className="flex items-end gap-3">
-                {i > 0 && (
-                  <span aria-hidden className="pb-0.5 text-lg text-muted">
-                    {i === 1 ? '=' : '+'}
-                  </span>
-                )}
-                <div>
-                  <dt className="text-graphite">{label}</dt>
-                  <dd className="text-lg font-semibold" data-testid={id}>
-                    {n}
-                  </dd>
-                </div>
-              </div>
-            ))}
-          </dl>
-          <p className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
-            {topUp.newInReserve > 0 && (
-              <span className="font-medium text-positive-fg tabular-nums" data-testid="topup-new">
-                {topUp.newInReserve} new in reserve ·{' '}
-                {blockedWhy ? (
-                  <span className="text-graphite">Invite</span>
-                ) : (
-                  <button type="button" onClick={() => inviteNow(reserve.length)} className="underline">
-                    Invite
-                  </button>
-                )}
-              </span>
-            )}
-            <Link to={studyPath(studyId, screenById.R9)} className="text-iris-700 hover:underline">
-              See screening
-            </Link>
-          </p>
-        </Card>
-      )}
-
       <AdjustModal kind={adjust} onClose={() => setAdjust(undefined)} p={p} counting={v.gap.counting} />
-
-      <NeedsYou {...p} rows={needs} blockedWhy={blockedWhy} />
 
       {skew && (
         <p role="status" className="flex items-start gap-2 rounded-md border border-mist bg-haze px-4 py-2 text-sm text-ink">
@@ -131,24 +77,7 @@ export function Overview(p: FWProps) {
 
       <ParticipantJourney doc={doc} studyId={studyId} needsCount={needs.length} />
 
-      <CoverageCard doc={doc} studyId={studyId} />
-
-      {doc.log.length > 0 && (
-        <details data-testid="activity" className="group rounded-md border border-mist bg-surface">
-          <summary className="flex cursor-pointer list-none items-center gap-2 px-5 py-3.5 text-md font-semibold [&::-webkit-details-marker]:hidden">
-            <ChevronRightIcon size={14} className="text-graphite transition-transform group-open:rotate-90" />
-            Activity
-            <span className="rounded-full bg-haze px-2 text-sm font-medium tabular-nums text-graphite">{doc.log.length}</span>
-          </summary>
-          <ul className="flex flex-col gap-2 border-t border-mist px-5 py-4 text-sm">
-            {[...doc.log].reverse().map((l) => (
-              <li key={l.id}>
-                <span className="font-medium">{l.by}</span>: {l.text} <span className="text-xs text-graphite">{formatStamp(l.at)}</span>
-              </li>
-            ))}
-          </ul>
-        </details>
-      )}
+      <NeedsYou {...p} rows={needs} blockedWhy={blockedWhy} />
     </div>
   )
 }
@@ -223,7 +152,7 @@ function AdjustModal({ kind, onClose, p, counting }: { kind?: 'extend' | 'lower'
       open={!!kind}
       onClose={close}
       title={kind === 'extend' ? 'Extend the fieldwork window' : 'Lower the target'}
-      description={kind === 'extend' ? `The window now ends ${current ? formatDay(`${current}T12:00:00-05:00`) : ''}. More time lets new applicants be sourced, screened and interviewed.` : `The target is ${target} and ${counting} already count, so it can’t go below ${min}. Every count and the verdict use the new target.`}
+      description={kind === 'extend' ? `The window now ends ${current ? formatDay(`${current}T12:00:00-05:00`) : ''}. More time lets the people in the reserve be invited and interviewed.` : `The target is ${target} and ${counting} already count, so it can’t go below ${min}. Every count and the verdict use the new target.`}
       footer={
         <>
           <Button variant="ghost" onClick={close}>
@@ -487,7 +416,7 @@ function NeedsYou({ doc, rows, studyId, me, update, readOnly, blockedWhy }: FWPr
           setReason('')
         }}
         title={`Give up on ${giving?.who ?? ''} and replace them?`}
-        description="Their slot opens again, so the gap grows by one and the reserve or sourcing can fill it. Their data and session record are kept."
+        description="Their slot opens again, so the gap grows by one and the reserve can fill it. Their data and session record are kept."
         footer={
           <>
             <Button

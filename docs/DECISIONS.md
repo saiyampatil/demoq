@@ -383,3 +383,13 @@ A row is in Needs you only if the participant cannot recover alone and a Researc
 - **Preflight checks** (two critical, four overridable) only appear, under "Fix before launch", when one fails or has been overridden. Critical ones can't be overridden. A failed check that belongs to the test runs scrolls to them.
 - **Authorize launch:** study, language and one button. Underneath it, the first thing in the way ("A test run must be completed."), with the rest in a tooltip. Relaunching after a change shows the release number too.
 - The sticky Previous/Continue bar is gone from Launch: there is nothing to continue to.
+
+
+## Fieldwork Overview: no sourcing, coverage, activity or top-up status
+
+- **The reserve is the only way to fill a gap.** The verdict offers "Invite all N from reserve", or "Open the reserve" when it is empty. "Source N more" is gone, and so is the top-up card and the "new in reserve" line. The Reserve tab only invites. The sourcing screen (R8) is untouched; it is part of the Audience step.
+- **Slots:** a no-show who may still come is shown as "Held by someone who can still finish", so the no-show box and its legend entry are gone. "Open" is now "Need to add". The counts behind them are unchanged.
+- **Removed from the Overview:** the Topic coverage card (with its selector, config and dev panel) and the Activity list. The study log is still written; it just has no screen yet.
+- **Order:** Participant journey, then Needs you.
+- **Review:** the Session details tab is removed, and with it the "All sessions for this participant" list. The header still says "Session 2 of 3". The recording has a Download recording button; in the prototype it saves a placeholder file.
+- `tests/gap-loop.mjs` and `tests/scenarios/pool.mjs` click Source more and read the top-up card, so those steps no longer apply.

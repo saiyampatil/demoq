@@ -101,7 +101,7 @@ export function SessionActions({ doc, row, me, update, blockedWhy }: { doc: Fiel
           setReason('')
         }}
         title={`Give up on ${who} and replace them?`}
-        description="Their slot opens again, so the gap grows by one and the reserve or sourcing can fill it. Their data and session record are kept."
+        description="Their slot opens again, so the gap grows by one and the reserve can fill it. Their data and session record are kept."
         footer={
           <>
             <Button variant="ghost" onClick={() => { setGiving(false); setReason('') }}>
