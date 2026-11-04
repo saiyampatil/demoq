@@ -47,6 +47,8 @@ export type FWProps = {
   paused: boolean
   /** Sessions awaiting review, for the link to the queue. */
   awaiting: number
+  /** Finished interviews, decided or not: with `awaiting`, whether review is complete. */
+  reviewTotal: number
   /** Clarifications waiting on a reply, by who they are waiting for. */
   waiting: { participant: number; moderator: number }
   /** Fieldwork is closed: the study is Complete and nothing more can be sent. */

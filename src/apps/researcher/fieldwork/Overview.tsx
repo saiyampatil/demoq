@@ -46,7 +46,7 @@ export function Overview(p: FWProps) {
 
   return (
     <div className="flex flex-col gap-6">
-      <KpiStrip doc={doc} target={target} outcomes={outcomes} awaiting={awaiting} studyId={studyId} clock={closed ? 'closed' : paused ? (doc.paused ? 'stopped' : 'stopped-relaunch') : 'running'} />
+      <KpiStrip doc={doc} target={target} outcomes={outcomes} awaiting={awaiting} reviewTotal={p.reviewTotal} studyId={studyId} clock={closed ? 'closed' : paused ? (doc.paused ? 'stopped' : 'stopped-relaunch') : 'running'} />
 
       <VerdictCard
         v={v}

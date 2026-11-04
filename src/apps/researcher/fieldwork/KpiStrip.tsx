@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { Link } from 'react-router'
 import { cn } from '@/components/cn'
+import { CheckIcon } from '@/components/icons'
 import { formatDate } from '@/lib/format'
 import { zoneLabel } from '@/lib/timeZone'
 import { screenById, studyPath } from '@/routes/screens'
@@ -33,7 +34,7 @@ const unit = (text: string) => <span className="text-md font-medium text-graphit
  * The four numbers a Researcher checks first. Every figure comes from the same selectors as the verdict, the funnel and
  * the review queue, and every card opens the screen that shows what it is made of.
  */
-export function KpiStrip({ doc, target, outcomes, awaiting, studyId, clock }: { doc: FieldworkDoc; target: number; outcomes: Outcomes; awaiting: number; studyId: string; clock: 'running' | 'stopped' | 'stopped-relaunch' | 'closed' }) {
+export function KpiStrip({ doc, target, outcomes, awaiting, reviewTotal, studyId, clock }: { doc: FieldworkDoc; target: number; outcomes: Outcomes; awaiting: number; /** Finished interviews, decided or not. */ reviewTotal: number; studyId: string; clock: 'running' | 'stopped' | 'stopped-relaunch' | 'closed' }) {
   const prog = progress(doc, outcomes)
   const pace = pacing(doc, target, outcomes)
   const dur = durationStats(doc)
@@ -43,14 +44,26 @@ export function KpiStrip({ doc, target, outcomes, awaiting, studyId, clock }: { 
 
   return (
     <section aria-label="Key figures" data-testid="kpi-strip" className="flex flex-col gap-3">
-      <div className={cn('grid grid-cols-2 gap-4', awaiting > 0 ? 'lg:grid-cols-4' : 'lg:grid-cols-3')}>
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <Kpi testId="kpi-counting" to={studyPath(studyId, screenById.R21)} label="Toward target" line={`${prog.confirmed} accepted, ${prog.pending} under review.`}>
           {prog.toward}
           {unit(`of ${target}`)}
         </Kpi>
-        {awaiting > 0 && (
-          <Kpi testId="kpi-awaiting" to={studyPath(studyId, screenById.R21)} label="Awaiting review" line="Finished interviews you haven’t decided on.">
+        {/* The count and the way into Review. Read from the same selector as the stepper and the queue. */}
+        {awaiting > 0 ? (
+          <Kpi testId="kpi-awaiting" to={studyPath(studyId, screenById.R21)} label="Awaiting review" line={<span className="font-medium text-iris-700">Open Review queue</span>}>
             {awaiting}
+          </Kpi>
+        ) : reviewTotal > 0 ? (
+          <Kpi testId="kpi-awaiting" to={studyPath(studyId, screenById.R21)} label="Review" line={<span className="font-medium text-iris-700">View decisions</span>}>
+            <span className="flex items-center gap-2 text-ink">
+              <CheckIcon size={22} strokeWidth={2.2} className="text-positive-fg" />
+              Review complete
+            </span>
+          </Kpi>
+        ) : (
+          <Kpi testId="kpi-awaiting" to={studyPath(studyId, screenById.R21)} label="Awaiting review" line="No finished interviews yet.">
+            0
           </Kpi>
         )}
         <Kpi

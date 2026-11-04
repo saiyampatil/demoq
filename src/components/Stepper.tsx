@@ -24,6 +24,8 @@ export type StepperStep = {
   note?: string
   /** A count shown as a neutral chip, e.g. "18 awaiting". */
   badge?: string
+  /** A tick when every session is decided, a dot when there is nothing to decide yet. */
+  mark?: 'tick' | 'dot'
   /** In progress right now, though not the screen you're on. Fieldwork and Review run in parallel, so both are active. */
   active?: boolean
 }
@@ -121,6 +123,14 @@ function StepMeta({ step }: { step: StepperStep }) {
     )
   } else if (step.badge) {
     meta = <span className="inline-flex h-5 items-center rounded-xs border border-mist-strong bg-haze px-1.5 text-xs font-medium tabular-nums text-ink">{step.badge}</span>
+  } else if (step.mark === 'tick') {
+    meta = (
+      <span className="inline-flex h-5 items-center text-positive-fg" role="img" aria-label="Every session is decided">
+        <CheckIcon size={15} strokeWidth={2.2} />
+      </span>
+    )
+  } else if (step.mark === 'dot') {
+    meta = <span className="inline-flex h-5 items-center" role="img" aria-label="Nothing to decide yet"><span className="size-2 rounded-full bg-mist-strong" /></span>
   } else if (step.hint && step.current) {
     meta = <p className="hidden text-xs text-graphite lg:block">{step.hint}</p>
   }

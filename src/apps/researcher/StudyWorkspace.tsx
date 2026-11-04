@@ -17,7 +17,7 @@ import { useStudies } from '@/state/StudyContext'
 import { setStudyTimeZone } from '@/lib/timeZone'
 import { useReviewState } from '@/state/reviewState'
 import { reviewList } from '@/state/studySessions'
-import { reviewCounts, targetOf } from '@/state/selectors'
+import { reviewCounts, reviewProgress, targetOf } from '@/state/selectors'
 import { checkInvariants } from '@/state/invariants'
 import { landingStep, stepInfo, type StepInfo } from '@/state/workflow'
 import { useSessionsDoc } from './useStudySessions'
@@ -73,7 +73,7 @@ export function StudyWorkspace() {
     )
   }
 
-  const info = stepInfo(study, (() => { const c = sessionsDoc ? reviewCounts(reviewList(sessionsDoc, reviewState)) : undefined; return { awaitingReview: c ? c.underReview : null, total: c?.total } })())
+  const info = stepInfo(study, (() => { const c = sessionsDoc ? reviewProgress(reviewList(sessionsDoc, reviewState)) : undefined; return { awaitingReview: c ? c.awaiting : null, total: c?.total } })())
   const screen = matchScreen(study.id, pathname)
   const currentStep = screen?.step
   const stepperSteps: StepperStep[] = info.map((s) => {

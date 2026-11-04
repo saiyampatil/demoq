@@ -1,16 +1,18 @@
 import { useState } from 'react'
-import { Link, Navigate, useSearchParams } from 'react-router'
+import { Navigate, useSearchParams } from 'react-router'
 import { Banner } from '@/components/Banner'
 import { Button } from '@/components/Button'
 import { cn } from '@/components/cn'
 import { TextArea } from '@/components/Field'
 import { Modal } from '@/components/Modal'
 import { StatusChip } from '@/components/StatusChip'
+import { Tooltip } from '@/components/Tooltip'
 import { WizardFooter } from '@/components/WizardFooter'
 import { formatStamp } from '@/lib/format'
 import { screenById, studyPath } from '@/routes/screens'
 import { closeFieldwork, pauseFieldwork, resumeFieldwork } from '@/state/fieldwork'
-import { closeBlockers, reviewCounts, sessionTotals, waitingFor } from '@/state/selectors'
+import { closeBlockers, reviewProgress, sessionTotals, waitingFor } from '@/state/selectors'
+import { stepInfo } from '@/state/workflow'
 import { PageHeader } from '../../shared/PageHeader'
 import { FieldworkGate, type FWProps } from './FieldworkBits'
 import { Overview } from './Overview'
@@ -44,7 +46,7 @@ export function CommandCenter() {
 
   const asked = (TABS as readonly string[]).includes(params.get('tab') ?? '') ? (params.get('tab') as Tab) : 'overview'
   const goTab = (t: string) => setParams(t === 'overview' ? {} : { tab: t })
-  const awaiting = reviewCounts(review).underReview
+  const { awaiting, total: reviewTotal } = reviewProgress(review)
   const target = tgt
   const pausedForVersion = study.status === 'Paused' && !doc.paused
   // Paused by the Researcher, or paused for a version change: either way, nothing that sends an invitation can run.
@@ -53,7 +55,9 @@ export function CommandCenter() {
   // Nobody can be invited once fieldwork is closed, so the Reserve has nothing to offer.
   const tab: Tab = asked === 'reserve' && closed ? 'overview' : asked
   const blockers = closeBlockers(doc)
-  const props: FWProps = { doc, audience, target, studyId, me, update, goTab, readOnly: preview, outcomes, reserve, awaiting, paused, closed, waiting: waitingFor(review) }
+  // Where Analysis stands, from the same review count as the stepper.
+  const analysis = stepInfo(study, { awaitingReview: awaiting, total: reviewTotal }).find((x) => x.key === 'analysis')
+  const props: FWProps = { doc, audience, target, studyId, me, update, goTab, readOnly: preview, outcomes, reserve, awaiting, reviewTotal, paused, closed, waiting: waitingFor(review) }
 
   const labels: Record<Tab, { label: string; badge?: string; alert?: boolean; off?: string }> = {
     overview: { label: 'Overview' },
@@ -156,11 +160,25 @@ export function CommandCenter() {
         {tab === 'reserve' && <ReserveTab {...props} />}
       </div>
 
-      {/* Fieldwork and Review run in parallel, so there is no "continue": just a way across. */}
+      {/* Fieldwork and Review run in parallel, so there is no "continue" while it runs. The footer points at the next piece of work. */}
       <WizardFooter sticky={false} previous={closed ? undefined : { to: studyPath(studyId, screenById.R17), label: 'Launch' }}>
-        <Link to={studyPath(studyId, screenById.R21)} className="text-sm font-medium text-iris-700 hover:underline tabular-nums">
-          {awaiting} {awaiting === 1 ? 'session' : 'sessions'} awaiting review
-        </Link>
+        {awaiting > 0 ? (
+          <Button variant="primary" to={studyPath(studyId, screenById.R21)} data-testid="footer-review">
+            Review {awaiting} {awaiting === 1 ? 'session' : 'sessions'}
+          </Button>
+        ) : closed ? (
+          analysis?.state === 'open' ? (
+            <Button variant="primary" to={studyPath(studyId, screenById.A1)} data-testid="footer-analysis">
+              Next: Analysis
+            </Button>
+          ) : (
+            <Tooltip focusable content={analysis?.lockedReason ?? 'Analysis is locked.'}>
+              <Button variant="primary" disabled data-testid="footer-analysis">
+                Next: Analysis
+              </Button>
+            </Tooltip>
+          )
+        ) : null}
       </WizardFooter>
 
       <Modal

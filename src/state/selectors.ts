@@ -82,6 +82,15 @@ export function reviewCounts(review: ReviewSession[]) {
   }
 }
 
+/**
+ * The one review count. The stepper's Review step, the Awaiting review card on the Overview, the footer and the Review
+ * queue all read it, so they can't disagree. `allDecided` is false until at least one interview has finished.
+ */
+export function reviewProgress(review: ReviewSession[]) {
+  const c = reviewCounts(review)
+  return { awaiting: c.underReview, total: c.total, allDecided: c.total > 0 && c.underReview === 0 }
+}
+
 /** Every moderator with where they are now, for assigning one. A moderator on a live session is in session, and not on standby. */
 export function moderatorRoster(doc: FieldworkDoc): { id: string; name: string; state: ModeratorState; standby: boolean }[] {
   const busy = new Set(doc.sessions.filter((s) => s.status === 'Active' && s.moderatorId).map((s) => s.moderatorId))

@@ -13,6 +13,8 @@ export type StepInfo = {
   hint?: string
   /** A count shown as a neutral chip, e.g. sessions awaiting review. */
   badge?: string
+  /** Review only, when there is no count to show: a tick once every session is decided, a dot before that. */
+  mark?: 'tick' | 'dot'
   /** Extra line under the status chip, e.g. who the step is waiting on. */
   note?: string
   /** In progress right now: Fieldwork and Review run in parallel while a study is Live. */
@@ -91,7 +93,9 @@ export function stepInfo(study: StudyRecord, sessions?: { awaitingReview: number
       label: label('review'),
       state: 'open',
       active: isLaunched && !fieldworkClosed,
-      badge: sessions ? (sessions.awaitingReview === null ? 'Sample study' : `${sessions.awaitingReview} awaiting`) : undefined,
+      // A count only while something awaits a decision. Never "0 awaiting".
+      badge: sessions ? (sessions.awaitingReview === null ? 'Sample study' : sessions.awaitingReview > 0 ? `${sessions.awaitingReview} awaiting` : undefined) : undefined,
+      mark: sessions && sessions.awaitingReview === 0 ? ((sessions.total ?? 0) > 0 ? 'tick' : 'dot') : undefined,
       hint: sessions?.awaitingReview === null ? 'Sample study: no live session data' : isLaunched ? 'Sessions arrive here after they finish' : 'Sample data until the study launches',
     },
     {

@@ -10,7 +10,7 @@ import { WizardFooter } from '@/components/WizardFooter'
 import { Tooltip } from '@/components/Tooltip'
 import { FLAG_TRACKS, FLAG_TYPES, MODERATOR_TYPES, scoreBand, trackLabel, type FlagSeverity, type ReviewFlag, type ReviewSession, type ScoreBand } from '@/mock/review'
 import { screenById, studyPath } from '@/routes/screens'
-import { reviewCounts } from '@/state/selectors'
+import { reviewCounts, reviewProgress } from '@/state/selectors'
 import { stepInfo } from '@/state/workflow'
 import { loadQueue, NO_FILTERS, queueOrder, saveQueue, type QueueFilters } from '@/state/reviewQueue'
 import { formatClock, formatDay } from '@/lib/format'
@@ -90,7 +90,7 @@ export function ReviewQueue() {
 
   const sum = reviewCounts(all)
   // The banner's next step is Analysis, or why it is still locked.
-  const analysis = study ? stepInfo(study, { awaitingReview: sum.underReview, total: sum.total }).find((x) => x.key === 'analysis') : undefined
+  const analysis = study ? stepInfo(study, { awaitingReview: reviewProgress(all).awaiting, total: reviewProgress(all).total }).find((x) => x.key === 'analysis') : undefined
   const filtered = queueOrder(all, { filters, search, asc, pageSize })
   const pages = Math.max(1, Math.ceil(filtered.length / pageSize))
   const pageNo = Math.min(page, pages - 1)
