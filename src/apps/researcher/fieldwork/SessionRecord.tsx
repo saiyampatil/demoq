@@ -171,6 +171,8 @@ export function SessionRecord() {
           <p className="mt-1 text-graphite">
             {maskEmail(s.email)}, {s.country}
             {s.reserve ? ' (reserve)' : ''}
+            {/* Only when it ran on an earlier release than the study's current one: a session stays tied to the release it ran under. */}
+            {s.releaseVersion && s.releaseVersion !== doc.releaseVersion ? `. Ran on ${s.releaseVersion}, guide v${s.guideVersion}.` : ''}
           </p>
           <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5">
             <StatusChip status={s.status} size="sm" />
@@ -465,39 +467,6 @@ export function SessionRecord() {
           )}
         </Card>
       )}
-
-      <details className="group rounded-md border border-mist bg-surface" data-testid="session-details">
-        <summary className="flex cursor-pointer list-none items-center gap-2 px-5 py-3 text-md font-semibold [&::-webkit-details-marker]:hidden">
-          <ChevronRightIcon size={14} className="text-graphite transition-transform group-open:rotate-90" />
-          Session details
-        </summary>
-        <dl className="grid gap-x-8 gap-y-3 border-t border-mist px-5 py-4 text-sm sm:grid-cols-2 lg:grid-cols-3">
-          <div>
-            <dt className="text-graphite">Moderator</dt>
-            <dd className="font-medium">{s.mode === 'ai' ? moderatorName(null) : `Human: ${moderatorName(s.moderatorId)}`}</dd>
-          </div>
-          <div>
-            <dt className="text-graphite">Release and guide</dt>
-            <dd className="font-medium tabular-nums">{s.releaseVersion ?? doc.releaseVersion}, guide v{s.guideVersion ?? doc.plan.guideVersion}</dd>
-          </div>
-          <div>
-            <dt className="text-graphite">Device</dt>
-            <dd className="font-medium">{s.device}</dd>
-          </div>
-          {s.region && (
-            <div>
-              <dt className="text-graphite">Region</dt>
-              <dd className="font-medium">{s.state}, {s.region}</dd>
-            </div>
-          )}
-          {s.slot && (
-            <div>
-              <dt className="text-graphite">Slot</dt>
-              <dd className="font-medium tabular-nums">{slotText(s.slot)}</dd>
-            </div>
-          )}
-        </dl>
-      </details>
 
       <Modal
         open={!!closing}
