@@ -25,7 +25,6 @@ try {
     if (v === 'overview-risk') await snap('overview-risk', root)
     if (v === 'overview-ontrack') { await lowerTarget(); await snap('overview-ontrack', root); await live() }
     if (v === 'sessions') await snap('sessions', root + '?tab=sessions')
-    if (v === 'issues') await snap('issues', root + '?tab=issues')
     if (v === 'reserve') await snap('reserve', root + '?tab=reserve')
   }
   out.inv = await b.evaluate(`window.__invariants`)

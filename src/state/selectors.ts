@@ -209,7 +209,7 @@ export function bucketOf(p: Participant): Bucket {
 //
 // A row belongs here only if the participant cannot recover alone and a Researcher action is the only thing that
 // moves it forward. It is the slow-path safety net: the participant's own screens handle the first minutes, and what
-// PulseAI is handling stays in the Issues tab. Eight kinds, nothing else.
+// PulseAI is handling stays out of it, and on the session page. Eight kinds, nothing else.
 
 export type NeedsKind = 'escalation' | 'moderator-no-show' | 'self-service' | 'connection-lost' | 'link-expired' | 'left-part-way' | 'never-started' | 'pulseai'
 

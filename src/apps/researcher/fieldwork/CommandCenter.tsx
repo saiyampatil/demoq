@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useSearchParams } from 'react-router'
+import { Link, Navigate, useSearchParams } from 'react-router'
 import { Banner } from '@/components/Banner'
 import { Button } from '@/components/Button'
 import { cn } from '@/components/cn'
@@ -10,10 +10,9 @@ import { WizardFooter } from '@/components/WizardFooter'
 import { formatStamp } from '@/lib/format'
 import { screenById, studyPath } from '@/routes/screens'
 import { closeFieldwork, pauseFieldwork, resumeFieldwork } from '@/state/fieldwork'
-import { closeBlockers, issueSummary, reviewCounts, sessionTotals, waitingFor } from '@/state/selectors'
+import { closeBlockers, reviewCounts, sessionTotals, waitingFor } from '@/state/selectors'
 import { PageHeader } from '../../shared/PageHeader'
 import { FieldworkGate, type FWProps } from './FieldworkBits'
-import { IssuesTab } from './IssuesTab'
 import { Overview } from './Overview'
 import { ReserveTab } from './ReserveTab'
 import { SessionsTab } from './SessionsTab'
@@ -28,7 +27,7 @@ const simulated = (min: number) => {
   return [d && `${d} ${d === 1 ? 'day' : 'days'}`, h && `${h} h`, m && `${m} min`].filter(Boolean).join(' ')
 }
 
-const TABS = ['overview', 'sessions', 'reserve', 'issues'] as const
+const TABS = ['overview', 'sessions', 'reserve'] as const
 type Tab = (typeof TABS)[number]
 
 export function CommandCenter() {
@@ -40,10 +39,12 @@ export function CommandCenter() {
 
   if (!editable || !study || !doc) return <FieldworkGate studyId={studyId} editable={editable} />
 
+  // The Issues tab is gone. An old link lands on the Overview.
+  if (params.get('tab') === 'issues') return <Navigate to={studyPath(studyId, screenById.R18)} replace />
+
   const tab: Tab = (TABS as readonly string[]).includes(params.get('tab') ?? '') ? (params.get('tab') as Tab) : 'overview'
   const goTab = (t: string) => setParams(t === 'overview' ? {} : { tab: t })
   const awaiting = reviewCounts(review).underReview
-  const issues = issueSummary(doc)
   const target = tgt
   const pausedForVersion = study.status === 'Paused' && !doc.paused
   // Paused by the Researcher, or paused for a version change: either way, nothing that sends an invitation can run.
@@ -57,7 +58,6 @@ export function CommandCenter() {
     // People, like the journey. The table still lists each session.
     sessions: { label: 'Sessions', badge: String(sessionTotals(doc).participants) },
     reserve: { label: 'Reserve', badge: reserve.length ? String(reserve.length) : undefined },
-    issues: { label: 'Issues', badge: issues.open ? String(issues.open) : undefined, alert: issues.blocking > 0 },
   }
 
   return (
@@ -154,7 +154,6 @@ export function CommandCenter() {
         {tab === 'overview' && <Overview {...props} />}
         {tab === 'sessions' && <SessionsTab {...props} />}
         {tab === 'reserve' && <ReserveTab {...props} />}
-        {tab === 'issues' && <IssuesTab {...props} />}
       </div>
 
       {/* Fieldwork and Review run in parallel, so there is no "continue": just a way across. */}
