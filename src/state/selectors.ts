@@ -6,6 +6,7 @@
 // however many sessions they have. Validation (Under review, Accepted, Excluded) belongs to a Completed session
 // only: it is Under review the moment the session completes, and only a Researcher's decision changes it.
 
+import { COVERAGE_FLAG_BELOW } from '@/config/coverage'
 import { REPEATING_PROBLEM_MIN_PEOPLE, REPEATING_PROBLEMS } from '@/config/repeatingProblem'
 import { formatDate, formatStamp } from '@/lib/format'
 import type { AudienceDoc } from './audience'
@@ -80,6 +81,22 @@ export function reviewCounts(review: ReviewSession[]) {
     accepted: n('Accepted'),
     excluded: n('Excluded'),
   }
+}
+
+/**
+ * Topic coverage: for each guide section that has mandatory questions, how many finished interviews answered all of
+ * them. Interviews are counted (each person once, by their counted session), not sessions. `missed` is who didn't.
+ */
+export function topicCoverage(doc: FieldworkDoc) {
+  const done = countedSessions(doc)
+  const topics = doc.plan.sections
+    .map((sec) => ({ title: sec.title, mandatory: sec.items.filter((x) => x.core).map((x) => x.id) }))
+    .filter((t) => t.mandatory.length > 0)
+    .map((t) => {
+      const missed = done.filter((s) => !t.mandatory.every((id) => s.covered.includes(id))).map((s) => s.participantId)
+      return { title: t.title, questions: t.mandatory.length, covered: done.length - missed.length, interviews: done.length, missed, share: done.length ? (done.length - missed.length) / done.length : 1 }
+    })
+  return { interviews: done.length, topics, flagged: topics.filter((t) => t.share < COVERAGE_FLAG_BELOW), gaps: topics.filter((t) => t.missed.length > 0) }
 }
 
 /**

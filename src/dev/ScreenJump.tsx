@@ -9,7 +9,7 @@ import { appLabel, screenHref, screens, type AppKey } from '@/routes/screens'
 import { SIMULATE_TIME_STEPS } from '@/mock/needsYou'
 import { NumbersCheck } from './NumbersCheck'
 import { REPEATING_PROBLEMS } from '@/config/repeatingProblem'
-import { advanceClock, clearSeededProblems, seedRepeatingProblem, simulateModeratorNoShow } from '@/state/fieldwork'
+import { advanceClock, clearCoverageGap, clearSeededProblems, seedCoverageGap, seedRepeatingProblem, simulateModeratorNoShow } from '@/state/fieldwork'
 import { addReviewEvent, useReviewState } from '@/state/reviewState'
 import { reviewList } from '@/state/studySessions'
 import { featureInfo, useFeatures, type FeatureKey } from '@/state/features'
@@ -161,6 +161,24 @@ export function ScreenJump() {
             )}
 
             {onFieldwork && fieldworkDoc && <NumbersCheck doc={fieldworkDoc} audience={getAudience(onFieldwork.params.studyId ?? '')} fallbackTarget={getStudy(onFieldwork.params.studyId ?? '')?.targetCompletes} />}
+
+            {onFieldwork && fieldworkDoc && (
+              <section className="border-b border-mist px-4 py-3" data-testid="coverage-dev">
+                <h3 className="text-sm font-semibold">Coverage gap (mock)</h3>
+                <p className="text-xs text-graphite">Makes some finished interviews skip all the mandatory questions of one topic, so the Topic coverage card shows a gap.</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <Button size="sm" onClick={() => updateFieldwork(onFieldwork.params.studyId ?? '', (d) => seedCoverageGap(d, 1, 3))}>
+                    Topic 2 missed by 3
+                  </Button>
+                  <Button size="sm" onClick={() => updateFieldwork(onFieldwork.params.studyId ?? '', (d) => seedCoverageGap(d, 1, 5))}>
+                    Topic 2 missed by 5
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => updateFieldwork(onFieldwork.params.studyId ?? '', clearCoverageGap)}>
+                    Remove
+                  </Button>
+                </div>
+              </section>
+            )}
 
             {onFieldwork && fieldworkDoc && (
               <section className="border-b border-mist px-4 py-3" data-testid="repeating-dev">

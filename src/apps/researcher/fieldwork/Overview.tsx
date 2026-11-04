@@ -15,6 +15,7 @@ import { assignEscalation, extendWindow, fieldworkNow, giveUp, lowerTarget, send
 import { ago, moderatorRoster, timeCheck, topUpStatus, needsYou, supportReport, slotLedger, verdict, type NeedsRow, regionMatrix, regionSkew } from '@/state/selectors'
 import { SessionTag } from '../SessionTag'
 import { invitedIds, invitedMessage, type FWProps } from './FieldworkBits'
+import { CoverageCard } from './CoverageCard'
 import { KpiStrip } from './KpiStrip'
 import { ParticipantJourney } from './ParticipantJourney'
 import { RepeatingProblemLine } from './RepeatingProblemLine'
@@ -129,6 +130,8 @@ export function Overview(p: FWProps) {
       )}
 
       <ParticipantJourney doc={doc} studyId={studyId} needsCount={needs.length} />
+
+      <CoverageCard doc={doc} studyId={studyId} />
 
       {doc.log.length > 0 && (
         <details data-testid="activity" className="group rounded-md border border-mist bg-surface">

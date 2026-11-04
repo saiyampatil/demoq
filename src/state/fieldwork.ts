@@ -193,6 +193,8 @@ export type Session = {
   /** The release and guide version this session ran under, set when a later release replaces the study's. Absent: the study's current one. */
   releaseVersion?: string
   guideVersion?: number
+  /** Dev only: the mandatory questions "Seed a coverage gap" took out of `covered`, so they can be put back. */
+  devUncovered?: string[]
   applicantId: string
   /** The participant's email address. Shown masked; the full address is on hover. */
   email: string
@@ -681,6 +683,24 @@ export function seedRepeatingProblem(doc: FieldworkDoc, type: IssueType, people:
     ),
   }
 }
+
+/** Dev only: a finished interview that skipped every mandatory question of one guide topic, so the coverage card has a gap. */
+export function seedCoverageGap(doc: FieldworkDoc, topicIndex: number, interviews: number): FieldworkDoc {
+  const topics = doc.plan.sections.filter((s) => s.items.some((x) => x.core))
+  const ids = new Set((topics[topicIndex % Math.max(1, topics.length)]?.items ?? []).filter((x) => x.core).map((x) => x.id))
+  let left = interviews
+  return {
+    ...doc,
+    sessions: doc.sessions.map((s) => {
+      if (s.status !== 'Completed' || s.devUncovered || left <= 0) return s
+      left -= 1
+      return { ...s, covered: s.covered.filter((id) => !ids.has(id)), devUncovered: s.covered.filter((id) => ids.has(id)) }
+    }),
+  }
+}
+
+/** Dev only: puts back what `seedCoverageGap` took out. */
+export const clearCoverageGap = (doc: FieldworkDoc): FieldworkDoc => ({ ...doc, sessions: doc.sessions.map((s) => (s.devUncovered ? { ...s, covered: [...s.covered, ...s.devUncovered], devUncovered: undefined } : s)) })
 
 /** Dev only: takes out what `seedRepeatingProblem` added. */
 export const clearSeededProblems = (doc: FieldworkDoc): FieldworkDoc => ({ ...doc, sessions: doc.sessions.map((s) => (s.issues.some((i) => i.id.startsWith('seed-rp-')) ? { ...s, issues: s.issues.filter((i) => !i.id.startsWith('seed-rp-')) } : s)) })

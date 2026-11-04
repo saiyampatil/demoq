@@ -36,6 +36,7 @@ export function SessionsTab({ doc, studyId }: FWProps) {
   // A number on the journey opens Sessions for the people behind it.
   const people = reached || stuck ? journeyPeople(doc, reached ? { reached } : { stuck: stuck! }) : undefined
   const issueType = params.get('issue')
+  const about = params.get('about')
   const rows = sessionRows(doc, params)
   const list = listParams(params)
   const open = (s: Session) => {
@@ -107,6 +108,17 @@ export function SessionsTab({ doc, studyId }: FWProps) {
         <div data-testid="issue-filter" className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-mist bg-haze px-5 py-2 text-sm">
           <span className="tabular-nums">
             {rows.length} {rows.length === 1 ? 'session' : 'sessions'} with {issueType.split('|').map((t) => `“${t}”`).join(' or ')}.
+          </span>
+          <button type="button" onClick={() => setParams({ tab: 'sessions' })} className="font-medium text-iris-700 hover:underline">
+            Show everyone
+          </button>
+        </div>
+      )}
+      {params.get('ids') && (
+        <div data-testid="ids-filter" className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-mist bg-haze px-5 py-2 text-sm">
+          <span className="tabular-nums">
+            {new Set(rows.map((r) => r.participantId)).size} {new Set(rows.map((r) => r.participantId)).size === 1 ? 'person' : 'people'}
+            {about ? `: ${about}` : ''}.
           </span>
           <button type="button" onClick={() => setParams({ tab: 'sessions' })} className="font-medium text-iris-700 hover:underline">
             Show everyone
