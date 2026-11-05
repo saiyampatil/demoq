@@ -2,8 +2,8 @@ import { cn } from '@/components/cn'
 import { LockIcon } from '@/components/icons'
 import { Tooltip } from '@/components/Tooltip'
 
-/** The steps of Results Analysis (docs/ANALYSIS_PLAN.md). Only Base is built; the rest stay locked until the base is approved. */
-export const ANALYSIS_STEPS = ['Base', 'Codebook', 'Themes', 'Signals & tensions', 'Findings', 'Outputs', 'Lenses', 'Publish'] as const
+/** The steps of Results Analysis (docs/ANALYSIS_PLAN.md). Themes live inside the Codebook. Only the Codebook is built. */
+export const ANALYSIS_STEPS = ['Codebook', 'Signals & tensions', 'Findings', 'Outputs', 'Lenses', 'Publish'] as const
 
 export function AnalysisStepper({ current = 0, unlocked = 1 }: { current?: number; unlocked?: number }) {
   return (
@@ -30,10 +30,10 @@ export function AnalysisStepper({ current = 0, unlocked = 1 }: { current?: numbe
             <li key={label} className="flex items-center gap-0.5 xl:gap-1">
               {i > 0 && <span aria-hidden="true" className="hidden h-px w-3 bg-mist-strong xl:block" />}
               {locked ? (
-                <Tooltip content="Approve the base first" focusable align="left">
+                <Tooltip content="Opens once the codebook has accepted codes and themes. Not built in this prototype yet." focusable align="left">
                   <span className={cls} aria-disabled="true">
                     {body}
-                    <span className="sr-only"> (locked: approve the base first)</span>
+                    <span className="sr-only"> (locked: not built yet)</span>
                   </span>
                 </Tooltip>
               ) : (

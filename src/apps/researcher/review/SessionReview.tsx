@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router'
 import { Breadcrumb } from '@/components/Breadcrumb'
 import { Button } from '@/components/Button'
@@ -61,11 +61,11 @@ export function SessionReview() {
     if (found) return <Navigate replace to={`${href(screenById.R19, found.session.id)}?from=review`} />
   }
 
-  // The Analysis base opens a session with ?from=analysis-base so the way back is the base, not the queue.
-  const fromBase = params.get('from') === 'analysis-base'
+  // The codebook opens a session with ?from=codebook (and ?at=seconds) so the way back is the codebook, not the queue.
+  const fromBase = params.get('from') === 'codebook'
   const crumbs = (
     <>
-      <Breadcrumb parent={fromBase ? { to: studyPath(studyId, screenById.A1), label: 'Back to Analysis base' } : { to: studyPath(studyId, screenById.R21), label: 'Review queue' }} current={session ? sessionText(session.participantId, session.sessionNo, session.sessionCount) : sessionId} />
+      <Breadcrumb parent={fromBase ? { to: studyPath(studyId, screenById.A1), label: 'Back to Codebook' } : { to: studyPath(studyId, screenById.R21), label: 'Review queue' }} current={session ? sessionText(session.participantId, session.sessionNo, session.sessionCount) : sessionId} />
       {preview && (
         <div className="mb-4">
           <SampleDataBanner studyId={studyId} />
@@ -97,10 +97,11 @@ export function SessionReview() {
   const closed = !preview && (!!doc?.closed || study?.status === 'Complete')
   const paused = !preview && (study?.status === 'Paused' || !!doc?.paused || closed)
   const ctx: DecisionCtx | undefined = doc ? { session, doc, target, outcomes, reserve, me, update, paused, closed, readOnly: preview || !update } : undefined
-  return <Loaded key={session.id} session={session} all={all} studyId={studyId} crumbs={crumbs} demo={demo} ctx={ctx} />
+  const at = Number(params.get('at'))
+  return <Loaded key={session.id} session={session} all={all} studyId={studyId} crumbs={crumbs} demo={demo} ctx={ctx} startAt={Number.isFinite(at) && at > 0 ? at : undefined} />
 }
 
-function Loaded({ session, all, studyId, crumbs, demo, ctx }: { session: ReviewSession; all: ReviewSession[]; studyId: string; crumbs: React.ReactNode; demo: string | null; ctx?: DecisionCtx }) {
+function Loaded({ session, all, studyId, crumbs, demo, ctx, startAt }: { session: ReviewSession; all: ReviewSession[]; studyId: string; crumbs: React.ReactNode; demo: string | null; ctx?: DecisionCtx; startAt?: number }) {
   const navigate = useNavigate()
   const [tab, setTab] = useState<Tab>('workspace')
   const [focus, setFocus] = useState<Focus>()
@@ -131,6 +132,13 @@ function Loaded({ session, all, studyId, crumbs, demo, ctx }: { session: ReviewS
     if (t) jumpToTurn(sec, t.turn)
     else player.seek(sec)
   }
+  // A quote opened from the codebook lands on its moment.
+  const started = useRef(false)
+  useEffect(() => {
+    if (started.current || startAt === undefined) return
+    started.current = true
+    jumpTime(startAt)
+  })
 
   return (
     <div className="flex flex-col gap-6">

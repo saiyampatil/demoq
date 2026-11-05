@@ -116,7 +116,7 @@ function analysis(isLaunched: boolean, sessions?: { awaitingReview: number | nul
   if (!sessions || sessions.awaitingReview === null || sessions.total === undefined) return locked('This study has no interview data in the prototype')
   if (sessions.total === 0) return locked('Unlocks once interviews have been completed and every one has a Review decision')
   if (sessions.awaitingReview > 0) return locked(`${sessions.awaitingReview} of ${sessions.total} ${sessions.total === 1 ? 'session still needs' : 'sessions still need'} a Review decision`)
-  return { state: 'open', hint: 'Every session has a decision. Start with the analysis base' }
+  return { state: 'open', hint: 'Every session has a decision. Start with the codebook' }
 }
 
 /** Where to land when opening a study: the first step that still needs work. */

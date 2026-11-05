@@ -14,6 +14,7 @@ import { acceptedRoster, guideSummary, withTeam, type GuideDoc } from './guide'
 import { DEFAULT_TIME_ZONE } from '@/lib/timeZone'
 import { generateFieldwork, SESSION_SEED, type FieldworkDoc } from './fieldwork'
 import { resetReview } from './reviewState'
+import { resetCodebook } from './codebook'
 import { studyLanguage } from './language'
 import { compileStudyPlan, emptyLaunchDoc, readiness, type LaunchDoc } from './launch'
 
@@ -201,6 +202,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
   )
   const resetSeed = useCallback(() => {
     resetReview()
+    resetCodebook()
     setState(freshState())
   }, [])
 

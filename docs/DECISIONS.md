@@ -393,3 +393,21 @@ A row is in Needs you only if the participant cannot recover alone and a Researc
 - **Order:** Participant journey, then Needs you.
 - **Review:** the Session details tab is removed, and with it the "All sessions for this participant" list. The header still says "Session 2 of 3". The recording has a Download recording button; in the prototype it saves a placeholder file.
 - `tests/gap-loop.mjs` and `tests/scenarios/pool.mjs` click Source more and read the top-up card, so those steps no longer apply.
+
+
+## Results Analysis: the Codebook replaces the Base (A1)
+
+- **No Base step.** Review already decides which sessions are analysed, so a second approval was redundant. The Base screen and `state/analysis.ts` are removed. A1 is now the Codebook at `analysis/codebook`. The analysis stepper is Codebook, Signals & tensions, Findings, Outputs, Lenses, Publish; Themes is a tab, not a step.
+- **What the Base did that stays:** a line under the title says what the codebook is built on (sessions accepted in Review, excluded ones left out, corrected transcripts used). N is worked out per guide question, so a question that wasn't always asked shows "Asked 14 of 20" and its codes count against 14.
+- **One screen, three tabs.** Codes (founder brief steps 1 to 3), Themes (step 4), Change log (step 5). Export to Excel is always in the header: four sheets, Codes, Quotes, Themes and Change log, with statuses as columns.
+- **Codes tab:** codes are grouped by guide question, because Findings are written per question; new codes have their own group. Each row shows people as "n of N" (distinct people, never quote counts) and confidence as High, Medium or Low. The default view is To review, most-said first. Accepting moves to the next code.
+- **Code panel:** definition (editable), who said it with a dog vs cat split labelled Directional, quotes (each with participant, time, the question it answered, and Play, which opens Review at that moment), similar codes said by the same people (a likely merge), and recent changes.
+- **Decisions:** Accept; Reject (reason required, leaves any theme, can be restored); Rename (why optional); Merge (reason required; quotes move, the source stays as Merged); Remove a quote (reason required). Every one is logged with who and when.
+- **Consistency (step 3):** after a rename, merge or definition edit, PulseAI offers excerpts from other transcripts that may now fit, each with Add or Skip. Skipped ones aren't offered again.
+- **Accept high-confidence:** one button that lists the suggested High-confidence codes, each untickable. Each accept is logged on its own.
+- **Themes tab:** only accepted codes can be placed; a code sits in one theme. A theme counts each person once. Codes move by drag and drop or a menu (for keyboard users). PulseAI suggests themes for codes not in a theme yet (AI-generated, Accept, Edit first or Dismiss). Each theme shows which guide questions it draws from.
+- **Review changes after coding:** counts follow Review straight away. A banner names who changed and offers "Update the codebook", which makes it permanent and logs it.
+- **Quotes are real lines.** Every coded quote is written into that participant's transcript at the turn it cites (`placeTranscriptLines` in `mock/review.ts`), with the guide question on the turn before. P-3107's price quote is a corrected line, so it only reads that way in the reviewed transcript.
+- **Statuses:** Suggested, Accepted, Rejected, Merged, added as their own vocabulary.
+- **Left out:** the optional second coding pass. Logged as an open question.
+- `tests/analysis-base.mjs` was removed with the Base screen.

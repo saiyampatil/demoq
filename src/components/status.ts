@@ -28,8 +28,8 @@ export const vocabularies = {
   audience: ['Draft', 'Confirmed'],
   // Moderators on a human-led study (R12). Invited, Accepted and Declined come from the other vocabularies.
   moderator: ['Requested'],
-  // Results Analysis (docs/ANALYSIS_PLAN.md). "Approved" comes from the brief and guide vocabulary.
-  analysis: ['Ready to approve', 'Needs re-approval'],
+  // Codes in the Results Analysis codebook (docs/ANALYSIS_PLAN.md). Not in CLAUDE.md's list.
+  code: ['Suggested', 'Accepted', 'Rejected', 'Merged'],
 } as const
 
 export const vocabularyLabels: Record<keyof typeof vocabularies, string> = {
@@ -46,7 +46,7 @@ export const vocabularyLabels: Record<keyof typeof vocabularies, string> = {
   preflight: 'Preflight check (launch)',
   audience: 'Audience definition',
   moderator: 'Moderator request (R12)',
-  analysis: 'Analysis base',
+  code: 'Codebook code (analysis)',
 }
 
 export type ArtifactStatus = (typeof vocabularies.artifact)[number]
@@ -81,8 +81,7 @@ export const statusFamily: Record<Status, StatusFamily> = {
   Rescheduled: 'pending',
   Booked: 'pending',
   Sent: 'pending',
-  'Ready to approve': 'pending',
-  'Needs re-approval': 'pending',
+  Suggested: 'pending',
 
   Live: 'progress',
   Active: 'progress',
@@ -110,9 +109,11 @@ export const statusFamily: Record<Status, StatusFamily> = {
   'Issues found': 'negative',
   'No-show': 'negative',
   Incomplete: 'negative',
+  Rejected: 'negative',
 
   'Incomplete (resumable)': 'held',
   Skipped: 'held',
   Overridden: 'held',
+  Merged: 'held',
   'Completed with fallback': 'held',
 }

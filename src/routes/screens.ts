@@ -52,7 +52,7 @@ export const screens: Screen[] = [
   { id: 'R21', name: 'Review queue', app: 'researcher', module: '4.8', phase: 8, path: 'review/queue', step: 'review' },
   { id: 'R22', name: 'Session review', app: 'researcher', module: '4.8', phase: 8, path: 'review/session/:sessionId', step: 'review' },
 
-  { id: 'A1', name: 'Analysis base', app: 'researcher', module: '5', phase: 10, path: 'analysis/base', step: 'analysis', demoStudy: 'pet-food-churn' },
+  { id: 'A1', name: 'Codebook', app: 'researcher', module: '5', phase: 10, path: 'analysis/codebook', step: 'analysis', demoStudy: 'pet-food-churn' },
   { id: 'R23', name: 'Study settings', app: 'researcher', module: '4.9', phase: 9, path: 'settings', standalone: true },
 
   { id: 'P1', name: 'Welcome, data consent, 18+ check', app: 'participant', module: '2', phase: 2, path: 'welcome' },

@@ -342,6 +342,14 @@ export const registerReviewSessions = (list: ReviewSession[]) => {
 }
 export const findReviewRecord = (id: string): ReviewSession | undefined => reviewSessions.find((x) => x.id === id) ?? extraSets.flat().find((x) => x.id === id)
 
+/** Lines a study writes into its transcripts at fixed turns, e.g. the answers the codebook quotes. */
+const placedLines = new Map<string, Map<number, string>>()
+export function placeTranscriptLines(sessionId: string, lines: { index: number; text: string }[]) {
+  const m = placedLines.get(sessionId) ?? new Map<number, string>()
+  lines.forEach((l) => m.set(l.index, l.text))
+  placedLines.set(sessionId, m)
+}
+
 /**
  * The raw transcript is immutable. The reviewed copy is a separate, versioned copy with a few corrections,
  * and who made them. Flagged turns carry the text that raised the flag.
@@ -358,6 +366,9 @@ export function transcriptFor(sessionId: string, version: 'raw' | 'reviewed' = '
     speaker: i % 2 === 0 ? 'AI' : 'Participant',
     text: i % 2 === 0 ? pack.questions[(i / 2) % pack.questions.length] : pack.answers[((i - 1) / 2) % pack.answers.length],
   }))
+  placedLines.get(sessionId)?.forEach((text, i) => {
+    if (turns[i]) turns[i] = { ...turns[i], text }
+  })
   s.flags.forEach((f) => {
     turns[f.turn - 1].text = libOf(pack, f.type).text
   })
