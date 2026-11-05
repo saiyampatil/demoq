@@ -30,6 +30,8 @@ export const vocabularies = {
   moderator: ['Requested'],
   // Codes in the Results Analysis codebook (docs/ANALYSIS_PLAN.md). Not in CLAUDE.md's list.
   code: ['Suggested', 'Accepted', 'Rejected', 'Merged'],
+  // Tensions in Signals & tensions. "Suggested" is shared with codes. Not in CLAUDE.md's list.
+  tension: ['Turned into a theme', 'Dismissed'],
 } as const
 
 export const vocabularyLabels: Record<keyof typeof vocabularies, string> = {
@@ -47,6 +49,7 @@ export const vocabularyLabels: Record<keyof typeof vocabularies, string> = {
   audience: 'Audience definition',
   moderator: 'Moderator request (R12)',
   code: 'Codebook code (analysis)',
+  tension: 'Tension (analysis)',
 }
 
 export type ArtifactStatus = (typeof vocabularies.artifact)[number]
@@ -97,6 +100,7 @@ export const statusFamily: Record<Status, StatusFamily> = {
   Passed: 'positive',
   Completed: 'positive',
   Accepted: 'positive',
+  'Turned into a theme': 'positive',
   Complete: 'positive',
 
   Ineligible: 'negative',
@@ -115,5 +119,6 @@ export const statusFamily: Record<Status, StatusFamily> = {
   Skipped: 'held',
   Overridden: 'held',
   Merged: 'held',
+  Dismissed: 'held',
   'Completed with fallback': 'held',
 }

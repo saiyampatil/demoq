@@ -10,6 +10,7 @@ import {
   EXCERPTS,
   SEED_CODES,
   SEED_LOG,
+  SEED_TENSIONS,
   SEED_THEMES,
   THEME_SUGGESTIONS,
   petOf,
@@ -18,13 +19,16 @@ import {
   type LogEntry,
   type Pet,
   type SeedCode,
+  type SeedTensionDecision,
 } from '@/mock/codebook'
 import { now, uid } from './brief'
 
 export type { CodeStatus, Excerpt, LogEntry, Pet } from '@/mock/codebook'
 
 export type Code = SeedCode
-export type Theme = { id: string; name: string; definition: string; codeIds: string[]; by: string; at: string }
+/** A theme made from a tension (docs/ANALYSIS_PLAN.md). It groups codes that are also in other themes, and the codes stay where they are. */
+export type Theme = { id: string; name: string; definition: string; codeIds: string[]; by: string; at: string; tensionId?: string }
+export type TensionDecision = SeedTensionDecision
 
 export type CodebookDoc = {
   studyId: string
@@ -38,6 +42,10 @@ export type CodebookDoc = {
   /** Excerpts the Researcher skipped, never offered again for that code. */
   skipped: Record<string, string[]>
   dismissedSuggestions: string[]
+  /** What the Researcher decided on each tension. A tension not listed is still to review. */
+  tensions?: Record<string, TensionDecision>
+  /** Signals the Researcher switched on or off for the report, by code. Not listed means the default: on when notable. */
+  signalPicks?: Record<string, boolean>
   log: LogEntry[]
 }
 
@@ -77,6 +85,8 @@ export function seedCodebook(studyId: string, acceptedSessions: string[]): Codeb
     pending: {},
     skipped: {},
     dismissedSuggestions: [],
+    tensions: structuredClone(SEED_TENSIONS),
+    signalPicks: {},
     log: structuredClone(SEED_LOG),
   }
 }
@@ -180,8 +190,11 @@ export function themeCodes(doc: CodebookDoc, theme: Theme): Code[] {
 
 export const themePeople = (doc: CodebookDoc, theme: Theme, basis: Basis) => new Set(themeCodes(doc, theme).flatMap((c) => [...peopleOf(c, basis)]))
 
+/** Themes the Researcher built from codes. A tension theme borrows codes and never owns them. */
+export const codeThemes = (doc: CodebookDoc) => doc.themes.filter((t) => !t.tensionId)
+
 export function unthemed(doc: CodebookDoc): Code[] {
-  const inTheme = new Set(doc.themes.flatMap((t) => themeCodes(doc, t).map((c) => c.id)))
+  const inTheme = new Set(codeThemes(doc).flatMap((t) => themeCodes(doc, t).map((c) => c.id)))
   return doc.codes.filter((c) => c.status === 'Accepted' && !inTheme.has(c.id))
 }
 
@@ -326,6 +339,7 @@ function moveIntoTheme(d: CodebookDoc, codeIds: string[], themeId: string | null
   return {
     ...d,
     themes: d.themes.map((t) => {
+      if (t.tensionId) return t
       const kept = t.codeIds.filter((x) => !codeIds.includes(x))
       return t.id === themeId ? { ...t, codeIds: [...kept, ...codeIds] } : { ...t, codeIds: kept }
     }),
@@ -333,7 +347,7 @@ function moveIntoTheme(d: CodebookDoc, codeIds: string[], themeId: string | null
 }
 
 export function moveCode(d: CodebookDoc, codeId: string, themeId: string | null, { by }: Who): CodebookDoc {
-  const from = d.themes.find((t) => themeCodes(d, t).some((c) => c.id === codeId))
+  const from = codeThemes(d).find((t) => themeCodes(d, t).some((c) => c.id === codeId))
   if ((from?.id ?? null) === themeId) return d
   const out = moveIntoTheme(d, [codeId], themeId)
   const to = out.themes.find((t) => t.id === themeId)
@@ -350,7 +364,47 @@ export function editTheme(d: CodebookDoc, id: string, name: string, definition: 
 
 export function deleteTheme(d: CodebookDoc, id: string, { by }: Who, why: string): CodebookDoc {
   const t = d.themes.find((x) => x.id === id)!
-  return log({ ...d, themes: d.themes.filter((x) => x.id !== id) }, themeEntry(by, t, 'Deleted theme', 'Its codes went back to “Not in a theme”', why))
+  const { [t.tensionId ?? '']: _gone, ...rest } = d.tensions ?? {}
+  void _gone
+  const out = { ...d, themes: d.themes.filter((x) => x.id !== id), ...(t.tensionId ? { tensions: rest } : {}) }
+  return log(out, themeEntry(by, t, 'Deleted theme', t.tensionId ? 'The tension is back in Signals & tensions, to review' : 'Its codes went back to “Not in a theme”', why))
+}
+
+// Tensions (Signals & tensions)
+
+export const tensionDecisions = (d: CodebookDoc): Record<string, TensionDecision> => d.tensions ?? SEED_TENSIONS
+
+const tensionEntry = (by: string, t: { id: string; title: string }, action: string, detail?: string, why?: string): LogEntry => ({
+  id: uid('cl'),
+  at: now(),
+  by,
+  target: { kind: 'tension', id: t.id, name: t.title },
+  action,
+  ...(detail ? { detail } : {}),
+  ...(why?.trim() ? { why: why.trim() } : {}),
+})
+
+/** Turn a tension into a theme. The theme lists the tension's codes without taking them out of the themes they're in. */
+export function turnTensionIntoTheme(d: CodebookDoc, tension: { id: string; title: string }, codeIds: string[], name: string, definition: string, { by }: Who): CodebookDoc {
+  const t: Theme = { id: uid('t'), name: name.trim(), definition: definition.trim(), codeIds, by, at: now(), tensionId: tension.id }
+  const out: CodebookDoc = { ...d, themes: [...d.themes, t], tensions: { ...tensionDecisions(d), [tension.id]: { status: 'Turned into a theme', by, at: t.at, themeId: t.id } } }
+  return log(out, tensionEntry(by, tension, 'Turned into a theme', `“${t.name}”`), themeEntry(by, t, 'Created theme', 'From a tension'))
+}
+
+export function dismissTension(d: CodebookDoc, tension: { id: string; title: string }, { by }: Who, why: string): CodebookDoc {
+  return log({ ...d, tensions: { ...tensionDecisions(d), [tension.id]: { status: 'Dismissed', by, at: now(), why: why.trim() } } }, tensionEntry(by, tension, 'Dismissed', undefined, why))
+}
+
+/** Put a dismissed tension back to review. A tension turned into a theme is undone by deleting that theme. */
+export function restoreTension(d: CodebookDoc, tension: { id: string; title: string }, { by }: Who): CodebookDoc {
+  const { [tension.id]: _gone, ...rest } = tensionDecisions(d)
+  void _gone
+  return log({ ...d, tensions: rest }, tensionEntry(by, tension, 'Restored', 'Back to review'))
+}
+
+/** Whether a code's signals go into the report. Not set means on when the pattern is notable. */
+export function setSignalPick(d: CodebookDoc, code: { id: string; name: string }, on: boolean, { by }: Who): CodebookDoc {
+  return log({ ...d, signalPicks: { ...(d.signalPicks ?? {}), [code.id]: on } }, entry(by, code, on ? 'Signals added to the report' : 'Signals left out of the report'))
 }
 
 export const dismissSuggestion = (d: CodebookDoc, id: string): CodebookDoc => ({ ...d, dismissedSuggestions: [...d.dismissedSuggestions, id] })

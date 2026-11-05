@@ -3,6 +3,7 @@
 
 import { useMemo } from 'react'
 import { counts, unthemed, useCodebook, type CodebookDoc } from './codebook'
+import { tensionCounts } from './signals'
 
 export type AnalysisStepKey = 'codebook' | 'signals' | 'report'
 export type StepProgress = 'Not started' | 'In progress' | 'Done'
@@ -34,14 +35,22 @@ export function analysisSteps(doc: CodebookDoc | undefined): AnalysisStep[] {
   else if (c.suggested === 0) codebook = { status: 'In progress', hint: 'Group accepted codes into themes' }
   else codebook = { status: 'In progress', hint: `${plural(c.suggested, 'code')} to review` }
 
+  let signals: Pick<AnalysisStep, 'status' | 'hint'> = { status: 'Not started', hint: 'How they said it, and where it doesn’t add up' }
+  if (doc && !noCodes) {
+    const t = tensionCounts(doc)
+    if (t.total > 0 && t.toReview === 0) signals = { status: 'Done', hint: `Every tension decided, ${plural(t.themes, 'theme')} made` }
+    else if (t.total - t.toReview > 0) signals = { status: 'In progress', hint: `${plural(t.toReview, 'tension')} to review` }
+    else if (t.total > 0) signals = { status: 'Not started', hint: `${plural(t.toReview, 'tension')} to review` }
+  }
+
   return [
     { key: 'codebook', label: 'Codebook', screenId: 'A1', ...codebook, locked: false },
     {
       key: 'signals',
       label: 'Signals & tensions',
       screenId: 'A2',
-      status: 'Not started',
-      hint: noCodes ? 'Opens once a code is accepted' : 'How they said it, and where it doesn’t add up',
+      ...signals,
+      hint: noCodes ? 'Opens once a code is accepted' : signals.hint,
       locked: noCodes,
       lockedReason: noCodes ? lockedReason : undefined,
     },
@@ -89,6 +98,21 @@ export function codebookReadiness(doc: CodebookDoc, stale: boolean): Readiness {
       { label: 'Accepted codes', value: String(c.accepted), ok: c.accepted > 0 },
       { label: 'Codes still to review', value: String(c.suggested), ok: c.suggested === 0 },
       { label: 'Themes', value: String(c.themes), ok: c.themes > 0 },
+    ],
+  }
+}
+
+/** What Continue checks on Signals & tensions. Tensions still to review are a warning, never a block. */
+export function signalsReadiness(doc: CodebookDoc): Readiness {
+  const t = tensionCounts(doc)
+  const warnings: Readiness['warnings'] = []
+  if (t.toReview > 0) warnings.push({ key: 'tensions', text: `${plural(t.toReview, 'tension')} still to review will not appear in the report. You can come back and decide them.` })
+  return {
+    warnings,
+    facts: [
+      { label: 'Tensions to review', value: String(t.toReview), ok: t.toReview === 0 },
+      { label: 'Turned into themes', value: String(t.themes), ok: true },
+      { label: 'Dismissed', value: String(t.dismissed), ok: true },
     ],
   }
 }

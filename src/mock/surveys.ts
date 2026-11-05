@@ -84,3 +84,41 @@ export function mockAnswer(q: SurveyQuestion, n: number): string {
   if (q.format === 'multiple') return o.length > 2 ? [o[n % o.length], o[(n + 2) % o.length]].join('; ') : o[n % o.length]
   return o[n % o.length]
 }
+
+/**
+ * What each accepted Pet Food participant locked in the two surveys. It follows what they said in the interview
+ * (src/mock/codebook.ts), so a survey answer and the same person's quotes never contradict each other by accident.
+ */
+const PET_ANSWERS: Record<string, { keep: string; appeal: string; reason: string; others: string[] }> = {
+  'P-3101': { keep: 'Might or might not', appeal: '3', reason: 'The price went up', others: ['My pet stopped eating it'] },
+  'P-3102': { keep: 'Probably would not', appeal: '2', reason: 'Too much food piled up', others: ['The price went up'] },
+  'P-3103': { keep: 'Probably would not', appeal: '2', reason: 'The price went up', others: ['My pet stopped eating it'] },
+  'P-3104': { keep: 'Probably would', appeal: '4', reason: 'Too much food piled up', others: ['Delivery problems'] },
+  'P-3105': { keep: 'Probably would', appeal: '5', reason: 'Too much food piled up', others: ['The price went up'] },
+  'P-3106': { keep: 'Might or might not', appeal: '3', reason: 'The price went up', others: ['Something else'] },
+  'P-3107': { keep: 'Definitely would not', appeal: '1', reason: 'I switched to a vet or store brand', others: ['The price went up'] },
+  'P-3108': { keep: 'Probably would', appeal: '4', reason: 'My pet stopped eating it', others: ['Too much food piled up'] },
+  'P-3109': { keep: 'Definitely would', appeal: '5', reason: 'Too much food piled up', others: ['The price went up'] },
+  'P-3110': { keep: 'Probably would not', appeal: '2', reason: 'The price went up', others: ['My pet stopped eating it'] },
+  'P-3111': { keep: 'Might or might not', appeal: '3', reason: 'My pet stopped eating it', others: ['Something else'] },
+  'P-3113': { keep: 'Probably would not', appeal: '3', reason: 'Too much food piled up', others: ['The price went up'] },
+  'P-3114': { keep: 'Might or might not', appeal: '3', reason: 'The price went up', others: ['Too much food piled up'] },
+  'P-3115': { keep: 'Definitely would not', appeal: '1', reason: 'I switched to a vet or store brand', others: ['Something else'] },
+  'P-3116': { keep: 'Probably would', appeal: '4', reason: 'My pet stopped eating it', others: ['Something else'] },
+  'P-3117': { keep: 'Probably would not', appeal: '2', reason: 'The price went up', others: ['I switched to a vet or store brand'] },
+  'P-3118': { keep: 'Might or might not', appeal: '4', reason: 'Too much food piled up', others: ['The price went up'] },
+  'P-3120': { keep: 'Probably would not', appeal: '2', reason: 'The price went up', others: ['Too much food piled up'] },
+  'P-3121': { keep: 'Probably would not', appeal: '3', reason: 'Too much food piled up', others: ['The price went up'] },
+  'P-3122': { keep: 'Probably would', appeal: '4', reason: 'Too much food piled up', others: ['The price went up'] },
+}
+
+/** A participant's locked answer to one survey question. Pet Food answers are authored above; other studies get a deterministic one. */
+export function surveyAnswerFor(participantId: string, surveyTitle: string, q: SurveyQuestion): string {
+  const a = PET_ANSWERS[participantId]
+  if (a) {
+    if (surveyTitle === PET_SURVEYS.keep.title) return q.id === 'q1' ? a.keep : a.appeal
+    if (surveyTitle === PET_SURVEYS.reason.title) return q.id === 'q1' ? a.reason : a.others.join('; ')
+  }
+  const num = Number(participantId.replace(/\D/g, '')) || 0
+  return mockAnswer(q, num + surveyTitle.length)
+}

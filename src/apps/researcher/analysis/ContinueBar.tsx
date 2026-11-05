@@ -13,16 +13,16 @@ import type { Readiness } from '@/state/analysisProgress'
  * The way forward from the Codebook. It says in plain words where things stand, and one button moves on.
  * With nothing to warn about it moves straight on; with warnings it asks first. Only having nothing to analyse blocks it.
  */
-export function ContinueBar({ studyId, readiness, message }: { studyId: string; readiness: Readiness; message: React.ReactNode }) {
+export function ContinueBar({ studyId, readiness, message, next, previous, stay }: { studyId: string; readiness: Readiness; message: React.ReactNode; next: { screen: 'A2' | 'A3'; label: string }; previous?: { screen: 'A1' | 'A2'; label: string }; stay: string }) {
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
-  const to = studyPath(studyId, screenById.A2)
+  const to = studyPath(studyId, screenById[next.screen])
   const go = () => navigate(to)
-  const label = 'Continue to Signals & tensions'
+  const label = next.label
 
   return (
     <>
-      <WizardFooter message={message}>
+      <WizardFooter message={message} previous={previous ? { to: studyPath(studyId, screenById[previous.screen]), label: previous.label } : undefined}>
         {readiness.blocked ? (
           <Tooltip content={readiness.blocked} focusable>
             <Button variant="primary" disabled data-testid="continue-analysis">
@@ -40,11 +40,11 @@ export function ContinueBar({ studyId, readiness, message }: { studyId: string; 
         open={open}
         onClose={() => setOpen(false)}
         title="Before you continue"
-        description="You can keep going and come back to the codebook at any time. Anything you change there will show up in the next steps."
+        description="You can keep going and come back at any time. Anything you change here will show up in the next steps."
         footer={
           <>
             <Button variant="ghost" onClick={() => setOpen(false)}>
-              Keep working on the codebook
+              {stay}
             </Button>
             <Button variant="primary" onClick={go} data-testid="continue-anyway">
               Continue anyway

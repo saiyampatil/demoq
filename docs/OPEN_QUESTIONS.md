@@ -145,6 +145,11 @@ PRD gaps and conflicts found while building. Each entry says what the prototype 
 | 139 | M | In-session surveys: may a survey be corrected after it is added? The PRD says wording and options are fixed once created. | No edit. A wrong survey is switched off and a new one added. A "Duplicate as new survey" is a possible later step. | Open |
 | 140 | M | Results Analysis: when is the Codebook finished enough to move on? | Done means every code has a decision and there is at least one theme. Moving on only needs one accepted code, and warns about the rest. | Open |
 | 141 | L | Results Analysis: should Signals & tensions need every tension decided before the Report opens? | The Report opens with the Signals step (an accepted code is enough); the Signals step will warn about undecided tensions. | Open |
+| 142 | M | Signals: what counts as a sign of hesitation, and how many signs make a moment "some" or "marked"? | A long answer delay (2 s or more, and 1.5× or more this person's own usual), a long pause (1.5 s or more), or fillers and restarts (2 or more). One sign is "some hesitation", two or more is "marked". Mock values in `SIGNAL_RULES`. | Open |
+| 143 | M | Signals: when is a code's pattern "mostly steady", "mixed" or "often hesitant"? | By the share of people with marked hesitation: under 25%, 25% to under 60%, 60% or more. Fewer than 3 people shows "Too few to read". Mixed and often hesitant are "worth a look" and go in the report unless switched off. | Open |
+| 144 | M | Signals: how is "this person's usual" worked out, and over what? | A per-person usual answer time (mock, 0.9 to 1.7 s). The product would use the person's own median across the interview, away from key moments. | Open |
+| 145 | L | Tensions: when are groups too small to compare, and does a tension need a minimum number of people? | Groups under 5 are flagged "too small to read". A tension with only a few people shows "Read it as a prompt to look, not a result." No minimum blocks a tension. | Open |
+| 146 | L | Tensions: when a tension is turned into a theme, which codes does the theme own? | None. It lists the codes it draws on, and they stay in their own themes (a code is in one code theme at a time). | Open |
 
 ## Future ideas (not built)
 

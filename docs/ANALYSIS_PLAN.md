@@ -39,7 +39,7 @@ Three steps, each with one question, one decision type and one finish line. The 
 
 ## Phases
 
-1. **Structure and navigation** (done), then **Signals & tensions**, then **Report core** (executive summary, findings, theme cards, draft switch, regenerate, publish).
+1. **Structure and navigation** (done), **Signals & tensions** (done), then **Report core** (executive summary, findings, theme cards, draft switch, regenerate, publish).
 2. **Report media:** theme videos, showreel, side panel.
 3. **Word cloud, podcast, lenses, compare studies, translation.** An optional Emotion band, only after the consent and legal decision.
 

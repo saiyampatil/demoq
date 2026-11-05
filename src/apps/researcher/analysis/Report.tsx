@@ -1,5 +1,6 @@
 import { useStudies } from '@/state/StudyContext'
 import { counts } from '@/state/codebook'
+import { tensionCounts } from '@/state/signals'
 import { allQuestions } from '@/state/guide'
 import { StepPage } from './StepPage'
 import { useAnalysis } from './useAnalysis'
@@ -11,6 +12,7 @@ export function Report() {
   const guide = getGuide(studyId)?.guide
   const questions = guide ? allQuestions(guide).filter((q) => q.mandatory).length : 0
   const c = doc ? counts(doc) : undefined
+  const t = doc ? tensionCounts(doc) : undefined
   return (
     <StepPage
       id="A3"
@@ -25,7 +27,7 @@ export function Report() {
         { label: 'Themes', value: String(c?.themes ?? 0) },
         { label: 'Sessions', value: String(accepted.length), note: 'Accepted in Review' },
         { label: 'Guide questions that need an answer', value: String(questions), note: 'Each gets a finding' },
-        { label: 'Signals & tensions', value: 'Not started', note: 'Accepted tensions appear in the findings' },
+        { label: 'Tensions turned into themes', value: String(t?.themes ?? 0), note: t ? `${t.total - t.toReview} of ${t.total} tensions decided` : undefined },
       ]}
       youDecide={[
         'Edit any paragraph, or write your own version beside PulseAI’s draft.',

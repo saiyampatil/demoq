@@ -622,7 +622,13 @@ export const THEME_SUGGESTIONS: Omit<SeedTheme, 'by' | 'at'>[] = [
 
 // ─── the log so far ─────────────────────────────────────────────────────────
 
-export type LogEntry = { id: string; at: string; by: string; target: { kind: 'code' | 'theme' | 'codebook'; id: string; name: string }; action: string; detail?: string; why?: string }
+export type LogEntry = { id: string; at: string; by: string; target: { kind: 'code' | 'theme' | 'tension' | 'codebook'; id: string; name: string }; action: string; detail?: string; why?: string }
+
+/** Decisions already made on the tensions PulseAI suggested (src/mock/signals.ts). */
+export type SeedTensionDecision = { status: 'Turned into a theme' | 'Dismissed'; by: string; at: string; why?: string; themeId?: string }
+export const SEED_TENSIONS: Record<string, SeedTensionDecision> = {
+  'tn-vet-survey': { status: 'Dismissed', by: maya, at: '2026-09-26T10:20:00-04:00', why: 'One person out of three. Too few to read.' },
+}
 
 export const SEED_LOG: LogEntry[] = (() => {
   const out: LogEntry[] = [
@@ -635,6 +641,7 @@ export const SEED_LOG: LogEntry[] = (() => {
     out.push({ id: `l-${c.id}`, at: c.decided.at, by: c.decided.by, target: { kind: 'code', id: c.id, name: c.name }, action, detail, why: c.decided.why })
   })
   out.push({ id: 'l-rename', at: '2026-09-24T14:12:00-04:00', by: maya, target: { kind: 'code', id: 'c-pet-refused', name: 'Pet stopped eating it' }, action: 'Renamed', detail: 'From “Palatability issues”', why: 'Use the words people actually said.' })
+  out.push({ id: 'l-tn-vet', at: SEED_TENSIONS['tn-vet-survey'].at, by: maya, target: { kind: 'tension', id: 'tn-vet-survey', name: 'Said a vet’s advice ended it, but named price in the survey' }, action: 'Dismissed', why: SEED_TENSIONS['tn-vet-survey'].why })
   SEED_THEMES.forEach((t) => out.push({ id: `l-${t.id}`, at: t.at, by: t.by, target: { kind: 'theme', id: t.id, name: t.name }, action: 'Created theme', detail: `${t.codeIds.length} codes` }))
   return out.sort((a, b) => b.at.localeCompare(a.at))
 })()

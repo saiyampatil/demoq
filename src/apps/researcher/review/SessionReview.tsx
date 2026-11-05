@@ -61,11 +61,12 @@ export function SessionReview() {
     if (found) return <Navigate replace to={`${href(screenById.R19, found.session.id)}?from=review`} />
   }
 
-  // The codebook opens a session with ?from=codebook (and ?at=seconds) so the way back is the codebook, not the queue.
-  const fromBase = params.get('from') === 'codebook'
+  // The codebook and Signals & tensions open a session with ?from= (and ?at=seconds) so the way back is that screen, not the queue.
+  const from = params.get('from')
+  const fromBase = from === 'codebook' || from === 'signals'
   const crumbs = (
     <>
-      <Breadcrumb parent={fromBase ? { to: studyPath(studyId, screenById.A1), label: 'Back to Codebook' } : { to: studyPath(studyId, screenById.R21), label: 'Review queue' }} current={session ? sessionText(session.participantId, session.sessionNo, session.sessionCount) : sessionId} />
+      <Breadcrumb parent={fromBase ? { to: studyPath(studyId, from === 'signals' ? screenById.A2 : screenById.A1), label: from === 'signals' ? 'Back to Signals & tensions' : 'Back to Codebook' } : { to: studyPath(studyId, screenById.R21), label: 'Review queue' }} current={session ? sessionText(session.participantId, session.sessionNo, session.sessionCount) : sessionId} />
       {preview && (
         <div className="mb-4">
           <SampleDataBanner studyId={studyId} />

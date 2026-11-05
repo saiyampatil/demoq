@@ -1,7 +1,7 @@
 // Review (4.8) data. The sessions come from the study's one session list
 // (mock/sessions.ts): every completed session is here, and nothing else is. Moderator type is fixed per study.
 import { SEED_SESSIONS, sessionIdOf, type SeedSession } from './sessions'
-import { mockAnswer, SKIN_SURVEYS, type SurveyDef, type SurveyFormat } from './surveys'
+import { SKIN_SURVEYS, surveyAnswerFor, type SurveyDef, type SurveyFormat } from './surveys'
 
 export const REVIEW_STUDY_ID = 'moisturizer-concept'
 
@@ -239,10 +239,9 @@ function build(seed: SeedSession, pack: ReviewPack): ReviewSession {
   const sf = flags.find((f) => f.type === 'Incorrect stimulus presentation')
   if (sf) stimuli[1].shownAtSec = sf.atSec
 
-  const n = id.charCodeAt(5)
   const survey: SurveyResponse[] = pack.surveys.flatMap((sv, si) =>
     sv.questions.map((q, qi, all) => {
-      const answer = mockAnswer(q, n + si)
+      const answer = surveyAnswerFor(participant, sv.title, q)
       return {
         survey: sv.title,
         question: q.text,

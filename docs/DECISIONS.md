@@ -451,3 +451,17 @@ A row is in Needs you only if the participant cannot recover alone and a Researc
 - **A2 and A3 are frames for now.** They show what each step takes in (live from the codebook), what you decide there and what it hands on, and say plainly they aren't built yet. They don't show any mock result.
 - The generic sub-stepper isn't used for Analysis; `AnalysisStepper` replaces it. `Tooltip` gained a `className` so a locked step fills its cell.
 
+
+## Signals & tensions (A2)
+
+- **One screen, two tabs.** A coverage strip (audio 20 of 20, video 16 of 20, 2 left out, facial analysis on hold) and one progress strip sit above Signals and Tensions. A footer carries Previous and Continue to Report.
+- **Signals read the accepted codes.** Each moment is described by three facts, never an emotion: how long the answer took to start (against this person's own usual), the longest pause, and fillers or restarts. Each sign met adds one band: Steady (none), Some hesitation (one), Marked hesitation (two or more). The three bands are one hue at three strengths, so colour never reads as good or bad, and every count is written beside its bar.
+- **By code:** accepted codes under their themes (then "Not in a theme"). Each row: said by n of N, marked hesitation n of M with a pattern (Mostly steady, Mixed, Often hesitant, or Too few to read), and a tick for "In report". Mixed and often hesitant patterns are ticked by default; the Researcher can switch any code on or off (logged). The panel opens on the strongest pattern and lists every person's moment: quote, facts, the reason in words, and Play (Review at that second, with a way back).
+- **By moment:** each guide question the codes answer, plus the first reaction to each concept, as one bar of marked / some / steady in people counts. "Compare dog and cat owners" splits each bar and says when a group is under 5 people. A failed concept card is treated as not seen (P-3106's Concept B), so it is left out of that moment.
+- **Tensions:** four kinds (said vs behaviour, said vs survey, between segments, between concepts). Each card shows its sides in n of N, the supporting moments with Play, and a caution when the evidence is thin. All numbers are worked out from the data when the screen opens, so a Review change or a code decision changes them. A tension whose code is no longer accepted says so and can't be decided.
+- **Decisions:** Turn into a theme (name and meaning pre-filled; the theme lists the codes it draws on without taking them out of their own themes, and shows "From a tension"), or Dismiss (reason required). A dismissed tension can be restored. Deleting a tension's theme puts it back to review. Every decision is logged in the codebook's change log, which now filters Tensions.
+- **Facial analysis stays on hold.** Nothing here reads a face. The Emotion preview is not built.
+- **Mock data is consistent across the app.** Pet Food's locked survey answers (Review and the Fieldwork session record) now follow what each person said in the interview, so a survey answer and the same person's quotes don't contradict each other by accident. The signal numbers are simulated and deterministic (`src/mock/signals.ts`).
+- **Seeded:** four tensions to review, and one already dismissed ("said a vet's advice ended it, but named price in the survey": one person of three).
+- **Status vocabulary:** Turned into a theme and Dismissed were added for tensions; Suggested is shared with codes.
+

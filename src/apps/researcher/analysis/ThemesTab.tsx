@@ -172,11 +172,15 @@ function ThemeCard({ ctx, theme: t, onEdit, onDelete, move, onOpenCode }: { ctx:
   const people = themePeople(doc, t, basis).size
   const N = basis.participants.size
   const spans = [...new Set(codes.map((c) => questionOf(c.questionId).label))]
-  const drop = useDrop((id) => move(id, t.id))
+  const drop = useDrop((id) => !t.tensionId && move(id, t.id))
+  const fromTension = !!t.tensionId
   return (
-    <li {...drop.props} data-testid="theme-card" className={cn('flex flex-col rounded-md border bg-surface transition-colors', drop.over ? 'border-iris-600 bg-iris-50' : 'border-mist')}>
+    <li {...(fromTension ? {} : drop.props)} data-testid="theme-card" data-from-tension={fromTension} className={cn('flex flex-col rounded-md border bg-surface transition-colors', drop.over && !fromTension ? 'border-iris-600 bg-iris-50' : 'border-mist')}>
       <div className="flex items-start gap-2 px-4 pt-3.5">
-        <h3 className="min-w-0 flex-1 font-semibold">{t.name}</h3>
+        <h3 className="min-w-0 flex-1 font-semibold">
+          {t.name}
+          {fromTension && <span className="ml-2 inline-flex h-5 items-center rounded-xs border border-iris-100 bg-iris-50 px-1.5 align-middle text-xs font-medium text-iris-700">From a tension</span>}
+        </h3>
         <button type="button" onClick={onEdit} className="rounded-xs px-1.5 py-0.5 text-xs font-medium text-graphite hover:bg-haze hover:text-ink">
           Edit
         </button>
@@ -195,12 +199,26 @@ function ThemeCard({ ctx, theme: t, onEdit, onDelete, move, onOpenCode }: { ctx:
         {t.definition && <p className="mt-2.5 text-sm text-graphite">{t.definition}</p>}
       </div>
       <ul className="mt-3 flex flex-1 flex-col gap-1.5 px-4 pb-3" aria-label={`Codes in ${t.name}`}>
-        {codes.map((c) => (
-          <Chip key={c.id} code={c} ctx={ctx} current={t.id} move={move} onOpenCode={onOpenCode} />
-        ))}
-        <li className={cn('rounded-sm border border-dashed px-3 py-2 text-center text-xs', drop.over ? 'border-iris-600 text-iris-700' : 'border-mist-strong text-muted')}>
-          {codes.length ? 'Drop a code here' : 'No codes yet. Drop one here'}
-        </li>
+        {fromTension ? (
+          <>
+            {codes.map((c) => (
+              <li key={c.id} className="flex items-center gap-2 rounded-sm border border-mist bg-paper px-2.5 py-1.5 text-sm">
+                <span className="min-w-0 flex-1 truncate">{c.name}</span>
+                <span className="text-xs text-graphite tabular-nums">{peopleOf(c, basis).size}</span>
+              </li>
+            ))}
+            <li className="text-xs text-graphite">Draws on these codes. They stay in their own themes.</li>
+          </>
+        ) : (
+          <>
+            {codes.map((c) => (
+              <Chip key={c.id} code={c} ctx={ctx} current={t.id} move={move} onOpenCode={onOpenCode} />
+            ))}
+            <li className={cn('rounded-sm border border-dashed px-3 py-2 text-center text-xs', drop.over ? 'border-iris-600 text-iris-700' : 'border-mist-strong text-muted')}>
+              {codes.length ? 'Drop a code here' : 'No codes yet. Drop one here'}
+            </li>
+          </>
+        )}
       </ul>
       {spans.length > 0 && <p className="border-t border-mist px-4 py-2 text-xs text-graphite">From: {spans.join(' · ')}</p>}
     </li>

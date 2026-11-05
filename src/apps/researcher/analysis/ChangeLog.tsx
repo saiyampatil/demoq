@@ -7,7 +7,7 @@ import { formatStamp } from '@/lib/format'
 import { AI_CODER } from '@/state/codebook'
 import type { CodebookCtx } from './codebookCtx'
 
-type Kind = 'all' | 'code' | 'theme'
+type Kind = 'all' | 'code' | 'theme' | 'tension'
 
 /** Founder brief step 5: a short log of who changed what, and why. Entries are never edited or removed. */
 export function ChangeLog({ ctx }: { ctx: CodebookCtx }) {
@@ -37,9 +37,10 @@ export function ChangeLog({ ctx }: { ctx: CodebookCtx }) {
         <label>
           <span className="sr-only">Show</span>
           <select value={kind} onChange={(e) => setKind(e.target.value as Kind)} className={cn(controlBase, 'h-8 pr-7 text-sm')}>
-            <option value="all">Codes and themes</option>
+            <option value="all">Everything</option>
             <option value="code">Codes only</option>
             <option value="theme">Themes only</option>
+            <option value="tension">Tensions only</option>
           </select>
         </label>
         <label>
@@ -80,7 +81,7 @@ export function ChangeLog({ ctx }: { ctx: CodebookCtx }) {
                   <td className="px-4 py-2.5 whitespace-nowrap">{l.by === AI_CODER ? <span className="text-iris-700">{l.by}</span> : l.by}</td>
                   <td className="px-4 py-2.5">
                     <span className="font-medium">{l.target.name}</span>
-                    <span className="block text-xs text-graphite">{l.target.kind === 'theme' ? 'Theme' : l.target.kind === 'code' ? 'Code' : 'Whole codebook'}</span>
+                    <span className="block text-xs text-graphite">{l.target.kind === 'theme' ? 'Theme' : l.target.kind === 'code' ? 'Code' : l.target.kind === 'tension' ? 'Tension' : 'Whole codebook'}</span>
                   </td>
                   <td className="px-4 py-2.5">
                     {l.action}

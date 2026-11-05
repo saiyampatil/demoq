@@ -8,7 +8,7 @@ import { formatDate, formatDay, formatSlot } from '@/lib/format'
 import { studyTimeZone } from '@/lib/timeZone'
 import type { ReviewStatus } from '@/mock/review'
 import { now, uid } from './brief'
-import { mockAnswer } from '@/mock/surveys'
+import { surveyAnswerFor } from '@/mock/surveys'
 import { surveysOf, type GuideDoc } from './guide'
 import type { LaunchDoc, PlanItem, StudyPlan } from './launch'
 import { SEED_SESSIONS, sessionIdOf, type SeedSession } from '@/mock/sessions'
@@ -439,7 +439,7 @@ export function generateFieldwork(i: GenInput): FieldworkDoc {
       if (s.result === 'Shown') events.push(ev(w, 'stimulus', `Shown: ${s.name}`))
       if (s.result === 'Failed to load') events.push(ev(w, 'stimulus', `Could not load: ${s.name}. Counted as not seen.`))
     })
-    const answers: Answer[] = v === 'done' ? surveyItems.flatMap((x) => questionsOf(x.survey!).map((sq) => ({ questionId: `${x.id}:${sq.id}`, survey: x.survey!, question: sq.text, answer: mockAnswer(sq, n), lockedAt: at(t0, 12) }))) : []
+    const answers: Answer[] = v === 'done' ? surveyItems.flatMap((x) => questionsOf(x.survey!).map((sq) => ({ questionId: `${x.id}:${sq.id}`, survey: x.survey!, question: sq.text, answer: surveyAnswerFor(r.participant, x.survey!, sq), lockedAt: at(t0, 12) }))) : []
     answers.forEach((a) => events.push(ev(a.lockedAt, 'survey', `Answered and locked: ${a.question}`)))
     if (v === 'incomplete') events.push(ev(at(t0, 9), 'system', 'The participant left. The session can be resumed.'))
     if (v === 'error') events.push(ev(at(t0, 3), 'system', 'Technical error: the connection dropped before the session could continue.'))
