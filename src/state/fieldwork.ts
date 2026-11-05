@@ -4,16 +4,17 @@
 
 import { TERMINATE_IN_PROGRESS_AS } from '@/config/terminate'
 import type { AudienceDoc, SourceTag } from './audience'
-import { formatDate, formatSlot } from '@/lib/format'
+import { formatDate, formatDay, formatSlot } from '@/lib/format'
 import { studyTimeZone } from '@/lib/timeZone'
 import type { ReviewStatus } from '@/mock/review'
 import { now, uid } from './brief'
 import { surveysOf, type GuideDoc } from './guide'
 import type { LaunchDoc, PlanItem, StudyPlan } from './launch'
 import { SEED_SESSIONS, sessionIdOf, type SeedSession } from '@/mock/sessions'
-import { MODERATOR_ROSTER, OFFER_SECONDS } from '@/mock/moderation'
+import { MODERATOR_ROSTER } from '@/mock/moderation'
 import { countryOfRegion, participantEmail } from '@/mock/participants'
 import { regionOf } from './screening'
+import { openSlots, type Slot } from './standby'
 
 export type AccessStatus = 'Invited' | 'Opened' | 'Consented' | 'No-show'
 /** "Not started" and "Booked" are additions to the session vocabulary; see docs/OPEN_QUESTIONS.md. */
@@ -163,25 +164,37 @@ export type ConsentRecord = {
 }
 
 /**
- * A participant asked for a human. A standby moderator is offered the session, one at a time, longest idle first. If
- * nobody accepts, it falls through to the Researcher ("Waiting for moderator"), who unblocks the participant: assign a
- * moderator, send a booking link for a human follow-up, or give up. An accepted escalation never reaches the Researcher.
+ * A participant asked to talk to a person during an AI interview. They see the standby moderators' calendar and choose:
+ * book a time (it was free, so nothing needs answering), ask for a time that suits them (the moderator accepts or
+ * declines), or end the interview. A request nobody answers, or that is declined, falls to the Researcher
+ * ("Waiting for moderator"), who can assign a moderator or send a booking link. This is only ever shown on the session.
  */
-export type EscalationOffer = { moderatorId: string; at: string; outcome: 'Offered' | 'Declined' | 'Timed out' | 'Accepted' | 'Assigned' }
+export type RequestWindow = 'Morning' | 'Afternoon' | 'Evening'
+export type TimeRequest = {
+  sentAt: string
+  /** Calendar dates the participant can do, YYYY-MM-DD. */
+  days: string[]
+  windows: RequestWindow[]
+  note: string
+  response: 'Pending' | 'Accepted' | 'Declined'
+  respondedAt?: string
+}
+export type EndReason = 'Can’t wait' | 'Uncomfortable' | 'Something else'
 export type Escalation = {
+  /** When they asked to talk to a person. */
   requestedAt: string
-  status: 'Offering' | 'Waiting for moderator' | 'Assigned' | 'Booking link sent' | 'Joined' | 'Given up' | 'Ended by participant' | 'Booked by participant'
-  offers: EscalationOffer[]
+  status: 'Time requested' | 'Request accepted' | 'Waiting for moderator' | 'Assigned' | 'Booking link sent' | 'Joined' | 'Given up' | 'Ended by participant' | 'Booked by participant'
   /** When it fell through to the Researcher. */
   fellThroughAt?: string
+  /** The standby moderator the participant booked, or the one their request went to. */
+  moderatorId?: string
+  /** The booked time: picked from the calendar, or the moderator's answer to a request. */
+  slot?: string
+  request?: TimeRequest
   acceptedBy?: string
   joinedAt?: string
-  /**
-   * What the participant chose, when they ended it themselves instead of waiting: leave the interview, or book a human
-   * follow-up straight away because a slot was free. Waiting needs no record of its own: it is the status
-   * "Waiting for moderator" and the time since `requestedAt`.
-   */
-  choice?: { by: 'Participant'; at: string; how: 'Ended the interview' | 'Booked a follow-up'; slot?: string }
+  /** What the participant chose: book a time, ask for one, or end the interview (with the reason, if they gave one). */
+  choice?: { by: 'Participant'; at: string; how: 'Ended the interview' | 'Booked a follow-up' | 'Requested a time'; slot?: string; reason?: EndReason }
   /** What the Researcher did when it fell through. */
   actedBy?: { by: string; at: string; action: 'Assigned' | 'Booking link'; moderatorId?: string }
   /** Dev only: time added to the clock, to see a long wait. */
@@ -1026,83 +1039,105 @@ export function simulateTurn(doc: FieldworkDoc, sessionId: string): FieldworkDoc
 
 // ─── escalation to a human ──────────────────────────────────────────────────
 
-/** Standby moderators, longest idle first: the order offers go out in. */
-export const standbyOrder = () => MODERATOR_ROSTER.filter((m) => m.standby && m.state === 'Online').sort((a, b) => b.idleMin - a.idleMin).map((m) => m.id)
-
 const escalate = (doc: FieldworkDoc, sessionId: string, fn: (s: Session, e: Escalation) => Session): FieldworkDoc => patch(doc, sessionId, (s) => (s.escalation ? fn(s, s.escalation) : s))
 
-/** The participant asks for a human. The longest-idle standby moderator is offered the session first. */
-export function requestEscalation(doc: FieldworkDoc, sessionId: string): FieldworkDoc {
+/** Whether the Researcher is the one who can move it on: nobody accepted, or a request is still waiting for an answer. */
+export const needsResearcher = (e: Escalation) => e.status === 'Waiting for moderator' || e.status === 'Time requested'
+
+/** The standby moderators this release offers to participants. */
+const standbyTeam = (doc: FieldworkDoc) => doc.plan.escalation?.moderators ?? []
+
+/** Times already booked, so two participants never hold the same one. */
+const takenSlots = (doc: FieldworkDoc): Set<string> => new Set(doc.sessions.flatMap((s) => (s.escalation?.moderatorId && s.escalation.slot ? [`${s.escalation.moderatorId}|${new Date(s.escalation.slot).toISOString()}`] : [])))
+
+/** What a participant who asks for a human can book from `from`. */
+export const standbySlots = (doc: FieldworkDoc, from: string): Slot[] => openSlots(standbyTeam(doc), from, takenSlots(doc))
+
+/** A participant in an AI interview who hasn't asked yet. */
+const canAsk = (s: Session) => s.status === 'Active' && !s.escalation
+
+/** The participant ends the interview. The session is Withdrawn, like any participant who leaves. */
+export function participantEnds(doc: FieldworkDoc, sessionId: string, reason?: EndReason): FieldworkDoc {
   const when = tick(doc)
-  const first = standbyOrder()[0]
+  const asked = at(when, -1)
   return patch(doc, sessionId, (s) => {
-    if (s.escalation || s.status !== 'Active') return s
-    const base = addEventAt(when, s, 'participant', 'Asked to talk to a human moderator')
-    const withOffer = first ? addEventAt(when, base, 'system', `Offered to ${moderatorName(first)}, who has 60 seconds to answer`) : addEventAt(when, base, 'system', 'No moderator is on standby')
-    return { ...withOffer, escalation: { requestedAt: when, status: first ? 'Offering' : 'Waiting for moderator', fellThroughAt: first ? undefined : when, offers: first ? [{ moderatorId: first, at: when, outcome: 'Offered' }] : [] } }
-  })
-}
-
-/** The offered standby moderator accepts and joins. It never reaches the Researcher. */
-export function standbyAccepts(doc: FieldworkDoc, sessionId: string): FieldworkDoc {
-  return escalate(doc, sessionId, (s, e) => {
-    const offer = e.offers[e.offers.length - 1]
-    if (e.status !== 'Offering' || !offer) return s
-    const accepted = at(offer.at, 0.3)
-    const joined = at(offer.at, 1.5)
-    const withEvents = addEventAt(joined, addEventAt(accepted, s, 'system', `${moderatorName(offer.moderatorId)} accepted`), 'moderator', `${moderatorName(offer.moderatorId)} joined at ${formatSlot(joined)}`)
-    return { ...withEvents, moderatorId: offer.moderatorId, escalation: { ...e, status: 'Joined', acceptedBy: offer.moderatorId, joinedAt: joined, offers: [...e.offers.slice(0, -1), { ...offer, at: accepted, outcome: 'Accepted' }] } }
-  })
-}
-
-/** Every standby moderator declines or doesn't answer in time, so it falls through to the Researcher. */
-export function allDeclined(doc: FieldworkDoc, sessionId: string): FieldworkDoc {
-  return escalate(doc, sessionId, (s, e) => {
-    if (e.status !== 'Offering') return s
-    const order = standbyOrder()
-    let t = e.requestedAt
-    let acc = s
-    const offers: EscalationOffer[] = []
-    order.forEach((id, n) => {
-      const declined = n % 2 === 0
-      const end = at(t, declined ? 0.3 : OFFER_SECONDS / 60)
-      if (n > 0) acc = addEventAt(t, acc, 'system', `Offered to ${moderatorName(id)}, who has 60 seconds to answer`)
-      acc = addEventAt(end, acc, 'system', declined ? `${moderatorName(id)} declined` : `${moderatorName(id)} didn’t answer in 60 seconds (timed out)`)
-      offers.push({ moderatorId: id, at: end, outcome: declined ? 'Declined' : 'Timed out' })
-      t = end
-    })
-    acc = addEventAt(t, acc, 'system', 'No moderator accepted. It is waiting for the Researcher.')
-    return { ...acc, escalation: { ...e, status: 'Waiting for moderator', offers, fellThroughAt: t } }
-  })
-}
-
-/** Whether the participant can still choose: a moderator is being offered, or none accepted and they are waiting. */
-const undecided = (e: Escalation) => e.status === 'Offering' || e.status === 'Waiting for moderator'
-
-/** The participant stops waiting and leaves the interview. The session is Withdrawn, like any participant who leaves. */
-export function participantEnds(doc: FieldworkDoc, sessionId: string): FieldworkDoc {
-  const when = tick(doc)
-  return escalate(doc, sessionId, (s, e) => {
-    if (!undecided(e)) return s
+    if (!canAsk(s)) return s
+    const asking = addEventAt(asked, s, 'participant', 'Asked to talk to a human moderator')
     return {
-      ...addEventAt(when, s, 'participant', 'Chose to end the interview instead of waiting for a moderator'),
+      ...addEventAt(when, asking, 'participant', `Chose to end the interview${reason ? `: ${reason.toLowerCase()}` : ''}`),
       status: 'Withdrawn' as const,
-      escalation: { ...e, status: 'Ended by participant', choice: { by: 'Participant', at: when, how: 'Ended the interview' } },
+      escalation: { requestedAt: asked, status: 'Ended by participant', choice: { by: 'Participant', at: when, how: 'Ended the interview', ...(reason ? { reason } : {}) } },
     }
   })
 }
 
-/** No moderator is free but a human slot is, so the participant books it themselves. The session is Booked for that slot. */
+/** The participant books the first free time on the standby calendar. The session is Booked for it. Nothing to answer: the time was free. */
 export function participantBooks(doc: FieldworkDoc, sessionId: string): FieldworkDoc {
   const when = tick(doc)
-  const slot = at(when, 24 * 60)
-  return escalate(doc, sessionId, (s, e) => {
-    if (!undecided(e)) return s
+  const asked = at(when, -2)
+  const slot = standbySlots(doc, when)[0]
+  if (!slot) return doc
+  return patch(doc, sessionId, (s) => {
+    if (!canAsk(s)) return s
+    const asking = addEventAt(asked, s, 'participant', 'Asked to talk to a human moderator')
     return {
-      ...addEventAt(when, s, 'participant', `Booked a human follow-up for ${formatSlot(slot)}`),
+      ...addEventAt(when, asking, 'participant', `Booked a time with ${slot.name}: ${formatSlot(slot.start)}. A new link was sent.`),
       status: 'Booked' as const,
-      slot,
-      escalation: { ...e, status: 'Booked by participant', choice: { by: 'Participant', at: when, how: 'Booked a follow-up', slot } },
+      slot: slot.start,
+      moderatorId: slot.moderatorId,
+      escalation: { requestedAt: asked, status: 'Booked by participant', moderatorId: slot.moderatorId, slot: slot.start, choice: { by: 'Participant', at: when, how: 'Booked a follow-up', slot: slot.start } },
+    }
+  })
+}
+
+const ET_DATE = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' })
+
+/** The participant asks for a time that suits them. The request goes to the standby moderator and waits for an answer. */
+export function participantRequests(doc: FieldworkDoc, sessionId: string): FieldworkDoc {
+  const when = tick(doc)
+  const asked = at(when, -2)
+  const moderatorId = standbyTeam(doc)[0]?.id
+  if (!moderatorId) return doc
+  // The next two weekdays, afternoon or evening.
+  const days: string[] = []
+  for (let i = 1; days.length < 2 && i < 8; i++) {
+    const t = new Date(new Date(when).getTime() + i * 86400000)
+    if (t.getUTCDay() !== 0 && t.getUTCDay() !== 6) days.push(ET_DATE.format(t))
+  }
+  const request: TimeRequest = { sentAt: when, days, windows: ['Afternoon', 'Evening'], note: 'Evenings after work suit me best.', response: 'Pending' }
+  return patch(doc, sessionId, (s) => {
+    if (!canAsk(s)) return s
+    const asking = addEventAt(asked, s, 'participant', 'Asked to talk to a human moderator')
+    return {
+      ...addEventAt(when, asking, 'participant', `Asked for a time that suits them: ${days.map((d) => formatDay(`${d}T12:00:00-05:00`)).join(', ')}, ${request.windows.join(' or ').toLowerCase()}. Sent to ${moderatorName(moderatorId)}.`),
+      status: 'Booked' as const,
+      slot: null,
+      moderatorId,
+      escalation: { requestedAt: asked, status: 'Time requested', moderatorId, request, choice: { by: 'Participant', at: when, how: 'Requested a time' } },
+    }
+  })
+}
+
+const WINDOW_HOURS: Record<RequestWindow, [number, number]> = { Morning: [5, 12], Afternoon: [12, 17], Evening: [17, 24] }
+const etHour = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', hourCycle: 'h23' })
+
+/** Dev: the moderator the request went to answers it. Accepting books a time they have free, one that suits the participant if there is one. */
+export function moderatorAnswers(doc: FieldworkDoc, sessionId: string, answer: 'Accepted' | 'Declined'): FieldworkDoc {
+  const when = tick(doc)
+  return escalate(doc, sessionId, (s, e) => {
+    const r = e.request
+    if (e.status !== 'Time requested' || !r || !e.moderatorId) return s
+    const who = moderatorName(e.moderatorId)
+    if (answer === 'Declined')
+      return { ...addEventAt(when, s, 'system', `${who} couldn’t do those times. It is waiting for the Researcher.`), escalation: { ...e, status: 'Waiting for moderator', fellThroughAt: when, request: { ...r, response: 'Declined', respondedAt: when } } }
+    const free = standbySlots(doc, when).filter((x) => x.moderatorId === e.moderatorId)
+    const suits = free.find((x) => r.days.includes(ET_DATE.format(new Date(x.start))) && r.windows.some((w) => { const h = Number(etHour.format(new Date(x.start))); return h >= WINDOW_HOURS[w][0] && h < WINDOW_HOURS[w][1] }))
+    const slot = suits ?? free[0]
+    if (!slot) return s
+    return {
+      ...addEventAt(when, s, 'system', `${who} accepted and confirmed ${formatSlot(slot.start)}. A new link was sent.`),
+      slot: slot.start,
+      escalation: { ...e, status: 'Request accepted', slot: slot.start, request: { ...r, response: 'Accepted', respondedAt: when } },
     }
   })
 }
@@ -1111,18 +1146,18 @@ export function participantBooks(doc: FieldworkDoc, sessionId: string): Fieldwor
 export const advanceClock = (doc: FieldworkDoc, minutes: number): FieldworkDoc => ({ ...doc, clockSkewMin: minutes === 0 ? 0 : (doc.clockSkewMin ?? 0) + minutes })
 
 /** Dev: adds hours to how long a participant has been waiting, to see the time left on the promise run down. */
-export const addWait = (doc: FieldworkDoc, sessionId: string, hours: number): FieldworkDoc => escalate(doc, sessionId, (s, e) => (e.status === 'Waiting for moderator' ? { ...s, escalation: { ...e, extraWaitMin: (e.extraWaitMin ?? 0) + hours * 60 } } : s))
+export const addWait = (doc: FieldworkDoc, sessionId: string, hours: number): FieldworkDoc => escalate(doc, sessionId, (s, e) => (needsResearcher(e) ? { ...s, escalation: { ...e, extraWaitMin: (e.extraWaitMin ?? 0) + hours * 60 } } : s))
 
 /** The Researcher picks a moderator. They are notified whatever their state or standby; nobody is picked for them. */
 export function assignEscalation(doc: FieldworkDoc, sessionId: string, moderatorId: string, by: string): FieldworkDoc {
   const when = tick(doc)
   const state = MODERATOR_ROSTER.find((m) => m.id === moderatorId)?.state ?? 'Offline'
   const s = doc.sessions.find((x) => x.id === sessionId)
-  if (!s?.escalation || s.escalation.status !== 'Waiting for moderator') return doc
+  if (!s?.escalation || !needsResearcher(s.escalation)) return doc
   return logged(
     escalate(doc, sessionId, (x, e) => ({
       ...addEventAt(when, x, 'system', `${by} assigned ${moderatorName(moderatorId)} (${state.toLowerCase()}) and notified them`),
-      escalation: { ...e, status: 'Assigned', offers: [...e.offers, { moderatorId, at: when, outcome: 'Assigned' }], actedBy: { by, at: when, action: 'Assigned', moderatorId } },
+      escalation: { ...e, status: 'Assigned', actedBy: { by, at: when, action: 'Assigned', moderatorId } },
     })),
     when,
     by,
@@ -1144,7 +1179,7 @@ export function assignedJoins(doc: FieldworkDoc, sessionId: string): FieldworkDo
 export function sendBookingLink(doc: FieldworkDoc, sessionId: string, by: string): FieldworkDoc {
   const when = tick(doc)
   const s = doc.sessions.find((x) => x.id === sessionId)
-  if (!s?.escalation || s.escalation.status !== 'Waiting for moderator') return doc
+  if (!s?.escalation || !needsResearcher(s.escalation)) return doc
   return logged(
     escalate(doc, sessionId, (x, e) => ({
       ...addEventAt(when, x, 'system', `${by} sent ${x.participantId} a link to book a human follow-up`),

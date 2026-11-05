@@ -94,7 +94,9 @@ export function reviewProgress(review: ReviewSession[]) {
 /** Every moderator with where they are now, for assigning one. A moderator on a live session is in session, and not on standby. */
 export function moderatorRoster(doc: FieldworkDoc): { id: string; name: string; state: ModeratorState; standby: boolean }[] {
   const busy = new Set(doc.sessions.filter((s) => s.status === 'Active' && s.moderatorId).map((s) => s.moderatorId))
-  return MODERATOR_ROSTER.map((m) => ({ id: m.id, name: moderatorName(m.id), state: busy.has(m.id) ? 'In session' : m.state, standby: m.standby && !busy.has(m.id) }))
+  // On standby means set up as standby for this study; without a plan to say, the roster's own flag.
+  const onStandby = (id: string, flag: boolean) => (doc.plan.escalation ? doc.plan.escalation.moderators.some((x) => x.id === id) : flag)
+  return MODERATOR_ROSTER.map((m) => ({ id: m.id, name: moderatorName(m.id), state: busy.has(m.id) ? 'In session' : m.state, standby: onStandby(m.id, m.standby) && !busy.has(m.id) }))
 }
 
 /** Who each outstanding clarification is waiting for. A clarification keeps the session Under review; it is a research matter, never Needs you. */
@@ -282,11 +284,20 @@ export function needsYou(doc: FieldworkDoc): NeedsRow[] {
     const rank = { Blocking: 0, Degraded: 1, Minor: 2 } as const
     const oldest = (list: TechIssue[]) => [...list].sort((a, b) => rank[a.severity] - rank[b.severity] || b.at.localeCompare(a.at))[0]
 
-    // 1. Waiting for moderator: someone asked for a human and nobody accepted. An accepted escalation never comes here.
-    if (s.escalation?.status === 'Waiting for moderator') {
-      const waited = Math.max(0, (now - new Date(s.escalation.requestedAt).getTime()) / 60000 + (s.escalation.extraWaitMin ?? 0))
-      rows.push({ ...base, tier: 1, kind: 'escalation', what: 'Asked for a human and no moderator accepted.', fault: 'Our side', since: s.escalation.requestedAt, action: 'Assign moderator', invites: true, giveUp: true, escalation: { waitedMin: waited, leftMin: ESCALATION_PROMISE_HOURS * 60 - waited } })
-      continue
+    // 1. A request for a human the Researcher has to move on: nobody accepted, the moderator declined the times asked for, or a
+    // request has gone unanswered for as long as the participant was promised. A booked time, a request still within its
+    // promise and an accepted request are the moderator's and the participant's business, and stay on the session page.
+    const e = s.escalation
+    if (e) {
+      const since = e.request?.sentAt ?? e.requestedAt
+      const waited = Math.max(0, (now - new Date(since).getTime()) / 60000 + (e.extraWaitMin ?? 0))
+      const overdue = waited >= ESCALATION_PROMISE_HOURS * 60
+      if (e.status === 'Waiting for moderator' || (e.status === 'Time requested' && overdue)) {
+        const what = e.request?.response === 'Declined' ? 'Asked for a time and the moderator couldn’t do it.' : e.request ? 'Asked for a time and nobody has answered.' : 'Asked for a human and no moderator accepted.'
+        rows.push({ ...base, tier: 1, kind: 'escalation', what, fault: 'Our side', since, action: 'Assign moderator', invites: true, giveUp: true, escalation: { waitedMin: waited, leftMin: ESCALATION_PROMISE_HOURS * 60 - waited } })
+        continue
+      }
+      if (e.status === 'Time requested' || e.status === 'Request accepted') continue
     }
 
     if (s.status !== 'Completed' && !s.handled) {

@@ -10,7 +10,7 @@ import { CheckIcon, ChevronLeftIcon, ChevronRightIcon, CloseIcon } from '@/compo
 import { Modal } from '@/components/Modal'
 import { EmptyState } from '@/components/States'
 import { StatusChip } from '@/components/StatusChip'
-import { formatStamp } from '@/lib/format'
+import { formatDay, formatStamp } from '@/lib/format'
 import { maskEmail } from '@/mock/participants'
 import { screenById, studyPath } from '@/routes/screens'
 import { closeWithoutFix, handledBySystem, ISSUE_FIX, ISSUE_META, moderatorName, resolveSession, sessionCountOf, sessionsOfParticipant, type FieldworkDoc, type Session } from '@/state/fieldwork'
@@ -63,7 +63,7 @@ function story(doc: FieldworkDoc, s: Session, row: NeedsRow | undefined, reviewT
     case 'Incomplete (resumable)':
       return `Stopped${mins !== null ? ` at ${mins} min` : ''}, and the participant can resume from the last saved point.${can}`
     case 'Withdrawn':
-      return `${mins !== null ? `Stopped at ${mins} min. ` : ''}${s.consent?.withdrawn?.reason ?? (s.escalation?.status === 'Ended by participant' ? 'Ended the interview instead of waiting for a human moderator.' : 'The participant withdrew.')}`
+      return `${mins !== null ? `Stopped at ${mins} min. ` : ''}${s.consent?.withdrawn?.reason ?? (s.escalation?.status === 'Ended by participant' ? `Ended the interview when offered a human moderator${s.escalation.choice?.reason ? `: ${s.escalation.choice.reason.toLowerCase()}` : ''}.` : 'The participant withdrew.')}`
     case 'Booked':
       return `Booked for ${slotText(s.slot)}.${can}`
     case 'Rescheduled':
@@ -483,34 +483,64 @@ export function SessionRecord() {
 }
 
 const OUTCOME: Record<NonNullable<Session['escalation']>['status'], string> = {
-  Offering: 'Offered to a moderator',
+  'Time requested': 'Asked for a time that suits them',
+  'Request accepted': 'Request accepted, time confirmed',
   'Waiting for moderator': 'Waiting for a moderator',
   Assigned: 'Moderator assigned',
   'Booking link sent': 'Booking link sent',
   Joined: 'A moderator joined',
   'Given up': 'Given up',
-  'Ended by participant': 'Ended by the participant',
-  'Booked by participant': 'Participant booked a follow-up',
+  'Ended by participant': 'Ended the interview',
+  'Booked by participant': 'Booked a time with a moderator',
 }
 
 /**
- * The record of a request for a human: how it ended, who was offered it, and who did what next, whether that was a
- * moderator, the Researcher or the participant themselves. Each step is also in the timeline.
+ * The record of a request for a human: what the participant chose, what the moderator answered and who did what next,
+ * whether that was a moderator, the Researcher or the participant themselves. It is only on the session, never on the
+ * Overview. Each step is also in the timeline.
  */
 function EscalationCard({ s }: { s: Session }) {
   const e = s.escalation!
-  // What happened after the request, in order, each with who did it and when.
+  const r = e.request
+  const standby = e.moderatorId ? moderatorName(e.moderatorId) : null
+  const days = r ? r.days.map((d) => formatDay(`${d}T12:00:00-05:00`)).join(', ') : ''
+
+  // What they chose, in their own terms.
+  const chose: [string, string][] = []
+  if (e.choice?.how === 'Ended the interview') chose.push(['Why they ended', e.choice.reason ?? 'No reason given'])
+  if (e.choice?.how === 'Booked a follow-up' || (e.slot && !r)) chose.push(['Booked with', `${standby ?? 'A standby moderator'}, ${slotText(e.choice?.slot ?? e.slot ?? null)}`])
+  if (r) {
+    chose.push(['Times they asked for', `${days}, ${r.windows.join(' or ').toLowerCase()}${r.note ? `. “${r.note}”` : ''}`])
+    chose.push([
+      `${standby ?? 'The moderator'}’s answer`,
+      r.response === 'Pending' ? 'Not answered yet' : r.response === 'Accepted' ? `Accepted, ${slotText(e.slot ?? null)}` : `Couldn’t do those times, ${slotText(r.respondedAt ?? null)}`,
+    ])
+  }
+
+  // What happened after, in order, each with who did it and when.
   const next: string[] = []
   if (e.actedBy) next.push(e.actedBy.action === 'Assigned' ? `${e.actedBy.by} assigned ${moderatorName(e.actedBy.moderatorId ?? null)}, ${slotText(e.actedBy.at)}` : `${e.actedBy.by} sent a booking link, ${slotText(e.actedBy.at)}`)
   if (e.joinedAt) next.push(`${moderatorName(e.acceptedBy ?? null)} joined, ${slotText(e.joinedAt)}`)
-  if (e.choice) next.push(e.choice.how === 'Ended the interview' ? `The participant ended the interview, ${slotText(e.choice.at)}` : `The participant booked a follow-up for ${slotText(e.choice.slot ?? null)} (chosen ${slotText(e.choice.at)})`)
-  if (next.length === 0) next.push(e.status === 'Waiting for moderator' ? 'Waiting for a moderator' : 'Nothing yet')
+  if (next.length === 0)
+    next.push(
+      {
+        'Waiting for moderator': 'Waiting for the Researcher: assign a moderator or send a booking link',
+        'Time requested': 'Waiting for the moderator’s answer',
+        'Request accepted': 'Waiting for the confirmed time',
+        'Booked by participant': 'Waiting for the booked time',
+        'Ended by participant': 'Left the study',
+        'Booking link sent': 'Waiting for the participant to book',
+        Assigned: 'Waiting for the moderator to join',
+        'Given up': 'Given up',
+        Joined: 'Joined',
+      }[e.status],
+    )
 
   return (
-    <Card title="Escalation to a human">
+    <Card title="Talk to a person">
       <dl className="grid gap-x-8 gap-y-3 text-sm sm:grid-cols-2 lg:grid-cols-4" data-testid="escalation-card">
         <div>
-          <dt className="text-graphite">How it ended</dt>
+          <dt className="text-graphite">What happened</dt>
           <dd className="font-medium" data-testid="escalation-outcome">
             {OUTCOME[e.status]}
           </dd>
@@ -519,10 +549,12 @@ function EscalationCard({ s }: { s: Session }) {
           <dt className="text-graphite">Asked</dt>
           <dd className="tabular-nums">{slotText(e.requestedAt)}</dd>
         </div>
-        <div>
-          <dt className="text-graphite">Offered to</dt>
-          <dd>{e.offers.length ? e.offers.map((o) => `${moderatorName(o.moderatorId)} (${o.outcome.toLowerCase()})`).join(', ') : 'No one was on standby'}</dd>
-        </div>
+        {chose.map(([k, v]) => (
+          <div key={k} data-testid="escalation-detail">
+            <dt className="text-graphite">{k}</dt>
+            <dd>{v}</dd>
+          </div>
+        ))}
         <div>
           <dt className="text-graphite">Then</dt>
           <dd className="flex flex-col gap-0.5" data-testid="escalation-then">

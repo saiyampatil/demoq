@@ -47,7 +47,7 @@ export function checkInvariants(doc: FieldworkDoc, review: ReviewSession[], targ
     if (!r.action) out.push(`8: ${r.who} is in Needs you with no action`)
     if (s.status === 'Completed' || s.status === 'Withdrawn' || s.gaveUp) out.push(`8: ${r.who} is ${s.gaveUp ? 'given up' : s.status} and still in Needs you`)
     if (r.kind !== 'escalation' && s.handled) out.push(`8: ${r.who} was already handled and is still in Needs you`)
-    if (r.kind === 'escalation' && s.escalation?.status !== 'Waiting for moderator') out.push(`8: ${r.who} is in Needs you as waiting for a moderator, but the escalation is ${s.escalation?.status}`)
+    if (r.kind === 'escalation' && s.escalation?.status !== 'Waiting for moderator' && s.escalation?.status !== 'Time requested') out.push(`8: ${r.who} is in Needs you as waiting for a moderator, but the escalation is ${s.escalation?.status}`)
     if (r.kind === 'self-service' && !s.selfService?.some((x) => x.outcome === 'unresolved')) out.push(`8: ${r.who} is in Needs you as self-service failed, with no failed attempt on record`)
     if (r.kind === 'pulseai' && !(r.issue && handledBySystem(r.issue.type))) out.push(`8: ${r.who} is in Needs you as PulseAI hasn’t recovered, with no PulseAI issue open`)
     if (r.kind !== 'pulseai' && s.issues.every((i) => i.status !== 'Open') && r.kind !== 'escalation' && r.kind !== 'moderator-no-show' && r.kind !== 'left-part-way' && r.kind !== 'never-started') out.push(`8: ${r.who} is in Needs you for ${r.kind} with nothing open`)

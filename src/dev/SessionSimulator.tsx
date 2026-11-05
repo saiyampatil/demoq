@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Button } from '@/components/Button'
 import { controlBase } from '@/components/Field'
 import { sample } from '@/routes/screens'
-import { addWait, allDeclined, assignedJoins, endSession, handledBySystem, openLink, participantBooks, participantEnds, recoverSystem, requestEscalation, resolveSession, simulateTurn, standbyAccepts, type FieldworkDoc } from '@/state/fieldwork'
+import { addWait, assignedJoins, endSession, fieldworkNow, handledBySystem, moderatorAnswers, needsResearcher, openLink, participantBooks, participantEnds, participantRequests, recoverSystem, resolveSession, simulateTurn, standbySlots, type EndReason, type FieldworkDoc } from '@/state/fieldwork'
 import { SELF_SERVICE } from '@/state/selfService'
 
 /**
@@ -12,8 +12,10 @@ import { SELF_SERVICE } from '@/state/selfService'
 export function SessionSimulator({ doc, sessionId, paused, update }: { doc: FieldworkDoc; sessionId: string; paused: boolean; update: (fn: (d: FieldworkDoc) => FieldworkDoc) => void }) {
   const [simulated, setSimulated] = useState<string>()
   const [problem, setProblem] = useState<string>(SELF_SERVICE[0].type)
+  const [reason, setReason] = useState<EndReason>('Can’t wait')
   const s = resolveSession(doc, sessionId)?.session
   if (!s) return null
+  const booking = standbySlots(doc, fieldworkNow(doc))
 
   const act = (fn: (d: FieldworkDoc) => FieldworkDoc, message: string) => {
     update(fn)
@@ -57,31 +59,43 @@ export function SessionSimulator({ doc, sessionId, paused, update }: { doc: Fiel
           </span>
         )}
         {s.status === 'Active' && !s.escalation && (
-          <Button size="sm" data-testid="sim-escalate" onClick={() => act((d) => requestEscalation(d, s.id), 'The participant asked for a human. A standby moderator was offered the session.')}>
-            Simulate: participant asks for a human
-          </Button>
-        )}
-        {s.escalation?.status === 'Offering' && (
           <>
-            <Button size="sm" data-testid="sim-accepted" onClick={() => act((d) => standbyAccepts(d, s.id), 'The standby moderator accepted and joined. It never reached the Researcher.')}>
-              Simulate: escalation accepted by standby
+            <span className="basis-full text-xs text-graphite">The participant taps Talk to a person, then chooses:</span>
+            <Button
+              size="sm"
+              data-testid="sim-books"
+              disabled={booking.length === 0}
+              onClick={() => act((d) => participantBooks(d, s.id), 'The participant booked the first free standby time. The session is Booked for it, and no answer is needed.')}
+            >
+              Books a free time
             </Button>
-            <Button size="sm" data-testid="sim-declined" onClick={() => act((d) => allDeclined(d, s.id), 'Every standby moderator declined or timed out. It is waiting for the Researcher.')}>
-              Simulate: all declined
+            <Button size="sm" data-testid="sim-requests" disabled={!doc.plan.escalation?.offered} onClick={() => act((d) => participantRequests(d, s.id), 'The participant asked for a time that suits them. It waits for the standby moderator’s answer.')}>
+              Asks for a time
+            </Button>
+            <span className="flex items-center gap-2">
+              <select value={reason} onChange={(e) => setReason(e.target.value as EndReason)} aria-label="Why they end" className={`${controlBase} h-8 pr-7 text-sm`}>
+                {(['Can’t wait', 'Uncomfortable', 'Something else'] as const).map((x) => (
+                  <option key={x}>{x}</option>
+                ))}
+              </select>
+              <Button size="sm" data-testid="sim-ends" onClick={() => act((d) => participantEnds(d, s.id, reason), 'The participant chose to end the interview. The session is Withdrawn.')}>
+                Ends the interview
+              </Button>
+            </span>
+            {booking.length === 0 && <span className="basis-full text-xs text-graphite">{doc.plan.escalation?.offered ? 'No standby time is free this week.' : 'No standby moderator is set up, so a participant isn’t offered a human.'}</span>}
+          </>
+        )}
+        {s.escalation?.status === 'Time requested' && (
+          <>
+            <Button size="sm" data-testid="sim-mod-accepts" onClick={() => act((d) => moderatorAnswers(d, s.id, 'Accepted'), 'The moderator accepted and confirmed a time.')}>
+              Moderator accepts
+            </Button>
+            <Button size="sm" data-testid="sim-mod-declines" onClick={() => act((d) => moderatorAnswers(d, s.id, 'Declined'), 'The moderator couldn’t do those times. It is waiting for the Researcher.')}>
+              Moderator declines
             </Button>
           </>
         )}
-        {(s.escalation?.status === 'Offering' || s.escalation?.status === 'Waiting for moderator') && (
-          <>
-            <Button size="sm" data-testid="sim-ends" onClick={() => act((d) => participantEnds(d, s.id), 'The participant chose to end the interview. The session is Withdrawn.')}>
-              Simulate: participant ends the interview
-            </Button>
-            <Button size="sm" data-testid="sim-books" onClick={() => act((d) => participantBooks(d, s.id), 'The participant booked a human follow-up. The session is Booked.')}>
-              Simulate: participant books a follow-up
-            </Button>
-          </>
-        )}
-        {s.escalation?.status === 'Waiting for moderator' && (
+        {s.escalation && needsResearcher(s.escalation) && (
           <Button size="sm" data-testid="sim-23h" onClick={() => act((d) => addWait(d, s.id, 23), 'Added 23 hours to the wait.')}>
             Simulate: 23 h waiting
           </Button>

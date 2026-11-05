@@ -4,12 +4,13 @@
 
 import type { AudienceDoc } from '@/state/audience'
 import { uid } from '@/state/brief'
-import type { Escalation, FieldworkDoc, ReserveCandidate, Session, SessionEvent } from '@/state/fieldwork'
+import { formatDay, formatSlot } from '@/lib/format'
+import { FIELDWORK_NOW, type FieldworkDoc, type ReserveCandidate, type Session, type SessionEvent } from '@/state/fieldwork'
+import { openSlots } from '@/state/standby'
 import { regionOf } from '@/state/screening'
 
 const at = (iso: string, min: number) => new Date(new Date(iso).getTime() + min * 60000).toISOString()
 const ev = (when: string, kind: SessionEvent['kind'], text: string): SessionEvent => ({ id: uid('ev'), at: when, kind, text })
-const MAYA = 'Maya Ortiz'
 
 /** Four people screened and approved who the target didn't need yet: first in, first out. One from each region. */
 function demoReserve(audience: AudienceDoc | undefined): ReserveCandidate[] {
@@ -25,146 +26,150 @@ function demoReserve(audience: AudienceDoc | undefined): ReserveCandidate[] {
 
 type Fix = (s: Session, started: string) => Session
 
-/** Each escalation the walk-through can open, on a session that fits it. They end four different ways. */
+const STANDBY = [
+  { id: 'u-jordan', name: 'Jordan Lee' },
+  { id: 'u-priya', name: 'Priya Shah' },
+]
+/** The first free time a standby moderator had after `from`, the way the calendar offers it. */
+const firstSlot = (moderatorId: string, from: string, skip = 0) => openSlots(STANDBY.filter((m) => m.id === moderatorId), from)[skip].start
+const ET_DATE = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' })
+/** The first free time a standby moderator had on a given day, YYYY-MM-DD, after `from`. */
+const slotOn = (moderatorId: string, from: string, day: string) => openSlots(STANDBY.filter((m) => m.id === moderatorId), from).find((x) => ET_DATE.format(new Date(x.start)) === day)!.start
+/** The next two weekdays after `from`, YYYY-MM-DD. */
+function nextWeekdays(from: string): string[] {
+  const out: string[] = []
+  for (let i = 1; out.length < 2 && i < 8; i++) {
+    const t = new Date(new Date(from).getTime() + i * 86400000)
+    if (t.getUTCDay() !== 0 && t.getUTCDay() !== 6) out.push(ET_DATE.format(t))
+  }
+  return out
+}
+const dayList = (days: string[]) => days.map((d) => formatDay(`${d}T12:00:00-05:00`)).join(', ')
+const resolveOpen = (s: Session, when: string): Session['issues'] => s.issues.map((i) => (i.status === 'Open' ? { ...i, status: 'Resolved' as const, via: 'session-start' as const, resolution: 'participant asked for a human', resolvedBy: 'The participant', resolvedAt: when } : i))
+
+/**
+ * Each way a request for a human can stand, on a session that fits it. The first four are on the session page only; the
+ * last is the one case the Researcher has to move on, so it is also in Needs you.
+ */
 const ESCALATIONS: Record<string, Fix> = {
-  // A standby moderator took it at once. It never reached the Researcher.
+  // Booked a free time from the calendar. No answer was needed, and Jordan joined at the booked time.
   'P-2043-1': (s, t) => {
     const asked = at(t, 6)
-    const esc: Escalation = {
-      requestedAt: asked,
-      status: 'Joined',
-      offers: [
-        { moderatorId: 'u-priya', at: at(asked, 0.3), outcome: 'Declined' },
-        { moderatorId: 'u-jordan', at: at(asked, 0.8), outcome: 'Accepted' },
-      ],
-      acceptedBy: 'u-jordan',
-      joinedAt: at(asked, 2),
-    }
+    const sentAt = at(asked, 2)
+    const slot = firstSlot('u-jordan', sentAt)
     return {
       ...s,
       moderatorId: 'u-jordan',
-      escalation: esc,
-      events: [
-        ...s.events,
-        ev(asked, 'participant', 'Asked to talk to a human moderator'),
-        ev(asked, 'system', 'Offered to Priya Shah, who has 60 seconds to answer'),
-        ev(at(asked, 0.3), 'system', 'Priya Shah declined'),
-        ev(at(asked, 0.3), 'system', 'Offered to Jordan Lee, who has 60 seconds to answer'),
-        ev(at(asked, 0.8), 'system', 'Jordan Lee accepted'),
-        ev(at(asked, 2), 'moderator', 'Jordan Lee joined'),
-      ],
+      escalation: { requestedAt: asked, status: 'Joined', moderatorId: 'u-jordan', slot, choice: { by: 'Participant', at: sentAt, how: 'Booked a follow-up', slot }, acceptedBy: 'u-jordan', joinedAt: slot },
+      events: [...s.events, ev(asked, 'participant', 'Asked to talk to a human moderator'), ev(sentAt, 'participant', `Booked a time with Jordan Lee: ${formatSlot(slot)}. A new link was sent.`), ev(slot, 'moderator', `Jordan Lee joined at ${formatSlot(slot)}`)],
     }
   },
-  // Nobody answered, so it fell through to the Researcher, who assigned Priya. She joined.
+  // Asked for a time that suited them. Priya accepted and confirmed one, and joined at it.
   'P-2045-1': (s, t) => {
     const asked = at(t, 5)
-    const esc: Escalation = {
-      requestedAt: asked,
-      status: 'Joined',
-      fellThroughAt: at(asked, 1.3),
-      offers: [
-        { moderatorId: 'u-jordan', at: at(asked, 0.3), outcome: 'Declined' },
-        { moderatorId: 'u-priya', at: at(asked, 1.3), outcome: 'Timed out' },
-        { moderatorId: 'u-priya', at: at(asked, 4), outcome: 'Assigned' },
-      ],
-      actedBy: { by: MAYA, at: at(asked, 4), action: 'Assigned', moderatorId: 'u-priya' },
-      acceptedBy: 'u-priya',
-      joinedAt: at(asked, 6),
-    }
+    const sentAt = at(asked, 1)
+    const days = nextWeekdays(sentAt)
+    const answered = at(sentAt, 25)
+    // The moderator confirmed a time on the first day they asked for.
+    const slot = slotOn('u-priya', answered, days[0])
     return {
       ...s,
       moderatorId: 'u-priya',
-      escalation: esc,
+      escalation: {
+        requestedAt: asked,
+        status: 'Joined',
+        moderatorId: 'u-priya',
+        slot,
+        request: { sentAt, days, windows: ['Afternoon', 'Evening'], note: 'Evenings after work suit me best.', response: 'Accepted', respondedAt: answered },
+        choice: { by: 'Participant', at: sentAt, how: 'Requested a time' },
+        acceptedBy: 'u-priya',
+        joinedAt: slot,
+      },
       events: [
         ...s.events,
         ev(asked, 'participant', 'Asked to talk to a human moderator'),
-        ev(asked, 'system', 'Offered to Jordan Lee, who has 60 seconds to answer'),
-        ev(at(asked, 0.3), 'system', 'Jordan Lee declined'),
-        ev(at(asked, 0.3), 'system', 'Offered to Priya Shah, who has 60 seconds to answer'),
-        ev(at(asked, 1.3), 'system', 'Priya Shah didn’t answer in 60 seconds (timed out)'),
-        ev(at(asked, 1.3), 'system', 'No moderator accepted. It is waiting for the Researcher.'),
-        ev(at(asked, 4), 'system', `${MAYA} assigned Priya Shah (online) and notified them`),
-        ev(at(asked, 6), 'moderator', 'Priya Shah joined'),
+        ev(sentAt, 'participant', `Asked for a time that suits them: ${dayList(days)}, afternoon or evening. Sent to Priya Shah.`),
+        ev(answered, 'system', `Priya Shah accepted and confirmed ${formatSlot(slot)}. A new link was sent.`),
+        ev(slot, 'moderator', `Priya Shah joined at ${formatSlot(slot)}`),
       ],
     }
   },
-  // Nobody answered and the participant chose to leave rather than wait. The recording and consent stand.
+  // Chose to end the interview rather than wait. The recording and consent stand.
   'P-2050-1': (s, t) => {
     const asked = at(t, 3)
-    const esc: Escalation = {
-      requestedAt: asked,
-      status: 'Ended by participant',
-      fellThroughAt: at(asked, 1.3),
-      offers: [
-        { moderatorId: 'u-priya', at: at(asked, 0.3), outcome: 'Declined' },
-        { moderatorId: 'u-jordan', at: at(asked, 1.3), outcome: 'Timed out' },
-      ],
-      choice: { by: 'Participant', at: at(asked, 3), how: 'Ended the interview' },
-    }
     return {
       ...s,
       consent: s.consent ? { ...s.consent, withdrawn: undefined } : s.consent,
-      escalation: esc,
+      escalation: { requestedAt: asked, status: 'Ended by participant', choice: { by: 'Participant', at: at(asked, 1), how: 'Ended the interview', reason: 'Can’t wait' } },
       events: [
         ...s.events.filter((e) => !/Withdrew from the study/.test(e.text)),
         ev(asked, 'participant', 'Asked to talk to a human moderator'),
-        ev(asked, 'system', 'Offered to Priya Shah, who has 60 seconds to answer'),
-        ev(at(asked, 0.3), 'system', 'Priya Shah declined'),
-        ev(at(asked, 0.3), 'system', 'Offered to Jordan Lee, who has 60 seconds to answer'),
-        ev(at(asked, 1.3), 'system', 'Jordan Lee didn’t answer in 60 seconds (timed out)'),
-        ev(at(asked, 1.3), 'system', 'No moderator accepted. It is waiting for the Researcher.'),
-        ev(at(asked, 3), 'participant', 'Chose to end the interview instead of waiting for a moderator'),
-        ev(at(asked, 3.2), 'system', 'Left the study. The recording and consent stand.'),
+        ev(at(asked, 1), 'participant', 'Chose to end the interview: can’t wait'),
+        ev(at(asked, 1.2), 'system', 'Left the study. The recording and consent stand.'),
       ],
     }
   },
-  // Nobody was free, but a human slot was, so the participant booked a follow-up themselves.
+  // Booked a free time that is still ahead.
   'P-2047-1': (s, t) => {
     const asked = at(t, 4)
-    const slot = '2026-11-12T11:00:00-05:00'
-    const esc: Escalation = {
-      requestedAt: asked,
-      status: 'Booked by participant',
-      offers: [],
-      choice: { by: 'Participant', at: at(asked, 1), how: 'Booked a follow-up', slot },
-    }
+    const sentAt = at(asked, 1)
+    const slot = firstSlot('u-jordan', FIELDWORK_NOW, 2)
     return {
       ...s,
       status: 'Booked' as const,
       slot,
-      escalation: esc,
-      issues: s.issues.map((i) => (i.status === 'Open' ? { ...i, status: 'Resolved' as const, via: 'session-start' as const, resolution: 'participant booked a follow-up', resolvedBy: 'The participant', resolvedAt: at(asked, 1) } : i)),
-      events: [
-        ...s.events,
-        ev(asked, 'participant', 'Asked to talk to a human moderator'),
-        ev(asked, 'system', 'No moderator is on standby'),
-        ev(at(asked, 1), 'participant', 'Booked a human follow-up for Nov 12, 11:00 AM ET'),
-      ],
+      moderatorId: 'u-jordan',
+      escalation: { requestedAt: asked, status: 'Booked by participant', moderatorId: 'u-jordan', slot, choice: { by: 'Participant', at: sentAt, how: 'Booked a follow-up', slot } },
+      issues: resolveOpen(s, sentAt),
+      events: [...s.events, ev(asked, 'participant', 'Asked to talk to a human moderator'), ev(sentAt, 'participant', `Booked a time with Jordan Lee: ${formatSlot(slot)}. A new link was sent.`)],
     }
   },
-  // Asked for a human just now and nobody accepted: it is waiting for the Researcher, who can assign or send a link.
-  'P-2042-1': (s, t) => {
-    const asked = at(t, 3)
-    const esc: Escalation = {
-      requestedAt: asked,
-      status: 'Waiting for moderator',
-      fellThroughAt: at(asked, 1.3),
-      offers: [
-        { moderatorId: 'u-priya', at: at(asked, 0.3), outcome: 'Declined' },
-        { moderatorId: 'u-jordan', at: at(asked, 1.3), outcome: 'Timed out' },
-      ],
-    }
+  // Asked for a time a few hours ago and the moderator hasn't answered yet. Within the promise, so not in Needs you.
+  'P-2048-1': (s) => {
+    const sentAt = at(FIELDWORK_NOW, -3 * 60)
+    const asked = at(sentAt, -1)
+    const days = nextWeekdays(sentAt)
     return {
       ...s,
-      escalation: esc,
+      status: 'Booked' as const,
+      slot: null,
+      moderatorId: 'u-priya',
+      escalation: {
+        requestedAt: asked,
+        status: 'Time requested',
+        moderatorId: 'u-priya',
+        request: { sentAt, days, windows: ['Morning'], note: 'I can only talk before work.', response: 'Pending' },
+        choice: { by: 'Participant', at: sentAt, how: 'Requested a time' },
+      },
+      issues: resolveOpen(s, sentAt),
+      events: [...s.events, ev(asked, 'participant', 'Asked to talk to a human moderator'), ev(sentAt, 'participant', `Asked for a time that suits them: ${dayList(days)}, morning. Sent to Priya Shah.`)],
+    }
+  },
+  // The moderator couldn't do the times asked for, so it fell to the Researcher, who can assign someone or send a booking link.
+  'P-2042-1': (s, t) => {
+    const asked = at(t, 3)
+    const sentAt = at(asked, 1)
+    const days = nextWeekdays(sentAt)
+    const declined = at(sentAt, 20)
+    return {
+      ...s,
+      status: 'Booked' as const,
+      slot: null,
+      moderatorId: 'u-jordan',
+      escalation: {
+        requestedAt: asked,
+        status: 'Waiting for moderator',
+        fellThroughAt: declined,
+        moderatorId: 'u-jordan',
+        request: { sentAt, days, windows: ['Afternoon'], note: '', response: 'Declined', respondedAt: declined },
+        choice: { by: 'Participant', at: sentAt, how: 'Requested a time' },
+      },
+      issues: resolveOpen(s, sentAt),
       events: [
         ...s.events,
         ev(asked, 'participant', 'Asked to talk to a human moderator'),
-        ev(asked, 'system', 'Offered to Priya Shah, who has 60 seconds to answer'),
-        ev(at(asked, 0.3), 'system', 'Priya Shah declined'),
-        ev(at(asked, 0.3), 'system', 'Offered to Jordan Lee, who has 60 seconds to answer'),
-        ev(at(asked, 1.3), 'system', 'Jordan Lee didn’t answer in 60 seconds (timed out)'),
-        ev(at(asked, 1.3), 'system', 'No moderator accepted. It is waiting for the Researcher.'),
+        ev(sentAt, 'participant', `Asked for a time that suits them: ${dayList(days)}, afternoon. Sent to Jordan Lee.`),
+        ev(declined, 'system', 'Jordan Lee couldn’t do those times. It is waiting for the Researcher.'),
       ],
     }
   },

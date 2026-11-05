@@ -91,7 +91,6 @@ export const MODERATOR_ROSTER: { id: string; state: ModeratorState; standby: boo
 ]
 /** What a participant is promised when they ask for a human. */
 export const ESCALATION_PROMISE_HOURS = 24
-export const OFFER_SECONDS = 60
 
 export const LANGUAGES = ['English (US)', 'English (UK)', 'Spanish (US)', 'French (Canada)', 'German', 'Hindi']
 

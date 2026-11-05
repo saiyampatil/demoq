@@ -387,101 +387,79 @@ export function seedPetFood(): PetSeed {
     invitedAs: id,
     invitedAt: at,
   })
-  // P-3115 asked for a human during the interview. Priya declined, Jordan accepted: it never reached the Researcher.
-  const asked = '2026-09-15T16:41:00-04:00'
-  const stamp = (min: number) => new Date(new Date(asked).getTime() + min * 60000).toISOString()
-  const esc = (when: string, kind: 'system' | 'participant' | 'moderator', text: string) => ({ id: uid('ev'), at: when, kind, text })
-  base.sessions = base.sessions.map((s) =>
-    s.id !== 'P-3115-1'
-      ? s
-      : {
-          ...s,
-          moderatorId: 'u-jordan',
-          events: [
-            ...s.events,
-            esc(asked, 'participant', 'Asked to talk to a human moderator'),
-            esc(asked, 'system', 'Offered to Priya Shah, who has 60 seconds to answer'),
-            esc(stamp(0.3), 'system', 'Priya Shah declined'),
-            esc(stamp(0.3), 'system', 'Offered to Jordan Lee, who has 60 seconds to answer'),
-            esc(stamp(0.8), 'system', 'Jordan Lee accepted'),
-            esc(stamp(2), 'moderator', 'Jordan Lee joined at Sep 15, 4:43 PM ET'),
-          ],
-          escalation: {
-            requestedAt: asked,
-            status: 'Joined' as const,
-            offers: [
-              { moderatorId: 'u-priya', at: stamp(0.3), outcome: 'Declined' as const },
-              { moderatorId: 'u-jordan', at: stamp(0.8), outcome: 'Accepted' as const },
-            ],
-            acceptedBy: 'u-jordan',
-            joinedAt: stamp(2),
-          },
-        },
-  )
-  // Two more people asked for a human, to show the other ways it can end. Same shape as P-3115 above.
+  // Three people asked to talk to a person during the interview, and it went three different ways.
   const at = (iso: string, min: number) => new Date(new Date(iso).getTime() + min * 60000).toISOString()
-  // P-3108: nobody on standby accepted, so it fell through to the Researcher, who assigned Jordan. Jordan joined.
+  const esc = (when: string, kind: 'system' | 'participant' | 'moderator', text: string) => ({ id: uid('ev'), at: when, kind, text })
+  // P-3115 booked a free time with Jordan from the calendar. No answer was needed, and Jordan joined at the booked time.
+  const asked = '2026-09-15T16:41:00-04:00'
+  const booked = '2026-09-16T10:00:00-04:00'
+  // P-3108 asked for a time that suited them. Jordan couldn't do it, so it fell to the Researcher, who assigned Priya. Priya joined.
   const asked2 = '2026-09-12T14:55:00-04:00'
-  // P-3123: nobody accepted, and the participant chose to leave rather than wait.
+  // P-3123 chose to end the interview rather than wait.
   const asked3 = '2026-09-18T14:12:00-04:00'
   base.sessions = base.sessions.map((s) =>
-    s.id === 'P-3108-1'
+    s.id === 'P-3115-1'
       ? {
           ...s,
           moderatorId: 'u-jordan',
           events: [
             ...s.events,
-            esc(asked2, 'participant', 'Asked to talk to a human moderator'),
-            esc(asked2, 'system', 'Offered to Priya Shah, who has 60 seconds to answer'),
-            esc(at(asked2, 0.3), 'system', 'Priya Shah declined'),
-            esc(at(asked2, 0.3), 'system', 'Offered to Jordan Lee, who has 60 seconds to answer'),
-            esc(at(asked2, 1.3), 'system', 'Jordan Lee didn’t answer in 60 seconds (timed out)'),
-            esc(at(asked2, 1.3), 'system', 'No moderator accepted. It is waiting for the Researcher.'),
-            esc(at(asked2, 3), 'system', `${maya} assigned Jordan Lee (online) and notified them`),
-            esc(at(asked2, 5), 'moderator', 'Jordan Lee joined at Sep 12, 3:00 PM ET'),
+            esc(asked, 'participant', 'Asked to talk to a human moderator'),
+            esc(at(asked, 2), 'participant', 'Booked a time with Jordan Lee: Sep 16, 10:00 AM ET. A new link was sent.'),
+            esc(booked, 'moderator', 'Jordan Lee joined at Sep 16, 10:00 AM ET'),
           ],
           escalation: {
-            requestedAt: asked2,
+            requestedAt: asked,
             status: 'Joined' as const,
-            fellThroughAt: at(asked2, 1.3),
-            offers: [
-              { moderatorId: 'u-priya', at: at(asked2, 0.3), outcome: 'Declined' as const },
-              { moderatorId: 'u-jordan', at: at(asked2, 1.3), outcome: 'Timed out' as const },
-              { moderatorId: 'u-jordan', at: at(asked2, 3), outcome: 'Assigned' as const },
-            ],
-            actedBy: { by: maya, at: at(asked2, 3), action: 'Assigned' as const, moderatorId: 'u-jordan' },
+            moderatorId: 'u-jordan',
+            slot: booked,
+            choice: { by: 'Participant' as const, at: at(asked, 2), how: 'Booked a follow-up' as const, slot: booked },
             acceptedBy: 'u-jordan',
-            joinedAt: at(asked2, 5),
+            joinedAt: booked,
           },
         }
-      : s.id === 'P-3123-1'
+      : s.id === 'P-3108-1'
         ? {
             ...s,
-            // Left because nobody answered, not because consent was withdrawn: the recording stays, so no consent withdrawal.
-            consent: s.consent ? { ...s.consent, withdrawn: undefined } : s.consent,
+            moderatorId: 'u-priya',
             events: [
-              ...s.events.filter((e) => !/Withdrew from the study/.test(e.text)),
-              esc(asked3, 'participant', 'Asked to talk to a human moderator'),
-              esc(asked3, 'system', 'Offered to Priya Shah, who has 60 seconds to answer'),
-              esc(at(asked3, 0.3), 'system', 'Priya Shah declined'),
-              esc(at(asked3, 0.3), 'system', 'Offered to Jordan Lee, who has 60 seconds to answer'),
-              esc(at(asked3, 1.3), 'system', 'Jordan Lee didn’t answer in 60 seconds (timed out)'),
-              esc(at(asked3, 1.3), 'system', 'No moderator accepted. It is waiting for the Researcher.'),
-              esc(at(asked3, 3), 'participant', 'Chose to end the interview instead of waiting for a moderator'),
-              esc(at(asked3, 3.2), 'system', 'Left the study. The recording and consent stand.'),
+              ...s.events,
+              esc(asked2, 'participant', 'Asked to talk to a human moderator'),
+              esc(at(asked2, 0.5), 'participant', 'Asked for a time that suits them: Sep 14, Sep 15, afternoon or evening. Sent to Jordan Lee.'),
+              esc(at(asked2, 1.3), 'system', 'Jordan Lee couldn’t do those times. It is waiting for the Researcher.'),
+              esc(at(asked2, 3), 'system', `${maya} assigned Priya Shah (online) and notified them`),
+              esc(at(asked2, 5), 'moderator', 'Priya Shah joined at Sep 12, 3:00 PM ET'),
             ],
             escalation: {
-              requestedAt: asked3,
-              status: 'Ended by participant' as const,
-              fellThroughAt: at(asked3, 1.3),
-              offers: [
-                { moderatorId: 'u-priya', at: at(asked3, 0.3), outcome: 'Declined' as const },
-                { moderatorId: 'u-jordan', at: at(asked3, 1.3), outcome: 'Timed out' as const },
-              ],
-              choice: { by: 'Participant' as const, at: at(asked3, 3), how: 'Ended the interview' as const },
+              requestedAt: asked2,
+              status: 'Joined' as const,
+              fellThroughAt: at(asked2, 1.3),
+              moderatorId: 'u-jordan',
+              request: { sentAt: at(asked2, 0.5), days: ['2026-09-14', '2026-09-15'], windows: ['Afternoon' as const, 'Evening' as const], note: '', response: 'Declined' as const, respondedAt: at(asked2, 1.3) },
+              choice: { by: 'Participant' as const, at: at(asked2, 0.5), how: 'Requested a time' as const },
+              actedBy: { by: maya, at: at(asked2, 3), action: 'Assigned' as const, moderatorId: 'u-priya' },
+              acceptedBy: 'u-priya',
+              joinedAt: at(asked2, 5),
             },
           }
-        : s,
+        : s.id === 'P-3123-1'
+          ? {
+              ...s,
+              // Left because they couldn't wait, not because consent was withdrawn: the recording stays, so no consent withdrawal.
+              consent: s.consent ? { ...s.consent, withdrawn: undefined } : s.consent,
+              events: [
+                ...s.events.filter((e) => !/Withdrew from the study/.test(e.text)),
+                esc(asked3, 'participant', 'Asked to talk to a human moderator'),
+                esc(at(asked3, 1), 'participant', 'Chose to end the interview: can’t wait'),
+                esc(at(asked3, 1.2), 'system', 'Left the study. The recording and consent stand.'),
+              ],
+              escalation: {
+                requestedAt: asked3,
+                status: 'Ended by participant' as const,
+                choice: { by: 'Participant' as const, at: at(asked3, 1), how: 'Ended the interview' as const, reason: 'Can’t wait' as const },
+              },
+            }
+          : s,
   )
   const entry = (at: string, by: string, text: string) => ({ id: uid('fl'), at, by, text })
   const fieldwork: FieldworkDoc = {
