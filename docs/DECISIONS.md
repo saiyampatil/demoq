@@ -419,3 +419,11 @@ A row is in Needs you only if the participant cannot recover alone and a Researc
 - **Cut from the picker:** the description under "PulseAI moderators" in human-led setup, the "Showing moderators who speak …" line, and each person's languages. Kept: the name, role, hours a week, Request, and the "Show other languages" checkbox. A moderator who doesn't speak the study language still says so on their card and can't be requested.
 - `requestPulseAI` and `requestStandbyPulse` stay in `state/guide.ts` but no screen calls them. Any test that clicks `request-pulseai` no longer applies.
 
+
+## Stimulus library: a concept card is a picture and a description
+
+- **New concept card** now has a title, an optional picture and a description, so a card is one unit: what the participant sees and reads together. A card without a picture is still allowed (text only). The picture takes the same image types and 200 MB limit as an upload; a video is refused with a message.
+- **Upload files** is for raw images and videos only. A PDF is no longer a concept card: it shows the unsupported-format error, which points to New concept card. The PRD's "concept cards" are covered by the in-app card.
+- A card's picture is kept as a small preview (up to 480 px) so the library stays light in the browser. The row shows the picture and the first lines of the description.
+- The seeded cards (Concepts A to C in both studies) are unchanged: text only, "1 page".
+

@@ -11,7 +11,7 @@ import { Switch } from '@/components/Switch'
 import { WizardFooter } from '@/components/WizardFooter'
 import { screenById, studyPath } from '@/routes/screens'
 import { uid, now } from '@/state/brief'
-import { allQuestions, classifyFile, editStimuli, kindLabel, type Stimulus, type StimulusKind } from '@/state/guide'
+import { allQuestions, classifyCardImage, classifyFile, editStimuli, kindLabel, type Stimulus, type StimulusKind } from '@/state/guide'
 import { PageHeader } from '../../shared/PageHeader'
 import { GuideGate, VersionBanner } from './GuideBits'
 import { useGuide } from './useGuide'
@@ -26,6 +26,10 @@ export function StimulusLibrary() {
   const [card, setCard] = useState(false)
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
+  const [cardImage, setCardImage] = useState<{ file: File; preview: string }>()
+  const [cardError, setCardError] = useState<string>()
+  const [saving, setSaving] = useState(false)
+  const cardFileRef = useRef<HTMLInputElement>(null)
   const [survey, setSurvey] = useState(false)
   const [surveyQuestion, setSurveyQuestion] = useState('')
   const [surveyOptions, setSurveyOptions] = useState('')
@@ -60,6 +64,35 @@ export function StimulusLibrary() {
       }],
       skipped: false,
     }), `Added survey “${question.trim()}”`)
+  }
+
+  const closeCard = () => {
+    setCard(false)
+    setTitle('')
+    setBody('')
+    setCardImage(undefined)
+    setCardError(undefined)
+  }
+  const pickCardImage = async (f: File | undefined) => {
+    if (!f) return
+    const r = classifyCardImage(f.name, f.size)
+    if ('error' in r) return setCardError(r.error)
+    try {
+      setCardImage({ file: f, preview: await previewOf(f) })
+      setCardError(undefined)
+    } catch {
+      setCardError(`“${f.name}” couldn’t be read as an image. Choose another file.`)
+    }
+  }
+  const saveCard = () => {
+    setSaving(true)
+    // Adding the card is simulated, like an upload.
+    setTimeout(() => {
+      const words = body.trim().split(/\s+/).length
+      add({ name: title.trim(), kind: 'concept', detail: `${cardImage ? 'Image and ' : ''}${words} words`, text: body.trim(), ...(cardImage ? { image: cardImage.preview } : {}) })
+      setSaving(false)
+      closeCard()
+    }, 600)
   }
 
   const upload = (files: FileList | null) => {
@@ -157,7 +190,7 @@ export function StimulusLibrary() {
           {items.length === 0 && uploading.length === 0 ? (
             <EmptyState
               title="No stimuli yet"
-              description="Upload images and videos, or write a concept card. If this study shows nothing to participants, skip this step."
+              description="Upload images and videos, or write a concept card with a picture and a description. If this study shows nothing to participants, skip this step."
               action={
                 <Button onClick={() => edit((x) => ({ ...x, skipped: true }), 'Stimuli step skipped')}>This study uses no stimuli</Button>
               }
@@ -168,13 +201,14 @@ export function StimulusLibrary() {
                 const used = usedBy(s.id)
                 return (
                   <li key={s.id} className={cn('flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-3', !s.active && 'bg-paper')}>
-                    <Thumb kind={s.kind} dim={!s.active} />
+                    <Thumb kind={s.kind} image={s.image} dim={!s.active} />
                     <div className="min-w-0 flex-1 basis-56">
                       <p className={cn('font-medium', !s.active && 'text-graphite')}>{s.kind === 'survey' ? s.name : s.name}</p>
                       <p className="text-sm text-graphite">
                         {s.kind === 'survey' ? s.detail.split('|').map((o) => o.trim()).join('  ·  ') : `${kindLabel[s.kind]} · ${s.detail}`}
                         {used > 0 && ` · used by ${used} guide ${used === 1 ? 'question' : 'questions'}`}
                       </p>
+                      {s.text && <p className="mt-0.5 line-clamp-2 max-w-prose text-sm text-ink">{s.text}</p>}
                       {s.renderOk === false && <p className="text-sm text-negative-fg">This file fails to render. Replace it so participants can see it.</p>}
                       {!s.active && used > 0 && <p className="text-sm text-pending-fg">The guide question{used === 1 ? '' : 's'} using it will be flagged.</p>}
                     </div>
@@ -209,32 +243,50 @@ export function StimulusLibrary() {
 
       <Modal
         open={card}
-        onClose={() => setCard(false)}
+        onClose={closeCard}
         title="New concept card"
-        description="A short written concept shown to participants as a card."
+        description="One card the participant sees: a picture and a short description."
         footer={
           <>
-            <Button variant="ghost" onClick={() => setCard(false)}>
+            <Button variant="ghost" onClick={closeCard}>
               Cancel
             </Button>
-            <Button
-              variant="primary"
-              disabled={!title.trim() || !body.trim()}
-              onClick={() => {
-                add({ name: title.trim(), kind: 'concept', detail: `${body.trim().split(/\s+/).length} words` })
-                setTitle('')
-                setBody('')
-                setCard(false)
-              }}
-            >
+            <Button variant="primary" disabled={!title.trim() || !body.trim()} loading={saving} onClick={saveCard}>
               Add to library
             </Button>
           </>
         }
       >
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-4">
           <TextField label="Title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Concept D: Overnight repair" />
-          <TextArea label="Concept text" rows={5} value={body} onChange={(e) => setBody(e.target.value)} />
+          <div className="flex flex-col gap-1.5">
+            <span className="text-sm font-medium">Picture (optional)</span>
+            <input ref={cardFileRef} type="file" accept="image/png,image/jpeg,image/webp,image/gif" aria-label="Choose a picture for the card" className="hidden" data-testid="card-image-input" onChange={(e) => { void pickCardImage(e.target.files?.[0]); e.target.value = '' }} />
+            {cardImage ? (
+              <div className="flex items-center gap-3 rounded-sm border border-mist p-2">
+                <img src={cardImage.preview} alt="" className="size-16 rounded-xs object-cover" data-testid="card-image-preview" />
+                <p className="min-w-0 flex-1 truncate text-sm">{cardImage.file.name}</p>
+                <Button size="sm" onClick={() => cardFileRef.current?.click()}>
+                  Replace
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setCardImage(undefined)}>
+                  Remove
+                </Button>
+              </div>
+            ) : (
+              <Button className="self-start" icon={<PaperclipIcon />} onClick={() => cardFileRef.current?.click()}>
+                Add a picture
+              </Button>
+            )}
+            {cardError ? (
+              <p role="alert" className="text-sm text-negative-fg">
+                {cardError}
+              </p>
+            ) : (
+              <p className="text-xs text-graphite">PNG, JPG, WebP or GIF, up to 200 MB. Leave it out for a text-only card.</p>
+            )}
+          </div>
+          <TextArea label="Description" rows={5} value={body} onChange={(e) => setBody(e.target.value)} hint="What the participant reads next to the picture." />
         </div>
       </Modal>
       <Modal
@@ -274,7 +326,34 @@ export function StimulusLibrary() {
   )
 }
 
-function Thumb({ kind, dim }: { kind: StimulusKind; dim: boolean }) {
+/** A small preview of a picture, so a card in the library keeps its image without storing the whole file. */
+function previewOf(file: File, max = 480): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file)
+    const img = new Image()
+    img.onload = () => {
+      const scale = Math.min(1, max / Math.max(img.width, img.height))
+      const c = document.createElement('canvas')
+      c.width = Math.max(1, Math.round(img.width * scale))
+      c.height = Math.max(1, Math.round(img.height * scale))
+      const ctx = c.getContext('2d')
+      if (!ctx) return reject(new Error('no canvas'))
+      ctx.fillStyle = '#fff'
+      ctx.fillRect(0, 0, c.width, c.height)
+      ctx.drawImage(img, 0, 0, c.width, c.height)
+      URL.revokeObjectURL(url)
+      resolve(c.toDataURL('image/jpeg', 0.72))
+    }
+    img.onerror = () => {
+      URL.revokeObjectURL(url)
+      reject(new Error('bad image'))
+    }
+    img.src = url
+  })
+}
+
+function Thumb({ kind, image, dim }: { kind: StimulusKind; image?: string; dim: boolean }) {
+  if (image) return <img src={image} alt="" className={cn('size-12 shrink-0 rounded-sm border border-mist object-cover', dim && 'opacity-60')} />
   return (
     <span aria-hidden="true" className={cn('flex size-12 shrink-0 items-center justify-center rounded-sm border border-mist bg-haze text-graphite', dim && 'opacity-60')}>
       {kind === 'video' ? <PlayIcon size={18} /> : kind === 'image' ? <FileIcon size={18} /> : kind === 'survey' ? <SurveyIcon size={18} /> : <ConceptGlyph />}

@@ -151,6 +151,9 @@ export type Stimulus = {
   addedBy: string
   /** Mock: false when the file fails to render. Launch preflight checks it. */
   renderOk?: boolean
+  /** A concept card written in the app: its text, and an optional picture kept as a small preview. */
+  text?: string
+  image?: string
 }
 export type StimuliState = { items: Stimulus[]; skipped: boolean }
 
@@ -172,8 +175,15 @@ export function classifyFile(name: string, sizeBytes: number): { kind: StimulusK
   const size = mb >= 1 ? `${mb.toFixed(1)} MB` : `${Math.max(1, Math.round(sizeBytes / 1000))} KB`
   if (IMAGE_EXT.includes(ext)) return { kind: 'image', detail: `${ext.toUpperCase()}, ${size}` }
   if (VIDEO_EXT.includes(ext)) return { kind: 'video', detail: `${ext.toUpperCase()}, ${size}` }
-  if (ext === 'pdf') return { kind: 'concept', detail: `PDF, ${size}` }
-  return { error: `“${name}” isn’t a supported format (${ext ? `.${ext}` : 'no extension'}). Use an image (PNG, JPG, WebP, GIF), a video (MP4, MOV, WebM) or a PDF concept card.` }
+  return { error: `“${name}” isn’t a supported format (${ext ? `.${ext}` : 'no extension'}). Upload an image (PNG, JPG, WebP, GIF) or a video (MP4, MOV, WebM). For a concept, use New concept card.` }
+}
+
+/** The picture on a concept card: the same checks as an upload, but images only. */
+export function classifyCardImage(name: string, sizeBytes: number): { detail: string } | { error: string } {
+  const r = classifyFile(name, sizeBytes)
+  if ('error' in r) return { error: r.error.replace(/ For a concept, use New concept card\.$/, '').replace('Upload an image (PNG, JPG, WebP, GIF) or a video (MP4, MOV, WebM).', 'Use an image (PNG, JPG, WebP, GIF).') }
+  if (r.kind !== 'image') return { error: `“${name}” is a video. A concept card takes an image (PNG, JPG, WebP, GIF).` }
+  return { detail: r.detail }
 }
 
 export const activeStimuli = (s: StimuliState) => s.items.filter((i) => i.active)
