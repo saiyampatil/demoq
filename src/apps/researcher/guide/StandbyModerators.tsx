@@ -3,7 +3,7 @@ import { Card } from '@/components/Card'
 import { StatusChip } from '@/components/StatusChip'
 import { useToast } from '@/components/Toast'
 import { availabilityText } from '@/mock/moderation'
-import { acceptedStandby, removeStandby, requestStandbyPulse, requestStandbyRoster, resendStandby, standbyOf, type GuideDoc } from '@/state/guide'
+import { acceptedStandby, removeStandby, requestStandbyRoster, resendStandby, standbyOf, type GuideDoc } from '@/state/guide'
 import { PulseModeratorPicker } from './PulseModeratorPicker'
 
 type Props = {
@@ -31,7 +31,6 @@ export function StandbyModerators({ doc, me, language, update }: Props) {
         description="Optional. If a participant asks to talk to a person during an AI interview, they book a time with one of these moderators. Leave it empty and participants aren’t offered a human."
         language={language}
         asked={list}
-        onAssign={(count) => update((d) => requestStandbyPulse(d, me, count, language ?? ''))}
         onRequest={(id) => update((d) => requestStandbyRoster(d, me, id, language ?? ''))}
       />
 

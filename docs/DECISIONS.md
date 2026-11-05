@@ -411,3 +411,11 @@ A row is in Needs you only if the participant cannot recover alone and a Researc
 - **Statuses:** Suggested, Accepted, Rejected, Merged, added as their own vocabulary.
 - **Left out:** the optional second coding pass. Logged as an open question.
 - `tests/analysis-base.mjs` was removed with the Base screen.
+
+
+## Moderator setup: PulseAI moderators are picked from the list
+
+- **"Let PulseAI assign" and "Choose specific moderators" are gone.** There is no toggle and no "Request N moderators" box. The list of PulseAI moderators is the only way to ask, one person at a time with Request. This applies to human-led setup ("PulseAI moderators") and to the standby moderators in AI-led setup, which share one picker.
+- **Cut from the picker:** the description under "PulseAI moderators" in human-led setup, the "Showing moderators who speak …" line, and each person's languages. Kept: the name, role, hours a week, Request, and the "Show other languages" checkbox. A moderator who doesn't speak the study language still says so on their card and can't be requested.
+- `requestPulseAI` and `requestStandbyPulse` stay in `state/guide.ts` but no screen calls them. Any test that clicks `request-pulseai` no longer applies.
+

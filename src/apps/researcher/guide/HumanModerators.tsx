@@ -9,7 +9,7 @@ import { StatusChip } from '@/components/StatusChip'
 import { useToast } from '@/components/Toast'
 import { formatDateTime } from '@/lib/format'
 import { PulseModeratorPicker } from './PulseModeratorPicker'
-import { addMyself, coverage, hoursIn, inviteTeam, removeMember, requestPulseAI, requestRoster, resendMember, teamOf, type GuideDoc, type ModSource } from '@/state/guide'
+import { addMyself, coverage, hoursIn, inviteTeam, removeMember, requestRoster, resendMember, teamOf, type GuideDoc, type ModSource } from '@/state/guide'
 
 const SOURCE_LABEL: Record<ModSource, string> = { Myself: 'Myself', PulseAI: 'PulseAI', 'My team': 'My team' }
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
@@ -100,10 +100,8 @@ export function HumanModerators({ doc, me, language, update, interviews, weeks }
       {pulseOpen && (
         <PulseModeratorPicker
           title="PulseAI moderators"
-          description="Trained moderators from the PulseAI team. Recommended if you’re new to interviews."
           language={language}
           asked={team}
-          onAssign={(count) => update((d) => requestPulseAI(d, me, count, language ?? ''))}
           onRequest={(id) => update((d) => requestRoster(d, me, id, language ?? ''))}
         />
       )}
