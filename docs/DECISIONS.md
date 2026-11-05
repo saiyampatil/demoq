@@ -427,3 +427,15 @@ A row is in Needs you only if the participant cannot recover alone and a Researc
 - A card's picture is kept as a small preview (up to 480 px) so the library stays light in the browser. The row shows the picture and the first lines of the description.
 - The seeded cards (Concepts A to C in both studies) are unchanged: text only, "1 page".
 
+
+## In-session surveys: a title and several questions
+
+- **A survey is a title and an ordered list of questions.** It is one item in the Stimulus Library, and a guide question runs the whole survey ("Run a survey" lists titles with their question count). The participant answers each question in order.
+- **Three answer types** (PRD 4.4): single choice, multiple choice (select all that apply) and rating scale (1 to 5 or 1 to 7, with a label for each end). A rating's answers are its numbers, so every type reads the same downstream.
+- **New survey dialog:** a title, then questions with reorder, remove and answer lists. Add to library stays disabled until every question has wording and, for choice questions, at least two different answers. The footer says what is missing. Up to 8 questions and 2 to 8 answers (mock limits).
+- **Fixed once added** (PRD Module 3 rule 4): the library row can be read ("Show questions") and switched on or off, never edited.
+- **Older single-question surveys** (kept in a browser's saved state) read as a survey of one, so nothing breaks.
+- **Downstream:** the guide draft says "Now a short survey on screen, “Title”" instead of putting one question in the guide. The compiled plan carries the survey title. Fieldwork's session record lists every question's locked answer under the survey's title (multiple choice answers list their picks). Review's Survey responses tab does the same, with radio, tick and number-scale displays; a follow-up probe never changes an answer.
+- **Seeds:** Moisturizer has "Concept reaction" (purchase intent, appeal rating) and "Scent preference" (preferred scent, others considered). Pet Food has "Retention idea reaction" (likelihood to keep, appeal rating) and "Why they cancelled" (biggest reason, other reasons).
+- The unused `recordAnswer` in `state/fieldwork.ts` now records one question at a time. Tests that fill in the old single-question New survey dialog no longer apply.
+

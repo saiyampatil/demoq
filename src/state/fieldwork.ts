@@ -8,6 +8,7 @@ import { formatDate, formatDay, formatSlot } from '@/lib/format'
 import { studyTimeZone } from '@/lib/timeZone'
 import type { ReviewStatus } from '@/mock/review'
 import { now, uid } from './brief'
+import { mockAnswer } from '@/mock/surveys'
 import { surveysOf, type GuideDoc } from './guide'
 import type { LaunchDoc, PlanItem, StudyPlan } from './launch'
 import { SEED_SESSIONS, sessionIdOf, type SeedSession } from '@/mock/sessions'
@@ -24,7 +25,8 @@ export type EventKind = 'system' | 'participant' | 'moderator' | 'stimulus' | 's
 export type SessionEvent = { id: string; at: string; kind: EventKind; text: string; marker?: 'handoff' }
 export type StimulusResult = { name: string; result: 'Shown' | 'Failed to load' | 'Not shown' }
 /** Survey answers are locked once recorded; follow-up probes never change them. */
-export type Answer = { questionId: string; question: string; answer: string; lockedAt: string }
+/** `survey` is the survey's title, so a session with several questions groups them. A multiple choice answer lists its picks, separated by semicolons. */
+export type Answer = { questionId: string; survey?: string; question: string; answer: string; lockedAt: string }
 export type TranscriptTurn = { at: string; speaker: string; ai: boolean; text: string }
 
 /** What a returning participant's new session picked up from the previous session's last saved state (4.7). Never a blank restart. */
@@ -373,7 +375,7 @@ export function generateFieldwork(i: GenInput): FieldworkDoc {
   const stimNames = [...new Set(items.map((x) => x.stimulus).filter((x): x is string => !!x))]
   const failed = i.guide.stimuli.items.filter((s) => s.renderOk === false).map((s) => s.name)
   const surveyItems = items.filter((x) => x.survey)
-  const options = (text: string) => surveysOf(i.guide).find((s) => s.text === text)?.options ?? ['Yes', 'No']
+  const questionsOf = (title: string) => surveysOf(i.guide).find((s) => s.title === title)?.questions ?? []
   const lang = i.plan.language
   const consentAt = i.launch?.setup.consent[lang]?.at
   const wording = `${lang}, approved ${formatDate(consentAt ?? '2026-10-26T15:00:00-04:00')}`
@@ -437,7 +439,7 @@ export function generateFieldwork(i: GenInput): FieldworkDoc {
       if (s.result === 'Shown') events.push(ev(w, 'stimulus', `Shown: ${s.name}`))
       if (s.result === 'Failed to load') events.push(ev(w, 'stimulus', `Could not load: ${s.name}. Counted as not seen.`))
     })
-    const answers: Answer[] = v === 'done' ? surveyItems.map((x) => ({ questionId: x.id, question: x.survey!, answer: options(x.survey!)[n % options(x.survey!).length], lockedAt: at(t0, 12) })) : []
+    const answers: Answer[] = v === 'done' ? surveyItems.flatMap((x) => questionsOf(x.survey!).map((sq) => ({ questionId: `${x.id}:${sq.id}`, survey: x.survey!, question: sq.text, answer: mockAnswer(sq, n), lockedAt: at(t0, 12) }))) : []
     answers.forEach((a) => events.push(ev(a.lockedAt, 'survey', `Answered and locked: ${a.question}`)))
     if (v === 'incomplete') events.push(ev(at(t0, 9), 'system', 'The participant left. The session can be resumed.'))
     if (v === 'error') events.push(ev(at(t0, 3), 'system', 'Technical error: the connection dropped before the session could continue.'))
@@ -661,8 +663,13 @@ export const showStimulus = (doc: FieldworkDoc, id: string, name: string) =>
   })
 
 /** Survey answers are fixed once recorded. A second answer to the same question is ignored. */
-export const recordAnswer = (doc: FieldworkDoc, id: string, item: PlanItem, answer: string) =>
-  patch(doc, id, (s) => (s.status !== 'Active' || s.answers.some((a) => a.questionId === item.id) ? s : addEvent({ ...s, answers: [...s.answers, { questionId: item.id, question: item.survey ?? '', answer, lockedAt: now() }] }, 'survey', `Answered and locked: ${item.survey}`)))
+export const recordAnswer = (doc: FieldworkDoc, id: string, item: PlanItem, question: { id: string; text: string }, answer: string) =>
+  patch(doc, id, (s) => {
+    const key = `${item.id}:${question.id}`
+    return s.status !== 'Active' || s.answers.some((a) => a.questionId === key)
+      ? s
+      : addEvent({ ...s, answers: [...s.answers, { questionId: key, survey: item.survey, question: question.text, answer, lockedAt: now() }] }, 'survey', `Answered and locked: ${question.text}`)
+  })
 
 export const submitNotes = (doc: FieldworkDoc, id: string, notes: Notes) => patch(doc, id, (s) => (sessionEnded(s) && !s.notes ? addEvent({ ...s, notes }, 'moderator', `${notes.by} submitted post-session notes`) : s))
 

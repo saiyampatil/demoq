@@ -6,6 +6,7 @@
 
 import type { ArtifactStatus } from '@/components/status'
 import { AGENTS, HUMAN_MODERATORS } from '@/mock/moderation'
+import { ratingOptions, SURVEY_LIMITS, surveySummary, type SurveyDef, type SurveyFormat, type SurveyQuestion } from '@/mock/surveys'
 import type { StudyRecord } from '@/mock/types'
 import type { Origin } from './audience'
 import { AI_NAME, now, uid, type SectionKey, type SectionSnapshot } from './brief'
@@ -16,8 +17,10 @@ import { NO_LANGUAGE } from './language'
 export type Mode = 'ai' | 'human'
 export type Style = 'warm' | 'neutral' | 'probing'
 
-/** Fixed wording and answer options. Once created a survey is only added or removed, never edited. */
-export type Survey = { id: string; text: string; options: string[] }
+export type { SurveyDef, SurveyFormat, SurveyQuestion }
+
+/** A title and ordered questions, each with fixed wording and answer options. Once added to the library a survey can be switched on or off, never edited. */
+export type Survey = { id: string; title: string; questions: SurveyQuestion[] }
 
 export type ModeratorConfig = {
   mode: Mode | null
@@ -154,12 +157,48 @@ export type Stimulus = {
   /** A concept card written in the app: its text, and an optional picture kept as a small preview. */
   text?: string
   image?: string
+  /** A survey's questions. Older items have none and keep one question in `name` and its options in `detail`. */
+  questions?: SurveyQuestion[]
 }
 export type StimuliState = { items: Stimulus[]; skipped: boolean }
 
+/** A survey item's questions. An older single-question item is read as a survey of one. */
+export const questionsOfSurvey = (s: Stimulus): SurveyQuestion[] =>
+  s.questions ?? [{ id: 'q1', text: s.name, format: 'single', options: s.detail.split('|').map((o) => o.trim()) }]
+
 /** The surveys a question can run: the survey items in the stimulus library that are in the active set. */
 export const surveysOf = (doc: { stimuli: StimuliState }): Survey[] =>
-  doc.stimuli.items.filter((s) => s.kind === 'survey' && s.active).map((s) => ({ id: s.id, text: s.name, options: s.detail.split('|').map((o) => o.trim()) }))
+  doc.stimuli.items.filter((s) => s.kind === 'survey' && s.active).map((s) => ({ id: s.id, title: s.name, questions: questionsOfSurvey(s) }))
+
+/** What stops a survey being added: the title, and each question's wording and answers. */
+export function surveyProblems(def: { title: string; questions: Pick<SurveyQuestion, 'text' | 'format' | 'options'>[] }): { title?: string; questions: Record<number, string>; any: boolean } {
+  const out = { title: undefined as string | undefined, questions: {} as Record<number, string>, any: false }
+  if (!def.title.trim()) out.title = 'Give the survey a title.'
+  def.questions.forEach((q, i) => {
+    const opts = q.options.map((o) => o.trim()).filter(Boolean)
+    if (!q.text.trim()) out.questions[i] = 'Write the question.'
+    else if (q.format !== 'rating' && opts.length < SURVEY_LIMITS.minOptions) out.questions[i] = `Add at least ${SURVEY_LIMITS.minOptions} answers.`
+    else if (q.format !== 'rating' && new Set(opts.map((o) => o.toLowerCase())).size !== opts.length) out.questions[i] = 'Two answers are the same. Each one must be different.'
+  })
+  if (!def.questions.length) out.questions[0] = 'Add at least one question.'
+  out.any = !!out.title || Object.keys(out.questions).length > 0
+  return out
+}
+
+/** The library item for a survey the Researcher built. Questions get IDs here, and a rating's options are its numbers. */
+export function newSurveyItem(def: SurveyDef, by: string): Stimulus {
+  const questions: SurveyQuestion[] = def.questions.map((q, i) => ({
+    id: `q${i + 1}`,
+    text: q.text.trim(),
+    format: q.format,
+    options: q.format === 'rating' ? ratingOptions(q.options.length || 5) : q.options.map((o) => o.trim()).filter(Boolean),
+    ...(q.format === 'rating' && (q.scale?.low.trim() || q.scale?.high.trim()) ? { scale: { low: q.scale?.low.trim() ?? '', high: q.scale?.high.trim() ?? '' } } : {}),
+  }))
+  return { id: uid('st'), name: def.title.trim(), kind: 'survey', detail: surveySummary(questions), questions, active: true, addedAt: now(), addedBy: by }
+}
+
+/** One line per survey for lists: "3 questions · single choice, rating scale". */
+export const surveyFormats = (qs: SurveyQuestion[]) => [...new Set(qs.map((q) => q.format))]
 
 export const kindLabel: Record<StimulusKind, string> = { image: 'Image', video: 'Video', concept: 'Concept card', survey: 'Survey' }
 
@@ -595,9 +634,7 @@ export function handoffPackage(doc: GuideDoc) {
     guideVersion: doc.approved?.version ?? doc.version,
     moderator: doc.moderator,
     activeStimuli: doc.stimuli.items.filter((s) => s.active),
-    surveys: doc.stimuli.items
-      .filter((s) => s.kind === 'survey' && s.active)
-      .map((s) => ({ id: s.id, text: s.name, options: s.detail.split('|').map((o) => o.trim()) })),
+    surveys: surveysOf(doc),
     guide: doc.guide,
   }
 }
@@ -712,7 +749,7 @@ export function draftGuide(i: DraftInput): Guide {
       }),
     )
     if (n === 0 && survey)
-      exercises.push(q('Using the options on screen, how likely would you be to buy this?', { mandatory: true, surveyId: survey.id, covers: ids(1) }))
+      exercises.push(q(`Now a short survey on screen, “${survey.title}”. Please answer each question as it appears.`, { mandatory: true, surveyId: survey.id, covers: ids(1) }))
   })
   if (reactions.length > 1)
     exercises.push(q('Which of these would make you most want to switch, and why?', { mandatory: true, probes: ['What puts the others behind it?'], covers: ids(1), maxFollowUps: maxFU }))
@@ -721,7 +758,7 @@ export function draftGuide(i: DraftInput): Guide {
   exercises.push(
     q('Some of these come as a refill. Does a refill feel premium or cheap to you, and why?', { mandatory: true, probes: ['What would make a refill feel more premium?'], banned: ['It’s cheaper, right?'], covers: ids(3), maxFollowUps: maxFU }),
   )
-  if (survey2) exercises.push(q('Using the options on screen, which scent direction do you prefer?', { surveyId: survey2.id, covers: [] }))
+  if (survey2) exercises.push(q(`One more short survey on screen, “${survey2.title}”. Please answer each question as it appears.`, { surveyId: survey2.id, covers: [] }))
 
   const reflection = [
     q('Looking back, what is the single biggest thing that would stop you switching?', { mandatory: true, covers: ids(2), maxFollowUps: maxFU }),
@@ -802,7 +839,10 @@ export function guideAsText(doc: GuideDoc, studyName: string, language: string |
       const st = x.stimulusId && doc.stimuli.items.find((i) => i.id === x.stimulusId)
       if (st) lines.push(`      Show: ${st.name}`)
       const sv = x.surveyId && surveysOf(doc).find((i) => i.id === x.surveyId)
-      if (sv) lines.push(`      Survey: ${sv.text} (${sv.options.join(' / ')})`)
+      if (sv) {
+        lines.push(`      Survey: ${sv.title}`)
+        sv.questions.forEach((sq, k) => lines.push(`        ${k + 1}. ${sq.text} [${sq.format === 'rating' ? `rating 1 to ${sq.options.length}` : sq.format === 'multiple' ? 'select all that apply' : 'pick one'}]${sq.format === 'rating' ? '' : ` ${sq.options.join(' / ')}`}`))
+      }
       if (x.banned.length) lines.push(`      Never say: ${x.banned.join('; ')}`)
     })
     lines.push('')

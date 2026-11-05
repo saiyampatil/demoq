@@ -21,6 +21,7 @@ import { seedLaunchDoc, type LaunchSeed } from './launch'
 import { people } from './people'
 import { buildReviewSessions, registerReviewSessions, type Decision, type ReviewPack } from './review'
 import { PET_SEED_SESSIONS } from './sessions'
+import { PET_SURVEYS, surveyItem } from './surveys'
 import type { StudyRecord } from './types'
 
 export const PET_ID = 'pet-food-churn'
@@ -158,8 +159,8 @@ const stimuliItems: Stimulus[] = [
   { id: 'st-b', name: 'Concept B: Recipe swap guarantee', kind: 'concept', detail: '1 page', active: true, addedAt: '2026-08-12T10:02:00-04:00', addedBy: maya },
   { id: 'st-c', name: 'Concept C: Portion-matched boxes', kind: 'concept', detail: '1 page', active: true, addedAt: '2026-08-12T10:04:00-04:00', addedBy: maya },
   { id: 'st-v', name: 'Unboxing walkthrough, 20 seconds', kind: 'video', detail: 'MP4, 6.1 MB', active: false, addedAt: '2026-08-12T10:10:00-04:00', addedBy: maya },
-  { id: 'st-sv-keep', name: 'After seeing this idea, how likely would you be to keep, or restart, a pet food subscription?', kind: 'survey', detail: 'Definitely would not|Probably would not|Might or might not|Probably would|Definitely would', active: true, addedAt: '2026-08-12T10:15:00-04:00', addedBy: 'PulseAI' },
-  { id: 'st-sv-reason', name: 'Which one reason mattered most when you cancelled?', kind: 'survey', detail: 'The price went up|My pet stopped eating it|Delivery problems|I switched to a vet or store brand|Too much food piled up|Something else', active: true, addedAt: '2026-08-12T10:16:00-04:00', addedBy: 'PulseAI' },
+  surveyItem('st-sv-keep', PET_SURVEYS.keep, '2026-08-12T10:15:00-04:00', 'PulseAI'),
+  surveyItem('st-sv-reason', PET_SURVEYS.reason, '2026-08-12T10:16:00-04:00', 'PulseAI'),
 ]
 
 const q = (text: string, extra: Partial<Question> = {}): Question => ({ id: uid('q'), text, mandatory: false, probes: [], banned: [], maxFollowUps: null, covers: [], origin: 'ai', ...extra })
@@ -192,11 +193,11 @@ function petGuideContent(): Guide {
     .filter((s) => s.active)
     .forEach((s, n) => {
       exercises.push(q(`Here is ${s.name}. Tell me your first reaction, before I say anything about it.`, { mandatory: true, stimulusId: s.id, probes: ['What stands out to you?', 'Is anything unclear?'], banned: ['Don’t you think this is a good idea?'], covers: ['o2'], maxFollowUps: fu }))
-      if (n === 0) exercises.push(q('Using the options on screen, how likely would you be to keep, or restart, a subscription with this?', { mandatory: true, surveyId: 'st-sv-keep', covers: ['o2'] }))
+      if (n === 0) exercises.push(q('Now a short survey on screen, “Retention idea reaction”. Please answer each question as it appears.', { mandatory: true, surveyId: 'st-sv-keep', covers: ['o2'] }))
     })
   exercises.push(q('Which of these would have been most likely to keep you, and why?', { mandatory: true, probes: ['What puts the others behind it?'], covers: ['o2'], maxFollowUps: fu }))
   exercises.push(q('Some of these are about flexibility, not price. Does flexibility matter more or less than a lower price to you, and why?', { mandatory: true, probes: ['Can you think of a time it made the difference?'], banned: ['It’s about price, isn’t it?'], covers: ['o3'], maxFollowUps: fu }))
-  exercises.push(q('Using the options on screen, which one reason mattered most when you cancelled?', { surveyId: 'st-sv-reason', covers: ['o1'] }))
+  exercises.push(q('One more short survey on screen, “Why they cancelled”. Please answer each question as it appears.', { surveyId: 'st-sv-reason', covers: ['o1'] }))
   const reflection = [
     q('Looking back, what is the single biggest thing that would bring you back?', { mandatory: true, covers: ['o2'], maxFollowUps: fu }),
     q('Is there anything we didn’t ask that matters to you when you choose a pet food?'),
@@ -282,8 +283,7 @@ const PET_PACK: ReviewPack = {
   seeds: PET_SEED_SESSIONS,
   guide: 'Guide v2',
   stimuli: stimuliItems.filter((s) => s.active).map((s) => ({ name: s.name, version: 'v1', kind: 'Concept card' as const })),
-  surveyQ: 'After seeing this idea, how likely would you be to keep, or restart, a pet food subscription?',
-  surveyOptions: ['Definitely would not', 'Probably would not', 'Might or might not', 'Probably would', 'Definitely would'],
+  surveys: [PET_SURVEYS.keep, PET_SURVEYS.reason],
   questions: [
     'Walk me through what your dog or cat eats on a normal day.',
     'What did you like about the subscription at the start?',

@@ -134,7 +134,7 @@ export function QuestionCard({ q, guide, stimuli, surveys, aiMode, flag, onChang
               <option value="">None</option>
               {surveys.map((s) => (
                 <option key={s.id} value={s.id}>
-                  {s.text.length > 36 ? `${s.text.slice(0, 36)}…` : s.text}
+                  {s.title.length > 28 ? `${s.title.slice(0, 28)}…` : s.title} ({s.questions.length} {s.questions.length === 1 ? 'question' : 'questions'})
                 </option>
               ))}
             </select>

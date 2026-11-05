@@ -1,6 +1,7 @@
 // Review (4.8) data. The sessions come from the study's one session list
 // (mock/sessions.ts): every completed session is here, and nothing else is. Moderator type is fixed per study.
 import { SEED_SESSIONS, sessionIdOf, type SeedSession } from './sessions'
+import { mockAnswer, SKIN_SURVEYS, type SurveyDef, type SurveyFormat } from './surveys'
 
 export const REVIEW_STUDY_ID = 'moisturizer-concept'
 
@@ -59,8 +60,13 @@ export type OpenClarification = { id: string; to: 'Participant' | 'Moderator'; m
 export type StimulusStatus = 'Loaded' | 'Fallback used' | 'Failed'
 export type StimulusCard = { name: string; version: string; kind: 'Concept card' | 'Image' | 'Video'; shownAtSec: number; status: StimulusStatus }
 export type SurveyResponse = {
+  /** The survey's title, so a session with several surveys groups its questions. */
+  survey: string
   question: string
+  format: SurveyFormat
   options: string[]
+  /** Rating scale only: what the two ends mean. */
+  scale?: { low: string; high: string }
   answer: string
   answeredAtSec: number
   /** A follow-up probe about the answer. It never changes the recorded answer. */
@@ -167,8 +173,8 @@ export type ReviewPack = {
   /** The guide version the interviews ran from, as it reads on a session. */
   guide: string
   stimuli: { name: string; version: string; kind: StimulusCard['kind'] }[]
-  surveyQ: string
-  surveyOptions: string[]
+  /** The surveys the guide runs, in order. Each session answers every question. */
+  surveys: SurveyDef[]
   questions: string[]
   answers: string[]
   /** Flag wording that names the product or the topic. Anything not here uses the standard wording. */
@@ -197,8 +203,6 @@ const SKIN_STIMULI = [
   { name: 'Concept C: Barrier repair', version: 'v2', kind: 'Concept card' as const },
 ]
 
-const SKIN_SURVEY_Q = 'After seeing the concept, how likely would you be to buy it?'
-const SKIN_SURVEY_OPTIONS = ['Definitely would not', 'Probably would not', 'Might or might not', 'Probably would', 'Definitely would']
 
 /** The full sample is the pack's sample session at 2,400 turns. Other sessions get a shorter transcript. */
 function build(seed: SeedSession, pack: ReviewPack): ReviewSession {
@@ -235,7 +239,23 @@ function build(seed: SeedSession, pack: ReviewPack): ReviewSession {
   const sf = flags.find((f) => f.type === 'Incorrect stimulus presentation')
   if (sf) stimuli[1].shownAtSec = sf.atSec
 
-  const answer = pack.surveyOptions[id.charCodeAt(5) % 5]
+  const n = id.charCodeAt(5)
+  const survey: SurveyResponse[] = pack.surveys.flatMap((sv, si) =>
+    sv.questions.map((q, qi, all) => {
+      const answer = mockAnswer(q, n + si)
+      return {
+        survey: sv.title,
+        question: q.text,
+        format: q.format,
+        options: q.options,
+        ...(q.scale ? { scale: q.scale } : {}),
+        answer,
+        answeredAtSec: Math.round(total * (0.84 - 0.06 * (pack.surveys.length - 1 - si)) + qi * 12 - (all.length - 1) * 6),
+        // One session has a follow-up on its first answer. The probe never changes it.
+        probe: id === pack.sample && si === 0 && qi === 0 ? { question: `You said “${answer}”. What would make it a definite yes?`, answer: 'If it really lasted all day and the jar felt solid. The answer above stays as I chose it.' } : undefined,
+      }
+    }),
+  )
   return {
     id,
     participantId: participant,
@@ -255,15 +275,7 @@ function build(seed: SeedSession, pack: ReviewPack): ReviewSession {
     decision: pack.decisions[participant],
     seedReplacement: pack.replacements[participant],
     stimuli,
-    survey: [
-      {
-        question: pack.surveyQ,
-        options: pack.surveyOptions,
-        answer,
-        answeredAtSec: Math.round(total * 0.84),
-        probe: id === pack.sample ? { question: `You said “${answer}”. What would make it a definite yes?`, answer: 'If it really lasted all day and the jar felt solid. The answer above stays as I chose it.' } : undefined,
-      },
-    ],
+    survey,
     aiNotes: pack.aiNotes(pack.stimuli[id.charCodeAt(5) % pack.stimuli.length].name.split(':')[0], flags.length, hasStimFlag),
     turnCount: count,
     ...(seed.media ? { media: seed.media } : {}),
@@ -298,8 +310,7 @@ const SKIN_PACK: ReviewPack = {
   seeds: SEED_SESSIONS,
   guide: 'Guide v3',
   stimuli: SKIN_STIMULI,
-  surveyQ: SKIN_SURVEY_Q,
-  surveyOptions: SKIN_SURVEY_OPTIONS,
+  surveys: [SKIN_SURVEYS.reaction, SKIN_SURVEYS.scent],
   questions: SKIN_QUESTIONS,
   answers: SKIN_ANSWERS,
   library: {},

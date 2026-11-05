@@ -3,6 +3,7 @@ import { approvedBriefSections } from '@/state/audience'
 import type { BriefDoc } from '@/state/brief'
 import { uid } from '@/state/brief'
 import { people } from './people'
+import { SKIN_SURVEYS, surveyItem } from './surveys'
 
 const maya = people.researcher.name
 const erin = people.client.name
@@ -12,8 +13,8 @@ export const seedStimuli: Stimulus[] = [
   { id: 'st-b', name: 'Concept B: Refillable jar', kind: 'concept', detail: '1 page', active: true, addedAt: '2026-10-19T10:02:00-04:00', addedBy: maya },
   { id: 'st-c', name: 'Concept C: Barrier repair', kind: 'concept', detail: '1 page', active: true, addedAt: '2026-10-19T10:04:00-04:00', addedBy: maya },
   { id: 'st-v', name: 'Texture demo, 15 seconds', kind: 'video', detail: 'MP4, 8.4 MB', active: false, addedAt: '2026-10-20T09:30:00-04:00', addedBy: maya },
-  { id: 'st-sv-intent', name: 'After seeing the concept, how likely would you be to buy it?', kind: 'survey', detail: 'Definitely would not|Probably would not|Might or might not|Probably would|Definitely would', active: true, addedAt: '2026-10-21T14:00:00-04:00', addedBy: 'PulseAI' },
-  { id: 'st-sv-scent', name: 'Which scent direction do you prefer?', kind: 'survey', detail: 'Fragrance-free|Light floral|Fresh citrus|Soft musk', active: true, addedAt: '2026-10-21T14:05:00-04:00', addedBy: 'PulseAI' },
+  surveyItem('st-sv-intent', SKIN_SURVEYS.reaction, '2026-10-21T14:00:00-04:00', 'PulseAI'),
+  surveyItem('st-sv-scent', SKIN_SURVEYS.scent, '2026-10-21T14:05:00-04:00', 'PulseAI'),
 ]
 
 /** A configured AI study with a drafted guide. `approved` also records the approval and the history behind it. */

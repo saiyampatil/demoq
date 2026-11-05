@@ -11,9 +11,11 @@ import { Switch } from '@/components/Switch'
 import { WizardFooter } from '@/components/WizardFooter'
 import { screenById, studyPath } from '@/routes/screens'
 import { uid, now } from '@/state/brief'
-import { allQuestions, classifyCardImage, classifyFile, editStimuli, kindLabel, type Stimulus, type StimulusKind } from '@/state/guide'
+import { FORMAT_LABEL, type SurveyDef } from '@/mock/surveys'
+import { allQuestions, classifyCardImage, classifyFile, editStimuli, kindLabel, newSurveyItem, questionsOfSurvey, surveyFormats, type Stimulus, type StimulusKind } from '@/state/guide'
 import { PageHeader } from '../../shared/PageHeader'
 import { GuideGate, VersionBanner } from './GuideBits'
+import { SurveyBuilder } from './SurveyBuilder'
 import { useGuide } from './useGuide'
 
 export function StimulusLibrary() {
@@ -31,8 +33,7 @@ export function StimulusLibrary() {
   const [saving, setSaving] = useState(false)
   const cardFileRef = useRef<HTMLInputElement>(null)
   const [survey, setSurvey] = useState(false)
-  const [surveyQuestion, setSurveyQuestion] = useState('')
-  const [surveyOptions, setSurveyOptions] = useState('')
+  const [openSurvey, setOpenSurvey] = useState<string>()
 
   useEffect(() => {
     if (editable && !doc) ensure()
@@ -50,20 +51,10 @@ export function StimulusLibrary() {
   const edit = (fn: Parameters<typeof editStimuli>[2], note: string) => update((d) => editStimuli(d, me, fn, note))
   const add = (item: Omit<Stimulus, 'id' | 'addedAt' | 'addedBy' | 'active'>) =>
     edit((s) => ({ items: [...s.items, { ...item, id: uid('st'), active: true, addedAt: now(), addedBy: me }], skipped: false }), `Added “${item.name}” to the library`)
-  const addSurvey = (question: string, options: string[]) => {
-    if (!question.trim() || options.length < 2) return
-    edit((s) => ({
-      items: [...s.items, {
-        id: uid('st'),
-        name: question.trim(),
-        kind: 'survey' as const,
-        detail: options.join('|'),
-        active: true,
-        addedAt: now(),
-        addedBy: me,
-      }],
-      skipped: false,
-    }), `Added survey “${question.trim()}”`)
+  const addSurvey = (def: SurveyDef) => {
+    const item = newSurveyItem(def, me)
+    edit((x) => ({ items: [...x.items, item], skipped: false }), `Added survey “${item.name}”`)
+    setSurvey(false)
   }
 
   const closeCard = () => {
@@ -203,11 +194,33 @@ export function StimulusLibrary() {
                   <li key={s.id} className={cn('flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-3', !s.active && 'bg-paper')}>
                     <Thumb kind={s.kind} image={s.image} dim={!s.active} />
                     <div className="min-w-0 flex-1 basis-56">
-                      <p className={cn('font-medium', !s.active && 'text-graphite')}>{s.kind === 'survey' ? s.name : s.name}</p>
+                      <p className={cn('font-medium', !s.active && 'text-graphite')}>{s.name}</p>
                       <p className="text-sm text-graphite">
-                        {s.kind === 'survey' ? s.detail.split('|').map((o) => o.trim()).join('  ·  ') : `${kindLabel[s.kind]} · ${s.detail}`}
+                        {s.kind === 'survey' ? `Survey · ${questionsOfSurvey(s).length} ${questionsOfSurvey(s).length === 1 ? 'question' : 'questions'} · ${surveyFormats(questionsOfSurvey(s)).map((f) => FORMAT_LABEL[f].toLowerCase()).join(', ')}` : `${kindLabel[s.kind]} · ${s.detail}`}
                         {used > 0 && ` · used by ${used} guide ${used === 1 ? 'question' : 'questions'}`}
                       </p>
+                      {s.kind === 'survey' && (
+                        <>
+                          <button type="button" aria-expanded={openSurvey === s.id} onClick={() => setOpenSurvey((x) => (x === s.id ? undefined : s.id))} className="mt-0.5 rounded-xs text-sm font-medium text-iris-700 hover:underline">
+                            {openSurvey === s.id ? 'Hide questions' : 'Show questions'}
+                          </button>
+                          {openSurvey === s.id && (
+                            <ol className="mt-2 flex max-w-prose flex-col gap-2.5 rounded-sm border border-mist bg-paper p-3 text-sm" data-testid="survey-questions">
+                              {questionsOfSurvey(s).map((q, n) => (
+                                <li key={q.id}>
+                                  <p className="font-medium">
+                                    <span className="mr-1.5 text-graphite tabular-nums">{n + 1}.</span>
+                                    {q.text}
+                                  </p>
+                                  <p className="text-xs text-graphite">
+                                    {q.format === 'rating' ? `Rating 1 to ${q.options.length}${q.scale ? `. 1 = ${q.scale.low || '…'}, ${q.options.length} = ${q.scale.high || '…'}` : ''}` : `${FORMAT_LABEL[q.format]}. ${q.options.join(' · ')}`}
+                                  </p>
+                                </li>
+                              ))}
+                            </ol>
+                          )}
+                        </>
+                      )}
                       {s.text && <p className="mt-0.5 line-clamp-2 max-w-prose text-sm text-ink">{s.text}</p>}
                       {s.renderOk === false && <p className="text-sm text-negative-fg">This file fails to render. Replace it so participants can see it.</p>}
                       {!s.active && used > 0 && <p className="text-sm text-pending-fg">The guide question{used === 1 ? '' : 's'} using it will be flagged.</p>}
@@ -289,39 +302,7 @@ export function StimulusLibrary() {
           <TextArea label="Description" rows={5} value={body} onChange={(e) => setBody(e.target.value)} hint="What the participant reads next to the picture." />
         </div>
       </Modal>
-      <Modal
-        open={survey}
-        onClose={() => setSurvey(false)}
-        title="New survey"
-        description="A short question asked during the interview. Participants pick one answer."
-        footer={
-          <>
-            <Button variant="ghost" onClick={() => setSurvey(false)}>
-              Cancel
-            </Button>
-            <Button
-              variant="primary"
-              disabled={!surveyQuestion.trim() || surveyOptions.trim() === ''}
-              onClick={() => {
-                const opts = surveyOptions.split(/\r?\n/).map((o) => o.trim()).filter(Boolean)
-                if (opts.length >= 2) {
-                  addSurvey(surveyQuestion.trim(), opts)
-                  setSurveyQuestion('')
-                  setSurveyOptions('')
-                  setSurvey(false)
-                }
-              }}
-            >
-              Add survey
-            </Button>
-          </>
-        }
-      >
-        <div className="flex flex-col gap-3">
-          <TextArea label="Survey question" rows={2} value={surveyQuestion} onChange={(e) => setSurveyQuestion(e.target.value)} />
-          <TextArea label="Answer options, one per line" rows={4} value={surveyOptions} onChange={(e) => setSurveyOptions(e.target.value)} hint="At least two. Participants pick one." />
-        </div>
-      </Modal>
+      <SurveyBuilder open={survey} onClose={() => setSurvey(false)} onAdd={addSurvey} />
     </div>
   )
 }

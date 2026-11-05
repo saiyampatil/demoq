@@ -410,17 +410,24 @@ export function SessionRecord() {
           )}
           {s.answers.length > 0 && (
             <Card title="Survey answers" description="Locked once recorded. Follow-up probes never change them.">
-              <dl className="flex flex-col divide-y divide-mist">
-                {s.answers.map((a) => (
-                  <div key={a.questionId} className="py-2 first:pt-0 last:pb-0">
-                    <dt className="text-sm text-graphite">{a.question}</dt>
-                    <dd className="font-medium">
-                      {a.answer} <span className="text-xs font-normal text-graphite">Locked {formatStamp(a.lockedAt)}</span>
-                      {s.carried?.answerIds.includes(a.questionId) && <span className="ml-2 text-xs font-normal text-progress-fg">Carried over from {s.carried.from}</span>}
-                    </dd>
-                  </div>
-                ))}
-              </dl>
+              {[...new Set(s.answers.map((a) => a.survey ?? ''))].map((title) => (
+                <div key={title} className="mt-4 first:mt-0">
+                  {title && <h3 className="mb-1 text-sm font-semibold">{title}</h3>}
+                  <dl className="flex flex-col divide-y divide-mist">
+                    {s.answers
+                      .filter((a) => (a.survey ?? '') === title)
+                      .map((a) => (
+                        <div key={a.questionId} className="py-2 first:pt-0 last:pb-0">
+                          <dt className="text-sm text-graphite">{a.question}</dt>
+                          <dd className="font-medium">
+                            {a.answer.split('; ').join(', ')} <span className="text-xs font-normal text-graphite">Locked {formatStamp(a.lockedAt)}</span>
+                            {s.carried?.answerIds.includes(a.questionId) && <span className="ml-2 text-xs font-normal text-progress-fg">Carried over from {s.carried.from}</span>}
+                          </dd>
+                        </div>
+                      ))}
+                  </dl>
+                </div>
+              ))}
             </Card>
           )}
         </div>

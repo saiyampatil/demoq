@@ -139,6 +139,10 @@ PRD gaps and conflicts found while building. Each entry says what the prototype 
 | 133 | L | Codebook: can one code belong to more than one theme? | No. A code sits in one theme at a time; moving it takes it out of the other. | Open |
 | 134 | M | Codebook: when Review changes after coding, should newly accepted sessions be coded automatically? | Counts follow Review at once. A banner offers "Update the codebook", which drops quotes from sessions no longer accepted and logs it. In the prototype, newly accepted sessions get no new quotes. | Open |
 | 135 | L | Codebook statuses (Suggested, Accepted, Rejected, Merged) are not in CLAUDE.md's vocabularies. | Added as their own vocabulary in src/components/status.ts. | Open |
+| 136 | M | In-session surveys: does a survey take interview time? Today it counts for nothing in the guide's duration check. | Not counted. | Open |
+| 137 | L | In-session surveys: how many questions in a survey, and how many answers in a choice question? | 8 questions, and 2 to 8 answers (mock limits, in `SURVEY_LIMITS`). A rating scale is 1 to 5 or 1 to 7. | Open |
+| 138 | L | In-session surveys: how is a multiple choice answer stored? | One answer listing the picks, separated by semicolons. The raw structured shape is for the tech team. | Open |
+| 139 | M | In-session surveys: may a survey be corrected after it is added? The PRD says wording and options are fixed once created. | No edit. A wrong survey is switched off and a new one added. A "Duplicate as new survey" is a possible later step. | Open |
 
 ## Future ideas (not built)
 

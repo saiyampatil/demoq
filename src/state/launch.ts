@@ -190,7 +190,7 @@ export function compileStudyPlan(g: GuideDoc | undefined, language: string | nul
     banned: q.banned.filter((p) => p.trim()).length,
     maxFollowUps: q.maxFollowUps,
     stimulus: q.stimulusId ? g.stimuli.items.find((s) => s.id === q.stimulusId)?.name : undefined,
-    survey: q.surveyId ? surveysOf(g).find((s) => s.id === q.surveyId)?.text : undefined,
+    survey: q.surveyId ? surveysOf(g).find((s) => s.id === q.surveyId)?.title : undefined,
     branch: q.branch ? `If the answer to Q${num(q.branch.ifQuestionId)} is “${q.branch.answer || '…'}”, ${q.branch.action === 'skip-to' ? 'skip to' : 'branch to'} Q${num(q.branch.targetId)}` : undefined,
   })
   const body = {

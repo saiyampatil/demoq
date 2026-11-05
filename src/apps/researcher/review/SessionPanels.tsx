@@ -37,42 +37,87 @@ export function StimulusHistory({ session, onJump }: { session: ReviewSession; o
   )
 }
 
-/** Fixed options and a locked answer. A follow-up probe is shown beneath and never changes it. */
+/** Fixed options and a locked answer, grouped by survey. A follow-up probe is shown beneath and never changes it. */
 export function SurveyResponses({ session }: { session: ReviewSession }) {
+  const groups = session.survey.reduce<{ title: string; items: ReviewSession['survey'] }[]>((acc, q) => {
+    const g = acc.find((x) => x.title === q.survey)
+    if (g) g.items.push(q)
+    else acc.push({ title: q.survey, items: [q] })
+    return acc
+  }, [])
+  if (!groups.length) return <p className="text-sm text-graphite">No survey was run in this session.</p>
   return (
-    <ul className="flex flex-col gap-4">
-      {session.survey.map((q) => (
-        <li key={q.question}>
-          <p className="font-medium">{q.question}</p>
-          <ul className="mt-2 flex flex-col gap-1" aria-label="Answer options">
-            {q.options.map((o) => (
-              <li key={o} className={cn('flex items-center gap-2 rounded-sm px-2.5 py-1.5 text-sm', o === q.answer ? 'border border-ink bg-paper font-medium' : 'text-graphite')}>
-                <span aria-hidden="true" className={cn('flex size-3.5 items-center justify-center rounded-full border-2', o === q.answer ? 'border-ink' : 'border-mist-strong')}>
-                  {o === q.answer && <span className="size-1.5 rounded-full bg-ink" />}
-                </span>
-                {o}
-                {o === q.answer && <span className="sr-only"> (recorded answer)</span>}
-              </li>
-            ))}
-          </ul>
-          <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-            <span className="text-graphite">
-              Recorded answer: <span className="font-medium text-ink">{q.answer}</span>, at <span className="tabular-nums">{mmss(q.answeredAtSec)}</span>
-            </span>
-            <span className="inline-flex items-center gap-1 rounded-xs border border-mist-strong bg-haze px-1.5 py-0.5 text-xs font-medium text-graphite">
-              <LockIcon size={11} /> Locked
-            </span>
-          </p>
-          {q.probe && (
-            <div className="mt-2 rounded-sm border border-dashed border-mist-strong px-3 py-2 text-sm">
-              <p className="text-xs text-graphite">Follow-up probe. It doesn’t change the answer above.</p>
-              <p className="mt-0.5">{q.probe.question}</p>
-              <p className="font-serif text-quote text-graphite">{q.probe.answer}</p>
-            </div>
-          )}
-        </li>
+    <div className="flex flex-col gap-7">
+      {groups.map((g) => (
+        <section key={g.title} aria-label={g.title}>
+          <h3 className="text-sm font-semibold">
+            {g.title} <span className="font-normal text-graphite tabular-nums">{g.items.length} {g.items.length === 1 ? 'question' : 'questions'}</span>
+          </h3>
+          <ol className="mt-3 flex flex-col gap-5">
+            {g.items.map((q, i) => {
+              const picked = q.format === 'multiple' ? q.answer.split(';').map((x) => x.trim()) : [q.answer]
+              return (
+                <li key={q.question}>
+                  <p className="font-medium">
+                    <span className="mr-1.5 text-graphite tabular-nums">{i + 1}.</span>
+                    {q.question}
+                  </p>
+                  <p className="text-xs text-graphite">{q.format === 'multiple' ? 'Select all that apply' : q.format === 'rating' ? 'Rating scale' : 'Pick one'}</p>
+                  {q.format === 'rating' ? (
+                    <div className="mt-2">
+                      <ul className="flex flex-wrap gap-1.5" aria-label="Scale">
+                        {q.options.map((o) => (
+                          <li key={o} className={cn('flex size-8 items-center justify-center rounded-sm text-sm tabular-nums', o === q.answer ? 'border border-ink bg-paper font-semibold' : 'border border-mist text-graphite')}>
+                            {o}
+                            {o === q.answer && <span className="sr-only"> (recorded answer)</span>}
+                          </li>
+                        ))}
+                      </ul>
+                      {q.scale && (
+                        <p className="mt-1 flex max-w-xs justify-between text-xs text-graphite">
+                          <span>1 = {q.scale.low}</span>
+                          <span>{q.options.length} = {q.scale.high}</span>
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <ul className="mt-2 flex flex-col gap-1" aria-label="Answer options">
+                      {q.options.map((o) => {
+                        const on = picked.includes(o)
+                        return (
+                          <li key={o} className={cn('flex items-center gap-2 rounded-sm px-2.5 py-1.5 text-sm', on ? 'border border-ink bg-paper font-medium' : 'text-graphite')}>
+                            <span aria-hidden="true" className={cn('flex size-3.5 items-center justify-center border-2', q.format === 'multiple' ? 'rounded-xs' : 'rounded-full', on ? 'border-ink' : 'border-mist-strong')}>
+                              {on && <span className={cn('size-1.5 bg-ink', q.format === 'multiple' ? 'rounded-[1px]' : 'rounded-full')} />}
+                            </span>
+                            {o}
+                            {on && <span className="sr-only"> (recorded answer)</span>}
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  )}
+                  <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+                    <span className="text-graphite">
+                      Recorded answer: <span className="font-medium text-ink">{picked.join(', ')}</span>, at <span className="tabular-nums">{mmss(q.answeredAtSec)}</span>
+                    </span>
+                    <span className="inline-flex items-center gap-1 rounded-xs border border-mist-strong bg-haze px-1.5 py-0.5 text-xs font-medium text-graphite">
+                      <LockIcon size={11} /> Locked
+                    </span>
+                  </p>
+                  {q.probe && (
+                    <div className="mt-2 rounded-sm border border-dashed border-mist-strong px-3 py-2 text-sm">
+                      <p className="text-xs text-graphite">Follow-up probe. It doesn’t change the answer above.</p>
+                      <p className="mt-0.5">{q.probe.question}</p>
+                      <p className="font-serif text-quote text-graphite">{q.probe.answer}</p>
+                    </div>
+                  )}
+                </li>
+              )
+            })}
+          </ol>
+        </section>
       ))}
-    </ul>
+    </div>
   )
 }
 
