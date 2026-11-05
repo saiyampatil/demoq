@@ -2,7 +2,7 @@ import { Button } from '@/components/Button'
 import { Card } from '@/components/Card'
 import { StatusChip } from '@/components/StatusChip'
 import { useToast } from '@/components/Toast'
-import { HUMAN_MODERATORS } from '@/mock/moderation'
+import { availabilityText } from '@/mock/moderation'
 import { acceptedStandby, removeStandby, requestStandbyPulse, requestStandbyRoster, resendStandby, standbyOf, type GuideDoc } from '@/state/guide'
 import { PulseModeratorPicker } from './PulseModeratorPicker'
 
@@ -23,7 +23,6 @@ export function StandbyModerators({ doc, me, language, update }: Props) {
   const toast = useToast()
   const list = standbyOf(doc.moderator)
   const accepted = acceptedStandby(doc.moderator).length
-  const availability = (rosterId?: string) => HUMAN_MODERATORS.find((h) => h.id === rosterId)?.note
 
   return (
     <div className="flex flex-col gap-4" data-testid="standby-moderators">
@@ -57,7 +56,7 @@ export function StandbyModerators({ doc, me, language, update }: Props) {
                       {t.name}
                     </th>
                     <td className="px-4 py-3 whitespace-nowrap">{t.language}</td>
-                    <td className="px-4 py-3 text-graphite">{t.assign ? 'Set when PulseAI confirms' : (availability(t.rosterId) ?? '—')}</td>
+                    <td className="px-4 py-3 text-graphite">{t.assign ? 'Set when PulseAI confirms' : (availabilityText(t.rosterId) ?? '—')}</td>
                     <td className="px-4 py-3">
                       <StatusChip status={t.status} size="sm" />
                     </td>

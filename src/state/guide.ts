@@ -77,7 +77,7 @@ export const acceptedRoster = (ids: string[], language: string): TeamMember[] =>
   })
 
 /** The id Fieldwork knows a moderator by: the roster id, or the name for someone outside the roster. */
-const moderatorKey = (t: TeamMember) => t.rosterId ?? t.name
+export const moderatorKey = (t: TeamMember) => t.rosterId ?? t.name
 
 /** Sets the team and keeps `humanIds` (what Fieldwork reads) to the accepted people. */
 export function withTeam(m: ModeratorConfig, team: TeamMember[]): ModeratorConfig {

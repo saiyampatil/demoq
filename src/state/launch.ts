@@ -2,7 +2,9 @@
 // Everything the researcher sees is computed live from the brief, audience, guide and the LaunchDoc below,
 // so a fix in an earlier module shows up the next time a launch screen renders.
 
-import { surveysOf, acceptedOf, agentName, allQuestions, configBlockers, coverage, humanNames, languageMismatches, pendingOf, totalMinutes, windowWeeks, type GuideDoc, type Question } from './guide'
+import { surveysOf, acceptedOf, acceptedStandby, agentName, allQuestions, configBlockers, coverage, humanNames, languageMismatches, moderatorKey, pendingOf, standbyOf, totalMinutes, windowWeeks, type GuideDoc, type Question } from './guide'
+import { openSlots } from './standby'
+import { STANDBY_SLOT_MIN } from '@/mock/moderation'
 import type { AudienceDoc } from './audience'
 import { now, uid } from './brief'
 import { lengthMismatch, rewardComplete, rewardLine, rewardOf, studyCountry } from './reward'
@@ -136,6 +138,8 @@ export type StudyPlan = {
   wrapUp: string[]
   mandatoryCount: number
   surveyCount: number
+  /** Whether a participant in an AI-led interview can ask to talk to a person, and who they can book. Absent in plans compiled before standby moderators existed. */
+  escalation?: { offered: boolean; slotMinutes: number; moderators: { id: string; name: string }[] }
   signature: string
 }
 export type CompileError = { text: string; questionId?: string }
@@ -199,6 +203,11 @@ export function compileStudyPlan(g: GuideDoc | undefined, language: string | nul
     wrapUp: guide.wrapUp.filter((w) => w.trim()),
     mandatoryCount: qs.filter((q) => q.mandatory).length,
     surveyCount: new Set(qs.map((q) => q.surveyId).filter(Boolean)).size,
+    escalation: {
+      offered: g.moderator.mode === 'ai' && acceptedStandby(g.moderator).length > 0,
+      slotMinutes: STANDBY_SLOT_MIN,
+      moderators: g.moderator.mode === 'ai' ? acceptedStandby(g.moderator).map((t) => ({ id: moderatorKey(t), name: t.name })) : [],
+    },
   }
   return { state: 'ok', plan: { ...body, signature: hash(JSON.stringify(body)) } }
 }
@@ -257,6 +266,25 @@ export function entryContract(i: Inputs): Row[] {
         : `Missing: ${blockers.join(', ').toLowerCase()}`,
     warn: !noAccepted && warns.length ? warns.join(' ') : undefined,
   })
+
+  // AI-led only. Optional, so it never blocks: it says whether a participant can ask for a human, and who they would book.
+  if (g?.moderator.mode === 'ai') {
+    const on = acceptedStandby(g.moderator)
+    const waiting = standbyOf(g.moderator).filter((t) => t.status === 'Requested' || t.status === 'Invited').length
+    const times = on.length ? openSlots(on.map((t) => ({ id: moderatorKey(t), name: t.name })), now()).length : 0
+    rows.push({
+      id: 'standby',
+      label: 'Human standby',
+      owner: 'R12',
+      ok: true,
+      value: on.length
+        ? `${on.map((t) => t.name).join(', ')} on standby, ${times} open ${times === 1 ? 'time' : 'times'} in the next 7 days`
+        : waiting
+          ? `Not offered yet, ${waiting} ${waiting === 1 ? 'request' : 'requests'} waiting to be accepted`
+          : 'Not offered. Participants can’t ask for a human.',
+      warn: on.length && times === 0 ? 'No open times this week, so a participant who asks for a human can only request a time.' : undefined,
+    })
+  }
 
   const def = i.audience?.def
   const pool = i.audience?.pool

@@ -52,6 +52,33 @@ export const HUMAN_MODERATORS: HumanModerator[] = [
 ]
 
 /**
+ * When each PulseAI moderator can take a participant who asks to talk to a person: one window a day, in the moderator's
+ * own time zone. A mock; in the product it comes from the moderator's calendar in the Moderator app.
+ */
+export type Availability = { timeZone: string; zone: string; /** 0 is Sunday. */ days: number[]; from: string; to: string }
+export const AVAILABILITY: Record<string, Availability> = {
+  'u-jordan': { timeZone: 'America/New_York', zone: 'ET', days: [1, 2, 3, 4, 5], from: '10:00', to: '16:00' },
+  'u-priya': { timeZone: 'America/New_York', zone: 'ET', days: [1, 2, 3, 4, 5], from: '17:00', to: '20:00' },
+  'u-sam': { timeZone: 'America/Los_Angeles', zone: 'PT', days: [2, 3, 4, 5, 6], from: '09:00', to: '15:00' },
+  'u-elena': { timeZone: 'America/Chicago', zone: 'CT', days: [1, 2, 3, 4, 5], from: '09:00', to: '15:00' },
+  'u-marta': { timeZone: 'America/Los_Angeles', zone: 'PT', days: [1, 2, 3, 4, 5], from: '09:00', to: '14:00' },
+}
+/** How long a standby booking is, how much notice it needs, and how far ahead a participant can book. */
+export const STANDBY_SLOT_MIN = 45
+export const STANDBY_NOTICE_HOURS = 2
+export const STANDBY_DAYS = 7
+
+const DAY = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+/** "Mon to Fri, 10:00 to 16:00 ET" */
+export function availabilityText(rosterId: string | undefined): string | undefined {
+  const a = rosterId ? AVAILABILITY[rosterId] : undefined
+  if (!a) return undefined
+  const first = DAY[a.days[0]]
+  const last = DAY[a.days[a.days.length - 1]]
+  return `${a.days.length === 1 ? first : `${first} to ${last}`}, ${a.from} to ${a.to} ${a.zone}`
+}
+
+/**
  * Who is available to take a participant who asks for a human, right now. Routing is by standby: the moderator who has been
  * idle longest is offered the session first, one at a time, with 60 seconds to answer. A mock; the moderator app isn't built.
  */
