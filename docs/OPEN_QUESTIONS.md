@@ -143,6 +143,8 @@ PRD gaps and conflicts found while building. Each entry says what the prototype 
 | 137 | L | In-session surveys: how many questions in a survey, and how many answers in a choice question? | 8 questions, and 2 to 8 answers (mock limits, in `SURVEY_LIMITS`). A rating scale is 1 to 5 or 1 to 7. | Open |
 | 138 | L | In-session surveys: how is a multiple choice answer stored? | One answer listing the picks, separated by semicolons. The raw structured shape is for the tech team. | Open |
 | 139 | M | In-session surveys: may a survey be corrected after it is added? The PRD says wording and options are fixed once created. | No edit. A wrong survey is switched off and a new one added. A "Duplicate as new survey" is a possible later step. | Open |
+| 140 | M | Results Analysis: when is the Codebook finished enough to move on? | Done means every code has a decision and there is at least one theme. Moving on only needs one accepted code, and warns about the rest. | Open |
+| 141 | L | Results Analysis: should Signals & tensions need every tension decided before the Report opens? | The Report opens with the Signals step (an accepted code is enough); the Signals step will warn about undecided tensions. | Open |
 
 ## Future ideas (not built)
 

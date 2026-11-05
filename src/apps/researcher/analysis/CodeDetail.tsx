@@ -56,7 +56,7 @@ export function CodeDetail({ ctx, code: c, onDecided, onOpen }: { ctx: CodebookC
   const conf = band(c.confidence)
 
   return (
-    <section aria-label={`Code: ${c.name}`} data-testid="code-detail" className="flex max-h-[calc(100vh-2rem)] flex-col rounded-md border border-mist bg-surface">
+    <section aria-label={`Code: ${c.name}`} data-testid="code-detail" className="flex max-h-[calc(100vh-8rem)] flex-col rounded-md border border-mist bg-surface">
       <div className="flex-1 overflow-y-auto">
         <header className="border-b border-mist px-5 pt-4 pb-4">
           <div className="flex flex-wrap items-center gap-2">

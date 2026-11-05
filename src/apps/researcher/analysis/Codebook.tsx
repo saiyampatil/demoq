@@ -1,19 +1,21 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { Button } from '@/components/Button'
 import { cn } from '@/components/cn'
 import { EmptyState, ErrorState, LoadingState } from '@/components/States'
 import { formatStamp } from '@/lib/format'
 import { screenById, studyPath } from '@/routes/screens'
-import { basisOf, CODEBOOK_STUDY, counts, ensureCodebook, rebuild, updateCodebook, useCodebook, type CodebookDoc } from '@/state/codebook'
+import { codebookReadiness } from '@/state/analysisProgress'
+import { CODEBOOK_STUDY, counts, rebuild, updateCodebook, type CodebookDoc } from '@/state/codebook'
 import { PageHeader } from '../../shared/PageHeader'
-import { useStudySessions } from '../useStudySessions'
 import { AnalysisStepper } from './AnalysisStepper'
 import { ChangeLog } from './ChangeLog'
+import { ContinueBar } from './ContinueBar'
 import { CodesTab, type StatusFilter } from './CodesTab'
 import { ExportButton } from './exportCodebook'
 import { ThemesTab } from './ThemesTab'
 import type { CodebookCtx } from './codebookCtx'
+import { useAnalysis } from './useAnalysis'
 
 const TABS = [
   { key: 'codes', label: 'Codes' },
@@ -24,7 +26,7 @@ type Tab = (typeof TABS)[number]['key']
 
 /** A1: the living codebook. Codes, themes and their history in one place, built on the sessions accepted in Review. */
 export function Codebook() {
-  const { studyId, study, review, me } = useStudySessions()
+  const { studyId, study, review, me, accepted, doc, basis, stale } = useAnalysis()
   const [params, setParams] = useSearchParams()
   const tab = (TABS.find((t) => t.key === params.get('tab'))?.key ?? 'codes') as Tab
   const demo = params.get('demo')
@@ -33,12 +35,8 @@ export function Codebook() {
   const [status, setStatus] = useState<StatusFilter>('Suggested')
   const [picked, setPicked] = useState<string>()
 
-  const accepted = useMemo(() => review.filter((r) => r.status === 'Accepted'), [review])
   const excluded = review.filter((r) => r.status === 'Excluded').length
   const undecided = review.filter((r) => r.status === 'Under review').length
-  if (studyId === CODEBOOK_STUDY && accepted.length) ensureCodebook(studyId, accepted.map((s) => s.id))
-  const doc = useCodebook(studyId)
-  const basis = useMemo(() => basisOf(accepted), [accepted])
 
   useEffect(() => {
     setLoaded(false)
@@ -58,7 +56,7 @@ export function Codebook() {
         meta={doc ? <BuiltOn doc={doc} accepted={accepted.length} excluded={excluded} studyId={studyId} /> : undefined}
         actions={doc && loaded && !failed ? <ExportButton doc={doc} basis={basis} studyName={study.name} /> : undefined}
       />
-      <AnalysisStepper />
+      <AnalysisStepper studyId={studyId} current="codebook" />
       {extra}
     </>
   )
@@ -150,6 +148,20 @@ export function Codebook() {
           {tab === 'log' && <ChangeLog ctx={ctx} />}
         </div>
       </div>
+
+      <ContinueBar
+        studyId={studyId}
+        readiness={codebookReadiness(doc, stale)}
+        message={
+          c.accepted === 0
+            ? 'No code is accepted yet. Accept at least one to continue.'
+            : c.suggested > 0
+              ? `${c.suggested} ${c.suggested === 1 ? 'code' : 'codes'} still to review · ${c.themes} ${c.themes === 1 ? 'theme' : 'themes'}`
+              : c.themes === 0
+                ? 'Every code has a decision. Group the accepted ones into themes, or continue.'
+                : `Every code has a decision · ${c.themes} ${c.themes === 1 ? 'theme' : 'themes'}. Next: how they said it, and where it doesn’t add up.`
+        }
+      />
     </div>
   )
 }

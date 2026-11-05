@@ -13,27 +13,35 @@ Our product decisions for the Results Analysis module. `docs/ANALYSIS_BRIEF.md` 
 - **Analysis workspace (Researcher):** codes, confidence, signals, tensions, regenerate. Work in progress.
 - **Client report (client):** only approved findings and outputs. A published, versioned snapshot. Never shows unapproved codes, excluded sessions' clips, or raw confidence.
 
-## Steps (analysis sub-stepper)
+## Steps (analysis stepper)
 
-The Base step was dropped (see docs/DECISIONS.md): Review already decides which sessions count.
+Three steps, each with one question, one decision type and one finish line. The brief's longer list of steps describes the work, not the screens. The Base step was dropped (Review already decides which sessions count; see docs/DECISIONS.md).
 
+| # | Step | The question | You decide | Done when |
+|---|---|---|---|---|
+| 1 | **Codebook** | What did people say? One screen, three tabs: Codes, Themes, Change log. Codes grouped by guide question, new codes apart. Themes only from accepted codes. A line at the top says what it is built on, and N is per question. | Accept, reject, rename, merge codes. Group them into themes. | Every code has a decision and there is at least one theme. |
+| 2 | **Signals & tensions** | How did they say it, and where does it not add up? Behaviour described, not diagnosed ("paused 2.8 s"). Key moments only, coverage always shown, never used to exclude. Tensions: said vs behaviour, said vs survey, between segments, between stimuli. Facial analysis is on hold pending a consent and legal decision. | Accept a tension (and turn it into a theme) or dismiss it with a reason. Untick signals not to use. | Every tension has a decision. |
+| 3 | **Report** | What do we tell the client? An executive summary and a finding per guide question (AI draft and Researcher draft, every sentence cited, weak or unanswered questions flagged), theme cards with video, showreel, word cloud, podcast, lenses as a switch, exports. | Edit the text, keep or remove sections and tensions, publish. | Published as version 1. |
 
-| # | Step | What it is |
-|---|---|---|
-| 1 | Codebook | One screen with three tabs: Codes, Themes and Change log. Reviewed at code level, not chunk level. Codes are grouped by guide question, and new (emergent) codes are shown separately. Themes are built only from accepted codes. A line at the top says what it is built on (sessions accepted in Review, corrected transcripts), and N is per question. |
-| 2 | Signals and tensions | Behaviour described, not diagnosed ("paused 2.8 s"). Analysed at key moments only, coverage always shown, never used to exclude. Facial analysis is on hold pending a consent and legal decision. |
-| 3 | Findings | Structured by the guide's objectives. AI draft and Researcher draft. Every sentence cited. Weak or unanswered questions flagged. |
-| 4 | Outputs | Theme cards with video (the hero output), showreel, word cloud, podcast. |
-| 5 | Lenses | Re-read the coded data through a framework. |
-| 6 | Publish | Report v1 snapshot. If a Review decision changes later, the workspace shows the analysis as stale. Published versions never change silently. |
+**What step 2 hands to the Report:** signals per code, theme and key moment (n of M people, timestamps, the model's reason); accepted tensions with both sides in n of N and their quotes; the dismissed ones stay in the log with reasons and never reach the client; coverage (video, audio-only, excluded); segment comparisons that survived, labelled directional.
 
-**Always-on side panel:** Ask (cited answers only), Numbers (segment differences labelled "directional"), Theme map, Real-time highlights.
+**Always-on side panel (all three steps):** Ask (cited answers only), Numbers (segment differences labelled "directional"), Theme map, Real-time highlights.
+
+**Publish** is a button in the Report, not a step. If a Review decision or the codebook changes later, the later steps show as out of date. Published versions never change silently.
+
+## Navigation: the researcher never has to look for the next thing to do
+
+- The stepper is on every analysis screen. Each step shows Not started, In progress or Done and one line of what is left ("16 codes to review").
+- Each screen has one primary action in the same place, a footer that says in plain words where things stand ("16 codes still to review, 2 themes") and one button to move on.
+- Continue warns but doesn't block. With nothing to warn about it moves straight on. Only having no accepted code blocks it (nothing to analyse). Going back is always free.
+- Opening Analysis lands on the first step that isn't done, so a returning Researcher resumes where they left off.
+- Each screen opens with a progress strip of what needs them, and clicking a count filters to it.
 
 ## Phases
 
-1. **Core:** Codebook (with themes), Findings, Client report.
-2. **Signals and tensions, theme videos, showreel.**
-3. **Word cloud, podcast, lenses, compare studies, translation.**
+1. **Structure and navigation** (done), then **Signals & tensions**, then **Report core** (executive summary, findings, theme cards, draft switch, regenerate, publish).
+2. **Report media:** theme videos, showreel, side panel.
+3. **Word cloud, podcast, lenses, compare studies, translation.** An optional Emotion band, only after the consent and legal decision.
 
 ## Demo study
 

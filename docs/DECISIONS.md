@@ -439,3 +439,15 @@ A row is in Needs you only if the participant cannot recover alone and a Researc
 - **Seeds:** Moisturizer has "Concept reaction" (purchase intent, appeal rating) and "Scent preference" (preferred scent, others considered). Pet Food has "Retention idea reaction" (likelihood to keep, appeal rating) and "Why they cancelled" (biggest reason, other reasons).
 - The unused `recordAnswer` in `state/fieldwork.ts` now records one question at a time. Tests that fill in the old single-question New survey dialog no longer apply.
 
+
+## Results Analysis: three steps, with the next step always in view
+
+- **The structure is Codebook → Signals & tensions → Report.** The brief's steps (codebook, signals, tensions, findings, showreel, word cloud, podcast, lenses, publish) are work, not screens. Findings, media, lenses and exports are sections of the Report; Publish is a button there. Supersedes the six-step list in the earlier entry.
+- **Signals & tensions is its own step, not part of the Codebook.** It asks a different question ("how did they say it, and where does it not add up") and makes a different kind of decision (accept or dismiss a tension, not accept or reject a code). Signals attach to accepted codes, so they would change with every rename or merge if they lived in the Codebook. Each step needs one finish line. The Codebook stays a codebook.
+- **A step's status comes from the codebook** (`state/analysisProgress.ts`): Codebook is Not started, In progress, or Done (every code decided and at least one theme). Signals & tensions and Report open once at least one code is accepted. Their own statuses start when they are built.
+- **Continue (Codebook footer):** the footer states where things stand and has one button. With nothing to warn about it moves straight on. Otherwise a short check lists accepted codes, codes still to review and themes, and warns (never blocks) about unreviewed codes, no themes, accepted codes not in a theme, and Review having changed. Only having no accepted code blocks it, with the reason on the button.
+- **Resume:** opening Analysis from the study stepper or the study's index goes to the first open step that isn't done.
+- **Stale:** if Review changed after the codebook was built, the later steps say so with an Update link.
+- **A2 and A3 are frames for now.** They show what each step takes in (live from the codebook), what you decide there and what it hands on, and say plainly they aren't built yet. They don't show any mock result.
+- The generic sub-stepper isn't used for Analysis; `AnalysisStepper` replaces it. `Tooltip` gained a `className` so a locked step fills its cell.
+

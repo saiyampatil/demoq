@@ -19,6 +19,7 @@ import { useReviewState } from '@/state/reviewState'
 import { reviewList } from '@/state/studySessions'
 import { reviewCounts, reviewProgress, targetOf } from '@/state/selectors'
 import { checkInvariants } from '@/state/invariants'
+import { resumeStep, useAnalysisSteps } from '@/state/analysisProgress'
 import { landingStep, stepInfo, type StepInfo } from '@/state/workflow'
 import { useSessionsDoc } from './useStudySessions'
 
@@ -41,6 +42,7 @@ export function StudyWorkspace() {
   setStudyTimeZone(study?.timeZone)
   const { doc: sessionsDoc } = useSessionsDoc(studyId)
   const reviewState = useReviewState()
+  const analysisSteps = useAnalysisSteps(studyId)
   const screenIdx = screenOrder(matchScreen(studyId, pathname)?.id ?? '')
 
   // Slide direction follows the screen order. The first screen shown doesn't animate.
@@ -78,7 +80,9 @@ export function StudyWorkspace() {
   const currentStep = screen?.step
   const stepperSteps: StepperStep[] = info.map((s) => {
     const items = screensForStep(s.key)
-    return { ...s, to: items[0] ? studyPath(study.id, items[0]) : pathname, current: s.key === currentStep }
+    // Opening Analysis resumes at the first step that isn't done, not always at the first.
+    const first = s.key === 'analysis' ? screenById[resumeStep(analysisSteps).screenId] : items[0]
+    return { ...s, to: first ? studyPath(study.id, first) : pathname, current: s.key === currentStep }
   })
   const audience = getAudience(study.id)
   const guideDoc = getGuide(study.id)
@@ -155,7 +159,7 @@ export function StudyWorkspace() {
                 Back to launch
               </Link>
             )}
-            {subItems.length > 1 && !lockedStep && currentStep !== 'review' && currentStep !== 'fieldwork' && <SubStepper items={subItems} />}
+            {subItems.length > 1 && !lockedStep && currentStep !== 'review' && currentStep !== 'fieldwork' && currentStep !== 'analysis' && <SubStepper items={subItems} />}
             <div key={screen?.id ?? pathname} className={moved ? (dir === 'forward' ? 'screen-in-forward' : 'screen-in-back') : undefined}>
               {lockedStep ? <LockedStep step={lockedStep} studyId={study.id} info={info} /> : <Outlet />}
             </div>
@@ -261,9 +265,10 @@ export function WorkspaceIndex() {
   const { studyId = '' } = useParams()
   const { getStudy, getBrief } = useStudies()
   const study = getStudy(studyId)
+  const analysis = useAnalysisSteps(studyId)
   if (!study) return null
   const step = landingStep(study)
-  // A drafted brief opens in the editor rather than the intake chat.
-  const target = step === 'brief' && getBrief(study.id)?.intakeComplete ? screenById.R4 : screensForStep(step)[0]
+  // A drafted brief opens in the editor rather than the intake chat. Analysis resumes at the first step not done.
+  const target = step === 'brief' && getBrief(study.id)?.intakeComplete ? screenById.R4 : step === 'analysis' ? screenById[resumeStep(analysis).screenId] : screensForStep(step)[0]
   return <Navigate to={studyPath(study.id, target)} replace />
 }

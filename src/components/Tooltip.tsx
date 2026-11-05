@@ -7,12 +7,14 @@ type TooltipProps = {
   /** Make the wrapper focusable, so keyboard users can reach the tip of a disabled control. */
   focusable?: boolean
   align?: 'left' | 'right'
+  /** Extra classes for the wrapper, e.g. `flex` so it fills its cell. */
+  className?: string
 }
 
-export function Tooltip({ content, children, focusable, align = 'right' }: TooltipProps) {
+export function Tooltip({ content, children, focusable, align = 'right', className }: TooltipProps) {
   const id = useId()
   return (
-    <span className="group relative inline-flex" tabIndex={focusable ? 0 : undefined} aria-describedby={id}>
+    <span className={cn('group relative inline-flex', className)} tabIndex={focusable ? 0 : undefined} aria-describedby={id}>
       {children}
       <span
         id={id}

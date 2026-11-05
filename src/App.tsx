@@ -12,6 +12,8 @@ import { CommandCenter } from '@/apps/researcher/fieldwork/CommandCenter'
 import { SessionRecord } from '@/apps/researcher/fieldwork/SessionRecord'
 import { SessionReview } from '@/apps/researcher/review/SessionReview'
 import { Codebook } from '@/apps/researcher/analysis/Codebook'
+import { Report } from '@/apps/researcher/analysis/Report'
+import { SignalsTensions } from '@/apps/researcher/analysis/SignalsTensions'
 import { ReviewQueue } from '@/apps/researcher/review/ReviewQueue'
 import { LaunchReadiness } from '@/apps/researcher/launch/LaunchReadiness'
 import { PreflightLaunch } from '@/apps/researcher/launch/PreflightLaunch'
@@ -65,6 +67,8 @@ const builtResearcher: Record<string, ReactNode> = {
   R21: <ReviewQueue />,
   R22: <SessionReview />,
   A1: <Codebook />,
+  A2: <SignalsTensions />,
+  A3: <Report />,
 }
 
 function Root() {
