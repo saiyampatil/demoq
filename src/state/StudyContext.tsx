@@ -327,7 +327,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       if (!guide) return prev
       const next: GuideDoc = {
         ...guide,
-        moderator: withTeam({ ...guide.moderator, mode, agentId: mode === 'ai' ? 'ava' : null, style: mode === 'ai' ? 'warm' : null }, mode === 'human' ? acceptedRoster(['u-jordan', 'u-priya'], studyLanguage(prev.briefs[MOISTURIZER_ID]) ?? '') : []),
+        moderator: { ...withTeam({ ...guide.moderator, mode, agentId: mode === 'ai' ? 'ava' : null, style: mode === 'ai' ? 'warm' : null }, mode === 'human' ? acceptedRoster(['u-jordan', 'u-priya'], studyLanguage(prev.briefs[MOISTURIZER_ID]) ?? '') : []), standby: mode === 'ai' ? acceptedRoster(['u-priya', 'u-jordan'], studyLanguage(prev.briefs[MOISTURIZER_ID]) ?? '') : undefined },
       }
       const plan = compileStudyPlan(next, studyLanguage(prev.briefs[MOISTURIZER_ID]))
       const old = prev.fieldworks[MOISTURIZER_ID]

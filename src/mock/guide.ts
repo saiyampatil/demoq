@@ -1,4 +1,4 @@
-import { draftGuide, emptyModerator, type GuideDoc, type Stimulus } from '@/state/guide'
+import { acceptedRoster, draftGuide, emptyModerator, type GuideDoc, type Stimulus } from '@/state/guide'
 import { approvedBriefSections } from '@/state/audience'
 import type { BriefDoc } from '@/state/brief'
 import { uid } from '@/state/brief'
@@ -18,7 +18,7 @@ export const seedStimuli: Stimulus[] = [
 
 /** A configured AI study with a drafted guide. `approved` also records the approval and the history behind it. */
 export function seedGuideDoc(studyId: string, brief: BriefDoc, kind: 'in-review' | 'approved', variant?: 'media-issue' | 'compile-error'): GuideDoc {
-  const moderator = { ...emptyModerator(), mode: 'ai' as const, agentId: 'ava', style: 'warm' as const, durationMin: 20 }
+  const moderator = { ...emptyModerator(), mode: 'ai' as const, agentId: 'ava', style: 'warm' as const, durationMin: 20, standby: acceptedRoster(['u-priya', 'u-jordan'], 'English (US)') }
   const stimuli = { items: structuredClone(seedStimuli), skipped: false }
   if (variant === 'media-issue') stimuli.items = stimuli.items.map((s) => (s.id === 'st-b' ? { ...s, renderOk: false } : s))
   const sections = approvedBriefSections(brief)?.sections

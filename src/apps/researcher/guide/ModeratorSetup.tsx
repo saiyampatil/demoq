@@ -16,6 +16,7 @@ import { useStudies } from '@/state/StudyContext'
 import { PageHeader } from '../../shared/PageHeader'
 import { GuideGate, ReplaceGuideModal, VersionBanner } from './GuideBits'
 import { HumanModerators } from './HumanModerators'
+import { StandbyModerators } from './StandbyModerators'
 import { useGuide } from './useGuide'
 
 const MODES: { value: Mode; title: string; description: string }[] = [
@@ -173,6 +174,8 @@ export function ModeratorSetup() {
               </fieldset>
             </div>
           </Card>
+
+          <StandbyModerators doc={doc} me={me} language={language} update={update} />
         </>
       )}
 
@@ -203,7 +206,7 @@ export function ModeratorSetup() {
         open={!!switching}
         doc={doc}
         title={`Switch to ${switching === 'ai' ? 'an AI moderator' : 'human moderators'}?`}
-        extra={switching === 'human' ? 'AI settings and surveys no longer apply, and surveys are removed from the new guide.' : 'The guide is drafted again for an AI moderator, and surveys can be added.'}
+        extra={switching === 'human' ? 'AI settings, standby moderators and surveys no longer apply, and surveys are removed from the new guide.' : 'The guide is drafted again for an AI moderator, and surveys can be added.'}
         onCancel={() => setSwitching(undefined)}
         onConfirm={() => {
           if (switching) update((d) => switchMode(d, me, switching, language))

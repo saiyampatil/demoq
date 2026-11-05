@@ -12,7 +12,7 @@ import {
   type Filter,
 } from '@/state/audience'
 import { generateFieldwork, type FieldworkContent, type FieldworkDoc } from '@/state/fieldwork'
-import { emptyModerator, type Guide, type GuideDoc, type GuideSection, type Question, type Stimulus } from '@/state/guide'
+import { acceptedRoster, emptyModerator, type Guide, type GuideDoc, type GuideSection, type Question, type Stimulus } from '@/state/guide'
 import { studyLanguage } from '@/state/language'
 import { compileStudyPlan } from '@/state/launch'
 import { seedReward } from '@/state/reward'
@@ -221,7 +221,7 @@ function petGuideContent(): Guide {
 }
 
 function petGuide(): GuideDoc {
-  const moderator = { ...emptyModerator(), mode: 'ai' as const, agentId: 'ava', style: 'warm' as const, durationMin: 25 }
+  const moderator = { ...emptyModerator(), mode: 'ai' as const, agentId: 'ava', style: 'warm' as const, durationMin: 25, standby: acceptedRoster(['u-priya', 'u-jordan'], 'English (US)') }
   const ev = (at: string, by: string, version: number, type: GuideDoc['events'][number]['type'], extra: { note?: string; feedback?: string } = {}) => ({ id: uid('ge'), at, by, version, type, ...extra })
   return {
     studyId: PET_ID,

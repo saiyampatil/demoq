@@ -30,6 +30,11 @@ export type ModeratorConfig = {
   humanIds: string[]
   /** Human-led: who was asked to moderate, and whether they accepted. Absent in studies saved before R12 had options. */
   team?: TeamMember[]
+  /**
+   * AI-led: PulseAI moderators on standby for a participant who asks to talk to a person. Optional: with none accepted,
+   * participants aren't offered a human. They are never assigned interviews, so they are kept apart from `team`.
+   */
+  standby?: TeamMember[]
 }
 
 // ─── human moderators (R12) ─────────────────────────────────────────────────
@@ -78,6 +83,10 @@ const moderatorKey = (t: TeamMember) => t.rosterId ?? t.name
 export function withTeam(m: ModeratorConfig, team: TeamMember[]): ModeratorConfig {
   return { ...m, team, humanIds: team.filter((t) => t.status === 'Accepted' && !t.assign).map(moderatorKey) }
 }
+
+export const standbyOf = (m: ModeratorConfig): TeamMember[] => m.standby ?? []
+/** The standby moderators a participant can book: only those who accepted. */
+export const acceptedStandby = (m: ModeratorConfig) => standbyOf(m).filter((t) => t.status === 'Accepted' && !t.assign)
 
 export const acceptedOf = (m: ModeratorConfig) => teamOf(m).filter((t) => t.status === 'Accepted' && !t.assign)
 export const pendingOf = (m: ModeratorConfig) => teamOf(m).filter((t) => t.status === 'Invited' || t.status === 'Requested')
@@ -319,27 +328,64 @@ const touchTeam = (doc: GuideDoc, fn: (team: TeamMember[]) => TeamMember[]): Gui
 export const resendMember = (doc: GuideDoc, id: string) =>
   touchTeam(doc, (team) => team.map((t) => (t.id === id ? { ...t, sentAt: now(), status: t.status === 'Declined' ? (t.source === 'My team' ? 'Invited' : 'Requested') : t.status } : t)))
 
+// Standby moderators (AI-led). PulseAI only: the Researcher asks for them and PulseAI confirms. Like any other setup edit,
+// adding or removing one moves an approved guide on to a new version.
+
+const withStandby = (m: ModeratorConfig, standby: TeamMember[]): ModeratorConfig => ({ ...m, standby })
+const addStandby = (doc: GuideDoc, by: string, make: (at: string) => TeamMember[], note: string) =>
+  editModerator(doc, by, (m) => withStandby(m, [...standbyOf(m), ...make(now())]), note)
+
+/** "Let PulseAI assign": a request for a number of standby moderators in the study language. */
+export const requestStandbyPulse = (doc: GuideDoc, by: string, count: number, language: string) =>
+  addStandby(
+    doc,
+    by,
+    (at) => Array.from({ length: Math.max(1, Math.floor(count)) }, (_, i) => ({ id: uid('sb'), name: `PulseAI moderator ${standbyOf(doc.moderator).length + i + 1}`, source: 'PulseAI' as const, language, status: 'Requested' as const, weeklyHours: 10, assign: true, by, sentAt: at })),
+    `Requested ${count} standby ${count === 1 ? 'moderator' : 'moderators'}`,
+  )
+
+/** "Choose specific moderators": one person from the roster, Requested until they accept. */
+export function requestStandbyRoster(doc: GuideDoc, by: string, rosterId: string, studyLanguage: string): GuideDoc {
+  const h = HUMAN_MODERATORS.find((x) => x.id === rosterId)
+  if (!h || standbyOf(doc.moderator).some((t) => t.rosterId === rosterId)) return doc
+  const language = h.languages.includes(studyLanguage) ? studyLanguage : h.languages[0]
+  return addStandby(doc, by, (at) => [{ id: uid('sb'), name: h.name, source: 'PulseAI', language, status: 'Requested', weeklyHours: h.weeklyHours, rosterId, by, sentAt: at }], `Requested ${h.name} on standby`)
+}
+
+export const removeStandby = (doc: GuideDoc, by: string, id: string) => editModerator(doc, by, (m) => withStandby(m, standbyOf(m).filter((t) => t.id !== id)), 'Removed a standby moderator')
+
+const touchStandby = (doc: GuideDoc, fn: (list: TeamMember[]) => TeamMember[]): GuideDoc => (doc.moderator.standby ? { ...doc, moderator: withStandby(doc.moderator, fn(doc.moderator.standby)) } : doc)
+
+/** Resend a request. A declined moderator is asked again. */
+export const resendStandby = (doc: GuideDoc, id: string) =>
+  touchStandby(doc, (list) => list.map((t) => (t.id === id ? { ...t, sentAt: now(), status: t.status === 'Declined' ? 'Requested' : t.status } : t)))
+
 /** Dev: the person accepts or declines. */
-export const setMemberStatus = (doc: GuideDoc, id: string, status: ModStatus) => touchTeam(doc, (team) => team.map((t) => (t.id === id ? { ...t, status } : t)))
+export const setMemberStatus = (doc: GuideDoc, id: string, status: ModStatus) => {
+  const set = (list: TeamMember[]) => list.map((t) => (t.id === id ? { ...t, status } : t))
+  return standbyOf(doc.moderator).some((t) => t.id === id) ? touchStandby(doc, set) : touchTeam(doc, set)
+}
 
 /** Dev: PulseAI confirms its assignments. Each request is matched to a roster moderator who speaks the language and isn't on the list yet. */
 export function confirmAssignments(doc: GuideDoc): GuideDoc {
-  return touchTeam(doc, (team) => {
-    const taken = new Set(team.map((t) => t.rosterId).filter(Boolean))
-    return team.map((t) => {
+  // Roster moderators already on either list are taken, so one person isn't matched twice.
+  const taken = new Set([...teamOf(doc.moderator), ...standbyOf(doc.moderator)].map((t) => t.rosterId).filter(Boolean))
+  const match = (list: TeamMember[]) =>
+    list.map((t) => {
       if (!t.assign || t.status !== 'Requested') return t
       const h = HUMAN_MODERATORS.find((x) => !taken.has(x.id) && x.languages.includes(t.language))
       if (!h) return t
       taken.add(h.id)
-      return { ...t, name: h.name, rosterId: h.id, assign: false, status: 'Accepted', weeklyHours: h.weeklyHours }
+      return { ...t, name: h.name, rosterId: h.id, assign: false, status: 'Accepted' as const, weeklyHours: h.weeklyHours }
     })
-  })
+  return doc.moderator.mode === 'ai' ? touchStandby(doc, match) : touchTeam(doc, match)
 }
 
 /** Switching AI/human. Surveys stop applying, and the guide is drafted again for the new mode. */
 export function switchMode(doc: GuideDoc, by: string, mode: Mode, language: string | null): GuideDoc {
   if (doc.moderator.mode === mode) return doc
-  const m = { ...doc.moderator, mode }
+  // Standby moderators belong to the AI-led setup, so they go when it changes.
+  const m = { ...doc.moderator, mode, standby: undefined }
   if (!doc.guide) return { ...doc, moderator: m }
   const version = doc.version + 1
   return {
