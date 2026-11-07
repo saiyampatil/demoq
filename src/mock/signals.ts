@@ -189,7 +189,7 @@ export type TensionKind = 'Said vs behaviour' | 'Said vs survey' | 'Between segm
 export const TENSION_KINDS: TensionKind[] = ['Said vs behaviour', 'Said vs survey', 'Between segments', 'Between concepts']
 
 /** What the system suggests. The numbers on each are worked out from the data when the screen opens. */
-export type TensionDef = { id: string; kind: TensionKind; title: string; summary: string; themeName: string; codeIds: string[] }
+export type TensionDef = { id: string; kind: TensionKind; title: string; summary: string; themeName: string; codeIds: string[]; /** A key moment the tension also draws on, so the Researcher can open its signals. */ momentId?: string }
 
 export const TENSION_DEFS: TensionDef[] = [
   {
@@ -207,6 +207,7 @@ export const TENSION_DEFS: TensionDef[] = [
     summary: 'The words were clear. In a number of the answers the delay, pause or fillers were not.',
     themeName: 'Flexibility: said, but not settled',
     codeIds: ['c-flex-first'],
+    momentId: 'q-flex',
   },
   {
     id: 'tn-pet-segments',
@@ -223,6 +224,7 @@ export const TENSION_DEFS: TensionDef[] = [
     summary: 'The first reaction to Concept A and the later choice point in different directions for some people.',
     themeName: 'Pause: a slow first reaction',
     codeIds: ['c-idea-pause'],
+    momentId: 'm-concept-a',
   },
   {
     id: 'tn-vet-survey',

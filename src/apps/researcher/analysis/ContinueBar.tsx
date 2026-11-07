@@ -13,7 +13,7 @@ import type { Readiness } from '@/state/analysisProgress'
  * The way forward from the Codebook. It says in plain words where things stand, and one button moves on.
  * With nothing to warn about it moves straight on; with warnings it asks first. Only having nothing to analyse blocks it.
  */
-export function ContinueBar({ studyId, readiness, message, next, previous, stay }: { studyId: string; readiness: Readiness; message: React.ReactNode; next: { screen: 'A2' | 'A3'; label: string }; previous?: { screen: 'A1' | 'A2'; label: string }; stay: string }) {
+export function ContinueBar({ studyId, readiness, message, next, previous, stay, lead }: { studyId: string; readiness: Readiness; message: React.ReactNode; next: { screen: 'A2' | 'A3'; label: string }; previous?: { screen: 'A1' | 'A2'; label: string }; stay: string; /** When something here still needs the Researcher, it leads, and moving on becomes the second choice. */ lead?: { label: string; onClick: () => void } }) {
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const to = studyPath(studyId, screenById[next.screen])
@@ -23,14 +23,19 @@ export function ContinueBar({ studyId, readiness, message, next, previous, stay 
   return (
     <>
       <WizardFooter message={message} previous={previous ? { to: studyPath(studyId, screenById[previous.screen]), label: previous.label } : undefined}>
+        {lead && (
+          <Button variant="primary" onClick={lead.onClick} data-testid="lead-action">
+            {lead.label}
+          </Button>
+        )}
         {readiness.blocked ? (
           <Tooltip content={readiness.blocked} focusable>
-            <Button variant="primary" disabled data-testid="continue-analysis">
+            <Button variant={lead ? 'secondary' : 'primary'} disabled data-testid="continue-analysis">
               {label}
             </Button>
           </Tooltip>
         ) : (
-          <Button variant="primary" data-testid="continue-analysis" onClick={() => (readiness.warnings.length ? setOpen(true) : go())}>
+          <Button variant={lead ? 'secondary' : 'primary'} data-testid="continue-analysis" onClick={() => (readiness.warnings.length ? setOpen(true) : go())}>
             {label}
           </Button>
         )}

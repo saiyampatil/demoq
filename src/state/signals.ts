@@ -241,3 +241,24 @@ export function tensionCounts(doc: CodebookDoc) {
 }
 
 export { ACCEPTED_PARTICIPANTS }
+
+// ─── what stands out ────────────────────────────────────────────────────────
+
+/** A pattern written as a sentence, with where to see it. The first thing the Researcher reads. */
+export type Standout = { id: string; kind: 'code' | 'moment' | 'tensions'; target?: string; lead: string; detail: string }
+
+export function standouts(signals: CodeSignal[], moments: MomentSignal[], toReview: number): Standout[] {
+  const out: Standout[] = []
+  signals
+    .filter((s) => s.notable)
+    .sort((a, b) => b.marked / b.people - a.marked / a.people)
+    .slice(0, 2)
+    .forEach((s) => out.push({ id: `code-${s.code.id}`, kind: 'code', target: s.code.id, lead: s.code.name, detail: `Said by ${s.people} of ${s.of}, with marked hesitation in ${s.marked} of ${s.people}.` }))
+  const top = moments.filter((m) => m.all.n >= 10).sort((a, b) => b.all.counts['Marked hesitation'] / b.all.n - a.all.counts['Marked hesitation'] / a.all.n)[0]
+  if (top && top.all.counts['Marked hesitation'] >= 3) out.push({ id: `moment-${top.moment.id}`, kind: 'moment', target: top.moment.id, lead: top.moment.label, detail: `${top.all.counts['Marked hesitation']} of ${top.all.n} showed marked hesitation, the most of any moment.` })
+  if (toReview > 0) out.push({ id: 'tensions', kind: 'tensions', lead: `${plural(toReview, 'tension')} to review`, detail: 'Where what people said doesn’t add up.' })
+  return out
+}
+
+/** The tensions that draw on a code, so a code's panel can lead to them. */
+export const tensionsFor = (tensions: Tension[], codeId: string) => tensions.filter((t) => t.codeIds.includes(codeId) && !t.unavailable)

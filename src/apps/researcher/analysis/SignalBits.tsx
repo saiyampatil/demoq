@@ -64,6 +64,17 @@ export function BandLegend() {
 export const playHref = (studyId: string, sessionId: string, atSec: number) =>
   `${studyPath(studyId, { ...screenById.R22, path: screenById.R22.path.replace(':sessionId', sessionId) })}?from=signals&at=${atSec}`
 
+/** How long the answer took to start, against this person's own usual (the tick). Four seconds fills the bar. */
+export function DelayBar({ delay, usual, hot }: { delay: number; usual: number; hot: boolean }) {
+  const max = 4
+  return (
+    <span className="relative inline-block h-1.5 w-20 rounded-full bg-haze align-middle" role="img" aria-label={`${delay} seconds, this person usually takes ${usual}`}>
+      <span className={cn('absolute inset-y-0 left-0 rounded-full', hot ? 'bg-iris-600' : 'bg-graphite/40')} style={{ width: `${Math.min(delay / max, 1) * 100}%` }} />
+      <span className="absolute -top-0.5 h-2.5 w-px bg-ink" style={{ left: `${Math.min(usual / max, 1) * 100}%` }} title={`Usual: ${usual} s`} />
+    </span>
+  )
+}
+
 /** One person at one moment: what was measured, the reason in words, the quote if there is one, and Play. */
 export function PointCard({ point: p, studyId }: { point: Point; studyId: string }) {
   const signs = signsOf(p.facts, p.usual)
@@ -78,8 +89,12 @@ export function PointCard({ point: p, studyId }: { point: Point; studyId: string
         <BandChip band={p.band} />
       </div>
       {p.excerpt && <p className="mt-1.5 font-serif text-quote leading-snug text-ink">“{p.excerpt.text}”</p>}
-      <p className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-sm tabular-nums">
-        {fact(signs.includes('delay'), `Answer delay ${p.facts.delaySec} s`)}
+      <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm tabular-nums">
+        <span className="inline-flex items-center gap-2">
+          {fact(signs.includes('delay'), `Answer delay ${p.facts.delaySec} s`)}
+          <DelayBar delay={p.facts.delaySec} usual={p.usual} hot={signs.includes('delay')} />
+          <span className="text-xs text-muted">usual {p.usual} s</span>
+        </span>
         {fact(signs.includes('pause'), `Longest pause ${p.facts.pauseSec} s`)}
         {fact(signs.includes('fillers'), `${p.facts.fillers} ${p.facts.fillers === 1 ? 'filler' : 'fillers'}`)}
       </p>

@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { useSearchParams } from 'react-router'
+import { useEffect, useMemo, useState } from 'react'
+import { useNavigate, useSearchParams } from 'react-router'
 import { Banner } from '@/components/Banner'
 import { Button } from '@/components/Button'
 import { cn } from '@/components/cn'
@@ -8,11 +8,11 @@ import { Tooltip } from '@/components/Tooltip'
 import { screenById, studyPath } from '@/routes/screens'
 import { signalsReadiness } from '@/state/analysisProgress'
 import { CODEBOOK_STUDY, updateCodebook } from '@/state/codebook'
-import { codeSignals, coverage, tensionCounts, plural } from '@/state/signals'
+import { codeSignals, coverage, plural, tensionCounts, tensionsOf } from '@/state/signals'
 import { PageHeader } from '../../shared/PageHeader'
 import { AnalysisStepper } from './AnalysisStepper'
 import { ContinueBar } from './ContinueBar'
-import { SignalsTab } from './SignalsTab'
+import { SignalsTab, type SignalFocus } from './SignalsTab'
 import { TensionsTab, type TensionFilter } from './TensionsTab'
 import type { CodebookCtx } from './codebookCtx'
 import { useAnalysis } from './useAnalysis'
@@ -26,11 +26,14 @@ type Tab = (typeof TABS)[number]['key']
 /** A2: how they said it, and where what they said doesn't add up. Measured on the codes accepted in the codebook. */
 export function SignalsTensions() {
   const { studyId, study, review, me, accepted, doc, basis, stale, ready } = useAnalysis()
+  const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
   const tab = (TABS.find((t) => t.key === params.get('tab'))?.key ?? 'signals') as Tab
   const [loaded, setLoaded] = useState(false)
   const [failed, setFailed] = useState(params.get('demo') === 'error')
   const [filter, setFilter] = useState<TensionFilter>('Suggested')
+  const [focus, setFocus] = useState<SignalFocus>({ view: 'code' })
+  const [focusTension, setFocusTension] = useState<string>()
 
   useEffect(() => {
     setLoaded(false)
@@ -38,9 +41,13 @@ export function SignalsTensions() {
     return () => clearTimeout(t)
   }, [studyId])
 
+  const tensions = useMemo(() => (doc ? tensionsOf(doc, basis) : []), [doc, basis])
+
   if (!study) return null
   const excluded = review.filter((r) => r.status === 'Excluded').length
   const go = (t: Tab) => setParams((p) => (t === 'signals' ? p.delete('tab') : p.set('tab', t), p), { replace: true })
+  /** Moving between the two tabs or to a card brings the content into view, so the Researcher never has to hunt for it. */
+  const toPanel = () => setTimeout(() => document.getElementById('signals-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60)
 
   const header = (
     <>
@@ -86,14 +93,28 @@ export function SignalsTensions() {
   const ctx: CodebookCtx = { doc, basis, me, studyId, act: (fn) => updateCodebook(studyId, fn) }
   const cov = coverage(accepted, excluded)
   const t = tensionCounts(doc)
-  const notable = codeSignals(doc, basis).filter((s) => s.notable).length
+  const used = codeSignals(doc, basis).filter((s) => s.use).length
+
   const showTensions = (f: TensionFilter) => {
     setFilter(f)
     go('tensions')
+    toPanel()
   }
+  const openTension = (id: string) => {
+    setFilter('All')
+    setFocusTension(id)
+    go('tensions')
+    toPanel()
+  }
+  const seeSignals = (codeId?: string, momentId?: string) => {
+    setFocus(momentId ? { view: 'moment', moment: momentId } : { view: 'code', code: codeId })
+    go('signals')
+    toPanel()
+  }
+  const toReportPath = studyPath(studyId, screenById.A3)
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-5">
       {header}
 
       {stale && (
@@ -102,8 +123,10 @@ export function SignalsTensions() {
         </Banner>
       )}
 
-      <Coverage cov={cov} />
-      <Summary t={t} notable={notable} tab={tab} filter={filter} onSignals={() => go('signals')} onPick={showTensions} />
+      <div className="flex flex-col gap-2">
+        <Progress t={t} tab={tab} filter={filter} onPick={showTensions} />
+        <CoverageLine cov={cov} />
+      </div>
 
       <div>
         <div role="tablist" aria-label="Signals and tensions" className="flex gap-1 border-b border-mist">
@@ -116,16 +139,29 @@ export function SignalsTensions() {
               aria-selected={tab === x.key}
               aria-controls="signals-panel"
               onClick={() => go(x.key)}
-              className={cn('-mb-px border-b-2 px-3 py-2 text-sm font-medium', tab === x.key ? 'border-ink text-ink' : 'border-transparent text-graphite hover:text-ink')}
+              className={cn('-mb-px flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium', tab === x.key ? 'border-ink text-ink' : 'border-transparent text-graphite hover:text-ink')}
             >
               {x.label}
-              {x.key === 'tensions' && <span className="ml-1.5 text-xs text-muted tabular-nums">{t.total}</span>}
+              {x.key === 'tensions' && t.toReview > 0 && (
+                <span className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-pending-bg px-1 text-[11px] font-semibold text-pending-fg" aria-label={`${t.toReview} to review`} data-testid="tensions-badge">
+                  {t.toReview}
+                </span>
+              )}
             </button>
           ))}
         </div>
-        <div id="signals-panel" role="tabpanel" aria-labelledby={`sttab-${tab}`} className="pt-5">
-          {tab === 'signals' && <SignalsTab ctx={ctx} onOpenTensions={() => go('tensions')} />}
-          {tab === 'tensions' && <TensionsTab ctx={ctx} filter={filter} setFilter={setFilter} />}
+        <div id="signals-panel" role="tabpanel" aria-labelledby={`sttab-${tab}`} className="scroll-mt-4 pt-5">
+          {tab === 'signals' && (
+            <SignalsTab
+              ctx={ctx}
+              focus={focus}
+              setFocus={setFocus}
+              tensions={tensions}
+              onOpenTensions={() => showTensions('Suggested')}
+              onOpenTension={openTension}
+            />
+          )}
+          {tab === 'tensions' && <TensionsTab ctx={ctx} filter={filter} setFilter={setFilter} focusId={focusTension} onSeeSignals={seeSignals} onContinue={() => navigate(toReportPath)} />}
         </div>
       </div>
 
@@ -135,44 +171,35 @@ export function SignalsTensions() {
         previous={{ screen: 'A1', label: 'Codebook' }}
         next={{ screen: 'A3', label: 'Continue to Report' }}
         stay="Keep working on tensions"
+        lead={tab === 'signals' && t.toReview > 0 ? { label: `Review ${plural(t.toReview, 'tension')}`, onClick: () => showTensions('Suggested') } : undefined}
         message={
-          t.toReview > 0
-            ? `${plural(t.toReview, 'tension')} still to review · ${plural(t.themes, 'theme')} made`
-            : `Every tension has a decision · ${plural(t.themes, 'theme')} made. Next: the report.`
+          <>
+            Goes to the report: {plural(used, 'signal pattern')} and {plural(t.themes, 'tension theme')}.
+            {t.toReview > 0 ? <span className="ml-1.5 font-medium text-pending-fg">{plural(t.toReview, 'tension')} still to review.</span> : <span className="ml-1.5 text-positive-fg">Every tension is decided.</span>}
+          </>
         }
       />
     </div>
   )
 }
 
-/** What the signals are measured on, and what isn't. Always shown, so nobody reads more into them than is there. */
-function Coverage({ cov }: { cov: ReturnType<typeof coverage> }) {
-  const item = (label: string, value: string, note?: string) => (
-    <div className="flex flex-col px-5 py-3">
-      <dt className="text-xs text-graphite">{label}</dt>
-      <dd className="mt-0.5 text-sm">
-        <span className="text-base font-semibold tabular-nums">{value}</span>
-        {note && <span className="ml-1.5 text-xs text-graphite">{note}</span>}
-      </dd>
-    </div>
-  )
+/** What the signals are measured on, and what isn't, in one quiet line. Always shown, so nobody reads more into them than is there. */
+function CoverageLine({ cov }: { cov: ReturnType<typeof coverage> }) {
   return (
-    <section aria-label="What the signals are measured on" className="rounded-md border border-mist bg-surface">
-      <dl className="flex flex-wrap divide-x divide-mist" data-testid="coverage">
-        {item('Audio signals', `${cov.sessions} of ${cov.sessions}`, 'sessions')}
-        {item('Video', `${cov.video} of ${cov.sessions}`, cov.audioOnly ? `${cov.audioOnly} audio-only` : undefined)}
-        {item('Left out', String(cov.excluded), 'excluded in Review')}
-        <div className="flex flex-1 items-center justify-end px-5 py-3">
-          <Tooltip content="Reading emotion from faces is on hold until the consent and legal decision is made." focusable>
-            <span className="inline-flex h-6 items-center rounded-xs border border-dashed border-mist-strong px-2 text-xs font-medium text-graphite">Facial analysis: on hold</span>
-          </Tooltip>
-        </div>
-      </dl>
-    </section>
+    <p className="flex flex-wrap items-center gap-x-2 gap-y-1 px-1 text-sm text-graphite" data-testid="coverage">
+      <span>
+        Measured on <span className="font-medium text-ink tabular-nums">{cov.sessions}</span> accepted sessions: audio for all, video for <span className="font-medium text-ink tabular-nums">{cov.video}</span>
+        {cov.audioOnly > 0 && ` (${cov.audioOnly} audio-only)`}. {cov.excluded > 0 && `${cov.excluded} excluded in Review are left out.`}
+      </span>
+      <Tooltip content="Reading emotion from faces is on hold until the consent and legal decision is made." focusable align="left">
+        <span className="inline-flex h-5 items-center rounded-xs border border-dashed border-mist-strong px-1.5 text-xs font-medium">Facial analysis: on hold</span>
+      </Tooltip>
+    </p>
   )
 }
 
-function Summary({ t, notable, tab, filter, onSignals, onPick }: { t: ReturnType<typeof tensionCounts>; notable: number; tab: Tab; filter: TensionFilter; onSignals: () => void; onPick: (f: TensionFilter) => void }) {
+/** One strip: how far the tensions are, and each status as a filter. The signals themselves have no decision to count. */
+function Progress({ t, tab, filter, onPick }: { t: ReturnType<typeof tensionCounts>; tab: Tab; filter: TensionFilter; onPick: (f: TensionFilter) => void }) {
   const items: { key: TensionFilter; label: string; n: number; tone: string }[] = [
     { key: 'Suggested', label: 'To review', n: t.toReview, tone: 'bg-pending-fg' },
     { key: 'Turned into a theme', label: 'Turned into themes', n: t.themes, tone: 'bg-positive-fg' },
@@ -180,15 +207,8 @@ function Summary({ t, notable, tab, filter, onSignals, onPick }: { t: ReturnType
   ]
   const decided = t.total - t.toReview
   return (
-    <section aria-label="Signals and tensions at a glance" className="flex flex-wrap items-stretch rounded-md border border-mist bg-surface">
-      <button type="button" onClick={onSignals} className="flex min-w-48 flex-col items-start justify-center gap-0.5 px-5 py-3.5 text-left hover:bg-haze">
-        <span className="text-sm text-graphite">Worth a look</span>
-        <span className="flex items-baseline gap-1.5">
-          <span className="text-lg font-semibold tabular-nums">{notable}</span>
-          <span className="text-sm text-graphite">{notable === 1 ? 'code' : 'codes'} with a pattern</span>
-        </span>
-      </button>
-      <div className="flex min-w-56 flex-1 flex-col justify-center gap-2 border-l border-mist px-5 py-3.5">
+    <section aria-label="Tensions at a glance" className="flex flex-wrap items-stretch rounded-md border border-mist bg-surface">
+      <div className="flex min-w-56 flex-1 flex-col justify-center gap-2 px-5 py-3">
         <p className="text-sm text-graphite">
           <span className="text-lg font-semibold text-ink tabular-nums">{decided}</span> of <span className="tabular-nums">{t.total}</span> tensions decided
         </p>
@@ -206,7 +226,7 @@ function Summary({ t, notable, tab, filter, onSignals, onPick }: { t: ReturnType
             aria-pressed={tab === 'tensions' && filter === i.key}
             onClick={() => onPick(i.key)}
             data-testid={`sum-${i.key}`}
-            className={cn('flex min-w-28 flex-col items-start justify-center gap-0.5 border-r border-mist px-4 py-3 text-left last:border-r-0 hover:bg-haze', tab === 'tensions' && filter === i.key && 'bg-paper shadow-[inset_0_-2px_0_var(--color-ink)]')}
+            className={cn('flex min-w-28 flex-col items-start justify-center gap-0.5 border-r border-mist px-4 py-2.5 text-left last:border-r-0 hover:bg-haze', tab === 'tensions' && filter === i.key && 'bg-paper shadow-[inset_0_-2px_0_var(--color-ink)]')}
           >
             <span className="flex items-center gap-1.5 text-sm text-graphite">
               <span aria-hidden="true" className={cn('size-2 rounded-full', i.tone)} />

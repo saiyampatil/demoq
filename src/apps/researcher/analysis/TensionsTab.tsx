@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router'
 import { AIGeneratedTag } from '@/components/AIGenerated'
 import { Button } from '@/components/Button'
@@ -10,6 +10,7 @@ import { EmptyState } from '@/components/States'
 import { StatusChip } from '@/components/StatusChip'
 import { useToast } from '@/components/Toast'
 import { formatStamp } from '@/lib/format'
+import { MOMENTS } from '@/mock/signals'
 import { screenById, studyPath } from '@/routes/screens'
 import { dismissTension, restoreTension, turnTensionIntoTheme } from '@/state/codebook'
 import { TENSION_KINDS, tensionsOf, type Side, type Tension, type TensionKind, type TensionStatus } from '@/state/signals'
@@ -33,7 +34,7 @@ const KIND_HINT: Record<TensionKind, string> = {
 }
 
 /** Where what people said doesn't add up. PulseAI suggests each one; you turn it into a theme or dismiss it, and say why. */
-export function TensionsTab({ ctx, filter, setFilter }: { ctx: CodebookCtx; filter: TensionFilter; setFilter: (f: TensionFilter) => void }) {
+export function TensionsTab({ ctx, filter, setFilter, focusId, onSeeSignals, onContinue }: { ctx: CodebookCtx; filter: TensionFilter; setFilter: (f: TensionFilter) => void; focusId?: string; onSeeSignals: (codeId?: string, momentId?: string) => void; onContinue: () => void }) {
   const [kind, setKind] = useState<TensionKind | 'all'>('all')
   const [turning, setTurning] = useState<Tension>()
   const [dismissing, setDismissing] = useState<Tension>()
@@ -72,14 +73,30 @@ export function TensionsTab({ ctx, filter, setFilter }: { ctx: CodebookCtx; filt
             title={filter === 'Suggested' && kind === 'all' ? 'Every tension has a decision' : 'No tensions match'}
             description={filter === 'Suggested' && kind === 'all' ? 'Nothing is waiting for you here. Continue to the report when you’re ready.' : 'Try another status or type.'}
             action={
-              <Button
-                onClick={() => {
-                  setFilter('All')
-                  setKind('all')
-                }}
-              >
-                Show all tensions
-              </Button>
+              filter === 'Suggested' && kind === 'all' ? (
+                <div className="flex flex-wrap items-center justify-center gap-2">
+                  <Button variant="primary" onClick={onContinue} data-testid="empty-continue">
+                    Continue to Report
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      setFilter('All')
+                      setKind('all')
+                    }}
+                  >
+                    Show all tensions
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  onClick={() => {
+                    setFilter('All')
+                    setKind('all')
+                  }}
+                >
+                  Show all tensions
+                </Button>
+              )
             }
           />
         </div>
@@ -90,6 +107,8 @@ export function TensionsTab({ ctx, filter, setFilter }: { ctx: CodebookCtx; filt
               key={t.id}
               t={t}
               ctx={ctx}
+              focused={focusId === t.id}
+              onSeeSignals={onSeeSignals}
               onTurn={() => setTurning(t)}
               onDismiss={() => setDismissing(t)}
               onRestore={() => {
@@ -119,11 +138,23 @@ export function TensionsTab({ ctx, filter, setFilter }: { ctx: CodebookCtx; filt
   )
 }
 
-function TensionCard({ t, ctx, onTurn, onDismiss, onRestore }: { t: Tension; ctx: CodebookCtx; onTurn: () => void; onDismiss: () => void; onRestore: () => void }) {
+function TensionCard({ t, ctx, focused, onSeeSignals, onTurn, onDismiss, onRestore }: { t: Tension; ctx: CodebookCtx; focused: boolean; onSeeSignals: (codeId?: string, momentId?: string) => void; onTurn: () => void; onDismiss: () => void; onRestore: () => void }) {
   const dim = t.status === 'Dismissed' || !!t.unavailable
   const theme = t.decision?.themeId ? ctx.doc.themes.find((x) => x.id === t.decision?.themeId) : undefined
+  const ref = useRef<HTMLLIElement>(null)
+  const [ring, setRing] = useState(false)
+  // Arriving from a code's panel scrolls to this card and marks it for a moment.
+  useEffect(() => {
+    if (!focused) return
+    ref.current?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    setRing(true)
+    const id = setTimeout(() => setRing(false), 2200)
+    return () => clearTimeout(id)
+  }, [focused])
+  const codes = t.codeIds.map((id) => ctx.doc.codes.find((c) => c.id === id)).filter(Boolean)
+  const moment = MOMENTS.find((m) => m.id === t.momentId)
   return (
-    <li data-testid="tension-card" data-status={t.status} className={cn('rounded-md border bg-surface', dim ? 'border-mist bg-paper' : 'border-mist')}>
+    <li ref={ref} id={`tension-${t.id}`} data-testid="tension-card" data-status={t.status} className={cn('rounded-md border bg-surface transition-shadow', dim ? 'border-mist bg-paper' : 'border-mist', ring && 'border-iris-600 shadow-[0_0_0_3px_var(--color-iris-100)]')}>
       <header className="flex flex-wrap items-center gap-2 px-5 pt-4">
         <span className="inline-flex h-5 items-center rounded-xs border border-mist-strong bg-surface px-1.5 text-xs font-medium text-graphite" title={KIND_HINT[t.kind]}>
           {t.kind}
@@ -135,16 +166,39 @@ function TensionCard({ t, ctx, onTurn, onDismiss, onRestore }: { t: Tension; ctx
       <div className="px-5 pt-2.5 pb-4">
         <h3 className={cn('text-md leading-snug font-semibold', dim && 'text-graphite')}>{t.title}</h3>
         <p className="mt-1 text-sm text-graphite">{t.summary}</p>
+        {!t.unavailable && (
+          <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-graphite">
+            See the signals:
+            {[
+              ...codes.map((c) => ({ key: c!.id, label: c!.name, test: 'see-signals', onClick: () => onSeeSignals(c!.id) })),
+              ...(moment ? [{ key: moment.id, label: moment.label, test: 'see-moment', onClick: () => onSeeSignals(undefined, moment.id) }] : []),
+            ].map((l, i) => (
+              <span key={l.key} className="inline-flex items-center gap-2">
+                {i > 0 && <span aria-hidden="true">·</span>}
+                <button type="button" onClick={l.onClick} data-testid={l.test} className="rounded-xs font-medium text-iris-700 hover:underline">
+                  {l.label}
+                </button>
+              </span>
+            ))}
+          </p>
+        )}
 
         {t.unavailable ? (
           <p className="mt-3 rounded-sm border border-pending-line bg-pending-bg px-3 py-2 text-sm text-pending-fg">{t.unavailable}</p>
         ) : (
           <>
-            <div className={cn('mt-4 grid gap-3', t.sides.length > 2 ? 'sm:grid-cols-2' : 'sm:grid-cols-2')} data-testid="tension-sides">
-              {t.sides.map((s, i) => (
-                <SideBlock key={i} s={s} dim={dim} />
-              ))}
-            </div>
+            {t.kind === 'Between segments' && t.sides.length === 4 ? (
+              <SegmentChart sides={t.sides} />
+            ) : (
+              <div className="mt-4 grid items-stretch gap-2 sm:grid-cols-[1fr_auto_1fr]" data-testid="tension-sides">
+                <SideBlock s={t.sides[0]} dim={dim} />
+                <div className="flex items-center justify-center gap-1 text-xs text-graphite sm:flex-col" aria-hidden="true">
+                  <span>of those</span>
+                  <span className="text-base">→</span>
+                </div>
+                <SideBlock s={t.sides[1]} dim={dim} />
+              </div>
+            )}
             {t.caution && <p className="mt-2 text-xs text-pending-fg">{t.caution}</p>}
 
             {t.clips.length > 0 && (
@@ -206,6 +260,44 @@ function TensionCard({ t, ctx, onTurn, onDismiss, onRestore }: { t: Tension; ctx
         </footer>
       ) : null}
     </li>
+  )
+}
+
+/** The same question, answered by two groups: one row per answer, a bar each for cat and dog owners, sized by the share of that group. */
+function SegmentChart({ sides }: { sides: Side[] }) {
+  const rows = [
+    { label: 'Said flexibility matters more', cat: sides[0], dog: sides[2] },
+    { label: 'Said price matters more', cat: sides[1], dog: sides[3] },
+  ]
+  const bar = (s: Side, tone: string) => (
+    <div className="flex items-center gap-2">
+      <span className="h-2 flex-1 overflow-hidden rounded-full bg-haze" aria-hidden="true">
+        <span className={cn('block h-full rounded-full', tone)} style={{ width: `${s.of ? (s.n / s.of) * 100 : 0}%` }} />
+      </span>
+      <span className="w-14 shrink-0 text-xs text-graphite tabular-nums">
+        <span className="font-semibold text-ink">{s.n}</span> of {s.of}
+      </span>
+    </div>
+  )
+  return (
+    <div className="mt-4 rounded-sm border border-mist px-4 py-3" data-testid="segment-chart">
+      <div className="grid grid-cols-[9.5rem_1fr_1fr] items-center gap-x-4 gap-y-2.5 text-sm">
+        <span />
+        <span className="flex items-center gap-1.5 text-xs font-medium text-graphite">
+          <span aria-hidden="true" className="size-2 rounded-full bg-iris-300" /> Cat owners
+        </span>
+        <span className="flex items-center gap-1.5 text-xs font-medium text-graphite">
+          <span aria-hidden="true" className="size-2 rounded-full bg-ink" /> Dog owners
+        </span>
+        {rows.map((r) => (
+          <div key={r.label} className="contents">
+            <span>{r.label}</span>
+            {bar(r.cat, 'bg-iris-300')}
+            {bar(r.dog, 'bg-ink')}
+          </div>
+        ))}
+      </div>
+    </div>
   )
 }
 
