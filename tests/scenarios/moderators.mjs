@@ -211,5 +211,25 @@ export default async ({ b, out, stage, mutate, open, prefix }) => {
   out.humanIds = ids
   if (JSON.stringify(ids) !== JSON.stringify(['Dana Whitfield'])) throw new Error('FAILED: humanIdsOf must follow the team list: ' + JSON.stringify(ids))
   out.checks['humanIdsOf follows the team list, not the saved humanIds'] = true
+
+  // ───────────────── Standby people off the roster still offer times (mock default window) ─────────────────
+  await stage('Ready to launch')
+  const me = { id: 'sb-me', name: 'Maya Ortiz', source: 'Myself', language: 'English (US)', status: 'Accepted', weeklyHours: 8, by: 'Maya Ortiz', sentAt: '2026-11-08T10:00:00-05:00' }
+  await mutate(`(s)=>{const g=s.guides[${JSON.stringify(GUIDE)}];g.moderator.mode='ai';g.moderator.standby=[${JSON.stringify(me)}]}`)
+  await open('/launch/readiness')
+  const standbyRow = `[...document.querySelectorAll('[aria-label="Entry contract"] li')].find(l=>/^Human standby/.test(l.innerText))`
+  await expect('R15: only the researcher on standby still has open times', `(()=>{const li=${standbyRow};const m=li?.innerText.match(/(\\d+) open times? in the next 7 days/);return !!m&&Number(m[1])>0&&!/No open times/.test(li.innerText)})()`)
+  out.r15standby = await b.evaluate(`${standbyRow}?.innerText.replace(/\\s+/g,' ')`)
+  await open('/guide/moderator')
+  await expect('R12: their availability is shown, labelled as a mock default', `(()=>{const r=[...document.querySelectorAll('[data-testid=standby-row]')].find(r=>r.innerText.includes('Maya Ortiz'));return !!r&&/Mon to Fri, 10:00 to 16:00 ET/.test(r.innerText)&&/Mock default/.test(r.querySelector('[data-testid=availability-mock]')?.innerText||'')})()`)
+  const teamMe = { id: 'sb-t', name: 'Dana Whitfield', email: 'dana.whitfield@verdane.com', source: 'My team', language: 'English (US)', status: 'Invited', weeklyHours: 6, teamId: 'tm-dana', by: 'Maya Ortiz', sentAt: '2026-11-08T10:00:00-05:00' }
+  await mutate(`(s)=>{const g=s.guides[${JSON.stringify(GUIDE)}];g.moderator.standby=[${JSON.stringify(teamMe)}]}`)
+  await open('/launch/readiness')
+  await expect('R15: a team person (Active in the list) alone on standby has open times', `(()=>{const li=${standbyRow};const m=li?.innerText.match(/Dana Whitfield on standby, (\\d+) open times?/);return !!m&&Number(m[1])>0})()`)
+  const slots = await b.evaluate(`import('/src/state/standby.ts').then(m=>m.openSlots([{id:'Maya Ortiz',name:'Maya Ortiz'}],new Date().toISOString()).map(x=>x.start))`)
+  out.defaultSlotCount = slots.length
+  const offHours = await b.evaluate(`import('/src/state/standby.ts').then(m=>m.openSlots([{id:'Maya Ortiz',name:'Maya Ortiz'}],new Date().toISOString()).filter(x=>{const p=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',weekday:'short',hour:'numeric',minute:'numeric',hourCycle:'h23'}).formatToParts(new Date(x.start));const g=t=>p.find(y=>y.type===t).value;const h=Number(g('hour'))*60+Number(g('minute'));return ['Sat','Sun'].includes(g('weekday'))||h<600||h+45>960}).length)`)
+  if (offHours !== 0 || slots.length === 0) throw new Error('FAILED: default slots must be Monday to Friday, 10:00 to 16:00 ET')
+  out.checks['default slots are Mon to Fri, 10:00 to 16:00 ET'] = true
   out.inv = await b.evaluate(`window.__invariants`)
 }

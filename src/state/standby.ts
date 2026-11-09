@@ -1,7 +1,7 @@
 // Standby moderators: the times a participant who asks to talk to a person can book. Pure, so the same function serves
 // Launch (how many open times there are) and Fieldwork (which slot was booked).
 
-import { AVAILABILITY, STANDBY_DAYS, STANDBY_NOTICE_HOURS, STANDBY_SLOT_MIN } from '@/mock/moderation'
+import { availabilityFor, STANDBY_DAYS, STANDBY_NOTICE_HOURS, STANDBY_SLOT_MIN } from '@/mock/moderation'
 
 export type Slot = { moderatorId: string; name: string; /** UTC instants. Show them with formatSlot, which adds the zone. */ start: string; end: string }
 
@@ -36,8 +36,8 @@ export function openSlots(moderators: { id: string; name: string }[], from: stri
   const latest = start + STANDBY_DAYS * 86400000
   const out: Slot[] = []
   for (const mod of moderators) {
-    const a = AVAILABILITY[mod.id]
-    if (!a) continue
+    // Someone off the PulseAI roster gets the mock default window, so a study with only them on standby still offers times.
+    const { availability: a } = availabilityFor(mod.id)
     const today = localDate(a.timeZone, start)
     const [fh, fm] = a.from.split(':').map(Number)
     const [th, tm] = a.to.split(':').map(Number)

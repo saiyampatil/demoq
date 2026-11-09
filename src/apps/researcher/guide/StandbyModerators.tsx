@@ -68,7 +68,13 @@ export function StandbyModerators({ doc, me, language, update }: Props) {
                       {t.email && <span className="block text-xs font-normal text-graphite">{t.email}</span>}
                     </th>
                     <td className="px-4 py-3 whitespace-nowrap">{SOURCE_LABEL[t.source]}</td>
-                    <td className="px-4 py-3 text-graphite">{t.assign ? '—' : (availabilityText(t.rosterId) ?? 'Set in the Moderator app')}</td>
+                    <td className="px-4 py-3 text-graphite">
+                      {t.assign ? (
+                        '—'
+                      ) : (
+                        <AvailabilityCell id={t.rosterId} />
+                      )}
+                    </td>
                     <td className="px-4 py-3">
                       <MemberStatus t={t} />
                     </td>
@@ -103,6 +109,21 @@ export function StandbyModerators({ doc, me, language, update }: Props) {
             {invited > 0 && ` ${invited} invited ${invited === 1 ? 'person has' : 'people have'} not accepted yet and ${invited === 1 ? 'isn’t' : 'aren’t'} counted.`}
           </p>
         </Card>
+      )}
+    </div>
+  )
+}
+
+/** A roster moderator's own window, or the mock default for someone who isn't on the roster, labelled as such. */
+function AvailabilityCell({ id }: { id: string | undefined }) {
+  const { text, mock } = availabilityText(id)
+  return (
+    <div>
+      <span className="whitespace-nowrap">{text}</span>
+      {mock && (
+        <span className="mt-0.5 block text-xs" data-testid="availability-mock">
+          Mock default. In the product it comes from their own Moderator calendar.
+        </span>
       )}
     </div>
   )

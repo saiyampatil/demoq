@@ -63,19 +63,31 @@ export const AVAILABILITY: Record<string, Availability> = {
   'u-elena': { timeZone: 'America/Chicago', zone: 'CT', days: [1, 2, 3, 4, 5], from: '09:00', to: '15:00' },
   'u-marta': { timeZone: 'America/Los_Angeles', zone: 'PT', days: [1, 2, 3, 4, 5], from: '09:00', to: '14:00' },
 }
+/**
+ * A mock default for standby people who aren't on the PulseAI roster (the Researcher, or someone from the team): Monday to
+ * Friday, 10:00 to 16:00 in the study's time zone. In the product it comes from the person's own Moderator dashboard calendar.
+ * The study has no time-zone setting yet, so the prototype's studies are all US Eastern (docs/OPEN_QUESTIONS.md).
+ */
+export const STUDY_ZONE = { timeZone: 'America/New_York', zone: 'ET' } as const
+export const DEFAULT_AVAILABILITY: Availability = { ...STUDY_ZONE, days: [1, 2, 3, 4, 5], from: '10:00', to: '16:00' }
+/** When a standby person can take a participant: their own window if they are on the roster, the mock default if not. */
+export const availabilityFor = (id: string | undefined): { availability: Availability; mock: boolean } => {
+  const own = id ? AVAILABILITY[id] : undefined
+  return own ? { availability: own, mock: false } : { availability: DEFAULT_AVAILABILITY, mock: true }
+}
+
 /** How long a standby booking is, how much notice it needs, and how far ahead a participant can book. */
 export const STANDBY_SLOT_MIN = 45
 export const STANDBY_NOTICE_HOURS = 2
 export const STANDBY_DAYS = 7
 
 const DAY = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-/** "Mon to Fri, 10:00 to 16:00 ET" */
-export function availabilityText(rosterId: string | undefined): string | undefined {
-  const a = rosterId ? AVAILABILITY[rosterId] : undefined
-  if (!a) return undefined
+/** "Mon to Fri, 10:00 to 16:00 ET". For someone off the roster it is the mock default, and `mock` says so. */
+export function availabilityText(rosterId: string | undefined): { text: string; mock: boolean } {
+  const { availability: a, mock } = availabilityFor(rosterId)
   const first = DAY[a.days[0]]
   const last = DAY[a.days[a.days.length - 1]]
-  return `${a.days.length === 1 ? first : `${first} to ${last}`}, ${a.from} to ${a.to} ${a.zone}`
+  return { text: `${a.days.length === 1 ? first : `${first} to ${last}`}, ${a.from} to ${a.to} ${a.zone}`, mock }
 }
 
 /**
