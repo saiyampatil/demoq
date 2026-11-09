@@ -11,6 +11,7 @@ import type { StudyRecord } from '@/mock/types'
 import type { Origin } from './audience'
 import { AI_NAME, now, uid, type SectionKey, type SectionSnapshot } from './brief'
 import { NO_LANGUAGE } from './language'
+import { getTeamPerson } from './teamModerators'
 
 // ─── moderator ──────────────────────────────────────────────────────────────
 
@@ -43,6 +44,10 @@ export type ModeratorConfig = {
 // ─── human moderators (R12) ─────────────────────────────────────────────────
 
 export type ModSource = 'Myself' | 'PulseAI' | 'My team'
+/**
+ * "Accepted" is the one internal status for anyone who counts (it is shown as "Added"). "Requested" and "Declined" are no
+ * longer created: they stay in the type so a study saved while requests existed still loads.
+ */
 export type ModStatus = 'Invited' | 'Requested' | 'Accepted' | 'Declined'
 export const MOD_STATUSES: ModStatus[] = ['Invited', 'Requested', 'Accepted', 'Declined']
 
@@ -57,15 +62,28 @@ export type TeamMember = {
   weeklyHours: number
   /** A moderator chosen from the PulseAI roster. */
   rosterId?: string
-  /** A PulseAI request that hasn't been matched to a person yet. */
+  /** Someone from the company's team list (state/teamModerators.ts). Their status is read from that list, so one acceptance counts in every study. */
+  teamId?: string
+  /** Studies saved before requests were removed: a PulseAI request that hasn't been matched to a person yet. */
   assign?: boolean
   by: string
   sentAt: string
 }
 
+/** A person from the team list counts once they are Active there, in every study they are on. Anyone else keeps their saved status. */
+export function resolveMember(t: TeamMember): TeamMember {
+  const person = getTeamPerson(t.teamId)
+  if (!person) return t
+  const status: ModStatus = person.status === 'Active' ? 'Accepted' : 'Invited'
+  return status === t.status ? t : { ...t, status }
+}
+
+/** From a study saved while requests existed: a row to remove and add again. */
+export const isLegacyRequest = (t: TeamMember) => t.status === 'Requested' || t.status === 'Declined' || !!t.assign
+
 /** The team, whether it was saved with options or only as a list of moderator IDs. */
 export function teamOf(m: ModeratorConfig): TeamMember[] {
-  if (m.team) return m.team
+  if (m.team) return m.team.map(resolveMember)
   return m.humanIds.map((id) => {
     const h = HUMAN_MODERATORS.find((x) => x.id === id)
     return { id, name: h?.name ?? id, source: 'PulseAI', language: h?.languages[0] ?? '', status: 'Accepted', weeklyHours: h?.weeklyHours ?? 10, rosterId: id, by: 'PulseAI', sentAt: '' }
@@ -82,16 +100,18 @@ export const acceptedRoster = (ids: string[], language: string): TeamMember[] =>
 /** The id Fieldwork knows a moderator by: the roster id, or the name for someone outside the roster. */
 export const moderatorKey = (t: TeamMember) => t.rosterId ?? t.name
 
-/** Sets the team and keeps `humanIds` (what Fieldwork reads) to the accepted people. */
+/** Sets the team and keeps `humanIds` to the accepted people at this moment. A person accepting later changes `humanIdsOf`, not this. */
 export function withTeam(m: ModeratorConfig, team: TeamMember[]): ModeratorConfig {
-  return { ...m, team, humanIds: team.filter((t) => t.status === 'Accepted' && !t.assign).map(moderatorKey) }
+  return { ...m, team, humanIds: team.map(resolveMember).filter((t) => t.status === 'Accepted' && !t.assign).map(moderatorKey) }
 }
 
-export const standbyOf = (m: ModeratorConfig): TeamMember[] => m.standby ?? []
+export const standbyOf = (m: ModeratorConfig): TeamMember[] => (m.standby ?? []).map(resolveMember)
 /** The standby moderators a participant can book: only those who accepted. */
 export const acceptedStandby = (m: ModeratorConfig) => standbyOf(m).filter((t) => t.status === 'Accepted' && !t.assign)
 
 export const acceptedOf = (m: ModeratorConfig) => teamOf(m).filter((t) => t.status === 'Accepted' && !t.assign)
+/** The moderator ids Fieldwork assigns sessions to, worked out now so someone who accepted after the setup was saved is included. */
+export const humanIdsOf = (m: ModeratorConfig) => (m.team ? acceptedOf(m).map(moderatorKey) : m.humanIds)
 export const pendingOf = (m: ModeratorConfig) => teamOf(m).filter((t) => t.status === 'Invited' || t.status === 'Requested')
 
 /** Weeks in the fieldwork window, from its two dates. One week when no window is set. */
@@ -110,8 +130,11 @@ export function coverage(m: ModeratorConfig, interviews: number | null, weeks: n
   return { accepted: accepted.length, available, needed, short: needed > 0 && available < needed, interviews }
 }
 
-/** People whose language isn't the study's. They can't moderate an interview in another language. */
-export const languageMismatches = (m: ModeratorConfig, language: string | null) => (language ? teamOf(m).filter((t) => t.language !== language) : [])
+/**
+ * People whose language isn't the study's. They can't moderate an interview in another language. A person from the team
+ * list has no language of their own and is taken to cover the study language (docs/OPEN_QUESTIONS.md).
+ */
+export const languageMismatches = (m: ModeratorConfig, language: string | null) => (language ? teamOf(m).filter((t) => !t.teamId && t.language !== language) : [])
 
 export const DEFAULT_DURATION = 20
 

@@ -17,6 +17,7 @@ import { resetReview } from './reviewState'
 import { resetCodebook } from './codebook'
 import { studyLanguage } from './language'
 import { compileStudyPlan, emptyLaunchDoc, readiness, type LaunchDoc } from './launch'
+import { resetTeamModerators, useTeamModerators } from './teamModerators'
 
 const STORAGE_KEY = 'pulseai-qual:v2'
 
@@ -203,6 +204,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
   const resetSeed = useCallback(() => {
     resetReview()
     resetCodebook()
+    resetTeamModerators()
     setState(freshState())
   }, [])
 
@@ -358,6 +360,9 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     [writeBrief],
   )
 
+  // Who counts as a moderator is read from the company team list, so a person accepting re-derives every study.
+  const team = useTeamModerators()
+
   const value = useMemo<StudyContextValue>(() => {
     // Not Ready and Ready to Launch are worked out from the launch checks; Live, Paused and the rest are stored.
     const derive = (s: StudyRecord): StudyRecord => {
@@ -392,7 +397,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       setStage,
       resetSeed,
     }
-  }, [state, createStudy, setBrief, updateBrief, setAudience, updateAudience, setGuide, updateGuide, updateLaunch, updateFieldwork, devSetModerator, setStage, resetSeed])
+  }, [state, team, createStudy, setBrief, updateBrief, setAudience, updateAudience, setGuide, updateGuide, updateLaunch, updateFieldwork, devSetModerator, setStage, resetSeed])
 
   return <StudyContext.Provider value={value}>{children}</StudyContext.Provider>
 }

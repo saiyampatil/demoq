@@ -26,8 +26,9 @@ export const vocabularies = {
   preflight: ['Passed', 'Failed', 'Overridden'],
   // Not in CLAUDE.md's list; see docs/OPEN_QUESTIONS.md #1
   audience: ['Draft', 'Confirmed'],
-  // Moderators on a human-led study (R12). Invited, Accepted and Declined come from the other vocabularies.
-  moderator: ['Requested'],
+  // Moderators in R12. Invited and Declined come from the other vocabularies. "Added" is how a moderator who counts is
+  // shown (stored as Accepted). "Requested" only appears on studies saved before requests were removed.
+  moderator: ['Requested', 'Added'],
   // Codes in the Results Analysis codebook (docs/ANALYSIS_PLAN.md). Not in CLAUDE.md's list.
   code: ['Suggested', 'Accepted', 'Rejected', 'Merged'],
   // Tensions in Signals & tensions. "Suggested" is shared with codes. Not in CLAUDE.md's list.
@@ -47,7 +48,7 @@ export const vocabularyLabels: Record<keyof typeof vocabularies, string> = {
   testRun: 'Test run (launch)',
   preflight: 'Preflight check (launch)',
   audience: 'Audience definition',
-  moderator: 'Moderator request (R12)',
+  moderator: 'Moderator (R12)',
   code: 'Codebook code (analysis)',
   tension: 'Tension (analysis)',
 }
@@ -100,6 +101,7 @@ export const statusFamily: Record<Status, StatusFamily> = {
   Passed: 'positive',
   Completed: 'positive',
   Accepted: 'positive',
+  Added: 'positive',
   'Turned into a theme': 'positive',
   Complete: 'positive',
 

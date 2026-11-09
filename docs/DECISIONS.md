@@ -465,3 +465,22 @@ A row is in Needs you only if the participant cannot recover alone and a Researc
 - **Seeded:** four tensions to review, and one already dismissed ("said a vet's advice ended it, but named price in the survey": one person of three).
 - **Status vocabulary:** Turned into a theme and Dismissed were added for tensions; Suggested is shared with codes.
 
+
+
+## Moderator setup (R12): add instead of request, a team list, the same options for standby
+
+Prototype decisions from the product owner. The PRD is not changed for now.
+
+- **Moderators are added, not requested.** No "Request" button, no "Requested" step, no PulseAI confirmation. Each option adds the person at once. This supersedes "PulseAI moderators are picked from the list" above, where Request was the only way to ask.
+- **Three options, in human-led setup and in AI-led standby.** "I'll moderate" (standby: "I'll be on standby") adds the current user. PulseAI moderators is a fixed roster: the Researcher can Add or Remove, never create or edit one, and an added person counts at once. The study-language filter stays on the roster. "Someone from my team" is described next. Standby people never join the interview team (`humanIds`).
+- **Team moderators are one company-level list, reused across studies** (`state/teamModerators.ts`, saved in the browser): name, email, optional expertise tags, status Invited or Active, who added them and when. Seeded with two Active and one Invited person. Any researcher can add someone, with no admin step. "Add new" is a pop-up (the shared Modal) with Name, Email and Expertise tags. There is no language field.
+- **A duplicate email, in any case, reuses the existing person.** Nothing is created and their entry is left as it was (the typed name and tags are ignored). If they are already on the study, the Researcher is told so.
+- **A new person is Invited until they accept.** They are on the study but are not counted for booking or coverage. A study points at a person by id and reads their status live (`resolveMember` in `state/guide.ts`), so one acceptance counts in every study they are on. The saved `humanIds` can therefore go stale, so Fieldwork now reads `humanIdsOf(moderator)`, worked out from who counts now.
+- **Accepting is not a setup edit.** Adding or removing a person is, so on an approved guide it starts the next version (as before). A person accepting never does. The guide approval then names the setup as it was (open question #151).
+- **"Accepted" stays the stored status for anyone who counts, and is shown as "Added"** (new chip in the moderator vocabulary, positive family). Invited rows read "Counts once they accept" and show "Not counted yet" for hours. The language column is gone from the moderators table.
+- **Coverage counts only people who count.** The line says how many invited people are still to accept. R15 says the same: "1 invitation is still pending, so that person doesn't count yet", and a human-led study with nobody who counts still can't launch.
+- **A team person is taken to cover the study language** (open question #150). The language warning stays for PulseAI roster people and for studies saved before this change.
+- **Studies saved earlier still load.** The request functions in `state/guide.ts` and the `Requested` and `Declined` types stay. Those rows show "From before requests were removed. Remove and add them again." An old Invited person with no team-list entry can still be accepted with the dev button.
+- **Dev only (`import.meta.env.DEV`):** "Dev: accept invite" on an Invited row and in the team list, and in Screen jump. "Reset the team list" is in Screen jump, and Reset seed resets it too. "Resend invitation" is not dev-only: it is a normal simulated email on every Invited row.
+- **Code:** `state/moderatorAssign.ts` (add and remove, human-led and standby), `state/teamModerators.ts`, and in `apps/researcher/guide/`: `ModeratorOptions.tsx` (the three cards and their panels), `TeamModeratorPicker.tsx` (the list and the Add new pop-up), `ModeratorBits.tsx` (status cell, dev button). The dev simulator no longer simulates PulseAI confirming or a person declining.
+- **Test:** `tests/scenarios/moderators.mjs` is rewritten to the new flow and fails on any broken check (`node tests/setup-flow.mjs mod moderators`).

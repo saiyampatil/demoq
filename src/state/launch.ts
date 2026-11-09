@@ -247,8 +247,8 @@ export function entryContract(i: Inputs): Row[] {
   const pending = human && g ? pendingOf(g.moderator).length : 0
   const mismatch = human && g ? languageMismatches(g.moderator, i.language) : []
   const warns = [
-    cover?.short ? `Accepted moderators have ${cover.available} hours. About ${cover.needed} are needed.` : '',
-    pending ? `${pending} ${pending === 1 ? 'invitation is' : 'invitations are'} still pending.` : '',
+    cover?.short ? `Added moderators have ${cover.available} hours. About ${cover.needed} are needed.` : '',
+    pending ? `${pending} ${pending === 1 ? 'invitation is' : 'invitations are'} still pending, so ${pending === 1 ? 'that person doesn’t' : 'those people don’t'} count yet.` : '',
     mismatch.length ? `${mismatch.map((x) => x.name).join(', ')} ${mismatch.length === 1 ? 'doesn’t' : 'don’t'} speak ${i.language}.` : '',
   ].filter(Boolean)
   rows.push({
@@ -261,7 +261,7 @@ export function entryContract(i: Inputs): Row[] {
         ? g.moderator.mode === 'ai'
           ? `AI: ${moderatorLabel(g)}, ${i.language}, ${g.moderator.durationMin} min`
           : noAccepted
-            ? 'No moderator has accepted yet'
+            ? 'No moderator counts yet. Invited people count once they accept.'
             : `Human: ${moderatorLabel(g)}, ${g.moderator.durationMin} min`
         : `Missing: ${blockers.join(', ').toLowerCase()}`,
     warn: !noAccepted && warns.length ? warns.join(' ') : undefined,
@@ -280,7 +280,7 @@ export function entryContract(i: Inputs): Row[] {
       value: on.length
         ? `${on.map((t) => t.name).join(', ')} on standby, ${times} open ${times === 1 ? 'time' : 'times'} in the next 7 days`
         : waiting
-          ? `Not offered yet, ${waiting} ${waiting === 1 ? 'request' : 'requests'} waiting to be accepted`
+          ? `Not offered yet, ${waiting} ${waiting === 1 ? 'invitation' : 'invitations'} waiting to be accepted`
           : 'Not offered. Participants can’t ask for a human.',
       warn: on.length && times === 0 ? 'No open times this week, so a participant who asks for a human can only request a time.' : undefined,
     })

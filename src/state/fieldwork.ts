@@ -9,7 +9,7 @@ import { studyTimeZone } from '@/lib/timeZone'
 import type { ReviewStatus } from '@/mock/review'
 import { now, uid } from './brief'
 import { surveyAnswerFor } from '@/mock/surveys'
-import { surveysOf, type GuideDoc } from './guide'
+import { humanIdsOf, surveysOf, type GuideDoc } from './guide'
 import type { LaunchDoc, PlanItem, StudyPlan } from './launch'
 import { SEED_SESSIONS, sessionIdOf, type SeedSession } from '@/mock/sessions'
 import { MODERATOR_ROSTER } from '@/mock/moderation'
@@ -368,7 +368,7 @@ const DEVICES = ['Mobile · iOS Safari', 'Mobile · Android Chrome', 'Desktop ·
 /** Builds the study's sessions from the one seed list (mock/sessions.ts), so Fieldwork and Review always agree. */
 export function generateFieldwork(i: GenInput): FieldworkDoc {
   const human = i.guide.moderator.mode === 'human'
-  const mods = human ? i.guide.moderator.humanIds : []
+  const mods = human ? humanIdsOf(i.guide.moderator) : []
 
   const items = i.plan.sections.flatMap((s) => s.items)
   const mandatory = items.filter((x) => x.core).map((x) => x.id)
