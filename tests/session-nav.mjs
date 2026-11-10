@@ -38,4 +38,18 @@ try {
   out.pausedActions = await b.evaluate(`[...document.querySelectorAll('[data-testid=session-actions] button')].map(x=>x.innerText+(x.disabled?' (disabled)':''))`)
   out.inv = await b.evaluate(`window.__invariants`)
   console.log(JSON.stringify(out, null, 1))
+  const bad = []
+  const must = (c, m) => { if (!c) bad.push(m) }
+  must(/\?from=sessions&filter=Completed$/.test(out.url1) && out.pos === '9 of 14', `a row opens its session with the list it came from (${out.url1}, ${out.pos})`)
+  must(out.posNext.startsWith('10 of 14'), `Next follows the list (${out.posNext})`)
+  must(out.back.filter === 'Completed' && out.back.rows === 14 && /viewed=P-2059-1/.test(out.back.url), 'Back to Sessions keeps the filter and marks the session you were on')
+  must(out.back.scrollY === 300 && out.back.marked.length === 1, `Back to Sessions keeps the scroll position and marks one row (${out.back.scrollY}, ${out.back.marked.length})`)
+  must(out.pageHasDev === false, 'no dev control shows on the session page itself')
+  must(out.panel.includes('Simulate: session completes'), 'the dev controls are in Screen jump')
+  must(/Under review/.test(out.simulated ?? '') && /In Review it is Under review/.test(out.statusAfter ?? ''), 'a simulated completion lands in Review')
+  must(out.actions.join('|') === 'Retry|Give up and replace', `P-2048 offers Retry and Give up (${out.actions})`)
+  must(out.pausedActions.every((x) => x.endsWith('(disabled)')), 'both are disabled while the study is paused')
+  must(!out.inv?.length, 'invariant violations')
+  console.log(bad.length ? 'SESSION-NAV FAILED: ' + bad.join('; ') : 'SESSION-NAV OK')
+  if (bad.length) process.exitCode = 1
 } finally { b.close() }

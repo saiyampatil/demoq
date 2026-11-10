@@ -5,7 +5,12 @@ const SP = process.env.SP ?? new URL('./.out', import.meta.url).pathname
 const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
 export const BASE = 'http://localhost:5199'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+// The previous run's Chrome may still be shutting down when the next probe starts. Talking to it gives "CDP timeout" errors, so wait
+// until nothing answers on the debugging port before starting a new one.
+const portBusy = async () => { try { await fetch('http://localhost:9333/json/version', { signal: AbortSignal.timeout(500) }); return true } catch { return false } }
 export async function launch() {
+  for (let i = 0; i < 75 && (await portBusy()); i++) await sleep(200)
+  if (await portBusy()) throw new Error('Chrome from an earlier run is still using port 9333. Close it and run again.')
   mkdirSync(SP, { recursive: true })
   rmSync(`${SP}/profile`, { recursive: true, force: true })
   const proc = spawn(CHROME, ['--headless=new', '--disable-gpu', '--hide-scrollbars', '--remote-debugging-port=9333', `--user-data-dir=${SP}/profile`, '--window-size=1440,1000', 'about:blank'], { stdio: 'ignore' })
