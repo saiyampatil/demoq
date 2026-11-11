@@ -8,6 +8,7 @@ import { screenById, studyPath } from '@/routes/screens'
 import { codebookReadiness } from '@/state/analysisProgress'
 import { CODEBOOK_STUDY, counts, rebuild, updateCodebook, type CodebookDoc } from '@/state/codebook'
 import { PageHeader } from '../../shared/PageHeader'
+import { ExploreControl } from './explore/ExploreControl'
 import { AnalysisStepper } from './AnalysisStepper'
 import { ChangeLog } from './ChangeLog'
 import { ContinueBar } from './ContinueBar'
@@ -54,7 +55,7 @@ export function Codebook() {
         title="Codebook"
         description="Short labels for what people said, grouped into themes. PulseAI suggests; nothing counts until you accept it."
         meta={doc ? <BuiltOn doc={doc} accepted={accepted.length} excluded={excluded} studyId={studyId} /> : undefined}
-        actions={doc && loaded && !failed ? <ExportButton doc={doc} basis={basis} studyName={study.name} /> : undefined}
+        actions={doc && loaded && !failed ? (<><ExploreControl doc={doc} basis={basis} me={me} studyId={studyId} /><ExportButton doc={doc} basis={basis} studyName={study.name} /></>) : undefined}
       />
       <AnalysisStepper studyId={studyId} current="codebook" />
       {extra}

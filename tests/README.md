@@ -10,7 +10,7 @@ This is not the old test chain. It is only the driver and the probes that have b
 
 ## Which probes assert
 
-These end with `... OK` or `... FAILED: <reasons>` and exit 1 on a failure: `counts`, `bridge`, `emotion`, `escalation`, `gap-loop`, `issues`, `needs-you-s2`, `needs-you-s3`, `needs-you-s4`, `session-nav`, `stage2`, and the `moderators` scenario (`node tests/setup-flow.mjs <prefix> moderators`). The rest (`pet`, `journey`, `needs-you`, the `*-shots` probes, and the `pool`, `reward`, `screening` scenarios) print what they see and fail only if the page breaks.
+These end with `... OK` or `... FAILED: <reasons>` and exit 1 on a failure: `counts`, `bridge`, `emotion`, `escalation`, `gap-loop`, `issues`, `needs-you-s2`, `needs-you-s3`, `needs-you-s4`, `session-nav`, `stage2`, and the `moderators` and `highlights` scenarios (`node tests/setup-flow.mjs <prefix> moderators`, `node tests/setup-flow.mjs hl highlights`). The rest (`pet`, `journey`, `needs-you`, the `*-shots` probes, and the `pool`, `reward`, `screening` scenarios) print what they see and fail only if the page breaks.
 
 Things the probes had wrong, so they don't drift again:
 - Dev controls live in the Screen jump panel, not on the page. A probe opens it, clicks, and closes it before reading the page.

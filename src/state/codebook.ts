@@ -49,6 +49,8 @@ export type CodebookDoc = {
   signalPicks?: Record<string, boolean>
   /** The Researcher's corrections to face readings, by reading key. The original reading is kept beside it. */
   faceFixes?: Record<string, FaceFix>
+  /** Quotes added from Explore, kept so a refresh finds them. They are put back into EXCERPTS when the codebook loads. */
+  addedExcerpts?: Record<string, Excerpt>
   log: LogEntry[]
 }
 
@@ -60,15 +62,23 @@ export type FaceFix = { to: Emotion | 'No clear expression'; from: Emotion; by: 
 const KEY = 'pulseai-qual:codebook'
 type Store = Record<string, CodebookDoc>
 
-let store: Store = (() => {
-  try {
-    const raw = localStorage.getItem(KEY)
-    if (raw) return JSON.parse(raw) as Store
-  } catch {
-    // Storage blocked or corrupt.
-  }
-  return {}
-})()
+/** Quotes added from Explore live in the codebook doc. Put them where every screen looks quotes up. */
+function registerExcerpts(s: Store) {
+  Object.values(s).forEach((d) => Object.values(d.addedExcerpts ?? {}).forEach((e) => (EXCERPTS[e.id] = e)))
+  return s
+}
+
+let store: Store = registerExcerpts(
+  (() => {
+    try {
+      const raw = localStorage.getItem(KEY)
+      if (raw) return JSON.parse(raw) as Store
+    } catch {
+      // Storage blocked or corrupt.
+    }
+    return {}
+  })(),
+)
 const listeners = new Set<() => void>()
 const emit = () => listeners.forEach((l) => l())
 
@@ -100,7 +110,7 @@ export function seedCodebook(studyId: string, acceptedSessions: string[]): Codeb
 export function updateCodebook(studyId: string, fn: (d: CodebookDoc) => CodebookDoc) {
   const doc = store[studyId]
   if (!doc) return
-  store = { ...store, [studyId]: fn(doc) }
+  store = registerExcerpts({ ...store, [studyId]: fn(doc) })
   save()
   emit()
 }
@@ -427,5 +437,47 @@ export function correctFace(d: CodebookDoc, key: string, name: string, from: Emo
 }
 
 export const dismissSuggestion = (d: CodebookDoc, id: string): CodebookDoc => ({ ...d, dismissedSuggestions: [...d.dismissedSuggestions, id] })
+/** Offer a dismissed suggestion again. */
+export const restoreSuggestion = (d: CodebookDoc, id: string): CodebookDoc => ({ ...d, dismissedSuggestions: d.dismissedSuggestions.filter((x) => x !== id) })
+
+/** What Explore hands over when the Researcher accepts a proposed code. The quotes are whole transcript turns, word for word. */
+export type IdeaCode = {
+  name: string
+  definition: string
+  /** What the Researcher typed, kept in the log as the reason. */
+  idea: string
+  /** The guide question it falls under, or null: it goes in "New codes, not asked about in the guide". */
+  questionId: string | null
+  anchorQuestionId: string
+  quotes: { sessionId: string; participantId: string; turnIndex: number; atSec: number; text: string; questionId: string | null }[]
+}
+
+/**
+ * Adds one Accepted code from an idea typed in Explore, with its quotes. One log entry: who, when, and the idea as the why.
+ * Counts, themes and the Codebook tab follow from the doc, so nothing else needs refreshing.
+ */
+export function addIdeaCode(d: CodebookDoc, id: string, input: IdeaCode, { by }: Who): CodebookDoc {
+  const at = now()
+  const added: Record<string, Excerpt> = {}
+  input.quotes.forEach((q) => {
+    const eid = `hl-${id}-${q.participantId}-${q.turnIndex}`
+    added[eid] = { id: eid, sessionId: q.sessionId, participantId: q.participantId, questionId: q.questionId ?? input.anchorQuestionId, text: q.text, turnIndex: q.turnIndex, atSec: q.atSec, confidence: 0.7 }
+  })
+  const people = new Set(input.quotes.map((q) => q.participantId)).size
+  const code: Code = {
+    id,
+    name: input.name.trim(),
+    definition: input.definition.trim(),
+    questionId: input.questionId ?? input.anchorQuestionId,
+    isNew: input.questionId === null,
+    status: 'Accepted',
+    confidence: 0.7,
+    excerpts: Object.keys(added),
+    more: [],
+    decided: { by, at, why: `From an idea typed in Explore: “${input.idea}”` },
+  }
+  const out: CodebookDoc = { ...d, codes: [...d.codes, code], addedExcerpts: { ...(d.addedExcerpts ?? {}), ...added } }
+  return log(out, entry(by, code, 'Accepted', `Added from Explore: ${input.quotes.length} ${input.quotes.length === 1 ? 'quote' : 'quotes'} from ${people} ${people === 1 ? 'person' : 'people'}`, `Typed idea: “${input.idea}”`))
+}
 
 export { AI_CODER, CODE_QUESTIONS, CODEBOOK_STUDY }

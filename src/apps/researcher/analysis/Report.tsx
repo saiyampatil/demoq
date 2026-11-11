@@ -7,6 +7,7 @@ import { StatusGlyph } from '@/components/StatusChip'
 import type { StatusFamily } from '@/components/status'
 import { SideDrawer } from '@/components/SideDrawer'
 import { PageHeader } from '../../shared/PageHeader'
+import { ExploreControl } from './explore/ExploreControl'
 import { screenById, studyPath } from '@/routes/screens'
 import { excerpt, liveExcerpts, type Excerpt } from '@/state/codebook'
 import { tensionsOf } from '@/state/signals'
@@ -72,7 +73,7 @@ type Update = (fn: (r: ReportDoc) => ReportDoc) => void
 // ---------- the screen ----------
 
 export function Report() {
-  const { studyId, study, review, accepted, doc, basis, stale, ready } = useAnalysis()
+  const { studyId, study, review, me, accepted, doc, basis, stale, ready } = useAnalysis()
   const [params, setParams] = useSearchParams()
   const tab: 'findings' | 'exec' = params.get('tab') === 'exec' ? 'exec' : 'findings'
   const report = useReport(studyId)
@@ -166,7 +167,7 @@ export function Report() {
 
   const header = (
     <>
-      <PageHeader id="A3" title="Report" description="The story for the client: a finding for each guide question, backed by quotes, themes and clips. Nothing reaches the client until you publish." />
+      <PageHeader id="A3" title="Report" description="The story for the client: a finding for each guide question, backed by quotes, themes and clips. Nothing reaches the client until you publish." actions={ready && doc ? <ExploreControl doc={doc} basis={basis} me={me} studyId={studyId} /> : undefined} />
       <AnalysisStepper studyId={studyId} current="report" />
     </>
   )

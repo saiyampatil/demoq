@@ -505,3 +505,18 @@ Prototype decisions from the product owner, 11 Nov 2026. This supersedes "Facial
 - **Mock story, so the demo says one thing:** Concept A (pause) draws surprise and doubt; Concept B (recipe swap) draws confusion from some and interest from others; Concept C (portion-matched boxes) draws the warmest reaction, including from people who picked pause in words. Audio-only: P-3105, P-3110, P-3113, P-3118.
 - **Code:** `mock/emotion.ts` (readings), `state/emotion.ts` (rules and counts), `state/signals.ts` (code and moment signals, tensions, roll-ups), `apps/researcher/analysis/SignalBits.tsx` (chips, bars, the moment card and the correction dialog), `SignalsTab.tsx`. Test: `tests/emotion.mjs`.
 
+
+## Explore drawer: real-time highlights (brief step 7)
+
+Prototype decisions from the product owner, 11 Nov 2026.
+
+- **One Explore drawer, three tabs (Ask, Numbers, Highlights), opened from an Explore button in the top bar of A1 Codebook, A2 Emotion & behaviour and A3 Report.** It always opens on Highlights. Ask and Numbers say "coming next". Why: the brief's step 7 is a side panel the Researcher reaches from wherever they are, so it is one component, not three.
+- **Current codes** are at the top: accepted codes by guide question, each "n of N people", with a search box.
+- **Type an idea or question.** The scan starts 300 ms after typing stops and takes a mock 400 ms ("Scanning 20 accepted interviews…"). Only what participants said is searched, only in sessions accepted in Review now (never an excluded one), using the corrected transcript where there is one. The matching rule is in `state/highlights.ts` and open question 161.
+- **The scan changes nothing.** It proposes one code, tagged AI-generated and named from the idea, with the quotes, the number of distinct people and the guide question it falls under. Each quote is a whole participant turn, word for word, with participant, pet type, session, timestamp and Play. No score or judgement is ever shown. The Researcher can leave a quote out, and edit the name and meaning.
+- **Accept** adds one Accepted code, its quotes, and one log entry (who, when, and the typed idea as the why). Counts, themes, the Codebook tab, Emotion & behaviour and the Report follow from the codebook. A code with the same name as another is refused. The quotes are kept with the codebook, so a refresh finds them.
+- **Dismiss** remembers the idea, whatever the word order or word form ("vet", "Vets"), so it is not offered again. A dismissed idea can be offered again. Nothing is added and nothing is logged.
+- **Out of date:** the Report works out its strengths from the accepted codes every time, so it needs no flag; the existing banner only follows Review changes and is unchanged (open question 163).
+- **States:** empty ("No matches in the accepted interviews for this wording. Try a different word."), loading, error with a retry (`?demo=explore-error` to see it), and a toast on accept ("Added code “…”, 6 people").
+- **Code:** `state/highlights.ts` (the scan), `state/codebook.ts` (`addIdeaCode`, `restoreSuggestion`, kept quotes), `apps/researcher/analysis/explore/` (`ExploreControl.tsx`, `HighlightsTab.tsx`). Test: `node tests/setup-flow.mjs hl highlights`.
+

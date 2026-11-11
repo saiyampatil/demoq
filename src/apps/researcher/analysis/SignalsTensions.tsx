@@ -10,6 +10,7 @@ import { signalsReadiness } from '@/state/analysisProgress'
 import { CODEBOOK_STUDY, updateCodebook } from '@/state/codebook'
 import { codeSignals, coverage, plural, tensionCounts, tensionsOf } from '@/state/signals'
 import { PageHeader } from '../../shared/PageHeader'
+import { ExploreControl } from './explore/ExploreControl'
 import { AnalysisStepper } from './AnalysisStepper'
 import { ContinueBar } from './ContinueBar'
 import { SignalsTab, type SignalFocus } from './SignalsTab'
@@ -51,7 +52,7 @@ export function SignalsTensions() {
 
   const header = (
     <>
-      <PageHeader id="A2" title="Emotion & behaviour" description="How people reacted, and where that doesn’t match what they said. Faces, voices and hesitation are described, never used to exclude a session, and a reading you think is wrong can be corrected." />
+      <PageHeader id="A2" title="Emotion & behaviour" description="How people reacted, and where that doesn’t match what they said. Faces, voices and hesitation are described, never used to exclude a session, and a reading you think is wrong can be corrected." actions={ready && doc && loaded && !failed ? <ExploreControl doc={doc} basis={basis} me={me} studyId={studyId} /> : undefined} />
       <AnalysisStepper studyId={studyId} current="signals" />
     </>
   )
