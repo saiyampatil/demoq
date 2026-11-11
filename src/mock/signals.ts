@@ -6,6 +6,8 @@
 
 import { CODE_QUESTIONS, EXCERPTS, SEED_CODES, petOf, type Excerpt } from './codebook'
 import { findReviewRecord } from './review'
+import { faceAtExcerpt, faceAtMoment, stanceOf, voiceAt, type FaceReading, type Stance, type VoiceReading } from './emotion'
+import { r1, seeded } from './seed'
 import { PET_SEED_SESSIONS, sessionIdOf } from './sessions'
 
 export { petOf }
@@ -46,13 +48,7 @@ const NOT_SEEN: Record<string, string[]> = { 'm-concept-b': ['P-3106'] }
 
 // ─── numbers ────────────────────────────────────────────────────────────────
 
-const r1 = (x: number) => Math.round(x * 10) / 10
-/** A stable number from 0 up to 1 for any text, so the mock never changes between loads. */
-function u(seed: string, k = 0) {
-  let h = 2166136261
-  for (const ch of `${seed}|${k}`) h = Math.imul(h ^ ch.charCodeAt(0), 16777619)
-  return (h >>> 0) / 2 ** 32
-}
+const u = seeded
 
 /** How long this person usually takes to start an answer, in seconds. */
 export const usualDelay = (participantId: string) => r1(0.9 + 0.8 * u(participantId, 9))
@@ -145,18 +141,44 @@ export type Point = {
   reason: string
   /** The coded quote at this moment, when there is one. */
   excerpt?: Excerpt
+  /** Identifies this reading, so a Researcher's correction of the face reading sticks to it. */
+  key: string
+  /** What PulseAI read on the face. Absent when the session has no video. */
+  face?: FaceReading
+  /** How the voice sounded against this person's own usual. Audio exists for everyone. */
+  voice: VoiceReading
+  /** What the words claim, from the code at this quote. Absent at a moment with no coded quote. */
+  stance?: Stance
 }
 
-function point(participantId: string, atSec: number, facts: Facts, excerpt?: Excerpt): Point {
+function point(key: string, participantId: string, atSec: number, facts: Facts, band: Band, extra: { excerpt?: Excerpt; face?: FaceReading; stance?: Stance }): Point {
   const usual = usualDelay(participantId)
-  return { participantId, sessionId: sessionOfParticipant(participantId), pet: petOf(participantId), atSec, facts, usual, band: bandOf(facts, usual), reason: reasonOf(facts, usual), ...(excerpt ? { excerpt } : {}) }
+  return {
+    key,
+    participantId,
+    sessionId: sessionOfParticipant(participantId),
+    pet: petOf(participantId),
+    atSec,
+    facts,
+    usual,
+    band: bandOf(facts, usual),
+    reason: reasonOf(facts, usual),
+    voice: voiceAt(key, participantId, band, extra.stance),
+    ...extra,
+  }
 }
+
+/** The code each quote belongs to, so a quote knows what its words claim. */
+const CODE_OF_EXCERPT = new Map<string, string>()
+SEED_CODES.forEach((c) => [...c.excerpts, ...c.more].forEach((id) => CODE_OF_EXCERPT.set(id, c.id)))
 
 /** The signals at one coded quote. */
 export function excerptPoint(excerptId: string): Point {
   const e = EXCERPTS[excerptId]
   const band = EXCERPT_BAND.get(excerptId) ?? 'Steady'
-  return point(e.participantId, e.atSec, makeFacts(excerptId, band, usualDelay(e.participantId)), e)
+  const codeId = CODE_OF_EXCERPT.get(excerptId)
+  const stance = codeId ? stanceOf(codeId) : undefined
+  return point(`x:${excerptId}`, e.participantId, e.atSec, makeFacts(excerptId, band, usualDelay(e.participantId)), band, { excerpt: e, stance, face: faceAtExcerpt(excerptId, e.participantId, codeId, band) })
 }
 
 const worst = (a: Point, b: Point) => (bandRank(b.band) > bandRank(a.band) ? b : a)
@@ -168,10 +190,11 @@ export function momentPoints(momentId: string): Point[] {
   return ACCEPTED_PARTICIPANTS.filter((p) => !skipped.has(p)).map((p) => {
     const rec = findReviewRecord(sessionOfParticipant(p))
     const at = Math.round(m.fraction * (rec?.durationMin ?? 25) * 60)
+    const key = `m:${m.id}:${p}`
     if (m.kind === 'stimulus') {
       const r = REACTIONS[m.id]
       const band: Band = r.marked.includes(p) ? 'Marked hesitation' : r.some.includes(p) ? 'Some hesitation' : 'Steady'
-      return point(p, at, makeFacts(`${m.id}${p}`, band, usualDelay(p)))
+      return point(key, p, at, makeFacts(`${m.id}${p}`, band, usualDelay(p)), band, { face: faceAtMoment(m.id, p, band) })
     }
     const mine = Object.values(EXCERPTS)
       .filter((e) => e.participantId === p && e.questionId === m.id && SEED_CODES.some((c) => c.excerpts.includes(e.id)))
@@ -179,14 +202,14 @@ export function momentPoints(momentId: string): Point[] {
     if (mine.length) return mine.reduce(worst)
     const x = u(`${m.id}${p}`)
     const band: Band = x < 0.08 ? 'Marked hesitation' : x < 0.25 ? 'Some hesitation' : 'Steady'
-    return point(p, at, makeFacts(`${m.id}${p}`, band, usualDelay(p)))
+    return point(key, p, at, makeFacts(`${m.id}${p}`, band, usualDelay(p)), band, { face: faceAtMoment(m.id, p, band) })
   })
 }
 
 // ─── tensions: what the product would suggest ───────────────────────────────
 
-export type TensionKind = 'Said vs behaviour' | 'Said vs survey' | 'Between segments' | 'Between concepts'
-export const TENSION_KINDS: TensionKind[] = ['Said vs behaviour', 'Said vs survey', 'Between segments', 'Between concepts']
+export type TensionKind = 'Said vs behaviour' | 'Said vs emotion' | 'Said vs survey' | 'Between segments' | 'Between concepts'
+export const TENSION_KINDS: TensionKind[] = ['Said vs behaviour', 'Said vs emotion', 'Said vs survey', 'Between segments', 'Between concepts']
 
 /** What the system suggests. The numbers on each are worked out from the data when the screen opens. */
 export type TensionDef = { id: string; kind: TensionKind; title: string; summary: string; themeName: string; codeIds: string[]; /** A key moment the tension also draws on, so the Researcher can open its signals. */ momentId?: string }
@@ -208,6 +231,15 @@ export const TENSION_DEFS: TensionDef[] = [
     themeName: 'Flexibility: said, but not settled',
     codeIds: ['c-flex-first'],
     momentId: 'q-flex',
+  },
+  {
+    id: 'tn-pause-portion-face',
+    kind: 'Said vs emotion',
+    title: 'Picked pause in words, but their faces lit up most at portion-matched boxes',
+    summary: 'Asked which idea would keep them, these people said pause. On video, their warmest first reaction was to Concept C.',
+    themeName: 'Pause in words, portions in the face',
+    codeIds: ['c-idea-pause'],
+    momentId: 'm-concept-c',
   },
   {
     id: 'tn-pet-segments',

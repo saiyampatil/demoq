@@ -47,7 +47,7 @@ export function analysisSteps(doc: CodebookDoc | undefined): AnalysisStep[] {
     { key: 'codebook', label: 'Codebook', screenId: 'A1', ...codebook, locked: false },
     {
       key: 'signals',
-      label: 'Signals & tensions',
+      label: 'Emotion & behaviour',
       screenId: 'A2',
       ...signals,
       hint: noCodes ? 'Opens once a code is accepted' : signals.hint,
@@ -102,7 +102,7 @@ export function codebookReadiness(doc: CodebookDoc, stale: boolean): Readiness {
   }
 }
 
-/** What Continue checks on Signals & tensions. Tensions still to review are a warning, never a block. */
+/** What Continue checks on Emotion & behaviour. Tensions still to review are a warning, never a block. */
 export function signalsReadiness(doc: CodebookDoc): Readiness {
   const t = tensionCounts(doc)
   const warnings: Readiness['warnings'] = []

@@ -152,7 +152,7 @@ export function Codebook() {
       <ContinueBar
         studyId={studyId}
         readiness={codebookReadiness(doc, stale)}
-        next={{ screen: 'A2', label: 'Continue to Signals & tensions' }}
+        next={{ screen: 'A2', label: 'Continue to Emotion & behaviour' }}
         stay="Keep working on the codebook"
         message={
           c.accepted === 0

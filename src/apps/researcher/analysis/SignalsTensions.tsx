@@ -23,7 +23,7 @@ const TABS = [
 ] as const
 type Tab = (typeof TABS)[number]['key']
 
-/** A2: how they said it, and where what they said doesn't add up. Measured on the codes accepted in the codebook. */
+/** A2: how they reacted (face, voice, hesitation), and where that doesn't match what they said. Read on the codes accepted in the codebook. */
 export function SignalsTensions() {
   const { studyId, study, review, me, accepted, doc, basis, stale, ready } = useAnalysis()
   const navigate = useNavigate()
@@ -51,7 +51,7 @@ export function SignalsTensions() {
 
   const header = (
     <>
-      <PageHeader id="A2" title="Signals & tensions" description="How people said it, and where what they said doesn’t add up. Behaviour is described, never diagnosed, and never used to exclude a session." />
+      <PageHeader id="A2" title="Emotion & behaviour" description="How people reacted, and where that doesn’t match what they said. Faces, voices and hesitation are described, never used to exclude a session, and a reading you think is wrong can be corrected." />
       <AnalysisStepper studyId={studyId} current="signals" />
     </>
   )
@@ -183,16 +183,16 @@ export function SignalsTensions() {
   )
 }
 
-/** What the signals are measured on, and what isn't, in one quiet line. Always shown, so nobody reads more into them than is there. */
+/** What the readings are measured on, and what isn't, in one quiet line. Always shown, so nobody reads more into them than is there. */
 function CoverageLine({ cov }: { cov: ReturnType<typeof coverage> }) {
   return (
     <p className="flex flex-wrap items-center gap-x-2 gap-y-1 px-1 text-sm text-graphite" data-testid="coverage">
       <span>
-        Measured on <span className="font-medium text-ink tabular-nums">{cov.sessions}</span> accepted sessions: audio for all, video for <span className="font-medium text-ink tabular-nums">{cov.video}</span>
-        {cov.audioOnly > 0 && ` (${cov.audioOnly} audio-only)`}. {cov.excluded > 0 && `${cov.excluded} excluded in Review are left out.`}
+        Voice and hesitation measured on <span className="font-medium text-ink tabular-nums">{cov.sessions}</span> accepted sessions. Faces read for <span className="font-medium text-ink tabular-nums">{cov.video}</span>
+        {cov.audioOnly > 0 && ` (${cov.audioOnly} audio-only, so no face reading, never counted as neutral)`}. {cov.excluded > 0 && `${cov.excluded} excluded in Review are left out.`}
       </span>
-      <Tooltip content="Reading emotion from faces is on hold until the consent and legal decision is made." focusable align="left">
-        <span className="inline-flex h-5 items-center rounded-xs border border-dashed border-mist-strong px-1.5 text-xs font-medium">Facial analysis: on hold</span>
+      <Tooltip content="Faces are read against each person’s own resting face and described by what was visible. A reading is a lead, not a verdict, and you can correct it." focusable align="left">
+        <span className="inline-flex h-5 items-center rounded-xs border border-dashed border-mist-strong px-1.5 text-xs font-medium">How faces are read</span>
       </Tooltip>
     </p>
   )

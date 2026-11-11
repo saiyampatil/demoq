@@ -55,6 +55,25 @@
   --color-held-fg: #1f5f60;
   --color-held-line: #b5d9d8;
 
+  /* Emotion and voice readings: data, never a status. Cool = warm feeling, terracotta = cold, sand = in between. */
+  --color-emo-delight: #13796b;
+  --color-emo-interest: #5fb0a3;
+  --color-emo-surprise: #e2b33f;
+  --color-emo-neutral: #d3d2de;
+  --color-emo-confusion: #eea383;
+  --color-emo-doubt: #d0694c;
+  --color-emo-frustration: #9b3a27;
+  --color-emo-warm-bg: #e6f4f1;
+  --color-emo-warm-fg: #0f5c51;
+  --color-emo-warm-line: #b9ddd6;
+  --color-emo-mid-bg: #fbf4e0;
+  --color-emo-mid-fg: #6f5208;
+  --color-emo-mid-line: #ecdba8;
+  --color-emo-cold-bg: #fbece6;
+  --color-emo-cold-fg: #8b3420;
+  --color-emo-cold-line: #f0c7b8;
+  --color-tone-flat: #9a99ad;
+
   /* Type */
   --font-*: initial;
   --font-sans: 'Public Sans Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;

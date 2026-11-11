@@ -7,6 +7,7 @@ import { PlusIcon } from '@/components/icons'
 import { Modal } from '@/components/Modal'
 import { EmptyState } from '@/components/States'
 import { useToast } from '@/components/Toast'
+import { tensionHeadline } from '@/state/signals'
 import {
   createTheme,
   deleteTheme,
@@ -169,8 +170,11 @@ function useDrop(onDrop: (codeId: string) => void) {
 function ThemeCard({ ctx, theme: t, onEdit, onDelete, move, onOpenCode }: { ctx: CodebookCtx; theme: Theme; onEdit: () => void; onDelete: () => void; move: (codeId: string, themeId: string | null) => void; onOpenCode: (id: string) => void }) {
   const { doc, basis } = ctx
   const codes = themeCodes(doc, t)
-  const people = themePeople(doc, t, basis).size
   const N = basis.participants.size
+  // A theme made from a tension counts the tension's own finding ("2 of 6"), not everyone who said its codes.
+  const headline = t.tensionId ? tensionHeadline(doc, basis, t.tensionId) : undefined
+  const people = headline ? headline.n : themePeople(doc, t, basis).size
+  const of = headline ? headline.of : N
   const spans = [...new Set(codes.map((c) => questionOf(c.questionId).label))]
   const drop = useDrop((id) => !t.tensionId && move(id, t.id))
   const fromTension = !!t.tensionId
@@ -191,11 +195,12 @@ function ThemeCard({ ctx, theme: t, onEdit, onDelete, move, onOpenCode }: { ctx:
       <div className="px-4">
         <p className="mt-1 flex items-baseline gap-1.5">
           <span className="text-xl font-semibold tabular-nums">{people}</span>
-          <span className="text-sm text-graphite tabular-nums">of {N} people</span>
+          <span className="text-sm text-graphite tabular-nums">of {of} people</span>
         </p>
         <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-haze" aria-hidden="true">
-          <span className="block h-full rounded-full bg-ink" style={{ width: `${(people / N) * 100}%` }} />
+          <span className="block h-full rounded-full bg-ink" style={{ width: `${of ? (people / of) * 100 : 0}%` }} />
         </div>
+        {headline && <p className="mt-1 text-xs text-graphite">{headline.label}</p>}
         {t.definition && <p className="mt-2.5 text-sm text-graphite">{t.definition}</p>}
       </div>
       <ul className="mt-3 flex flex-1 flex-col gap-1.5 px-4 pb-3" aria-label={`Codes in ${t.name}`}>

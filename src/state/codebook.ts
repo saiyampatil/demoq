@@ -21,6 +21,7 @@ import {
   type SeedCode,
   type SeedTensionDecision,
 } from '@/mock/codebook'
+import type { Emotion } from '@/mock/emotion'
 import { now, uid } from './brief'
 
 export type { CodeStatus, Excerpt, LogEntry, Pet } from '@/mock/codebook'
@@ -46,8 +47,13 @@ export type CodebookDoc = {
   tensions?: Record<string, TensionDecision>
   /** Signals the Researcher switched on or off for the report, by code. Not listed means the default: on when notable. */
   signalPicks?: Record<string, boolean>
+  /** The Researcher's corrections to face readings, by reading key. The original reading is kept beside it. */
+  faceFixes?: Record<string, FaceFix>
   log: LogEntry[]
 }
+
+/** A face reading the Researcher corrected. "No clear expression" takes the reading out of every count. */
+export type FaceFix = { to: Emotion | 'No clear expression'; from: Emotion; by: string; at: string; why: string }
 
 // ─── store ──────────────────────────────────────────────────────────────────
 
@@ -367,10 +373,10 @@ export function deleteTheme(d: CodebookDoc, id: string, { by }: Who, why: string
   const { [t.tensionId ?? '']: _gone, ...rest } = d.tensions ?? {}
   void _gone
   const out = { ...d, themes: d.themes.filter((x) => x.id !== id), ...(t.tensionId ? { tensions: rest } : {}) }
-  return log(out, themeEntry(by, t, 'Deleted theme', t.tensionId ? 'The tension is back in Signals & tensions, to review' : 'Its codes went back to “Not in a theme”', why))
+  return log(out, themeEntry(by, t, 'Deleted theme', t.tensionId ? 'The tension is back in Emotion & behaviour, to review' : 'Its codes went back to “Not in a theme”', why))
 }
 
-// Tensions (Signals & tensions)
+// Tensions (Emotion & behaviour)
 
 export const tensionDecisions = (d: CodebookDoc): Record<string, TensionDecision> => d.tensions ?? SEED_TENSIONS
 
@@ -405,6 +411,19 @@ export function restoreTension(d: CodebookDoc, tension: { id: string; title: str
 /** Whether a code's signals go into the report. Not set means on when the pattern is notable. */
 export function setSignalPick(d: CodebookDoc, code: { id: string; name: string }, on: boolean, { by }: Who): CodebookDoc {
   return log({ ...d, signalPicks: { ...(d.signalPicks ?? {}), [code.id]: on } }, entry(by, code, on ? 'Signals added to the report' : 'Signals left out of the report'))
+}
+
+/**
+ * Correct what PulseAI read on a face. The reason is required and logged; the original stays visible beside the
+ * correction, and every count that uses this moment updates. Correcting it back to PulseAI's own label removes the fix.
+ */
+export function correctFace(d: CodebookDoc, key: string, name: string, from: Emotion, to: FaceFix['to'], { by }: Who, why: string): CodebookDoc {
+  const { [key]: _old, ...rest } = d.faceFixes ?? {}
+  void _old
+  const back = to === from
+  const faceFixes = back ? rest : { ...rest, [key]: { to, from, by, at: now(), why: why.trim() } }
+  const e: LogEntry = { id: uid('cl'), at: now(), by, target: { kind: 'reading', id: key, name }, action: back ? 'Face reading restored' : 'Face reading corrected', detail: back ? `Back to PulseAI’s “${from}”` : `From “${from}” to “${to}”`, ...(why.trim() ? { why: why.trim() } : {}) }
+  return log({ ...d, faceFixes }, e)
 }
 
 export const dismissSuggestion = (d: CodebookDoc, id: string): CodebookDoc => ({ ...d, dismissedSuggestions: [...d.dismissedSuggestions, id] })

@@ -7,6 +7,7 @@ import { controlBase, TextArea, TextField } from '@/components/Field'
 import { PlayIcon } from '@/components/icons'
 import { Modal } from '@/components/Modal'
 import { EmptyState } from '@/components/States'
+import { EmotionChip } from './SignalBits'
 import { StatusChip } from '@/components/StatusChip'
 import { useToast } from '@/components/Toast'
 import { formatStamp } from '@/lib/format'
@@ -28,6 +29,7 @@ const FILTERS: { key: TensionFilter; label: string }[] = [
 ]
 const KIND_HINT: Record<TensionKind, string> = {
   'Said vs behaviour': 'What they said, against how they said it',
+  'Said vs emotion': 'What they said, against what showed on their face and in their voice',
   'Said vs survey': 'What they said, against what they locked in the survey',
   'Between segments': 'The same question, answered differently by two groups',
   'Between concepts': 'A first reaction to a concept, against what they chose later',
@@ -64,7 +66,7 @@ export function TensionsTab({ ctx, filter, setFilter, focusId, onSeeSignals, onC
             ))}
           </select>
         </label>
-        <p className="min-w-0 flex-1 text-sm text-graphite">Suggested by PulseAI. Nothing reaches the report until you turn it into a theme.</p>
+        <p className="min-w-0 flex-1 text-sm text-graphite">Where what people said doesn’t match how they looked, sounded or answered. Suggested by PulseAI. Nothing reaches the report until you turn it into a theme.</p>
       </div>
 
       {shown.length === 0 ? (
@@ -215,6 +217,16 @@ function TensionCard({ t, ctx, focused, onSeeSignals, onTurn, onDismiss, onResto
                         </Link>
                       </p>
                       {c.quote && <p className="mt-1 font-serif text-quote leading-snug text-ink">“{c.quote}”</p>}
+                      {c.faces && c.faces.length > 0 && (
+                        <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1" data-testid="clip-faces">
+                          {c.faces.map((f) => (
+                            <span key={f.where} className="inline-flex items-center gap-1.5 text-xs text-graphite">
+                              {f.where}
+                              <EmotionChip emotion={f.emotion} />
+                            </span>
+                          ))}
+                        </p>
+                      )}
                       <p className="mt-1 text-xs text-graphite">{c.note}</p>
                     </li>
                   ))}

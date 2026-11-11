@@ -20,10 +20,10 @@ Three steps, each with one question, one decision type and one finish line. The 
 | # | Step | The question | You decide | Done when |
 |---|---|---|---|---|
 | 1 | **Codebook** | What did people say? One screen, three tabs: Codes, Themes, Change log. Codes grouped by guide question, new codes apart. Themes only from accepted codes. A line at the top says what it is built on, and N is per question. | Accept, reject, rename, merge codes. Group them into themes. | Every code has a decision and there is at least one theme. |
-| 2 | **Signals & tensions** | How did they say it, and where does it not add up? Behaviour described, not diagnosed ("paused 2.8 s"). Key moments only, coverage always shown, never used to exclude. Tensions: said vs behaviour, said vs survey, between segments, between stimuli. Facial analysis is on hold pending a consent and legal decision. | Accept a tension (and turn it into a theme) or dismiss it with a reason. Untick signals not to use. | Every tension has a decision. |
+| 2 | **Emotion & behaviour** | How did they react, and where does it not add up? Three channels, each against the person's own usual: face (a label with the visible cue and a confidence, only where there is video), voice (pace, pitch, loudness) and hesitation ("paused 2.8 s"). Described, not diagnosed. Words vs delivery: does the face, voice or hesitation match what the words claim? Key moments only, coverage always shown, never used to exclude. Tensions: said vs behaviour, said vs emotion, said vs survey, between segments, between stimuli. | Accept a tension (and turn it into a theme) or dismiss it with a reason. Correct a face reading. Untick signals not to use. | Every tension has a decision. |
 | 3 | **Report** | What do we tell the client? An executive summary and a finding per guide question (AI draft and Researcher draft, every sentence cited, weak or unanswered questions flagged), theme cards with video, showreel, word cloud, podcast, lenses as a switch, exports. | Edit the text, keep or remove sections and tensions, publish. | Published as version 1. |
 
-**What step 2 hands to the Report:** signals per code, theme and key moment (n of M people, timestamps, the model's reason); accepted tensions with both sides in n of N and their quotes; the dismissed ones stay in the log with reasons and never reach the client; coverage (video, audio-only, excluded); segment comparisons that survived, labelled directional.
+**What step 2 hands to the Report:** signals per code, theme and key moment (n of M people, faces read, timestamps, the model's reason); accepted tensions with both sides in n of N and their quotes; the dismissed ones stay in the log with reasons and never reach the client; coverage (video, audio-only, excluded); segment comparisons that survived, labelled directional.
 
 **Always-on side panel (all three steps):** Ask (cited answers only), Numbers (segment differences labelled "directional"), Theme map, Real-time highlights.
 
@@ -41,7 +41,7 @@ Three steps, each with one question, one decision type and one finish line. The 
 
 1. **Structure and navigation** (done), **Signals & tensions** (done), then **Report core** (executive summary, findings, theme cards, draft switch, regenerate, publish).
 2. **Report media:** theme videos, showreel, side panel.
-3. **Word cloud, podcast, lenses, compare studies, translation.** An optional Emotion band, only after the consent and legal decision.
+3. **Word cloud, podcast, lenses, compare studies, translation.** Facial analysis is built in step 2 with mock data (see docs/DECISIONS.md); consent and legal are open question 154.
 
 ## Demo study
 

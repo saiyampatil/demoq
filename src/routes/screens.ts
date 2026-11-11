@@ -53,7 +53,7 @@ export const screens: Screen[] = [
   { id: 'R22', name: 'Session review', app: 'researcher', module: '4.8', phase: 8, path: 'review/session/:sessionId', step: 'review' },
 
   { id: 'A1', name: 'Codebook', app: 'researcher', module: '5', phase: 10, path: 'analysis/codebook', step: 'analysis', demoStudy: 'pet-food-churn' },
-  { id: 'A2', name: 'Signals & tensions', app: 'researcher', module: '5', phase: 10, path: 'analysis/signals', step: 'analysis', demoStudy: 'pet-food-churn' },
+  { id: 'A2', name: 'Emotion & behaviour', app: 'researcher', module: '5', phase: 10, path: 'analysis/signals', step: 'analysis', demoStudy: 'pet-food-churn' },
   { id: 'A3', name: 'Report', app: 'researcher', module: '5', phase: 10, path: 'analysis/report', step: 'analysis', demoStudy: 'pet-food-churn' },
   { id: 'R23', name: 'Study settings', app: 'researcher', module: '4.9', phase: 9, path: 'settings', standalone: true },
 
@@ -154,7 +154,7 @@ export const wizardLabel: Record<string, string> = {
   R21: 'Queue',
   R22: 'Session',
   A1: 'Codebook',
-  A2: 'Signals & tensions',
+  A2: 'Emotion & behaviour',
   A3: 'Report',
 }
 

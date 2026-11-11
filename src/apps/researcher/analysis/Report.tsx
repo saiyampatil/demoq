@@ -144,7 +144,7 @@ export function Report() {
     return {
       codes: doc.codes.filter((c) => c.status === 'Accepted').map((c) => ({ id: c.id, label: c.name })),
       themes: doc.themes.map((th) => ({ id: th.id, label: th.name })),
-      // A tension dismissed in Signals & tensions is never offered.
+      // A tension dismissed in Emotion & behaviour is never offered.
       tensions: tensionsOf(doc, basis)
         .filter((x) => String(doc.tensions?.[x.id]?.status) !== 'Dismissed')
         .map((x) => ({ id: x.id, label: x.title })),
@@ -290,7 +290,7 @@ export function Report() {
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-mist pt-4">
         <Link to={studyPath(studyId, screenById.A2)} className="rounded-md border border-mist bg-surface px-3 py-1.5 text-sm font-medium text-ink hover:bg-haze">
-          ← Signals &amp; tensions
+          ← Emotion &amp; behaviour
         </Link>
         <span className="text-sm text-graphite">{nStrong} of {QUESTION_IDS.length} findings are strong. Publishing comes next.</span>
       </div>

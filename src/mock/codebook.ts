@@ -622,7 +622,7 @@ export const THEME_SUGGESTIONS: Omit<SeedTheme, 'by' | 'at'>[] = [
 
 // ─── the log so far ─────────────────────────────────────────────────────────
 
-export type LogEntry = { id: string; at: string; by: string; target: { kind: 'code' | 'theme' | 'tension' | 'codebook'; id: string; name: string }; action: string; detail?: string; why?: string }
+export type LogEntry = { id: string; at: string; by: string; target: { kind: 'code' | 'theme' | 'tension' | 'reading' | 'codebook'; id: string; name: string }; action: string; detail?: string; why?: string }
 
 /** Decisions already made on the tensions PulseAI suggested (src/mock/signals.ts). */
 export type SeedTensionDecision = { status: 'Turned into a theme' | 'Dismissed'; by: string; at: string; why?: string; themeId?: string }

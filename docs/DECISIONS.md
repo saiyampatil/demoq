@@ -485,3 +485,23 @@ Prototype decisions from the product owner. The PRD is not changed for now.
 - **Code:** `state/moderatorAssign.ts` (add and remove, human-led and standby), `state/teamModerators.ts`, and in `apps/researcher/guide/`: `ModeratorOptions.tsx` (the three cards and their panels), `TeamModeratorPicker.tsx` (the list and the Add new pop-up), `ModeratorBits.tsx` (status cell, dev button). The dev simulator no longer simulates PulseAI confirming or a person declining.
 - **Test:** `tests/scenarios/moderators.mjs` is rewritten to the new flow and fails on any broken check (`node tests/setup-flow.mjs mod moderators`).
 - **Standby people off the PulseAI roster get a mock default availability** (Monday to Friday, 10:00 to 16:00 ET, `DEFAULT_AVAILABILITY` in `mock/moderation.ts`), used by `openSlots`. R12 labels it "Mock default. In the product it comes from their own Moderator calendar." Reason: the researcher and team people have no calendar in the prototype, and without a window a participant who asks for a human was offered nothing. Roster moderators keep their own windows.
+
+
+## Emotion & behaviour (A2): faces, voice and hesitation in one step
+
+Prototype decisions from the product owner, 11 Nov 2026. This supersedes "Facial analysis stays on hold" above.
+
+- **Step 2 is renamed "Emotion & behaviour".** The two tabs stay Signals and Tensions. The founder's terms are unchanged in the brief; the plan maps them.
+- **Facial analysis is in the prototype**, with mock data. Consent and legal are not built and are open question 154. Why: the founder brief asks for tone, hesitation and micro-expressions, and the products it is measured against (Listen Labs, Outset, Conveo) all read faces, so leaving it out left the step behind the brief.
+- **Three channels per moment, each against the person's own usual.** Face (label, strength, a visible cue, a confidence), voice (pace, pitch range, loudness, giving Animated, Even, Flat or Tense) and hesitation (as before). A face label is never shown without what was visible. Voice and hesitation need only audio, so all 20 sessions have them; faces exist for the 16 with video.
+- **Research label set:** Delight, Interest, Surprise, Neutral, Confusion, Doubt, Frustration, with strength Low, Medium or High. Confusion and doubt are what a concept test needs; fear rarely is.
+- **No video is "no reading", never Neutral.** Said on the coverage line, on every bar ("of 16 faces read") and on each audio-only person.
+- **The Researcher can correct a face reading.** A reason is required, the original stays beside the correction, every count that uses it moves, and it is logged (change log kind "Face reading"). "No clear expression" takes it out of the counts. Correcting back to PulseAI's label removes the fix.
+- **Words vs delivery** is the point of the step. Each code has a claim from its words (speaks for it, complains about it, states a fact). Where there is a claim, each person's face, voice and hesitation are checked against it: Fits, Partly, or Doesn't fit. A complaint said with a frown fits, so it is not flagged. A code reads Consistent, Mixed or Conflicting.
+- **Signals tab:** a channel switch (Emotion, Voice, Hesitation) over By code and By moment, a "Words vs delivery" column, and a one-line roll-up per theme (people, faces read, marked hesitation, and a warning only counting people who spoke for it). This delivers the brief's "theme is verbally positive but shows hesitation". "What stands out" now leads with the warmest concept reaction and the biggest words-vs-delivery gap.
+- **Concept reactions are read in the first five seconds**, before any explanation, and the warmest is marked.
+- **Tensions:** a fifth kind, Said vs emotion ("picked pause in words, but their faces lit up most at portion-matched boxes"). Clips carry the face reading.
+- **Bug fixes:** a theme made from a tension now counts the tension's own finding ("2 of 6"), not everyone who said its codes (in the app and the Excel file). A code with fewer than three people can no longer be put in the report.
+- **Mock story, so the demo says one thing:** Concept A (pause) draws surprise and doubt; Concept B (recipe swap) draws confusion from some and interest from others; Concept C (portion-matched boxes) draws the warmest reaction, including from people who picked pause in words. Audio-only: P-3105, P-3110, P-3113, P-3118.
+- **Code:** `mock/emotion.ts` (readings), `state/emotion.ts` (rules and counts), `state/signals.ts` (code and moment signals, tensions, roll-ups), `apps/researcher/analysis/SignalBits.tsx` (chips, bars, the moment card and the correction dialog), `SignalsTab.tsx`. Test: `tests/emotion.mjs`.
+

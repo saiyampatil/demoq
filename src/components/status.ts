@@ -31,7 +31,7 @@ export const vocabularies = {
   moderator: ['Requested', 'Added'],
   // Codes in the Results Analysis codebook (docs/ANALYSIS_PLAN.md). Not in CLAUDE.md's list.
   code: ['Suggested', 'Accepted', 'Rejected', 'Merged'],
-  // Tensions in Signals & tensions. "Suggested" is shared with codes. Not in CLAUDE.md's list.
+  // Tensions in Emotion & behaviour. "Suggested" is shared with codes. Not in CLAUDE.md's list.
   tension: ['Turned into a theme', 'Dismissed'],
 } as const
 
