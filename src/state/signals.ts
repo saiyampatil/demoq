@@ -19,7 +19,7 @@ import {
   type TensionDef,
 } from '@/mock/signals'
 import { codeThemes, denominator, peopleOf, tensionDecisions, themeCodes, type Basis, type Code, type CodebookDoc, type TensionDecision, type Theme } from './codebook'
-import { emotionSplit, faceLabel, faceOf, fitSplit, hasVideo, toneSplit, VALENCE, type Emotion, type EmotionSplit, type FitSplit, type ToneSplit } from './emotion'
+import { emotionSplit, faceOf, fitSplit, hasVideo, toneSplit, VALENCE, type Emotion, type EmotionSplit, type FitSplit, type ToneSplit } from './emotion'
 
 export { BANDS, MOMENTS, TENSION_KINDS, type Band, type Moment, type Point, type TensionKind } from '@/mock/signals'
 export { SIGNAL_RULES, signsOf } from '@/mock/signals'
@@ -153,8 +153,8 @@ export function coverage(accepted: { media?: 'Video' | 'Audio only' }[], exclude
 export type TensionStatus = 'Suggested' | 'Turned into a theme' | 'Dismissed'
 /** One side of a tension, in n of N. */
 export type Side = { label: string; n: number; of: number; note?: string }
-/** A face reading shown on a clip: where it was read, and what (after any correction). */
-export type ClipFace = { where: string; label: string; emotion: Emotion | null }
+/** A face reading shown on a clip: where it was read, what was seen (the lead), and what it reads as (after any correction). */
+export type ClipFace = { where: string; cue: string; atSec: number; onsetSec: number; emotion: Emotion | null; intensity: string; corrected: boolean }
 export type Clip = { participantId: string; sessionId: string; atSec: number; quote?: string; note: string; faces?: ClipFace[] }
 export type Tension = TensionDef & {
   status: TensionStatus
@@ -178,7 +178,7 @@ const quoteOf = (p: Point) => p.excerpt?.text
 /** The face at a point, ready for a clip. Nothing when there is no video. */
 function clipFace(p: Point | undefined, doc: CodebookDoc, where: string): ClipFace[] {
   const f = p ? faceOf(p, doc) : undefined
-  return f ? [{ where, label: faceLabel(f), emotion: f.emotion }] : []
+  return f && p ? [{ where, cue: f.reading.cue, atSec: p.atSec, onsetSec: f.reading.onsetSec, emotion: f.emotion, intensity: f.reading.intensity, corrected: !!f.fix }] : []
 }
 const WARM = new Set<Emotion>(['Delight', 'Interest'])
 
@@ -233,7 +233,8 @@ function evidence(def: TensionDef, doc: CodebookDoc, basis: Basis): Pick<Tension
         return {
           participantId: p,
           sessionId: ex.sessionId,
-          atSec: c?.atSec ?? ex.atSec,
+          // Play lands on the quoted answer. Each face below carries its own time, at the concept it was read on.
+          atSec: ex.atSec,
           quote: ex.excerpt?.text,
           note: 'Their words when asked which idea would keep them. The faces were read in the first five seconds of each concept.',
           faces: [...clipFace(atA.find((x) => x.participantId === p), doc, 'Concept A, pause'), ...clipFace(c, doc, 'Concept C, portions')],
@@ -352,9 +353,24 @@ export function themeRollup(doc: CodebookDoc, rows: CodeSignal[]): ThemeRollup |
     return p.band === 'Marked hesitation' || (!!f?.emotion && VALENCE[f.emotion] === 'Negative')
   }).length
   const v = emotions.valence
-  const faces = emotions.read ? `Faces read for ${emotions.read}: ${v.Positive} positive, ${v.Neutral} neutral, ${v.Negative} negative.` : 'No faces read (no video).'
-  const text = `${points.length} ${points.length === 1 ? 'person' : 'people'}. ${faces} Marked hesitation in ${marked} of ${points.length}.`
-  const highlight = positiveClaim && unsettled / speakers.length >= 0.3 ? `Of the ${speakers.length} who spoke for it, ${unsettled} showed doubt, confusion or frustration on their face, or marked hesitation.` : undefined
+  const n = points.length
+  const gap = [emotions.noVideo ? `${emotions.noVideo} audio-only` : '', emotions.unclear ? `${emotions.unclear} marked no clear expression` : ''].filter(Boolean).join(', ')
+  const faces = emotions.read ? `Faces read for ${emotions.read} of ${n}${gap ? ` (${gap})` : ''}: ${v.Positive} positive, ${v.Neutral} neutral, ${v.Negative} negative, ${v.Unclear} unclear.` : `No faces read (${gap || 'no video'}).`
+  const text = `${n} ${n === 1 ? 'person' : 'people'}. ${faces} Marked hesitation in ${marked} of ${n}.`
+  // Every number in the warning traces back: who spoke for it, who in the theme did not, and how each of the unsettled was seen.
+  const onFace = speakers.filter((p) => {
+    const f = faceOf(p, doc)
+    return !!f?.emotion && VALENCE[f.emotion] === 'Negative'
+  }).length
+  const speakerIds = new Set(speakers.map((p) => p.participantId))
+  const others = points.filter((p) => !speakerIds.has(p.participantId))
+  const noVideoSpeakers = speakers.filter((p) => !faceOf(p, doc)).length
+  const highlight =
+    positiveClaim && unsettled / speakers.length >= 0.3
+      ? `Of the ${speakers.length} who spoke for it, ${unsettled} showed doubt or frustration on their face (${onFace}) or marked hesitation without it (${unsettled - onFace}).` +
+        (others.length ? ` The other ${others.length === 1 ? 'person' : `${others.length} people`} in this theme (${others.map((p) => p.participantId).join(', ')}) only stated a fact or complained, so there is no positive claim to check.` : '') +
+        (noVideoSpeakers ? ` ${noVideoSpeakers} of the ${speakers.length} ${noVideoSpeakers === 1 ? 'is' : 'are'} audio-only, so ${noVideoSpeakers === 1 ? 'is' : 'are'} read on hesitation alone.` : '')
+      : undefined
   return { people: points.length, emotions, marked, fit, positiveClaim, unsettled, text, highlight }
 }
 
@@ -363,14 +379,43 @@ export function themeRollup(doc: CodebookDoc, rows: CodeSignal[]): ThemeRollup |
 /** A pattern written as a sentence, with where to see it. The first thing the Researcher reads. */
 export type Standout = { id: string; kind: 'code' | 'moment' | 'tensions'; lens: 'hesitation' | 'emotion' | 'fit'; target?: string; lead: string; detail: string }
 
+/** A moment's name without the "First reaction:" lead, for lists. */
+export const shortMoment = (m: Moment) => m.label.replace(/^First reaction: /, '')
+const NUMBER_WORDS = ['No', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight']
+const numberWord = (n: number) => NUMBER_WORDS[n] ?? String(n)
+
+/** What the people who were asked a moment's question show. A moment needs this many people before it can lead a list. */
+const LEADER_MIN_PEOPLE = 10
+/** The moments with the most people showing marked hesitation. More than one when they tie on the count, which is the common case. Empty below three people. */
+export function mostHesitation(moments: MomentSignal[]): MomentSignal[] {
+  const pool = moments.filter((m) => m.all.n >= LEADER_MIN_PEOPLE)
+  const top = Math.max(0, ...pool.map((m) => m.all.counts['Marked hesitation']))
+  return top >= 3 ? pool.filter((m) => m.all.counts['Marked hesitation'] === top) : []
+}
+
+/** The concepts whose first reaction is the most positive, by the share of faces read. Several when they tie exactly. Needs at least two concepts to compare. */
+export function mostPositive(moments: MomentSignal[]): MomentSignal[] {
+  const concepts = moments.filter((m) => m.moment.kind === 'stimulus' && m.emotions.all.read >= LEADER_MIN_PEOPLE)
+  if (concepts.length < 2) return []
+  // Compare p/r by cross-multiplying, so a tie is exact and never a rounding accident.
+  const beats = (a: MomentSignal, b: MomentSignal) => a.emotions.all.valence.Positive * b.emotions.all.read > b.emotions.all.valence.Positive * a.emotions.all.read
+  const best = concepts.reduce((x, y) => (beats(y, x) ? y : x))
+  return concepts.filter((m) => !beats(best, m))
+}
+
 export function standouts(signals: CodeSignal[], moments: MomentSignal[], toReview: number): Standout[] {
   const out: Standout[] = []
-  // The warmest first reaction to a concept, among the faces read.
-  const concepts = moments.filter((m) => m.moment.kind === 'stimulus' && m.emotions.all.read >= 10)
-  const warmest = [...concepts].sort((a, b) => b.emotions.all.valence.Positive / b.emotions.all.read - a.emotions.all.valence.Positive / a.emotions.all.read)[0]
-  if (warmest && concepts.length > 1) {
-    const e = warmest.emotions.all
-    out.push({ id: `emotion-${warmest.moment.id}`, kind: 'moment', lens: 'emotion', target: warmest.moment.id, lead: warmest.moment.label, detail: `Delight or interest on ${e.valence.Positive} of ${e.read} faces read, the warmest first reaction of the ${concepts.length} concepts.` })
+  // The most positive first reaction to a concept, among the faces read. A tie is said as a tie.
+  const lead = mostPositive(moments)
+  if (lead.length) {
+    const total = moments.filter((m) => m.moment.kind === 'stimulus' && m.emotions.all.read >= LEADER_MIN_PEOPLE).length
+    const each = (m: MomentSignal) => `${shortMoment(m.moment)} (${m.emotions.all.valence.Positive} of ${m.emotions.all.read})`
+    if (lead.length === 1) {
+      const e = lead[0].emotions.all
+      out.push({ id: `emotion-${lead[0].moment.id}`, kind: 'moment', lens: 'emotion', target: lead[0].moment.id, lead: lead[0].moment.label, detail: `${e.valence.Positive} of ${e.read} faces read as delight or interest, the most positive first reaction of the ${total} concepts.` })
+    } else {
+      out.push({ id: `emotion-${lead[0].moment.id}`, kind: 'moment', lens: 'emotion', target: lead[0].moment.id, lead: `${numberWord(lead.length)} concepts tie for the most positive first reaction`, detail: `Faces read as delight or interest: ${lead.map(each).join('; ')}.` })
+    }
   }
   // Where the words and the delivery disagree most.
   const conflict = signals.filter((s) => s.fit.pattern === 'Conflicting' || s.fit.pattern === 'Mixed').sort((a, b) => (b.fit.doesnt + b.fit.partly) / b.fit.n - (a.fit.doesnt + a.fit.partly) / a.fit.n)[0]
@@ -379,8 +424,15 @@ export function standouts(signals: CodeSignal[], moments: MomentSignal[], toRevi
   // The most hesitant code that isn't already there.
   const hes = signals.filter((s) => s.readable && (s.pattern === 'Mixed' || s.pattern === 'Often hesitant') && s.code.id !== conflict?.code.id).sort((a, b) => b.marked / b.people - a.marked / a.people)[0]
   if (hes) out.push({ id: `code-${hes.code.id}`, kind: 'code', lens: 'hesitation', target: hes.code.id, lead: hes.code.name, detail: `Said by ${hes.people} of ${hes.of}, with marked hesitation in ${hes.marked} of ${hes.people}.` })
-  const top = moments.filter((m) => m.all.n >= 10).sort((a, b) => b.all.counts['Marked hesitation'] / b.all.n - a.all.counts['Marked hesitation'] / a.all.n)[0]
-  if (top && top.all.counts['Marked hesitation'] >= 3) out.push({ id: `moment-${top.moment.id}`, kind: 'moment', lens: 'hesitation', target: top.moment.id, lead: top.moment.label, detail: `${top.all.counts['Marked hesitation']} of ${top.all.n} showed marked hesitation, the most of any moment.` })
+  // The most hesitant moment. When several share the top count, none of them is "the" most: say they tie.
+  const tops = mostHesitation(moments)
+  if (tops.length === 1) {
+    const t = tops[0]
+    out.push({ id: `moment-${t.moment.id}`, kind: 'moment', lens: 'hesitation', target: t.moment.id, lead: t.moment.label, detail: `${t.all.counts['Marked hesitation']} of ${t.all.n} showed marked hesitation, the most of any moment.` })
+  } else if (tops.length > 1) {
+    const count = tops[0].all.counts['Marked hesitation']
+    out.push({ id: `moment-${tops[0].moment.id}`, kind: 'moment', lens: 'hesitation', target: tops[0].moment.id, lead: `${numberWord(tops.length)} moments tie for the most hesitation`, detail: `Marked hesitation in ${count} people at each: ${tops.map((m) => `${shortMoment(m.moment)} (${count} of ${m.all.n})`).join('; ')}.` })
+  }
   if (toReview > 0) out.push({ id: 'tensions', kind: 'tensions', lens: 'hesitation', lead: `${plural(toReview, 'tension')} to review`, detail: 'Where what people said doesn’t add up.' })
   return out
 }

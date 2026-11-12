@@ -1,5 +1,6 @@
 // Review (4.8) data. The sessions come from the study's one session list
 // (mock/sessions.ts): every completed session is here, and nothing else is. Moderator type is fixed per study.
+import { seeded } from './seed'
 import { SEED_SESSIONS, sessionIdOf, type SeedSession } from './sessions'
 import { SKIN_SURVEYS, surveyAnswerFor, type SurveyDef, type SurveyFormat } from './surveys'
 
@@ -204,6 +205,40 @@ const SKIN_STIMULI = [
 ]
 
 
+// ─── when each turn happens ─────────────────────────────────────────────────
+
+const clocks = new Map<string, number[]>()
+/**
+ * Seconds into the recording at which turn `i` starts. Real interviews are uneven (a question is short, an answer is
+ * long, some answers are slow), so each session gets its own deterministic timeline instead of equal steps. One
+ * function for the whole prototype, so a quote, a flag, a stimulus and a transcript line all agree on the same turn.
+ * A very dense transcript (the 2,400-turn sample) keeps equal steps, because it has under three seconds a turn.
+ */
+export function turnAtSec(sessionId: string, i: number, total: number, count: number): number {
+  if (total / count < 3) return Math.floor((i * total) / count)
+  const key = `${sessionId}|${total}|${count}`
+  let c = clocks.get(key)
+  if (!c) {
+    // A question takes a few seconds; an answer takes longer and varies more.
+    const w = Array.from({ length: count }, (_, j) => (j % 2 === 0 ? 0.45 + 0.6 * seeded(key, j) : 0.8 + 1.3 * seeded(key, j)))
+    const sum = w.reduce((a, b) => a + b, 0)
+    c = [0]
+    w.forEach((x, j) => c!.push(c![j] + (x / sum) * total))
+    clocks.set(key, c)
+  }
+  return Math.floor(c[Math.min(i, count)])
+}
+
+/** The turn playing at a given second: the last one that has started by then. The same lookup the player uses. */
+export function turnIndexAtSec(sessionId: string, sec: number, total: number, count: number): number {
+  let found = 0
+  for (let i = 0; i < count; i++) {
+    if (turnAtSec(sessionId, i, total, count) <= sec) found = i
+    else break
+  }
+  return found
+}
+
 /** The full sample is the pack's sample session at 2,400 turns. Other sessions get a shorter transcript. */
 function build(seed: SeedSession, pack: ReviewPack): ReviewSession {
   const { participant, at: completedAt, durationMin = 20 } = seed
@@ -214,7 +249,7 @@ function build(seed: SeedSession, pack: ReviewPack): ReviewSession {
   const moderatorType: ModeratorType = 'AI agent'
   const total = durationMin * 60
   const count = id === pack.sample ? 2400 : 160
-  const atOf = (idx: number) => Math.floor((idx * total) / count)
+  const atOf = (idx: number) => turnAtSec(id, idx, total, count)
   // A flag points at a real turn: AI-side flags on AI turns (even), participant-side flags on participant turns (odd).
   const idxFor = (sec: number, side: 'AI' | 'Participant') => {
     let i = Math.min(count - 2, Math.max(2, Math.round((sec / total) * count)))
@@ -372,7 +407,7 @@ export function transcriptFor(sessionId: string, version: 'raw' | 'reviewed' = '
   const turns: Turn[] = Array.from({ length: s.turnCount }, (_, i) => ({
     index: i,
     turn: i + 1,
-    atSec: Math.floor((i * total) / s.turnCount),
+    atSec: turnAtSec(sessionId, i, total, s.turnCount),
     speaker: i % 2 === 0 ? 'AI' : 'Participant',
     text: i % 2 === 0 ? pack.questions[(i / 2) % pack.questions.length] : pack.answers[((i - 1) / 2) % pack.answers.length],
   }))

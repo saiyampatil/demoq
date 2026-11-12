@@ -10,7 +10,7 @@ import { Tooltip } from '@/components/Tooltip'
 import { petOf } from '@/mock/codebook'
 import { screenById, studyPath } from '@/routes/screens'
 import { band as confidenceBand, correctFace } from '@/state/codebook'
-import { EMOTION_HINT, EMOTIONS, STANCE_LABEL, TONE_HINT, TONES, VALENCE, faceOf, fitOf, type Emotion, type EmotionSplit, type Face, type Fit, type FitPattern, type Tone, type ToneSplit } from '@/state/emotion'
+import { EMOTION_HINT, EMOTIONS, STANCE_LABEL, TONE_HINT, TONES, VALENCE, VALENCE_WORD, VALENCES, faceOf, fitOf, type Emotion, type EmotionSplit, type Face, type Fit, type FitPattern, type Tone, type ToneSplit } from '@/state/emotion'
 import { signsOf, type Band, type Pattern, type Point, type Split } from '@/state/signals'
 import { BANDS } from '@/state/signals'
 import { mmss } from '../review/reviewUi'
@@ -86,15 +86,20 @@ export const EMOTION_FILL: Record<Emotion, string> = {
   Doubt: 'bg-emo-doubt',
   Frustration: 'bg-emo-frustration',
 }
-const VALENCE_CHIP = { Positive: 'border-emo-warm-line bg-emo-warm-bg text-emo-warm-fg', Neutral: 'border-mist-strong bg-haze text-graphite', Negative: 'border-emo-cold-line bg-emo-cold-bg text-emo-cold-fg' } as const
+// Unclear (confusion) is drawn dashed and plain, so it is never read as a warning.
+const VALENCE_CHIP = { Positive: 'border-emo-warm-line bg-emo-warm-bg text-emo-warm-fg', Neutral: 'border-mist-strong bg-haze text-graphite', Negative: 'border-emo-cold-line bg-emo-cold-bg text-emo-cold-fg', Unclear: 'border-dashed border-mist-strong bg-surface text-graphite' } as const
 
-/** An emotion with its strength. Surprise reads as in between, so it takes the sand tone rather than warm or cold. */
-export function EmotionChip({ emotion, intensity, corrected, className }: { emotion: Emotion | null; intensity?: string; corrected?: boolean; className?: string }) {
+/**
+ * An emotion with its strength. `reads` writes it as an interpretation ("reads as Doubt"), which is how every single
+ * face reading is shown. Surprise reads as in between, so it takes the sand tone rather than positive or negative.
+ */
+export function EmotionChip({ emotion, intensity, corrected, reads, className }: { emotion: Emotion | null; intensity?: string; corrected?: boolean; reads?: boolean; className?: string }) {
   if (!emotion) return <span className={cn(chipBase, 'border-dashed border-mist-strong bg-surface text-muted', className)}>No clear expression</span>
   const cls = emotion === 'Surprise' ? 'border-emo-mid-line bg-emo-mid-bg text-emo-mid-fg' : VALENCE_CHIP[VALENCE[emotion]]
   return (
     <span className={cn(chipBase, cls, className)} title={EMOTION_HINT[emotion]}>
       <span aria-hidden="true" className={cn('size-1.5 rounded-full', EMOTION_FILL[emotion])} />
+      {reads && <span className="font-normal">reads as</span>}
       {emotion}
       {intensity && emotion !== 'Neutral' && <span className="font-normal opacity-80">· {intensity.toLowerCase()}</span>}
       {corrected && <span className="font-normal opacity-80">· corrected</span>}
@@ -115,6 +120,36 @@ export function EmotionBar({ split, tall }: { split: EmotionSplit; tall?: boolea
 
 export function EmotionLegend() {
   return <Legend items={EMOTIONS.map((e) => ({ label: e, fill: EMOTION_FILL[e], hint: EMOTION_HINT[e] }))} />
+}
+
+/** How the seven labels are grouped, written out once so the counts everywhere ("3 positive, 2 negative") can be traced. */
+export function ValenceKey() {
+  return (
+    <p className="text-xs text-graphite" data-testid="valence-key">
+      <span className="font-medium text-ink">Grouped as</span>{' '}
+      {VALENCES.map((v, i) => (
+        <span key={v}>
+          {i > 0 && ' · '}
+          <span className="font-medium">{VALENCE_WORD[v]}</span>: {EMOTIONS.filter((e) => VALENCE[e] === v).join(', ')}
+        </span>
+      ))}
+      . Confusion is shown on its own: it is never counted as negative, and never for or against the words.
+    </p>
+  )
+}
+
+/** The four groups as counts: positive, neutral, negative, then unclear set apart, so they add up to the faces read. */
+export function ValenceCounts({ e, className }: { e: EmotionSplit; className?: string }) {
+  return (
+    <span className={cn('tabular-nums', className)} data-testid="valence-counts">
+      <span className="font-semibold text-emo-warm-fg">{e.valence.Positive}</span> positive · {e.valence.Neutral} neutral · <span className="font-semibold text-emo-cold-fg">{e.valence.Negative}</span> negative <span className="text-muted">·</span> <span className="italic">{e.valence.Unclear} unclear</span>
+    </span>
+  )
+}
+
+/** Why some people have no face counted: said once, beside any "of N faces read". Empty when everyone was read. */
+export function noReading(e: EmotionSplit) {
+  return [e.noVideo ? `${e.noVideo} audio-only` : '', e.unclear ? `${e.unclear} marked no clear expression` : ''].filter(Boolean).join(', ')
 }
 
 // ─── voice ──────────────────────────────────────────────────────────────────
@@ -155,7 +190,7 @@ const FIT_CHIP: Record<FitPattern, string> = {
 const FIT_HINT: Record<FitPattern, string> = {
   Consistent: 'Face, voice and hesitation mostly match what the words claim',
   Mixed: 'For some people, one channel or more pulled against the words',
-  Conflicting: 'For many people, how they said it pulled against what they said',
+  Conflicting: 'For many people, how they said it clearly pulled against what they said',
   'Too few to read': 'Fewer than three people, too few to read a pattern',
   'No claim': 'These words state a fact or a preference, so there is nothing for the face or voice to disagree with',
 }
@@ -227,22 +262,21 @@ export function PointCard({ point: p, ctx, context }: { point: Point; ctx: Codeb
         <Row label="Face">
           {face ? (
             <span data-testid="face-reading" data-emotion={face.emotion ?? 'none'}>
-              <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                <EmotionChip emotion={face.emotion} intensity={face.reading.intensity} corrected={!!face.fix} />
+              <span className="block text-xs text-graphite" data-testid="face-seen">
+                <span className="font-medium text-ink tabular-nums">Seen at {mmss(p.atSec)}</span> ({face.reading.onsetSec} s in): {face.reading.cue.toLowerCase()}.
+              </span>
+              <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+                <EmotionChip emotion={face.emotion} intensity={face.reading.intensity} corrected={!!face.fix} reads />
                 {!face.fix && <span className="text-xs text-graphite">{confidenceBand(face.reading.confidence)} confidence</span>}
                 <button type="button" onClick={() => setFixing(true)} className="text-xs font-medium text-iris-700 hover:underline" data-testid="fix-face">
                   {face.fix ? 'Change' : 'Not right?'}
                 </button>
               </span>
-              <span className="mt-0.5 block text-xs text-graphite">
-                {face.fix ? (
-                  <>
-                    PulseAI read {face.reading.emotion.toLowerCase()}. Corrected by {face.fix.by}: “{face.fix.why}”
-                  </>
-                ) : (
-                  <>Seen: {face.reading.cue.toLowerCase()}, {face.reading.onsetSec} s in.</>
-                )}
-              </span>
+              {face.fix && (
+                <span className="mt-0.5 block text-xs text-graphite">
+                  PulseAI read {face.reading.emotion.toLowerCase()}. Corrected by {face.fix.by}: “{face.fix.why}”
+                </span>
+              )}
             </span>
           ) : (
             <span className="text-xs text-muted" data-testid="no-face">
@@ -331,12 +365,14 @@ function CorrectFaceDialog({ open, onClose, point: p, face, ctx, context }: { op
     >
       <div className="flex flex-col gap-4 pb-1">
         <div className="rounded-sm border border-mist bg-paper px-3 py-2.5 text-sm">
-          <p className="flex flex-wrap items-center gap-2">
-            <span className="text-xs font-medium text-graphite">PulseAI read</span>
-            <EmotionChip emotion={original} intensity={face.reading.intensity} />
+          <p className="text-xs text-graphite">
+            <span className="font-medium text-ink tabular-nums">Seen at {mmss(p.atSec)}</span> ({face.reading.onsetSec} s in): {face.reading.cue.toLowerCase()}.
+          </p>
+          <p className="mt-1.5 flex flex-wrap items-center gap-2">
+            <span className="text-xs font-medium text-graphite">PulseAI’s interpretation</span>
+            <EmotionChip emotion={original} intensity={face.reading.intensity} reads />
             <span className="text-xs text-graphite">{confidenceBand(face.reading.confidence)} confidence</span>
           </p>
-          <p className="mt-1 text-xs text-graphite">Seen: {face.reading.cue.toLowerCase()}, {face.reading.onsetSec} s in.</p>
           <Link to={playHref(ctx.studyId, p.sessionId, p.atSec)} className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-iris-700 hover:underline">
             <PlayIcon size={11} /> Watch it at {mmss(p.atSec)}
           </Link>

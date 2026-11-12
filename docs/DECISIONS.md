@@ -506,6 +506,15 @@ Prototype decisions from the product owner, 11 Nov 2026. This supersedes "Facial
 - **Code:** `mock/emotion.ts` (readings), `state/emotion.ts` (rules and counts), `state/signals.ts` (code and moment signals, tensions, roll-ups), `apps/researcher/analysis/SignalBits.tsx` (chips, bars, the moment card and the correction dialog), `SignalsTab.tsx`. Test: `tests/emotion.mjs`.
 
 
+## A2: seven review fixes (labels, ties, one vocabulary, Conflicting, compare note, timestamps)
+
+- **A face is described, then interpreted.** Every single face reading leads with "Seen at 18:03 (1.2 s in): lips pressed, eyes glanced away" and only then says "reads as Doubt · medium". The same order is used in the code panel, the moment panel, the correction dialog and the clips on a tension. Counts are worded the same way ("3 of 8 faces read as doubt"). A visible "How faces are read" note says a reading is an interpretation and can be corrected.
+- **Ties are computed, never assumed.** "The most hesitation" and "the most positive first reaction" are sets: when more than one moment shares the top count, What stands out says "Three moments tie for the most hesitation" and lists each with its own n of N, and each tied row is tagged. The same goes for the top emotion in a code ("doubt and interest tie"). One function (`mostHesitation`, `mostPositive`, `topEmotions`) feeds every place.
+- **One vocabulary: positive, neutral, negative, unclear.** Confusion is Unclear: shown separately (dashed, italic), never counted as negative, never for or against the words. Surprise stays neutral. A key under the channel switch lists how each label is grouped, and every count line adds up to the faces read.
+- **Conflicting has one stated rule** (`FIT_RULE` in `state/emotion.ts`, written out beside the column from the same numbers). Denominators trace: a roll-up says "Faces read for 7 of 9 (1 audio-only, 1 marked no clear expression)" and "Of the 8 who spoke for it … The other person in this theme (P-3107) only stated a fact or complained".
+- **Dog and cat comparison.** Off by default. When every row has a group under 5 there is one note at the top and not one on each row; if only some rows are small they keep their own.
+- **Timestamps.** Turn times are no longer equal steps: each session has its own deterministic timeline (`turnAtSec`), used by the transcript, flags, stimuli, quotes and moments, so every Play at lands on the quoted turn. Two people never share a second within a code or a moment. A concept's first reaction is the answer just after that card was shown in the session.
+
 ## Explore drawer: real-time highlights (brief step 7)
 
 Prototype decisions from the product owner, 11 Nov 2026.

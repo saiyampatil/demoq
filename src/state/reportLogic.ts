@@ -18,7 +18,7 @@ import {
   type Excerpt,
   type Theme,
 } from './codebook'
-import { toneSplit, topEmotion, TONES } from './emotion'
+import { toneSplit, topEmotions, TONES } from './emotion'
 import { codeSignals, tensionHeadline, tensionsFor, tensionsOf, themeRollup, type CodeSignal, type Tension } from './signals'
 import { citesKey, draftOf, type Approval, type Citation, type DraftKind, type ReportDoc, type Sentence, type Strength } from './report'
 
@@ -188,8 +188,13 @@ export type FindingSignal = { codeId: string; codeName: string; lines: SignalLin
 
 function signalLines(s: CodeSignal): SignalLine[] {
   const lines: SignalLine[] = [{ channel: 'Hesitation', text: `${s.pattern}: marked hesitation in ${s.marked} of ${s.people} people`, emotionVoice: false }]
-  const top = topEmotion(s.emotions)
-  if (top && s.emotions.read >= 3) lines.push({ channel: 'Face', text: s.emotions.counts[top] >= 2 ? `Faces read for ${s.emotions.read}: most often ${top.toLowerCase()} (${s.emotions.counts[top]} of ${s.emotions.read})` : `Faces read for ${s.emotions.read}: no one reaction stands out`, emotionVoice: true })
+  const tops = topEmotions(s.emotions)
+  if (tops.length && s.emotions.read >= 3) {
+    const n = s.emotions.counts[tops[0]]
+    const read = `Faces read for ${s.emotions.read} of ${s.people}`
+    const text = n < 2 ? `${read}: no one reading stands out` : tops.length === 1 ? `${read}: ${n} read as ${tops[0].toLowerCase()}` : `${read}: ${tops.map((e) => e.toLowerCase()).join(' and ')} tie at ${n} each`
+    lines.push({ channel: 'Face', text, emotionVoice: true })
+  }
   const tones = toneSplit(s.points)
   const tone = TONES.reduce((best, t) => (tones.counts[t] > tones.counts[best] ? t : best), TONES[0])
   if (tones.n >= 3 && tone !== 'Even' && tones.counts[tone] * 2 >= tones.n) lines.push({ channel: 'Voice', text: `Voice mostly ${tone.toLowerCase()} for ${tones.counts[tone]} of ${tones.n}`, emotionVoice: true })

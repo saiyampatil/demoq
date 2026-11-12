@@ -15,20 +15,28 @@ import { PET_SEED_SESSIONS } from './sessions'
 
 /** A research set, not the clinical one: confusion and doubt are what a concept test needs; fear rarely is. */
 export type Emotion = 'Delight' | 'Interest' | 'Surprise' | 'Neutral' | 'Confusion' | 'Doubt' | 'Frustration'
-/** Ordered from warm to cold, so bars read the same way everywhere. */
+/** Ordered from positive to negative, so bars read the same way everywhere. */
 export const EMOTIONS: Emotion[] = ['Delight', 'Interest', 'Surprise', 'Neutral', 'Confusion', 'Doubt', 'Frustration']
 
-export type Valence = 'Positive' | 'Neutral' | 'Negative'
-export const VALENCES: Valence[] = ['Positive', 'Neutral', 'Negative']
+/**
+ * How the seven labels are grouped, one vocabulary for every view (the legend spells it out):
+ * Positive is delight and interest. Negative is doubt and frustration. Neutral is a resting face and surprise (surprise
+ * is neither good nor bad on its own). Confusion is its own group, Unclear: someone squinting at a card is not
+ * disagreeing, so it is never counted as negative and is always shown separately.
+ */
+export type Valence = 'Positive' | 'Neutral' | 'Negative' | 'Unclear'
+export const VALENCES: Valence[] = ['Positive', 'Neutral', 'Negative', 'Unclear']
 export const VALENCE: Record<Emotion, Valence> = {
   Delight: 'Positive',
   Interest: 'Positive',
   Surprise: 'Neutral',
   Neutral: 'Neutral',
-  Confusion: 'Negative',
+  Confusion: 'Unclear',
   Doubt: 'Negative',
   Frustration: 'Negative',
 }
+/** The group names as written on screen. */
+export const VALENCE_WORD: Record<Valence, string> = { Positive: 'positive', Neutral: 'neutral', Negative: 'negative', Unclear: 'unclear' }
 
 /** What each label means, in the words a researcher would use. Shown in tooltips and the legend. */
 export const EMOTION_HINT: Record<Emotion, string> = {

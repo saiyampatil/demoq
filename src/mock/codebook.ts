@@ -1,7 +1,7 @@
 // The codebook PulseAI drafted for Pet Food Subscription Churn, and what Maya Ortiz had already done with it.
 // Every quote is written into that participant's transcript at the turn it cites, so a quote and its session never disagree.
 
-import { findReviewRecord, placeTranscriptLines } from './review'
+import { findReviewRecord, placeTranscriptLines, turnAtSec } from './review'
 import './petFood'
 
 export const CODEBOOK_STUDY = 'pet-food-churn'
@@ -568,6 +568,7 @@ const PROBES = ['Tell me more about that.', 'What else comes to mind?', 'Can you
 export const EXCERPTS: Record<string, Excerpt> = {}
 const placed = new Map<string, { index: number; text: string }[]>()
 const nextSlot = new Map<string, number>()
+const usedAt = new Map<string, Set<number>>()
 
 function place(code: Draft, [participantId, text, conf]: Q, n: number): string {
   const sessionId = sessionOf(participantId)
@@ -575,7 +576,7 @@ function place(code: Draft, [participantId, text, conf]: Q, n: number): string {
   const id = `${code.id}-${participantId}-${n}`
   if (!rec) throw new Error(`No review record for ${sessionId}`)
   const total = rec.durationMin * 60
-  const at = (i: number) => Math.floor((i * total) / rec.turnCount)
+  const at = (i: number) => turnAtSec(sessionId, i, total, rec.turnCount)
   const fixed = CORRECTED[`${participantId}|${code.id}`]
   let index: number
   if (fixed) index = fixed.index
@@ -586,7 +587,11 @@ function place(code: Draft, [participantId, text, conf]: Q, n: number): string {
     const taken = new Set([...rec.flags.map((f) => f.turn - 1), ...(rec.reviewed?.edits.map((e) => e.index) ?? []), ...lines.map((l) => l.index)])
     const first = !nextSlot.has(key)
     let i = nextSlot.get(key) ?? Math.round(q.fraction * rec.turnCount) | 1
-    while (taken.has(i) || taken.has(i - 1)) i += 2
+    // Nobody else's answer to this question starts on the same second: a tie reads as a copy and Play would be ambiguous.
+    const seen = usedAt.get(q.id) ?? new Set<number>()
+    while (taken.has(i) || taken.has(i - 1) || seen.has(at(i))) i += 2
+    seen.add(at(i))
+    usedAt.set(q.id, seen)
     nextSlot.set(key, i + 2)
     index = i
     lines.push({ index: i - 1, text: first ? q.text : PROBES[(i >> 1) % PROBES.length] }, { index: i, text })

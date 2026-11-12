@@ -218,14 +218,16 @@ function TensionCard({ t, ctx, focused, onSeeSignals, onTurn, onDismiss, onResto
                       </p>
                       {c.quote && <p className="mt-1 font-serif text-quote leading-snug text-ink">“{c.quote}”</p>}
                       {c.faces && c.faces.length > 0 && (
-                        <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1" data-testid="clip-faces">
+                        <ul className="mt-1.5 flex flex-col gap-1.5" data-testid="clip-faces">
                           {c.faces.map((f) => (
-                            <span key={f.where} className="inline-flex items-center gap-1.5 text-xs text-graphite">
-                              {f.where}
-                              <EmotionChip emotion={f.emotion} />
-                            </span>
+                            <li key={f.where} className="text-xs text-graphite">
+                              <span className="font-medium text-ink">{f.where}.</span> Seen at <span className="tabular-nums">{mmss(f.atSec)}</span> ({f.onsetSec} s in): {f.cue.toLowerCase()}.
+                              <span className="mt-0.5 block">
+                                <EmotionChip emotion={f.emotion} intensity={f.intensity} corrected={f.corrected} reads />
+                              </span>
+                            </li>
                           ))}
-                        </p>
+                        </ul>
                       )}
                       <p className="mt-1 text-xs text-graphite">{c.note}</p>
                     </li>

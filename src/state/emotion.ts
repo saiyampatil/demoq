@@ -4,16 +4,20 @@
 // The rules, in one place (thresholds are mock values, docs/OPEN_QUESTIONS.md):
 // - A face reading counts only when there is video. No video is "no reading", never Neutral.
 // - A Researcher's correction replaces PulseAI's label everywhere. "No clear expression" takes it out of every count.
+// - Faces are grouped Positive (delight, interest), Neutral (neutral, surprise), Negative (doubt, frustration) and Unclear
+//   (confusion). Confusion is never negative, and it is never counted for or against the words.
 // - Words vs delivery only applies where the words make a claim: speaking for something (positive) or complaining (negative).
 //   Against a positive claim: a negative face at medium or high intensity, a flat or tense voice, or marked hesitation.
 //   Against a complaint: a positive face at medium or high intensity (a laugh while complaining is worth a look).
 //   One channel against is "Partly". Two or more, or a high-intensity face against, is "Doesn't fit".
+//   Across the people with a claim: Conflicting when FIT_RULE.conflicting or more clearly don't fit, Mixed when
+//   FIT_RULE.mixed or more at least partly don't, otherwise Consistent. FIT_RULE_TEXT writes that rule for the screen.
 
 import { EMOTIONS, TONES, VALENCE, VALENCES, type Emotion, type FaceReading, type Intensity, type Tone, type Valence } from '@/mock/emotion'
 import type { Point } from '@/mock/signals'
 import type { CodebookDoc, FaceFix } from './codebook'
 
-export { EMOTIONS, EMOTION_HINT, INTENSITIES, STANCE_LABEL, TONES, TONE_HINT, VALENCE, VALENCES, VOICE_RULES, hasVideo, stanceOf } from '@/mock/emotion'
+export { EMOTIONS, EMOTION_HINT, INTENSITIES, STANCE_LABEL, TONES, TONE_HINT, VALENCE, VALENCES, VALENCE_WORD, VOICE_RULES, hasVideo, stanceOf } from '@/mock/emotion'
 export type { Emotion, FaceReading, Intensity, Stance, Tone, Valence, VoiceReading } from '@/mock/emotion'
 
 // ─── one moment ─────────────────────────────────────────────────────────────
@@ -66,10 +70,11 @@ export function emotionSplit(points: Point[], doc: CodebookDoc): EmotionSplit {
   return { counts, valence, read: points.length - noVideo - unclear, noVideo, unclear }
 }
 
-/** The emotion seen most, preferring a non-neutral one on a tie. Undefined when nobody's face was read. */
-export function topEmotion(s: EmotionSplit): Emotion | undefined {
-  if (!s.read) return undefined
-  return [...EMOTIONS].sort((a, b) => s.counts[b] - s.counts[a] || Number(a === 'Neutral') - Number(b === 'Neutral'))[0]
+/** The emotions seen most among the faces read. More than one when they tie, so nothing is called "the most" on a tie. Empty when no face was read. */
+export function topEmotions(s: EmotionSplit): Emotion[] {
+  if (!s.read) return []
+  const most = Math.max(...EMOTIONS.map((e) => s.counts[e]))
+  return EMOTIONS.filter((e) => s.counts[e] === most)
 }
 
 export type ToneSplit = { counts: Record<Tone, number>; n: number }
@@ -81,15 +86,18 @@ export function toneSplit(points: Point[]): ToneSplit {
 
 export type FitPattern = 'Consistent' | 'Mixed' | 'Conflicting' | 'Too few to read' | 'No claim'
 export type FitSplit = { fits: number; partly: number; doesnt: number; n: number; pattern: FitPattern }
-/** Fewer people than this with a claim, and no pattern is read. Matches the hesitation rule. */
-export const FIT_MIN = 3
+/** The rule for the Words vs delivery column. Fewer people than `min` with a claim, and no pattern is read. */
+export const FIT_RULE = { min: 3, conflicting: 0.4, mixed: 0.3 }
+const inTen = (x: number) => `${Math.round(x * 10)} in 10`
+/** The rule above, in the words the screen shows beside the Words vs delivery column. Built from the same numbers the code uses. */
+export const FIT_RULE_TEXT = `Conflicting: ${inTen(FIT_RULE.conflicting)} or more of the people with a claim clearly don’t fit (two or more of face, voice and hesitation against the words, or a strong face). Mixed: ${inTen(FIT_RULE.mixed)} or more at least partly. Under ${FIT_RULE.min} people: too few to read.`
 
 export function fitSplit(points: Point[], doc: CodebookDoc): FitSplit {
   const fits = points.map((p) => fitOf(p, faceOf(p, doc)).fit).filter((f): f is Fit => !!f)
   const n = fits.length
   const doesnt = fits.filter((f) => f === 'Doesn’t fit').length
   const partly = fits.filter((f) => f === 'Partly').length
-  const pattern: FitPattern = points.length && !n ? 'No claim' : n < FIT_MIN ? 'Too few to read' : doesnt / n >= 0.4 ? 'Conflicting' : (doesnt + partly) / n >= 0.3 ? 'Mixed' : 'Consistent'
+  const pattern: FitPattern = points.length && !n ? 'No claim' : n < FIT_RULE.min ? 'Too few to read' : doesnt / n >= FIT_RULE.conflicting ? 'Conflicting' : (doesnt + partly) / n >= FIT_RULE.mixed ? 'Mixed' : 'Consistent'
   return { fits: n - doesnt - partly, partly, doesnt, n, pattern }
 }
 

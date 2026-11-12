@@ -88,7 +88,7 @@ export default async ({ b, out }) => {
   is('each quote has a Play link to that moment', await b.evaluate(`[...document.querySelectorAll('[data-testid=results] [data-testid=quote] a')].every(a=>/\\/session\\//.test(a.getAttribute('href'))&&/at=\\d+/.test(a.getAttribute('href')))`))
   is('no score or judgement about a person is shown', !/score|confidence|relevance|%/i.test(await b.evaluate(`document.querySelector('[data-testid=results]').innerText`)))
   // Never invent text: each quote is a whole participant turn, word for word.
-  const exact = await b.evaluate(`import('/src/mock/review.ts').then(m=>[...document.querySelectorAll('[data-testid=results] [data-testid=quote]')].every(q=>m.transcriptFor(q.dataset.session,'reviewed').some(t=>t.speaker==='Participant'&&t.text===q.dataset.text&&t.atSec===Number(q.dataset.at))))`)
+  const exact = await b.evaluate(`import(performance.getEntriesByType('resource').map(r=>r.name).filter(n=>n.includes('/src/mock/review.ts')).pop()??'/src/mock/review.ts').then(m=>[...document.querySelectorAll('[data-testid=results] [data-testid=quote]')].every(q=>m.transcriptFor(q.dataset.session,'reviewed').some(t=>t.speaker==='Participant'&&t.text===q.dataset.text&&t.atSec===Number(q.dataset.at))))`)
   is('every quote is an exact participant turn of the transcript, at that timestamp', exact)
   is('the proposed code is tagged AI-generated and named from the idea', await b.evaluate(`(()=>{const p=document.querySelector('[data-testid=proposal]');return /AI-generated/.test(p.innerText)&&p.querySelector('[data-testid=proposal-name]').value==='Pause when we travel'})()`))
   const people = await b.evaluate(`new Set([...document.querySelectorAll('[data-testid=results] [data-testid=quote]')].map(q=>q.dataset.participant)).size`)
@@ -98,7 +98,7 @@ export default async ({ b, out }) => {
   // ── An excluded session never appears ──
   const excluded = await b.evaluate(`import('/src/mock/signals.ts').then(async s=>{const p=await import('/src/mock/sessions.ts');return p.PET_SEED_SESSIONS.filter(x=>x.variant==='done'&&x.review?.status==='Excluded').map(x=>x.participant)})`)
   is('the study has excluded sessions to test against', excluded.length >= 2, excluded)
-  const generic = await b.evaluate(`import('/src/mock/review.ts').then(async m=>{const s=await import('/src/mock/signals.ts');const id=s.sessionOfParticipant(${JSON.stringify(excluded[0])});return m.transcriptFor(id,'reviewed').filter(t=>t.speaker==='Participant').map(t=>t.text)})`)
+  const generic = await b.evaluate(`import(performance.getEntriesByType('resource').map(r=>r.name).filter(n=>n.includes('/src/mock/review.ts')).pop()??'/src/mock/review.ts').then(async m=>{const s=await import('/src/mock/signals.ts');const id=s.sessionOfParticipant(${JSON.stringify(excluded[0])});return m.transcriptFor(id,'reviewed').filter(t=>t.speaker==='Participant').map(t=>t.text)})`)
   const idea = generic.find((t) => t.split(/\s+/).length >= 6) ?? generic[0]
   await type(idea)
   await results()

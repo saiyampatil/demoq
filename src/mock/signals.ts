@@ -5,7 +5,7 @@
 // how many fillers or restarts there were, each compared with the same person's own usual answer time. Facial analysis is on hold.
 
 import { CODE_QUESTIONS, EXCERPTS, SEED_CODES, petOf, type Excerpt } from './codebook'
-import { findReviewRecord } from './review'
+import { findReviewRecord, turnAtSec, turnIndexAtSec } from './review'
 import { faceAtExcerpt, faceAtMoment, stanceOf, voiceAt, type FaceReading, type Stance, type VoiceReading } from './emotion'
 import { r1, seeded } from './seed'
 import { PET_SEED_SESSIONS, sessionIdOf } from './sessions'
@@ -187,19 +187,39 @@ const worst = (a: Point, b: Point) => (bandRank(b.band) > bandRank(a.band) ? b :
 export function momentPoints(momentId: string): Point[] {
   const m = MOMENTS.find((x) => x.id === momentId)!
   const skipped = new Set([...(CODE_QUESTIONS.find((q) => q.id === momentId)?.skipped.map((s) => s.participantId) ?? []), ...(NOT_SEEN[momentId] ?? [])])
+  // Quoted answers keep their own time; everyone else is placed around them.
+  const quoted = new Map<string, Point>()
+  if (m.kind === 'question')
+    ACCEPTED_PARTICIPANTS.forEach((p) => {
+      const mine = Object.values(EXCERPTS).filter((e) => e.participantId === p && e.questionId === m.id && SEED_CODES.some((c) => c.excerpts.includes(e.id))).map((e) => excerptPoint(e.id))
+      if (mine.length) quoted.set(p, mine.reduce(worst))
+    })
+  const taken = new Set<number>([...quoted.values()].map((q) => q.atSec))
   return ACCEPTED_PARTICIPANTS.filter((p) => !skipped.has(p)).map((p) => {
-    const rec = findReviewRecord(sessionOfParticipant(p))
-    const at = Math.round(m.fraction * (rec?.durationMin ?? 25) * 60)
+    const sessionId = sessionOfParticipant(p)
+    const rec = findReviewRecord(sessionId)
     const key = `m:${m.id}:${p}`
+    // A coded quote at a guide question is the moment: its own turn and time.
+    const best = quoted.get(p)
+    if (best) return best
+    // Otherwise the person's own turn near this point in the guide, nudged a little per person: no two people answer on the same beat.
+    const count = rec?.turnCount ?? 160
+    const span = 4
+    // A concept's first reaction is the participant's answer right after the card went up in this session (Review lists when),
+    // so Play opens the card, not something minutes later. Other moments sit near their place in the guide.
+    const total = (rec?.durationMin ?? 25) * 60
+    const shown = m.kind === 'stimulus' ? rec?.stimuli.find((x) => x.name.startsWith(`Concept ${m.id.slice(-1).toUpperCase()}`))?.shownAtSec : undefined
+    let turn = shown !== undefined ? turnIndexAtSec(sessionId, shown, total, count) + 1 : (Math.round(m.fraction * count) | 1) + 2 * Math.round((u(`${m.id}${p}`, 7) - 0.5) * span)
+    const timeOf = (t: number) => turnAtSec(sessionId, t, total, count)
+    // Two people never land on the same second: the later one takes their next turn.
+    while (taken.has(timeOf(turn))) turn += 2
+    const at = timeOf(turn)
+    taken.add(at)
     if (m.kind === 'stimulus') {
       const r = REACTIONS[m.id]
       const band: Band = r.marked.includes(p) ? 'Marked hesitation' : r.some.includes(p) ? 'Some hesitation' : 'Steady'
       return point(key, p, at, makeFacts(`${m.id}${p}`, band, usualDelay(p)), band, { face: faceAtMoment(m.id, p, band) })
     }
-    const mine = Object.values(EXCERPTS)
-      .filter((e) => e.participantId === p && e.questionId === m.id && SEED_CODES.some((c) => c.excerpts.includes(e.id)))
-      .map((e) => excerptPoint(e.id))
-    if (mine.length) return mine.reduce(worst)
     const x = u(`${m.id}${p}`)
     const band: Band = x < 0.08 ? 'Marked hesitation' : x < 0.25 ? 'Some hesitation' : 'Steady'
     return point(key, p, at, makeFacts(`${m.id}${p}`, band, usualDelay(p)), band, { face: faceAtMoment(m.id, p, band) })

@@ -4,7 +4,6 @@ import { Banner } from '@/components/Banner'
 import { Button } from '@/components/Button'
 import { cn } from '@/components/cn'
 import { EmptyState, ErrorState, LoadingState } from '@/components/States'
-import { Tooltip } from '@/components/Tooltip'
 import { screenById, studyPath } from '@/routes/screens'
 import { signalsReadiness } from '@/state/analysisProgress'
 import { CODEBOOK_STUDY, updateCodebook } from '@/state/codebook'
@@ -13,7 +12,7 @@ import { PageHeader } from '../../shared/PageHeader'
 import { ExploreControl } from './explore/ExploreControl'
 import { AnalysisStepper } from './AnalysisStepper'
 import { ContinueBar } from './ContinueBar'
-import { SignalsTab, type SignalFocus } from './SignalsTab'
+import { FACES_NOTE, SignalsTab, type SignalFocus } from './SignalsTab'
 import { TensionsTab, type TensionFilter } from './TensionsTab'
 import type { CodebookCtx } from './codebookCtx'
 import { useAnalysis } from './useAnalysis'
@@ -186,16 +185,24 @@ export function SignalsTensions() {
 
 /** What the readings are measured on, and what isn't, in one quiet line. Always shown, so nobody reads more into them than is there. */
 function CoverageLine({ cov }: { cov: ReturnType<typeof coverage> }) {
+  const [open, setOpen] = useState(false)
   return (
-    <p className="flex flex-wrap items-center gap-x-2 gap-y-1 px-1 text-sm text-graphite" data-testid="coverage">
-      <span>
-        Voice and hesitation measured on <span className="font-medium text-ink tabular-nums">{cov.sessions}</span> accepted sessions. Faces read for <span className="font-medium text-ink tabular-nums">{cov.video}</span>
-        {cov.audioOnly > 0 && ` (${cov.audioOnly} audio-only, so no face reading, never counted as neutral)`}. {cov.excluded > 0 && `${cov.excluded} excluded in Review are left out.`}
-      </span>
-      <Tooltip content="Faces are read against each person’s own resting face and described by what was visible. A reading is a lead, not a verdict, and you can correct it." focusable align="left">
-        <span className="inline-flex h-5 items-center rounded-xs border border-dashed border-mist-strong px-1.5 text-xs font-medium">How faces are read</span>
-      </Tooltip>
-    </p>
+    <div className="px-1 text-sm text-graphite" data-testid="coverage">
+      <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <span>
+          Voice and hesitation measured on <span className="font-medium text-ink tabular-nums">{cov.sessions}</span> accepted sessions. Faces read for <span className="font-medium text-ink tabular-nums">{cov.video}</span>
+          {cov.audioOnly > 0 && ` (${cov.audioOnly} audio-only, so no face reading, never counted as neutral)`}. {cov.excluded > 0 && `${cov.excluded} excluded in Review are left out.`}
+        </span>
+        <button type="button" aria-expanded={open} onClick={() => setOpen((x) => !x)} data-testid="how-faces" className="inline-flex h-5 items-center rounded-xs border border-dashed border-mist-strong px-1.5 text-xs font-medium hover:bg-haze">
+          How faces are read
+        </button>
+      </p>
+      {open && (
+        <p className="mt-1.5 max-w-3xl rounded-sm bg-paper px-3 py-2 text-xs" data-testid="how-faces-note">
+          {FACES_NOTE}
+        </p>
+      )}
+    </div>
   )
 }
 

@@ -5,9 +5,9 @@ import { ChevronRightIcon } from '@/components/icons'
 import { EmptyState } from '@/components/States'
 import { useToast } from '@/components/Toast'
 import { setSignalPick } from '@/state/codebook'
-import { EMOTIONS, STANCE_LABEL, faceOf, faceWeight, topEmotion, type EmotionSplit } from '@/state/emotion'
-import { SMALL_GROUP, codeSignals, momentSignals, plural, signalGroups, standouts, tensionsFor, themeRollup, type CodeSignal, type MomentSignal, type Point, type Tension } from '@/state/signals'
-import { BandBar, BandLegend, EmotionBar, EmotionChip, EmotionLegend, FitChip, PatternChip, PointCard, ToneBar, ToneLegend } from './SignalBits'
+import { EMOTIONS, FIT_RULE_TEXT, STANCE_LABEL, faceOf, faceWeight, topEmotions, type EmotionSplit } from '@/state/emotion'
+import { SMALL_GROUP, codeSignals, momentSignals, mostHesitation, mostPositive, plural, signalGroups, standouts, tensionsFor, themeRollup, type CodeSignal, type MomentSignal, type Point, type Tension } from '@/state/signals'
+import { BandBar, BandLegend, EmotionBar, EmotionChip, EmotionLegend, FitChip, PatternChip, PointCard, ToneBar, ToneLegend, ValenceCounts, ValenceKey, noReading } from './SignalBits'
 import type { CodebookCtx } from './codebookCtx'
 
 export type View = 'code' | 'moment'
@@ -22,17 +22,26 @@ const LENSES: { key: Lens; label: string; hint: string }[] = [
   { key: 'hesitation', label: 'Hesitation', hint: 'Answer delay, pauses and fillers' },
 ]
 
+/** How faces are read, in one place: described first, then an interpretation PulseAI offers and the Researcher can correct. */
+export const FACES_NOTE = 'Each face is described first, by what was visible. The label (“reads as Doubt”) is PulseAI’s interpretation, made against that person’s resting face. It is a lead, not a verdict: correct it with “Not right?” and every count follows.'
+
 const median = (xs: number[]) => {
   const s = [...xs].sort((a, b) => a - b)
   return s.length ? (s.length % 2 ? s[(s.length - 1) / 2] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2) : 0
 }
 const r1 = (x: number) => Math.round(x * 10) / 10
 
-/** "Doubt, 2 of 3 faces" for a split, or why there is nothing. */
+/** "2 of 3 read as doubt" for a split, "Tied at 2 of 6" when two or more share the top count, or why there is nothing. */
 function emotionSummary(e: EmotionSplit) {
-  const top = topEmotion(e)
-  if (!top) return e.noVideo ? 'No video' : 'No clear reading'
-  return `${top}, ${e.counts[top]} of ${e.read}`
+  const tops = topEmotions(e)
+  if (!tops.length) return e.noVideo ? 'No video' : 'No clear reading'
+  const n = e.counts[tops[0]]
+  return tops.length === 1 ? `${n} of ${e.read} read as ${tops[0].toLowerCase()}` : `Tied at ${n} of ${e.read}`
+}
+const emotionSummaryTitle = (e: EmotionSplit) => {
+  const tops = topEmotions(e)
+  const gap = noReading(e)
+  return `${e.read} faces read${gap ? `, ${gap}` : ''}${tops.length > 1 ? `. Tied: ${tops.join(', ')}` : ''}`
 }
 
 /** How they reacted: what stands out first, then the accepted codes and key moments, read through one channel at a time. */
@@ -102,6 +111,7 @@ export function SignalsTab({ ctx, focus, setFocus, tensions, onOpenTensions, onO
         <p className="min-w-0 flex-1 text-sm text-graphite">{LENSES.find((l) => l.key === lens)!.hint}.</p>
         {lens === 'emotion' ? <EmotionLegend /> : lens === 'voice' ? <ToneLegend /> : <BandLegend />}
       </div>
+      {lens === 'emotion' && <ValenceKey />}
 
       {view === 'code' ? <ByCode ctx={ctx} lens={lens} signals={signals} focus={focus} setFocus={setFocus} tensions={tensions} onOpenTension={onOpenTension} /> : <ByMoment ctx={ctx} lens={lens} moments={moments} focus={focus} setFocus={setFocus} />}
     </div>
@@ -137,7 +147,7 @@ function LensCell({ r, lens }: { r: CodeSignal; lens: Lens }) {
         <span className="w-12 shrink-0">
           <BandBar split={{ counts: { Steady: r.steady, 'Some hesitation': r.some, 'Marked hesitation': r.marked }, n: r.people }} />
         </span>
-        <span className="w-[8.5rem] shrink-0 text-xs text-graphite tabular-nums" title="Marked hesitation, of the people who said it">
+        <span className="w-[10.5rem] shrink-0 text-xs text-graphite tabular-nums" title="Marked hesitation, of the people who said it">
           <span className="font-semibold text-ink">{r.marked}</span> of {r.people} marked
         </span>
       </>
@@ -148,7 +158,7 @@ function LensCell({ r, lens }: { r: CodeSignal; lens: Lens }) {
         <span className="w-12 shrink-0">
           <EmotionBar split={r.emotions} />
         </span>
-        <span className="w-[8.5rem] shrink-0 truncate text-xs text-graphite tabular-nums" title={`${r.emotions.read} faces read, ${r.emotions.noVideo} audio-only`}>
+        <span className="w-[10.5rem] shrink-0 truncate text-xs text-graphite tabular-nums" title={emotionSummaryTitle(r.emotions)}>
           {emotionSummary(r.emotions)}
         </span>
       </>
@@ -159,7 +169,7 @@ function LensCell({ r, lens }: { r: CodeSignal; lens: Lens }) {
       <span className="w-12 shrink-0">
         <ToneBar split={r.tones} />
       </span>
-      <span className="w-[8.5rem] shrink-0 text-xs text-graphite tabular-nums" title="Flat or tense, of the people who said it">
+      <span className="w-[10.5rem] shrink-0 text-xs text-graphite tabular-nums" title="Flat or tense, of the people who said it">
         <span className="font-semibold text-ink">{off}</span> of {r.tones.n} flat or tense
       </span>
     </>
@@ -210,12 +220,15 @@ function ByCode({ ctx, lens, signals, focus, setFocus, tensions, onOpenTension }
             <div className="hidden items-center gap-3 border-b border-mist bg-haze px-4 py-1.5 text-xs font-medium text-graphite sm:flex">
               <span className="flex-1">Code</span>
               <span className="w-12">Said by</span>
-              <span className="w-[12.25rem]">{LENSES.find((l) => l.key === lens)!.label}</span>
-              <span className="w-[5.75rem]" title="Do the face, voice and hesitation match what the words claim?">
+              <span className="w-[14.25rem]">{LENSES.find((l) => l.key === lens)!.label}</span>
+              <span className="w-[5.75rem]" title={`Do the face, voice and hesitation match what the words claim? ${FIT_RULE_TEXT}`}>
                 Words vs delivery
               </span>
               <span className="w-14 text-center">Report</span>
             </div>
+            <p className="border-b border-mist px-4 py-1.5 text-xs text-graphite" data-testid="fit-rule">
+              <span className="font-medium text-ink">Words vs delivery.</span> {FIT_RULE_TEXT}
+            </p>
             {groups.map((g) => {
               const roll = g.theme ? themeRollup(doc, allGroups.find((x) => x.id === g.id)?.rows ?? g.rows) : undefined
               return (
@@ -244,7 +257,7 @@ function ByCode({ ctx, lens, signals, focus, setFocus, tensions, onOpenTension }
                           <span className="w-12 shrink-0 text-xs text-graphite tabular-nums">
                             {r.people} of {r.of}
                           </span>
-                          <span className="flex w-[12.25rem] shrink-0 items-center gap-2">
+                          <span className="flex w-[14.25rem] shrink-0 items-center gap-2">
                             <LensCell r={r} lens={lens} />
                           </span>
                           <span className="w-[5.75rem] shrink-0" data-testid="fit-cell">
@@ -299,7 +312,7 @@ function CodePanel({ s, ctx, lens, tensions, onUse, onOpenTension }: { s: CodeSi
   const off = s.tones.counts.Flat + s.tones.counts.Tense
   const stance = s.points[0]?.stance
   const against = s.fit.doesnt + s.fit.partly
-  const top = topEmotion(e)
+  const tops = topEmotions(e)
   return (
     <section aria-label={`Signals for ${s.code.name}`} data-testid="signal-panel" className="flex max-h-[calc(100vh-8rem)] flex-col rounded-md border border-mist bg-surface">
       <div className="flex-1 overflow-y-auto">
@@ -334,20 +347,24 @@ function CodePanel({ s, ctx, lens, tensions, onUse, onOpenTension }: { s: CodeSi
               <dl className="divide-y divide-mist">
                 <ChannelRow label="Words">{stance ? STANCE_LABEL[stance] : '—'}</ChannelRow>
                 <ChannelRow label="Face" bar={<EmotionBar split={e} tall />} testid="channel-face">
-                  {top ? (
+                  {tops.length ? (
                     <>
                       <span className="font-semibold tabular-nums">
-                        {top} in {e.counts[top]} of {e.read}
-                      </span>{' '}
-                      faces read.
+                        {tops.length === 1 ? `${e.counts[tops[0]]} of ${e.read} faces read as ${tops[0].toLowerCase()}.` : `${tops.map((x) => x.toLowerCase()).join(' and ')} tie: ${e.counts[tops[0]]} of ${e.read} faces each.`}
+                      </span>
                     </>
                   ) : (
                     'No faces read.'
                   )}
-                  {e.noVideo > 0 && <span className="text-graphite"> {e.noVideo} audio-only.</span>}
-                  {e.unclear > 0 && <span className="text-graphite"> {e.unclear} marked no clear expression.</span>}
+                  {noReading(e) && <span className="text-graphite"> {e.read} of {s.people} people had a face read ({noReading(e)}).</span>}
                   {e.read > 0 && (
-                    <span className="mt-1 flex flex-wrap gap-1">
+                    <span className="mt-1 block text-xs text-graphite">
+                      <ValenceCounts e={e} /> <span className="tabular-nums">of {e.read} read</span>
+                    </span>
+                  )}
+                  {e.read > 0 && (
+                    <span className="mt-1 flex flex-wrap items-center gap-1">
+                      <span className="text-xs text-graphite">Reads as</span>
                       {EMOTIONS.filter((x) => e.counts[x]).map((x) => (
                         <span key={x} className="inline-flex items-center gap-1 text-xs text-graphite tabular-nums">
                           <EmotionChip emotion={x} /> {e.counts[x]}
@@ -417,7 +434,7 @@ function CodePanel({ s, ctx, lens, tensions, onUse, onOpenTension }: { s: CodeSi
 }
 
 function PanelFooter() {
-  return <footer className="border-t border-mist bg-paper px-5 py-3 text-xs text-graphite">Faces are read against each person’s resting face. A reading is a lead, not a verdict: correct it if it’s wrong. Nothing here changes a Review decision.</footer>
+  return <footer className="border-t border-mist bg-paper px-5 py-3 text-xs text-graphite">{FACES_NOTE} Nothing here changes a Review decision.</footer>
 }
 
 // ─── by moment ──────────────────────────────────────────────────────────────
@@ -425,9 +442,13 @@ function PanelFooter() {
 function ByMoment({ ctx, lens, moments, focus, setFocus }: { ctx: CodebookCtx; lens: Lens; moments: MomentSignal[]; focus: SignalFocus; setFocus: (f: SignalFocus) => void }) {
   const [compare, setCompare] = useState(false)
   const selected = moments.find((m) => m.moment.id === focus.moment) ?? moments.find((m) => m.moment.id === 'm-concept-a') ?? moments[0]
-  const most = Math.max(...moments.map((m) => m.all.counts['Marked hesitation'] / (m.all.n || 1)))
-  const concepts = moments.filter((m) => m.moment.kind === 'stimulus' && m.emotions.all.read >= 10)
-  const warmest = Math.max(...concepts.map((m) => m.emotions.all.valence.Positive / m.emotions.all.read))
+  // Ties are computed once and shared with "What stands out": a moment is never called the most when others share its count.
+  const mostIds = new Set(mostHesitation(moments).map((m) => m.moment.id))
+  const positiveIds = new Set(mostPositive(moments).map((m) => m.moment.id))
+  const mostCount = moments.find((m) => mostIds.has(m.moment.id))?.all.counts['Marked hesitation'] ?? 0
+  // When every row has a group under the minimum, say so once at the top instead of on every row.
+  const smallest = (m: MomentSignal) => (lens === 'emotion' ? Math.min(m.emotions.dog.read, m.emotions.cat.read) : Math.min(m.dog.n, m.cat.n))
+  const allSmall = moments.every((m) => smallest(m) < SMALL_GROUP)
   const arrows = useArrows(moments.map((m) => m.moment.id), selected.moment.id, (id) => setFocus({ ...focus, moment: id }), 'data-moment')
 
   const rowBar = (m: MomentSignal, which: 'all' | 'dog' | 'cat', tall?: boolean) =>
@@ -446,11 +467,26 @@ function ByMoment({ ctx, lens, moments, focus, setFocus }: { ctx: CodebookCtx; l
             </label>
           )}
         </div>
+        {lens === 'hesitation' && mostIds.size > 1 && (
+          <p className="border-b border-mist px-4 py-2 text-sm" data-testid="tie-note">
+            <span className="font-medium">Tied for the most hesitation:</span> <span className="text-graphite tabular-nums">{mostIds.size} moments, marked hesitation in {mostCount} people at each.</span>
+          </p>
+        )}
+        {lens === 'emotion' && positiveIds.size > 1 && (
+          <p className="border-b border-mist px-4 py-2 text-sm" data-testid="tie-note">
+            <span className="font-medium">Tied for the most positive first reaction:</span> <span className="text-graphite">{positiveIds.size} concepts, the same share of faces read as delight or interest.</span>
+          </p>
+        )}
+        {compare && lens !== 'voice' && allSmall && (
+          <p className="border-b border-mist bg-pending-bg px-4 py-2 text-sm text-pending-fg" data-testid="compare-small">
+            Too small to read: at every moment, one group has fewer than {SMALL_GROUP} people{lens === 'emotion' ? ' on video' : ''}. The counts are shown for reference only.
+          </p>
+        )}
         <div ref={arrows.ref} onKeyDown={arrows.onKeyDown}>
           <ul>
             {moments.map((m) => {
-              const isMost = lens === 'hesitation' && m.all.counts['Marked hesitation'] / (m.all.n || 1) === most && m.all.counts['Marked hesitation'] >= 3
-              const isWarmest = lens === 'emotion' && concepts.includes(m) && m.emotions.all.valence.Positive / m.emotions.all.read === warmest
+              const isMost = lens === 'hesitation' && mostIds.has(m.moment.id)
+              const isWarmest = lens === 'emotion' && positiveIds.has(m.moment.id)
               const showCompare = compare && lens !== 'voice'
               return (
                 <li key={m.moment.id} className={cn('border-b border-mist border-l-2 last:border-b-0', m.moment.id === selected.moment.id ? 'border-l-iris-600 bg-iris-50' : 'border-l-transparent hover:bg-haze')}>
@@ -458,8 +494,8 @@ function ByMoment({ ctx, lens, moments, focus, setFocus }: { ctx: CodebookCtx; l
                     <span className="flex flex-wrap items-baseline gap-x-2">
                       <span className="text-sm font-medium">{m.moment.label}</span>
                       <span className="text-xs text-graphite">{m.moment.kind === 'stimulus' ? 'First reaction to a concept' : 'Guide question'}</span>
-                      {isMost && <span className="rounded-xs border border-iris-600 px-1 text-[11px] font-medium text-iris-700">Most hesitation</span>}
-                      {isWarmest && <span className="rounded-xs border border-emo-warm-line bg-emo-warm-bg px-1 text-[11px] font-medium text-emo-warm-fg" data-testid="warmest">Warmest reaction</span>}
+                      {isMost && <span className="rounded-xs border border-iris-600 px-1 text-[11px] font-medium text-iris-700" data-testid="most-hesitation" title={mostIds.size > 1 ? `Tied with ${mostIds.size - 1} other ${mostIds.size === 2 ? 'moment' : 'moments'}` : undefined}>Most hesitation</span>}
+                      {isWarmest && <span className="rounded-xs border border-emo-warm-line bg-emo-warm-bg px-1 text-[11px] font-medium text-emo-warm-fg" data-testid="warmest" title={positiveIds.size > 1 ? `Tied with ${positiveIds.size - 1} other ${positiveIds.size === 2 ? 'concept' : 'concepts'}` : undefined}>Most positive</span>}
                     </span>
                     {showCompare ? (
                       <span className="mt-2 flex flex-col gap-1.5">
@@ -475,7 +511,7 @@ function ByMoment({ ctx, lens, moments, focus, setFocus }: { ctx: CodebookCtx; l
                             <MomentCounts m={m} lens={lens} which={which} />
                           </span>
                         ))}
-                        {(lens === 'emotion' ? Math.min(m.emotions.dog.read, m.emotions.cat.read) : Math.min(m.dog.n, m.cat.n)) < SMALL_GROUP && (
+                        {!allSmall && smallest(m) < SMALL_GROUP && (
                           <span className="text-xs text-pending-fg">One group has fewer than {SMALL_GROUP} people{lens === 'emotion' ? ' on video' : ''}. Too small to read.</span>
                         )}
                       </span>
@@ -500,12 +536,12 @@ function ByMoment({ ctx, lens, moments, focus, setFocus }: { ctx: CodebookCtx; l
 }
 
 function MomentCounts({ m, lens, which }: { m: MomentSignal; lens: Lens; which: 'all' | 'dog' | 'cat' }) {
-  const cls = 'w-52 shrink-0 text-right text-xs whitespace-nowrap text-graphite tabular-nums'
+  const cls = 'w-64 shrink-0 text-right text-xs text-graphite tabular-nums'
   if (lens === 'emotion') {
     const e = m.emotions[which]
     return (
-      <span className={cls}>
-        <span className="font-semibold text-emo-warm-fg">{e.valence.Positive}</span> warm · {e.valence.Neutral} neutral · <span className="font-semibold text-emo-cold-fg">{e.valence.Negative}</span> cold <span className="text-muted">of {e.read}</span>
+      <span className={cls} title={noReading(e) ? `${noReading(e)}` : undefined}>
+        <ValenceCounts e={e} /> <span className="text-muted">of {e.read}</span>
       </span>
     )
   }
@@ -563,15 +599,16 @@ function MomentPanel({ m, ctx, lens }: { m: MomentSignal; ctx: CodebookCtx; lens
                 <p className="mt-1.5 text-sm tabular-nums">
                   {e.read ? (
                     <>
-                      <span className="font-semibold">{e.valence.Positive}</span> warm, {e.valence.Neutral} neutral, <span className="font-semibold">{e.valence.Negative}</span> cold, of {e.read} faces read.
+                      <ValenceCounts e={e} /> of {e.read} faces read.
                     </>
                   ) : (
                     'No faces read.'
                   )}
-                  {e.noVideo > 0 && <span className="text-graphite"> {e.noVideo} audio-only.</span>}
+                  {noReading(e) && <span className="text-graphite"> {e.read} of {m.all.n} people had a face read ({noReading(e)}).</span>}
                 </p>
                 {e.read > 0 && (
-                  <p className="mt-1.5 flex flex-wrap gap-1.5" data-testid="moment-emotions">
+                  <p className="mt-1.5 flex flex-wrap items-center gap-1.5" data-testid="moment-emotions">
+                    <span className="text-xs text-graphite">Reads as</span>
                     {EMOTIONS.filter((x) => e.counts[x]).map((x) => (
                       <span key={x} className="inline-flex items-center gap-1 text-xs text-graphite tabular-nums">
                         <EmotionChip emotion={x} /> {e.counts[x]}
