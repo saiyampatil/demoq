@@ -545,6 +545,15 @@ Prototype decisions from the product owner, 11 Nov 2026. This supersedes "Facial
 - **After scheduling:** the session is in Upcoming with a Continued from AI tag and a line on where the AI stopped. The slot is Booked: participant ID in Availability, and held (not free) while a proposed time waits.
 - **Dev only:** "Dev: view as" (switch moderator), "Dev: create request", "Dev: participant accepts / declines new time", "Dev: participant cancels", and in Screen jump the live offer (accepts, declines, timer runs out).
 
+## Moderator view (M1) complete
+
+- **Live escalation is a broadcast.** Every online standby moderator is offered the session at once, with one 60-second timer. The first to accept takes it and the card goes from the others; if no one accepts, or all decline, the AI asks the participant for a time and a request is raised. The live card is pinned above every tab with the participant, ID, language, study, what the AI covered, a countdown, Accept and Decline. Accept opens the handoff (transcript so far, sections covered, stimuli shown).
+- **Waiting for participant is under Scheduled, not Open.** The Requests badge counts only what needs the moderator to act, and is the length of the Open list.
+- **Availability is edited in one-hour blocks** in the moderator's zone, a week at a time: click or drag to add, × to remove, hours per day and "Total N h / week", week navigation, and Copy last week, Repeat every week and Clear this week. Hours that have started are locked. Booked and held hours can't be removed. Removing an hour the study's standby coverage depends on asks first. The roster window is only where an unedited week starts from, and standby booking reads the same blocks.
+- **Profile (M4):** name editable, email read only, time zone shown, expertise picked from the one shared list the Researcher's Add new pop-up suggests from.
+- **Upcoming:** Join interview (active 10 minutes before, opens the M2 placeholder) and Can't make it, which asks the study's Researcher to reassign, with a reason, as a Needs you row.
+- **Scoping.** PulseAI moderators see their sessions across clients. A team moderator sees only their own company's studies. An invited one sees only "Accept your invitation".
+
 ## Explore drawer: real-time highlights (brief step 7)
 
 Prototype decisions from the product owner, 11 Nov 2026.

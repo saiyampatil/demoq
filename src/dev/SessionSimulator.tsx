@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Button } from '@/components/Button'
 import { controlBase } from '@/components/Field'
 import { sample } from '@/routes/screens'
-import { addWait, assignedJoins, liveOfferAnswered, moderatorName, participantAsksLive, endSession, fieldworkNow, handledBySystem, moderatorAnswers, needsResearcher, openLink, participantBooks, participantEnds, participantRequests, recoverSystem, resolveSession, simulateTurn, standbySlots, type EndReason, type FieldworkDoc } from '@/state/fieldwork'
+import { addWait, assignedJoins, isOfferedTo, liveOfferAnswered, liveOfferExpired, moderatorName, participantAsksLive, endSession, fieldworkNow, handledBySystem, moderatorAnswers, needsResearcher, openLink, participantBooks, participantEnds, participantRequests, recoverSystem, resolveSession, simulateTurn, standbySlots, type EndReason, type FieldworkDoc } from '@/state/fieldwork'
 import { SELF_SERVICE } from '@/state/selfService'
 
 /**
@@ -16,6 +16,8 @@ export function SessionSimulator({ doc, sessionId, paused, update }: { doc: Fiel
   const s = resolveSession(doc, sessionId)?.session
   if (!s) return null
   const booking = standbySlots(doc, fieldworkNow(doc))
+  /** The first moderator still holding the offer, for the dev buttons. */
+  const firstOffered = (x: NonNullable<typeof s>) => x.escalation?.live?.offeredTo.find((id) => isOfferedTo(x, id)) ?? ''
 
   const act = (fn: (d: FieldworkDoc) => FieldworkDoc, message: string) => {
     update(fn)
@@ -88,16 +90,16 @@ export function SessionSimulator({ doc, sessionId, paused, update }: { doc: Fiel
             {booking.length === 0 && <span className="basis-full text-xs text-graphite">{doc.plan.escalation?.offered ? 'No standby time is free this week.' : 'No standby moderator is set up, so a participant isn’t offered a human.'}</span>}
           </>
         )}
-        {s.escalation?.status === 'Offering live' && (
+        {s.escalation?.status === 'Offering live' && s.escalation.live && (
           <>
-            <span className="basis-full text-xs text-graphite">Offered to {moderatorName(s.escalation.live?.queue[s.escalation.live.index] ?? null)}. After the last moderator, the AI asks the participant for a time and a request is raised.</span>
-            <Button size="sm" data-testid="sim-live-accepts" onClick={() => act((d) => liveOfferAnswered(d, s.id, 'Accepted'), 'The offered moderator accepted and joined.')}>
-              Offered moderator accepts
+            <span className="basis-full text-xs text-graphite">Offered at once to {s.escalation.live.offeredTo.map(moderatorName).join(' and ')}, with one {60}-second timer. The first to accept takes it. If nobody does, the AI asks the participant for a time and a request is raised.</span>
+            <Button size="sm" data-testid="sim-live-accepts" onClick={() => act((d) => liveOfferAnswered(d, s.id, firstOffered(s), 'Accepted'), `${moderatorName(firstOffered(s))} accepted first and joined. The offer is gone for the others.`)}>
+              First offered moderator accepts
             </Button>
-            <Button size="sm" data-testid="sim-live-declines" onClick={() => act((d) => liveOfferAnswered(d, s.id, 'Declined'), 'The offered moderator declined. The next one is offered, or the AI asks for a time.')}>
-              Offered moderator declines
+            <Button size="sm" data-testid="sim-live-declines" onClick={() => act((d) => liveOfferAnswered(d, s.id, firstOffered(s), 'Declined'), `${moderatorName(firstOffered(s))} declined. The others can still accept.`)}>
+              First offered moderator declines
             </Button>
-            <Button size="sm" data-testid="sim-live-timeout" onClick={() => act((d) => liveOfferAnswered(d, s.id, 'No answer'), 'The 60 seconds ran out. The next moderator is offered, or the AI asks for a time.')}>
+            <Button size="sm" data-testid="sim-live-timeout" onClick={() => act((d) => liveOfferExpired(d, s.id), 'The 60 seconds ran out and nobody accepted. The AI asked for a time and a request was raised.')}>
               Timer runs out
             </Button>
           </>

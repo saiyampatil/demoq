@@ -10,7 +10,7 @@ import { InfoTip } from '@/components/InfoTip'
 import { Tooltip } from '@/components/Tooltip'
 import { formatDay, formatSlot, formatStamp } from '@/lib/format'
 import { screenById, studyPath } from '@/routes/screens'
-import { assignEscalation, extendWindow, fieldworkNow, giveUp, lowerTarget, sendBookingLink, sendRescheduleLink, inviteFromReserve, resendLink, retrySession } from '@/state/fieldwork'
+import { assignEscalation, assignModerator, extendWindow, fieldworkNow, giveUp, lowerTarget, sendBookingLink, sendRescheduleLink, inviteFromReserve, resendLink, retrySession } from '@/state/fieldwork'
 import { ago, moderatorRoster, timeCheck, needsYou, supportReport, slotLedger, verdict, type NeedsRow, regionMatrix, regionSkew } from '@/state/selectors'
 import { SessionTag } from '../SessionTag'
 import { invitedIds, invitedMessage, type FWProps } from './FieldworkBits'
@@ -209,7 +209,10 @@ function NeedsYou({ doc, rows, studyId, me, update, readOnly, blockedWhy }: FWPr
   const run = (row: NeedsRow) => {
     const id = row.session.id
     const who = row.who
-    if (row.action === 'Resend link') {
+    if (row.kind === 'reassign') {
+      setPick('')
+      setAssigning(row)
+    } else if (row.action === 'Resend link') {
       update((d) => resendLink(d, id, me))
       setNotice(`Link resent to ${who}.`)
     } else if (row.action === 'Reissue link') {
@@ -385,7 +388,7 @@ function NeedsYou({ doc, rows, studyId, me, update, readOnly, blockedWhy }: FWPr
               data-testid="confirm-assign"
               onClick={() => {
                 if (assigning) {
-                  update((d) => assignEscalation(d, assigning.session.id, pick, me))
+                  update((d) => (assigning.kind === 'reassign' ? assignModerator(d, assigning.session.id, pick, me) : assignEscalation(d, assigning.session.id, pick, me)))
                   toast(`${roster.find((m) => m.id === pick)?.name} was notified about ${assigning.who}.`)
                 }
                 setAssigning(undefined)

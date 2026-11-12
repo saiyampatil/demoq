@@ -490,7 +490,7 @@ export function SessionRecord() {
 }
 
 const OUTCOME: Record<NonNullable<Session['escalation']>['status'], string> = {
-  'Offering live': 'Offered to standby moderators, one at a time',
+  'Offering live': 'Offered to every online standby moderator at once',
   'Waiting for participant': 'A moderator proposed a new time',
   'Cancelled by participant': 'Cancelled the request',
   'Time requested': 'Asked for a time that suits them',
@@ -537,7 +537,7 @@ function EscalationCard({ s }: { s: Session }) {
   if (next.length === 0)
     next.push(
       {
-        'Offering live': 'Waiting for the moderator being offered it',
+        'Offering live': 'Waiting for a moderator to accept, or the 60 seconds to run out',
         'Waiting for participant': 'Waiting for the participant to answer the new time',
         'Cancelled by participant': 'The participant cancelled',
         'Waiting for moderator': 'Waiting for the Researcher: assign a moderator or send a booking link',

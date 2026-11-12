@@ -7,6 +7,7 @@ import { Modal } from '@/components/Modal'
 import { StatusChip } from '@/components/StatusChip'
 import { useToast } from '@/components/Toast'
 import { type TeamMember } from '@/state/guide'
+import { EXPERTISE_TAGS } from '@/mock/expertise'
 import { addTeamPerson, EMAIL, findByEmail, parseTags, resendTeamInvite, useTeamModerators, type TeamPerson } from '@/state/teamModerators'
 import { DevAcceptInvite } from './ModeratorBits'
 
@@ -170,6 +171,13 @@ function AddNewModal({ open, onClose, me, onStudy, onAdd }: { open: boolean; onC
           hint={known ? `Already in your team list as ${known.name}. They’ll be added to this study, and their entry stays as it is.` : undefined}
         />
         <TextField label="Expertise tags (optional)" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="Skincare, Concept testing" autoComplete="off" hint="Separate with commas." />
+        <div className="-mt-2 flex flex-wrap gap-1.5" aria-label="Suggested expertise" data-testid="expertise-suggestions">
+          {EXPERTISE_TAGS.map((t) => (
+            <button key={t} type="button" onClick={() => setTags(parseTags(`${tags}, ${t}`).join(', '))} className="rounded-full border border-mist px-2.5 py-0.5 text-xs text-graphite hover:bg-haze">
+              {t}
+            </button>
+          ))}
+        </div>
       </form>
     </Modal>
   )

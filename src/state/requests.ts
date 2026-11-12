@@ -3,15 +3,19 @@
 // session (state/fieldwork.ts), so the Researcher's record, Needs you and this list can never disagree.
 
 import { participantName } from '@/mock/participants'
-import { busyIn, coveredSections, fieldworkNow, moderatorName, participantZone, sessionEnded, type Escalation, type FieldworkDoc, type Session } from './fieldwork'
+import { busyIn, coveredSections, fieldworkNow, isOfferedTo, moderatorName, participantZone, sessionEnded, type Escalation, type FieldworkDoc, type Session } from './fieldwork'
+import { isAvailableHour } from './availability'
 import { openSlots, slotProblem, type Busy } from './standby'
 
 export type RequestStatus = 'Open' | 'Waiting for participant' | 'Scheduled' | 'Taken by someone else' | 'Cancelled by participant'
 export type RequestFilter = 'Open' | 'Scheduled' | 'Closed'
 export const REQUEST_FILTERS: RequestFilter[] = ['Open', 'Scheduled', 'Closed']
 
-/** Open and Waiting for participant are both still to settle, so they share a filter and the count on the tab. */
-export const filterOf = (status: RequestStatus): RequestFilter => (status === 'Open' || status === 'Waiting for participant' ? 'Open' : status === 'Scheduled' ? 'Scheduled' : 'Closed')
+/**
+ * Open is what needs the moderator to act. Waiting for participant is a time they already proposed, so it sits with
+ * Scheduled, not Open, and isn't counted on the tab.
+ */
+export const filterOf = (status: RequestStatus): RequestFilter => (status === 'Open' ? 'Open' : status === 'Scheduled' || status === 'Waiting for participant' ? 'Scheduled' : 'Closed')
 
 export type RequestRow = {
   key: string
@@ -113,8 +117,8 @@ export function requestsFor(all: Record<string, FieldworkDoc>, moderatorId: stri
 
 const slotProblemFor = (moderatorId: string, iso: string, now: number, busy: Busy[]) => slotProblem(moderatorId, new Date(iso).getTime(), now, busy)
 
-/** The number on the Requests tab: open ones, which is also the length of the Open filter. */
-export const openCount = (rows: RequestRow[]) => rows.filter((r) => filterOf(r.status) === 'Open').length
+/** The number on the Requests tab: requests that need the moderator's action. It is also the length of the Open filter. */
+export const openCount = (rows: RequestRow[]) => rows.filter((r) => r.status === 'Open').length
 
 export const whoHolds = (r: RequestRow) => (r.heldBy ? moderatorName(r.heldBy) : 'someone else')
 
@@ -154,4 +158,48 @@ export function availabilityFor7(all: Record<string, FieldworkDoc>, moderatorId:
     .filter((sl) => !busy.some((b) => b.start < new Date(sl.end).getTime() && b.end > new Date(sl.start).getTime()))
     .map((sl): AvailabilityItem => ({ start: sl.start, end: sl.end, kind: 'free', label: 'Free' }))
   return [...items, ...free].sort((a, b) => a.start.localeCompare(b.start))
+}
+
+// ─── live offers, scoping, and what a block holds up ────────────────────────
+
+export type LiveOffer = { key: string; studyId: string; studyName: string; session: Session; doc: FieldworkDoc; name: string; language: string; covered: { title: string; done: number; of: number }[]; offeredAt: string; startedAtMs: number }
+
+/** Live escalations offered to this moderator right now that nobody has taken. The card goes the moment someone accepts. */
+export function liveOffersFor(all: Record<string, FieldworkDoc>, moderatorId: string, studyName: (id: string) => string, language: (id: string) => string | null): LiveOffer[] {
+  return Object.values(all).flatMap((doc) =>
+    !onStandby(doc, moderatorId)
+      ? []
+      : doc.sessions
+          .filter((s) => isOfferedTo(s, moderatorId))
+          .map((session) => ({ key: `${doc.studyId}|${session.id}`, studyId: doc.studyId, studyName: studyName(doc.studyId), session, doc, name: participantName(session.participantId), language: language(doc.studyId) ?? 'English (US)', covered: coveredSections(doc, session), offeredAt: session.escalation!.live!.offeredAt, startedAtMs: session.escalation!.live!.startedAtMs })),
+  )
+}
+
+/** Who a moderator is, as far as what they may see. */
+export type Scope = { kind: 'pulseai' | 'team' | 'invited'; company?: string }
+
+/**
+ * A PulseAI moderator sees their sessions across clients. A team moderator sees only their own company's studies. Someone
+ * who hasn't accepted their invitation sees nothing but the invitation.
+ */
+export function scopeDocs(all: Record<string, FieldworkDoc>, who: Scope, clientOf: (studyId: string) => string | undefined): Record<string, FieldworkDoc> {
+  if (who.kind === 'pulseai') return all
+  if (who.kind === 'invited') return {}
+  return Object.fromEntries(Object.entries(all).filter(([id]) => clientOf(id) === who.company))
+}
+
+const HOUR = 3600000
+/** The hour blocks that hold a booked session or a time waiting on a participant, so they can't be taken off. Hour start (UTC ISO) to what holds it. */
+export function heldHours(all: Record<string, FieldworkDoc>, moderatorId: string): Map<string, string> {
+  const out = new Map<string, string>()
+  for (const b of busyAcross(all, moderatorId)) for (let t = Math.floor(b.start / HOUR) * HOUR; t < b.end; t += HOUR) out.set(new Date(t).toISOString(), b.who)
+  return out
+}
+
+/** The studies that would be left with no standby moderator available at an hour if this moderator weren't. */
+export function coverageGap(all: Record<string, FieldworkDoc>, moderatorId: string, hourStartMs: number, studyName: (id: string) => string): string[] {
+  return Object.values(all)
+    .filter((doc) => onStandby(doc, moderatorId))
+    .filter((doc) => !(doc.plan.escalation?.moderators ?? []).some((m) => m.id !== moderatorId && isAvailableHour(m.id, hourStartMs)))
+    .map((doc) => studyName(doc.studyId))
 }

@@ -223,7 +223,7 @@ export function bucketOf(p: Participant): Bucket {
 // moves it forward. It is the slow-path safety net: the participant's own screens handle the first minutes, and what
 // PulseAI is handling stays out of it, and on the session page. Eight kinds, nothing else.
 
-export type NeedsKind = 'escalation' | 'moderator-no-show' | 'self-service' | 'connection-lost' | 'link-expired' | 'left-part-way' | 'never-started' | 'pulseai'
+export type NeedsKind = 'reassign' | 'escalation' | 'moderator-no-show' | 'self-service' | 'connection-lost' | 'link-expired' | 'left-part-way' | 'never-started' | 'pulseai'
 
 export type NeedsAction = 'Assign moderator' | 'Send booking link' | 'Resend link' | 'Reissue link' | 'Resume' | 'Retry' | 'Copy report for support'
 
@@ -284,6 +284,12 @@ export function needsYou(doc: FieldworkDoc): NeedsRow[] {
     const rank = { Blocking: 0, Degraded: 1, Minor: 2 } as const
     const oldest = (list: TechIssue[]) => [...list].sort((a, b) => rank[a.severity] - rank[b.severity] || b.at.localeCompare(a.at))[0]
 
+    // 0. A moderator can't make a booked time and asked for someone else. It stays until the Researcher assigns a moderator.
+    if (s.reassign && s.status === 'Booked' && !s.handled) {
+      rows.push({ ...base, tier: 2, kind: 'reassign', what: `${moderatorName(s.reassign.by)} can’t make the booked time and asked for someone else: “${s.reassign.reason}”`, fault: 'Our side', since: s.reassign.at, action: 'Assign moderator', invites: true, giveUp: false })
+      continue
+    }
+
     // 1. A request for a human the Researcher has to move on: nobody accepted, the moderator declined the times asked for, or a
     // request has gone unanswered for as long as the participant was promised. A booked time, a request still within its
     // promise and an accepted request are the moderator's and the participant's business, and stay on the session page.
@@ -297,7 +303,7 @@ export function needsYou(doc: FieldworkDoc): NeedsRow[] {
         rows.push({ ...base, tier: 1, kind: 'escalation', what, fault: 'Our side', since, action: 'Assign moderator', invites: true, giveUp: true, escalation: { waitedMin: waited, leftMin: ESCALATION_PROMISE_HOURS * 60 - waited } })
         continue
       }
-      if (e.status === 'Time requested' || e.status === 'Request accepted') continue
+      if (e.status === 'Time requested' || e.status === 'Request accepted' || e.status === 'Offering live' || e.status === 'Waiting for participant') continue
     }
 
     if (s.status !== 'Completed' && !s.handled) {

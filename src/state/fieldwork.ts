@@ -15,6 +15,8 @@ import { SEED_SESSIONS, sessionIdOf, type SeedSession } from '@/mock/sessions'
 import { MODERATOR_ROSTER, STUDY_ZONE } from '@/mock/moderation'
 import { countryOfRegion, participantEmail } from '@/mock/participants'
 import { regionOf } from './screening'
+import { profileEdit } from './moderatorProfiles'
+import { getTeamPerson } from './teamModerators'
 import { busyAt, nextWeekdayAt, openSlots, slotProblem, type Busy, type Slot } from './standby'
 
 export type AccessStatus = 'Invited' | 'Opened' | 'Consented' | 'No-show'
@@ -205,8 +207,11 @@ export type Escalation = {
   actedBy?: { by: string; at: string; action: 'Assigned' | 'Booking link'; moderatorId?: string }
   /** Dev only: time added to the clock, to see a long wait. */
   extraWaitMin?: number
-  /** Live offers, one standby moderator at a time. Only while status is "Offering live", kept after for the record. */
-  live?: { queue: string[]; index: number; offeredAt: string; answers: Record<string, 'Declined' | 'No answer'> }
+  /**
+   * The live offer: every online standby moderator is offered the session at the same moment, with one 60-second timer for
+   * all of them. The first to accept takes it and the card goes from the others. Kept after for the record.
+   */
+  live?: { offeredTo: string[]; offeredAt: string; /** Real clock when the timer started, for the countdown. */ startedAtMs: number; answers: Record<string, 'Declined' | 'No answer'> }
   /** Moderators who pressed "Can't take this". The request is hidden for them and stays for the others. */
   declinedBy?: string[]
   /** A moderator changed the time. The participant was emailed Accept or Decline; until they answer, nobody else can take it. */
@@ -262,6 +267,8 @@ export type Session = {
   gaveUp?: { reason: string; at: string; by: string }
   /** The participant's own attempts at fixing a technical problem (P18), oldest first. */
   selfService?: SelfService[]
+  /** The moderator asked to be reassigned ("Can't make it"). The Researcher sees it in Needs you until they assign someone. */
+  reassign?: { by: string; reason: string; at: string }
   /** Human-led: the moderator didn't join the booked slot. Our fault, so the participant is never marked No-show. Mock-driven until the moderator flow exists. */
   moderatorNoShow?: { at: string }
 }
@@ -584,7 +591,7 @@ export function resumeFrom(prev: Session, next: Session): Session {
 export const HUMAN_MODERATOR_IDS = ['u-priya', 'u-jordan', 'u-sam', 'u-elena']
 const HUMAN_NAMES: Record<string, string> = { 'u-jordan': 'Jordan Lee', 'u-priya': 'Priya Shah', 'u-sam': 'Sam Okafor', 'u-elena': 'Elena Brooks' }
 /** The same name Review shows for the session's moderator. */
-export const moderatorName = (id: string | null) => (id ? (HUMAN_NAMES[id] ?? id) : 'AI agent (Ava)')
+export const moderatorName = (id: string | null) => (id ? (profileEdit(id)?.name ?? getTeamPerson(id)?.name ?? HUMAN_NAMES[id] ?? id) : 'AI agent (Ava)')
 
 // ─── reading ────────────────────────────────────────────────────────────────
 
@@ -1160,38 +1167,47 @@ export function liveQueue(doc: FieldworkDoc): string[] {
     .map((m) => m.id)
 }
 
-/** The participant asks for a person in a live interview. It is offered to the standby moderators one at a time. */
+/** The participant asks for a person in a live interview. It is offered to every online standby moderator at once, with one timer. */
 export function participantAsksLive(doc: FieldworkDoc, sessionId: string): FieldworkDoc {
   const when = tick(doc)
   const asked = at(when, -1)
-  const queue = liveQueue(doc)
+  const offeredTo = liveQueue(doc)
   const withOffer = patch(doc, sessionId, (s) => {
     if (!canAsk(s)) return s
     const asking = addEventAt(asked, s, 'participant', 'Asked to talk to a human moderator')
-    return { ...addEventAt(when, asking, 'system', queue.length ? `Offered to ${moderatorName(queue[0])} (idle longest). They have ${LIVE_OFFER_SECONDS} seconds to answer.` : 'No standby moderator is online to take it live.'), escalation: { requestedAt: asked, status: 'Offering live', live: { queue, index: 0, offeredAt: when, answers: {} } } }
+    return {
+      ...addEventAt(when, asking, 'system', offeredTo.length ? `Offered to ${offeredTo.map(moderatorName).join(' and ')} at the same time. The first to accept takes it; nobody accepting in ${LIVE_OFFER_SECONDS} seconds means the AI asks for a time.` : 'No standby moderator is online to take it live.'),
+      escalation: { requestedAt: asked, status: 'Offering live', live: { offeredTo, offeredAt: when, startedAtMs: Date.now(), answers: {} } },
+    }
   })
-  return queue.length ? withOffer : raiseRequest(withOffer, sessionId)
+  return offeredTo.length ? withOffer : raiseRequest(withOffer, sessionId)
 }
 
-/** The moderator being offered the session accepts, declines, or doesn't answer in time. The next one is offered; after the last, the AI asks for a time. */
-export function liveOfferAnswered(doc: FieldworkDoc, sessionId: string, how: 'Accepted' | 'Declined' | 'No answer'): FieldworkDoc {
+/** Whether a moderator has this live offer in front of them: offered, not answered, and nobody has taken it. */
+export const isOfferedTo = (s: Session, moderatorId: string) => s.escalation?.status === 'Offering live' && !!s.escalation.live?.offeredTo.includes(moderatorId) && !s.escalation.live.answers[moderatorId]
+
+/** A moderator accepts or declines the live offer. The first to accept takes it, and the offer is gone for everyone else. When every one has declined, the AI asks for a time. */
+export function liveOfferAnswered(doc: FieldworkDoc, sessionId: string, moderatorId: string, how: 'Accepted' | 'Declined'): FieldworkDoc {
   const s = doc.sessions.find((x) => x.id === sessionId)
   const e = s?.escalation
-  if (!s || !e || e.status !== 'Offering live' || !e.live) return doc
+  if (!s || !e || !e.live || !isOfferedTo(s, moderatorId)) return doc
   const when = tick(doc)
-  const current = e.live.queue[e.live.index]
-  const who = moderatorName(current)
-  if (how === 'Accepted')
-    return patch(doc, sessionId, (x) => ({ ...addEventAt(when, x, 'moderator', `${who} accepted and joined`), moderatorId: current, escalation: { ...e, status: 'Joined', moderatorId: current, acceptedBy: current, joinedAt: when } }))
-  const answers = { ...e.live.answers, [current]: how }
-  const index = e.live.index + 1
-  const next = e.live.queue[index]
-  const said = how === 'Declined' ? `${who} declined.` : `${who} didn’t answer in ${LIVE_OFFER_SECONDS} seconds.`
-  const moved = patch(doc, sessionId, (x) => ({
-    ...addEventAt(when, x, 'system', next ? `${said} Offered to ${moderatorName(next)}.` : `${said} Nobody took it live.`),
-    escalation: { ...e, live: { ...e.live!, index, offeredAt: when, answers } },
-  }))
-  return next ? moved : raiseRequest(moved, sessionId)
+  const who = moderatorName(moderatorId)
+  if (how === 'Accepted') return patch(doc, sessionId, (x) => ({ ...addEventAt(when, x, 'moderator', `${who} accepted first and joined`), moderatorId, escalation: { ...e, status: 'Joined', moderatorId, acceptedBy: moderatorId, joinedAt: when } }))
+  const answers = { ...e.live.answers, [moderatorId]: 'Declined' as const }
+  const left = e.live.offeredTo.filter((id) => !answers[id])
+  const moved = patch(doc, sessionId, (x) => ({ ...addEventAt(when, x, 'system', left.length ? `${who} declined.` : `${who} declined. Nobody took it live.`), escalation: { ...e, live: { ...e.live!, answers } } }))
+  return left.length ? moved : raiseRequest(moved, sessionId)
+}
+
+/** The 60 seconds ran out with nobody accepting. The AI asks the participant for a time. */
+export function liveOfferExpired(doc: FieldworkDoc, sessionId: string): FieldworkDoc {
+  const s = doc.sessions.find((x) => x.id === sessionId)
+  const e = s?.escalation
+  if (!s || !e?.live || e.status !== 'Offering live') return doc
+  const when = tick(doc)
+  const answers = { ...e.live.answers, ...Object.fromEntries(e.live.offeredTo.filter((id) => !e.live!.answers[id]).map((id) => [id, 'No answer' as const])) }
+  return raiseRequest(patch(doc, sessionId, (x) => ({ ...addEventAt(when, x, 'system', `${LIVE_OFFER_SECONDS} seconds ran out and nobody accepted.`), escalation: { ...e, live: { ...e.live!, answers } } })), sessionId)
 }
 
 /**
@@ -1242,8 +1258,10 @@ export function devRaiseRequest(doc: FieldworkDoc): FieldworkDoc | undefined {
     target = base.sessions.find((x) => x.id === idle.id)!
   }
   let out = participantAsksLive(base, target.id)
-  const answers = ['Declined', 'No answer', 'Declined'] as const
-  for (let i = 0; i < 6 && out.sessions.find((x) => x.id === target!.id)?.escalation?.status === 'Offering live'; i++) out = liveOfferAnswered(out, target.id, answers[i % 3])
+  // One moderator declines, the timer runs out on the rest.
+  const first = out.sessions.find((x) => x.id === target!.id)?.escalation?.live?.offeredTo[0]
+  if (first) out = liveOfferAnswered(out, target.id, first, 'Declined')
+  out = liveOfferExpired(out, target.id)
   return out
 }
 
@@ -1455,12 +1473,25 @@ export function rescheduleSession(doc: FieldworkDoc, sessionId: string, by: stri
   )
 }
 
+/** "Can't make it": the moderator asks the study's Researcher to reassign a booked session, and says why. */
+export function requestReassign(doc: FieldworkDoc, sessionId: string, moderatorId: string, reason: string): FieldworkDoc {
+  const s = doc.sessions.find((x) => x.id === sessionId)
+  if (!s || s.moderatorId !== moderatorId || s.status !== 'Booked' || s.reassign || !reason.trim()) return doc
+  const when = tick(doc)
+  return logged(
+    patch(doc, sessionId, (x) => ({ ...addEventAt(when, x, 'moderator', `${moderatorName(moderatorId)} can’t make the booked time and asked for someone else: “${reason.trim()}”`), reassign: { by: moderatorId, reason: reason.trim(), at: when }, handled: undefined })),
+    when,
+    moderatorName(moderatorId),
+    `Asked to be reassigned from ${s.participantId}: ${reason.trim()}`,
+  )
+}
+
 export function assignModerator(doc: FieldworkDoc, sessionId: string, moderatorId: string, by: string): FieldworkDoc {
   const when = tick(doc)
   const s = doc.sessions.find((x) => x.id === sessionId)
   if (!s) return doc
   return logged(
-    patch(doc, sessionId, (x) => handledBy(addEventAt(when, { ...x, moderatorId }, 'system', `${by} assigned ${moderatorName(moderatorId)}`), when, by, 'Assign moderator')),
+    patch(doc, sessionId, (x) => handledBy(addEventAt(when, { ...x, moderatorId, reassign: undefined }, 'system', `${by} assigned ${moderatorName(moderatorId)}`), when, by, 'Assign moderator')),
     when,
     by,
     `Assigned ${moderatorName(moderatorId)} to ${s.participantId}`,

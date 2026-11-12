@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { Button } from '@/components/Button'
 import { cn } from '@/components/cn'
 import { Modal } from '@/components/Modal'
-import { SideDrawer } from '@/components/SideDrawer'
 import { EmptyState } from '@/components/States'
 import { useToast } from '@/components/Toast'
 import { availabilityFor } from '@/mock/moderation'
@@ -10,6 +9,7 @@ import { cantTakeRequest, devRaiseRequest, fieldworkNow, participantAnswersPropo
 import { busyAcross, filterOf, REQUEST_FILTERS, whoHolds, type RequestFilter, type RequestRow, type RequestStatus } from '@/state/requests'
 import { formatIn, freeSlots } from '@/state/standby'
 import { formatStamp } from '@/lib/format'
+import { HandoffDrawer } from './Handoff'
 import type { useModeratorData } from './Sessions'
 
 type Data = ReturnType<typeof useModeratorData>
@@ -237,57 +237,18 @@ function EditTime({ r, data, busy, myZone, onClose, onSent }: { r?: RequestRow; 
   )
 }
 
-/** What a moderator needs before saying yes: why, how far the AI got, what was shown, and the conversation so far. */
+/** What a moderator needs before saying yes, with the suggested time first. */
 function Details({ r, myZone, onClose }: { r?: RequestRow; myZone: string; onClose: () => void }) {
-  const shown = r?.session.stimuli.filter((x) => x.result === 'Shown') ?? []
+  if (!r) return null
   return (
-    <SideDrawer open={!!r} onClose={onClose} title={r ? `${r.name} · ${r.participantId}` : ''} description={r ? `${r.studyName} · ${r.language} · ${REQUEST_REASON}` : undefined}>
-      {r && (
-        <div className="flex flex-col gap-5 text-sm" data-testid="rq-drawer">
-          <section>
-            <h3 className="text-xs font-semibold tracking-wide text-graphite uppercase">Suggested time</h3>
-            <p className="mt-1">
-              <Time iso={r.suggested} zone={r.zone} myZone={myZone} name={r.name} />
-            </p>
-          </section>
-          <section>
-            <h3 className="text-xs font-semibold tracking-wide text-graphite uppercase">Sections the AI covered</h3>
-            {r.covered.length === 0 ? (
-              <p className="mt-1 text-graphite">None yet.</p>
-            ) : (
-              <ul className="mt-1 flex flex-col gap-0.5" data-testid="rq-covered">
-                {r.covered.map((c) => (
-                  <li key={c.title}>
-                    {c.title} <span className="text-graphite tabular-nums">({c.done} of {c.of} questions)</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-          <section>
-            <h3 className="text-xs font-semibold tracking-wide text-graphite uppercase">Stimuli shown</h3>
-            <p className="mt-1" data-testid="rq-stimuli">
-              {shown.length ? shown.map((x) => x.name).join(', ') : 'None shown yet.'}
-            </p>
-          </section>
-          <section>
-            <h3 className="text-xs font-semibold tracking-wide text-graphite uppercase">Transcript so far</h3>
-            {r.session.transcript.length === 0 ? (
-              <p className="mt-1 text-graphite">Nothing was said yet.</p>
-            ) : (
-              <ol className="mt-1 flex flex-col gap-2" data-testid="rq-transcript">
-                {r.session.transcript.map((t, i) => (
-                  <li key={i}>
-                    <span className={cn('text-xs font-semibold', t.ai ? 'text-iris-700' : 'text-ink')}>{t.ai ? 'AI' : t.speaker}</span>
-                    <p>{t.text}</p>
-                  </li>
-                ))}
-              </ol>
-            )}
-          </section>
-        </div>
-      )}
-    </SideDrawer>
+    <HandoffDrawer open onClose={onClose} title={`${r.name} · ${r.participantId}`} subtitle={`${r.studyName} · ${r.language}`} doc={r.doc} session={r.session}>
+      <section>
+        <h3 className="text-xs font-semibold tracking-wide text-graphite uppercase">Suggested time</h3>
+        <p className="mt-1">
+          <Time iso={r.suggested} zone={r.zone} myZone={myZone} name={r.name} />
+        </p>
+      </section>
+    </HandoffDrawer>
   )
 }
 

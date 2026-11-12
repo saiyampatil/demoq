@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { createBrowserRouter, Navigate, Outlet, RouterProvider } from 'react-router'
 import { ModeratorShell } from '@/apps/moderator/ModeratorShell'
+import { ModeratorProfile } from '@/apps/moderator/Profile'
 import { ModeratorSessions } from '@/apps/moderator/Sessions'
 import { ObserverShell } from '@/apps/observer/ObserverShell'
 import { ParticipantScreen } from '@/apps/participant/ParticipantScreen'
@@ -119,7 +120,7 @@ const router = createBrowserRouter([
       {
         path: '/moderator',
         element: <ModeratorShell />,
-        children: [{ index: true, element: <Navigate to="sessions" replace /> }, ...routesFor('moderator', (id) => (id === 'M1' ? <ModeratorSessions /> : <ScreenPlaceholder id={id} />))],
+        children: [{ index: true, element: <Navigate to="sessions" replace /> }, ...routesFor('moderator', (id) => (id === 'M1' ? <ModeratorSessions /> : id === 'M4' ? <ModeratorProfile /> : <ScreenPlaceholder id={id} />))],
       },
       {
         path: '/observer',

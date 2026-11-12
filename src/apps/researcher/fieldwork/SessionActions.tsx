@@ -5,7 +5,7 @@ import { TextArea } from '@/components/Field'
 import { Modal } from '@/components/Modal'
 import { useToast } from '@/components/Toast'
 import { Tooltip } from '@/components/Tooltip'
-import { assignEscalation, giveUp, resendLink, retrySession, sendBookingLink, sendRescheduleLink, type FieldworkDoc } from '@/state/fieldwork'
+import { assignEscalation, assignModerator, giveUp, resendLink, retrySession, sendBookingLink, sendRescheduleLink, type FieldworkDoc } from '@/state/fieldwork'
 import { moderatorRoster, supportReport, type NeedsRow } from '@/state/selectors'
 
 /**
@@ -32,7 +32,10 @@ export function SessionActions({ doc, row, me, update, blockedWhy }: { doc: Fiel
     )
 
   const run = () => {
-    if (row.action === 'Resend link' || row.action === 'Resume') {
+    if (row.kind === 'reassign') {
+      setPick('')
+      setAssigning(true)
+    } else if (row.action === 'Resend link' || row.action === 'Resume') {
       update((d) => resendLink(d, id, me))
       toast(row.action === 'Resume' ? `Resume link sent to ${who}.` : `Link resent to ${who}.`)
     } else if (row.action === 'Reissue link') {
@@ -132,7 +135,7 @@ export function SessionActions({ doc, row, me, update, blockedWhy }: { doc: Fiel
               disabled={!pick}
               data-testid="confirm-assign"
               onClick={() => {
-                update((d) => assignEscalation(d, id, pick, me))
+                update((d) => (row.kind === 'reassign' ? assignModerator(d, id, pick, me) : assignEscalation(d, id, pick, me)))
                 toast(`${roster.find((m) => m.id === pick)?.name} was notified about ${who}.`)
                 setAssigning(false)
               }}

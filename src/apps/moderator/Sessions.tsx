@@ -2,10 +2,14 @@ import { useMemo } from 'react'
 import { useSearchParams } from 'react-router'
 import { cn } from '@/components/cn'
 import { useStudies } from '@/state/StudyContext'
-import { completedFor, openCount, requestsFor, submittedFor, upcomingFor } from '@/state/requests'
+import { completedFor, openCount, requestsFor, scopeDocs, submittedFor, upcomingFor } from '@/state/requests'
+import { activateTeamPerson } from '@/state/teamModerators'
+import { Button } from '@/components/Button'
 import type { FieldworkDoc } from '@/state/fieldwork'
 import { PageHeader } from '../shared/PageHeader'
-import { AvailabilityTab, CompletedTab, SubmittedTab, UpcomingTab } from './OtherTabs'
+import { AvailabilityEditor } from './AvailabilityEditor'
+import { LiveCards } from './LiveCards'
+import { CompletedTab, SubmittedTab, UpcomingTab } from './OtherTabs'
 import { RequestsTab } from './RequestsTab'
 import { useModerator } from './useModerator'
 
@@ -18,18 +22,47 @@ const TABS = [
 ] as const
 type Tab = (typeof TABS)[number]['key']
 
-/** What every tab reads: the moderator, and the fieldwork records of every study, which is where sessions and requests live. */
+/**
+ * What every tab reads: the moderator, and the fieldwork records they may see. A PulseAI moderator sees every client's, a
+ * team moderator only their own company's studies, and someone who hasn't accepted their invitation none.
+ */
 export function useModeratorData() {
   const { fieldworks, updateFieldwork, studies, getLanguage } = useStudies()
   const { me } = useModerator()
   const studyName = (id: string) => studies.find((s) => s.id === id)?.name ?? id
   const act = (studyId: string, fn: (d: FieldworkDoc) => FieldworkDoc) => updateFieldwork(studyId, fn)
-  return { me, all: fieldworks, act, studyName, language: getLanguage }
+  const all = scopeDocs(fieldworks, me, (id) => studies.find((s) => s.id === id)?.client)
+  return { me, all, act, studyName, language: getLanguage }
+}
+
+/** Someone invited as a team moderator who hasn't accepted yet: the invitation is all there is. */
+function InviteGate({ data }: { data: ReturnType<typeof useModeratorData> }) {
+  const { me } = data
+  return (
+    <div className="flex flex-col gap-6" data-testid="invite-gate">
+      <PageHeader id="M1" title="Accept your invitation" description={`You were invited to moderate for ${me.company ?? 'a research team'}. Accept to see your sessions, take requests and set your hours.`} />
+      <div className="max-w-xl rounded-md border border-mist bg-surface p-5">
+        <p className="text-sm">
+          The invitation was sent to <span className="font-medium">{me.email}</span>. Open the link in that email to accept. Until you do, nothing else is available to you.
+        </p>
+        {import.meta.env.DEV && (
+          <Button className="mt-4" size="sm" data-testid="dev-accept-invite" onClick={() => activateTeamPerson(me.id)}>
+            Dev: accept the invitation
+          </Button>
+        )}
+      </div>
+    </div>
+  )
 }
 
 /** M1: the moderator's own sessions, the requests they can take, and when they are free. */
 export function ModeratorSessions() {
   const data = useModeratorData()
+  if (data.me.kind === 'invited') return <InviteGate data={data} />
+  return <SessionsTabs data={data} />
+}
+
+function SessionsTabs({ data }: { data: ReturnType<typeof useModeratorData> }) {
   const [params, setParams] = useSearchParams()
   const tab = (TABS.find((t) => t.key === params.get('tab'))?.key ?? 'upcoming') as Tab
   const { me, all, studyName, language } = data
@@ -45,6 +78,7 @@ export function ModeratorSessions() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader id="M1" title="My sessions" description="The interviews you have booked, the requests from participants who asked to speak with a person, and the times you are free." />
+      <LiveCards data={data} />
       <div>
         <div role="tablist" aria-label="My sessions" className="flex gap-1 border-b border-mist">
           {TABS.map((t) => (
@@ -73,7 +107,7 @@ export function ModeratorSessions() {
           {tab === 'requests' && <RequestsTab data={data} rows={requests} />}
           {tab === 'completed' && <CompletedTab data={data} />}
           {tab === 'submitted' && <SubmittedTab data={data} />}
-          {tab === 'availability' && <AvailabilityTab data={data} />}
+          {tab === 'availability' && <AvailabilityEditor data={data} />}
         </div>
       </div>
     </div>

@@ -2,6 +2,7 @@
 // A new person is Invited until they accept the emailed invitation (simulated: the dev button is the only way to accept).
 // Studies point at a person by id and read their status live, so one acceptance counts in every study they are on.
 import { useSyncExternalStore } from 'react'
+import { DOMAIN_COMPANY } from '@/mock/expertise'
 import { currentUser } from '@/mock/people'
 import { now, uid } from './brief'
 
@@ -111,4 +112,12 @@ export function resendTeamInvite(id: string) {
 /** Dev: back to the seed. */
 export function resetTeamModerators() {
   commit(SEED)
+}
+
+/** The company a team moderator works for, from their email domain. They see only that company's studies. */
+export const companyOf = (p: Pick<TeamPerson, 'email'>): string => DOMAIN_COMPANY[p.email.split('@')[1]?.toLowerCase() ?? ''] ?? p.email.split('@')[1] ?? 'Unknown company'
+
+/** A person edits their own name and expertise in their profile. The email is theirs by invitation and doesn't change. */
+export function updateTeamPerson(id: string, patch: { name?: string; tags?: string[] }) {
+  commit(store.map((p) => (p.id === id ? { ...p, ...(patch.name?.trim() ? { name: patch.name.trim() } : {}), ...(patch.tags ? { tags: patch.tags } : {}) } : p)))
 }
