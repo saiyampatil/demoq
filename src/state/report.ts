@@ -9,6 +9,8 @@ import { now, uid } from './brief'
 export const REPORT_STORAGE_KEY = 'pulseai-qual:report'
 /** Bump when the stored shape changes. A report saved with an older shape is replaced by a fresh seed. */
 const SCHEMA = 3
+/** A saved report is only usable if it has the current shape. */
+export const isCurrentReport = (d: ReportDoc | undefined): d is ReportDoc => !!d && d.schema === SCHEMA
 
 export type Strength = 'Strong' | 'Weak' | 'Unanswered'
 export type DraftKind = 'ai' | 'researcher'

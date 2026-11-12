@@ -23,6 +23,7 @@ import {
   replaceAIDraft,
   saveSentence,
   setActive,
+  isCurrentReport,
   useReport,
   updateReport,
   withdrawApproval,
@@ -45,7 +46,9 @@ const EXPLORE_TOOLS: Partial<Record<ToolKey, ExploreTab>> = { ask: 'ask', number
 /** A3: the report the client will receive, as one workspace. Everything in it comes from what was approved earlier in Analysis. */
 export function Report() {
   const { studyId, study, review, me, accepted, doc, basis, stale, ready } = useAnalysis()
-  const report = useReport(studyId)
+  const saved = useReport(studyId)
+  // A report saved by an older version has a different shape. It is treated as missing and replaced in the effect below.
+  const report = isCurrentReport(saved) ? saved : undefined
   const [params] = useSearchParams()
   const [loaded, setLoaded] = useState(false)
   const [failed, setFailed] = useState(params.get('demo') === 'error')

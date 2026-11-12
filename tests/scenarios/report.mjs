@@ -26,6 +26,12 @@ export default async ({ b, out }) => {
   const primary = () => text('[data-testid=primary-action]')
   const sentenceByText = (re) => `[...document.querySelectorAll('[data-testid=sentence]')].find(e=>${re}.test(e.innerText))`
 
+  // ── A report saved by the old layout (no approvals field) must not crash the screen; it is replaced ──
+  await b.goto('/researcher'); await b.evaluate('localStorage.clear(); true')
+  await b.evaluate(`localStorage.setItem(${q(RP)}, JSON.stringify({'pet-food-churn':{studyId:'pet-food-churn',schema:2,createdAt:'x',updatedAt:'x',builtOn:[],execSummary:{aiDraft:[],researcherDraft:[],active:'ai',edits:[]},findings:[{questionId:'q-start',aiDraft:[{id:'q-start-1',text:'old',cites:[]}],researcherDraft:[],active:'ai',edits:[]}]}})); true`)
+  await b.goto(`${STUDY}/report`); await b.waitFor('Executive summary'); await b.sleep(600)
+  is('an old-shape saved report is replaced, not a crash', !(await b.evaluate(`document.body.innerText.includes('Unexpected Application Error')`)) && (await report()).schema === 3 && (await count('[data-testid=sentence]')) >= 3)
+
   // ── The workspace: header, tools, three columns, footer ──
   await fresh()
   is('the built-on line says sessions, excluded and release', /Built on 20 accepted sessions · 2 excluded left out · Release v1\.0/.test(await text('[data-testid=built-on]')), await text('[data-testid=built-on]'))
