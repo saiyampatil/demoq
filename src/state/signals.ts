@@ -479,7 +479,7 @@ const AGAINST: Record<'positive' | 'negative', Partial<Record<'Hesitation' | 'Fa
 }
 
 /** The gap, named in plain words and counted in people: "4 of 7 people argued for it, but hesitated as they said it." */
-function gapSentence(g: StanceGap, kind: 'positive' | 'negative', lead: 'but' | 'still'): string {
+function gapSentence(g: StanceGap, kind: 'positive' | 'negative', lead: 'but' | 'still', short = false): string {
   if (!g.n) return ''
   const clauses = (['Hesitation', 'Face', 'Voice'] as const)
     .map((c) => ({ k: g[c], c, text: AGAINST[kind][c] }))
@@ -487,19 +487,21 @@ function gapSentence(g: StanceGap, kind: 'positive' | 'negative', lead: 'but' | 
     .sort((a, b) => b.k - a.k)
   if (!clauses.length) return ''
   const verb = kind === 'positive' ? 'argued for it' : 'complained about it'
-  const [first, ...rest] = clauses
+  const [first, ...more0] = short ? [clauses[0]] : clauses
+  const rest = more0
   const head = lead === 'but' ? `${first.k} of ${g.n} people ${verb}, but ${first.text}` : `Still, ${first.k} of ${g.n} ${g.n === 1 ? 'person' : 'people'} who ${verb} ${first.text}`
   const more = rest.map((x) => `; ${x.k} of ${g.n} also ${x.text}`).join('')
-  const seen = clauses.some((x) => x.c === 'Face') && g.noVideo ? ` (faces were read for ${g.n - g.noVideo} of ${g.n}; ${g.noVideo} audio-only)` : ''
+  const seen = !short && clauses.some((x) => x.c === 'Face') && g.noVideo ? ` (faces were read for ${g.n - g.noVideo} of ${g.n}; ${g.noVideo} audio-only)` : ''
   return `${head}${more}${seen}.`
 }
 
 /** The headline for a theme, built only from its numbers. Names the gap in plain words, or says delivery matched. */
-export function headlineOf(r: Rollup): string {
+/** `short` keeps only the lead: what a row shows. The full sentence, with every channel and who was left out, is the panel's. */
+export function headlineOf(r: Rollup, short = false): string {
   if (r.verdict === 'Too few to read') return `Only ${plural(r.people, 'person', 'people')} said this, too few to read a pattern.`
   if (r.fit.n === 0) return 'These words state a fact or a preference, so there is no claim for the face, voice or hesitation to disagree with.'
-  const gaps = [gapSentence(r.positive, 'positive', r.verdict === 'Consistent' ? 'still' : 'but'), gapSentence(r.negative, 'negative', r.verdict === 'Consistent' ? 'still' : 'but')].filter(Boolean)
-  if (r.verdict === 'Consistent' || r.verdict === 'No claim') return [`Delivery matched the words for ${r.fit.fits} of ${r.fit.n} people.`, ...gaps].join(' ')
+  const gaps = [gapSentence(r.positive, 'positive', r.verdict === 'Consistent' ? 'still' : 'but', short), gapSentence(r.negative, 'negative', r.verdict === 'Consistent' ? 'still' : 'but', short)].filter(Boolean)
+  if (r.verdict === 'Consistent' || r.verdict === 'No claim') return [`Delivery matched the words for ${r.fit.fits} of ${r.fit.n} people.`, ...(short ? [] : gaps)].join(' ')
   return gaps.length ? gaps.join(' ') : `Delivery pulled against the words for ${r.fit.partly + r.fit.doesnt} of ${r.fit.n} people.`
 }
 
@@ -516,6 +518,8 @@ export type ThemeSignal = Rollup & {
   of: number
   notAsked: number
   headline: string
+  /** The headline's lead only, for a row. */
+  summary: string
   /** Where each number comes from and who is left out, so the lines add up. */
   trace: string
   readable: boolean
@@ -547,6 +551,7 @@ function profile(base: { id: string; name: string; definition?: string; kind: Th
     of,
     notAsked: basis.participants.size - of,
     headline: headlineOf(r),
+    summary: headlineOf(r, true),
     trace: `${trace[0].toUpperCase()}${trace.slice(1)}.`,
     readable,
     notable,

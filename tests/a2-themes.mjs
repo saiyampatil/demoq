@@ -85,10 +85,13 @@ try {
   ok('the Emotion | Voice | Hesitation switch is hidden', (await b.evaluate(`document.querySelectorAll('[data-testid=lens-emotion],[data-testid=lens-voice],[data-testid=lens-hesitation]').length`)) === 0)
   const rows = await all('[data-testid=theme-signal-row]')
   ok('every accepted theme is a row', ['Price creep', 'The pet decides', 'Wanting control over deliveries', 'Why they joined'].every((n) => rows.some((r) => r.startsWith(n))), rows.map((r) => r.slice(0, 30)).join(' | '))
-  ok('each row shows said by n of N, a verdict, words, face, voice and hesitation', rows.every((r) => /Said by \d+ of \d+/.test(r) && /(Consistent|Mixed|Conflicting|Too few to read|No claim)/.test(r) && /Words /.test(r) && /Face /.test(r) && /Voice \d+ of \d+ flat or tense/.test(r) && /Hesitation \d+ of \d+ marked/.test(r)), rows[0])
+  ok('each row is light: the name, said by n of N, a verdict and one sentence (the detail is in the panel)', rows.every((r) => /Said by \d+ of \d+/.test(r) && /(Consistent|Mixed|Conflicting|Too few to read|No claim)/.test(r) && !/Words |Face |Voice \d|Hesitation \d/.test(r) && r.length < 230), rows.map((r) => r.length).join(','))
   ok('no percentages and no vague counts', rows.every((r) => !/%/.test(r) && !/a number of|a few of|some of/i.test(r)))
   ok('every theme has a headline', (await all('[data-testid=theme-headline]')).length === rows.length && (await all('[data-testid=theme-headline]')).every((h) => h.length > 30))
-  ok('the rule is stated in one place on the screen', /Conflicting: 4 in 10 or more/.test((await text('[data-testid=theme-rule]')) ?? '') && /Each person counts once/.test((await text('[data-testid=theme-rule]')) ?? ''))
+  ok('the rule is one click away, not on the page by default', (await b.evaluate(`document.querySelector('[data-testid=theme-rule-box]').open`)) === false)
+  await b.evaluate(`document.querySelector('[data-testid=theme-rule-box] summary').click(); true`); await b.sleep(250)
+  ok('and when opened it states the rule', /Conflicting: 4 in 10 or more/.test((await text('[data-testid=theme-rule]')) ?? '') && /Each person counts once/.test((await text('[data-testid=theme-rule]')) ?? ''))
+  await b.evaluate(`document.querySelector('[data-testid=theme-rule-box] summary').click(); true`)
 
   // Each row: the verdict is the rule applied to its panel's numbers; the lines add up.
   const rl = unit.rule
@@ -102,7 +105,8 @@ try {
     const m = v.match(/For (\d+) of (\d+),.*?(?:\((\d+) clearly\))?\./)
     const clean = v.match(/fits the words for all (\d+)/)
     const tr = (await text('[data-testid=theme-trace]')) ?? ''
-    panels[name] = { chip, v, tr, headline: await text('[data-testid=theme-headline-text]') }
+    const hm = ((await text('[data-testid=theme-panel]')) ?? '').match(/Marked in (\d+) of (\d+)/)
+    panels[name] = { chip, v, tr, headline: await text('[data-testid=theme-headline-text]'), hes: hm ? +hm[1] / +hm[2] : 0 }
     if (m || clean) {
       const n = m ? +m[2] : +clean[1]
       const against = m ? +m[1] : 0
@@ -161,7 +165,7 @@ try {
 
   // ── The Report tick: theme level, default on for the notable themes, saved, and A3 reads from it ──
   const ticks = await b.evaluate(`Object.fromEntries([...document.querySelectorAll('[data-testid=theme-signal-item]')].map(li=>[li.querySelector('[data-testid=theme-signal-row]').innerText.split(/\\s+Said by/)[0], li.querySelector('[data-testid=use-theme]')?.checked]))`)
-  const notable = Object.fromEntries(rows.map((r, i) => [names[i], /Mixed|Conflicting/.test(r.match(/Said by \d+ of \d+ (\w[\w ]*?) Words/)?.[1] ?? '') || /Hesitation (\d+) of (\d+) marked/.test(r) && (() => { const m = r.match(/Hesitation (\d+) of (\d+) marked/); return m[1] / m[2] >= 0.25 })()]))
+  const notable = Object.fromEntries(names.map((n) => [n, /Mixed|Conflicting/.test(panels[n].chip) || panels[n].hes >= 0.25]))
   ok('the tick is on for the Conflicting theme and off for the ones with no gap', ticks['Wanting control over deliveries'] === true && ticks['Why they joined'] === false, JSON.stringify(ticks))
   ok('the tick agrees with the code-level default (hesitation shows, or words and delivery don’t fit)', names.every((n) => ticks[n] === notable[n]), JSON.stringify({ ticks, notable }))
   await b.goto(`${root}/report`); await b.waitFor('Executive summary'); await b.sleep(600)
@@ -202,7 +206,8 @@ try {
   await b.goto(`${root}/signals`); await b.waitFor('What stands out'); await b.sleep(500)
   const tRows = await all('[data-testid=tension-theme-list] [data-testid=theme-signal-row]')
   ok('a tension theme sits in its own group below, tagged From a tension', tRows.length === 1 && /From a tension/.test(tRows[0]) && /Tension themes/.test((await text('main')) ?? ''), tRows.join(' | '))
-  ok('and is read with the same profile as any theme', /Said by \d+ of \d+/.test(tRows[0]) && /Voice \d+ of \d+ flat or tense/.test(tRows[0]))
+  await clickText('[data-testid=tension-theme-list] [data-testid=theme-signal-row]', 'Pause'); await b.sleep(250)
+  ok('and is read with the same profile as any theme', /Said by \d+ of \d+/.test(tRows[0]) && /Flat or tense for \d+ of \d+/.test((await text('[data-testid=theme-panel]')) ?? '') && /Marked in \d+ of \d+/.test((await text('[data-testid=theme-panel]')) ?? ''))
   await b.goto(`${root}/codebook?tab=themes`); await b.waitFor('New theme'); await b.sleep(400)
   ok('the Themes tab calls it a tension theme', await b.evaluate(`[...document.querySelectorAll('[data-testid=theme-card][data-from-tension=true]')].every(c=>/Tension theme/.test(c.innerText))&&document.querySelectorAll('[data-testid=theme-card][data-from-tension=true]').length===1`))
   await b.goto(`${root}/signals?tab=tensions`); await b.waitFor('Tensions'); await b.sleep(500)

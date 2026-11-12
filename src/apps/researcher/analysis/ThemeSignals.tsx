@@ -10,28 +10,8 @@ import { EMOTIONS, noReading, topEmotions } from '@/state/emotion'
 import { THEME_RULE_TEXT, stanceSummary, tensionsFor, type Tension, type ThemeSignal } from '@/state/signals'
 import { mmss } from '../review/reviewUi'
 import { BandBar, EmotionBar, EmotionChip, FitChip, PointCard, ToneBar, ValenceCounts, playHref } from './SignalBits'
-import { ChannelRow, emotionSummary, emotionSummaryTitle, useArrows, type SignalFocus } from './SignalsTab'
+import { ChannelRow, useArrows, type SignalFocus } from './SignalsTab'
 import type { CodebookCtx } from './codebookCtx'
-
-/** Face, voice and hesitation for one theme, each as "n of N" on the same people. Said out loud when someone is left out. */
-function Facts({ t }: { t: ThemeSignal }) {
-  const off = t.tones.counts.Flat + t.tones.counts.Tense
-  const gap = noReading(t.emotions)
-  const stance = stanceSummary(t)
-  const item = (label: string, value: React.ReactNode, title?: string) => (
-    <span className="whitespace-nowrap" title={title}>
-      <span className="font-medium text-ink">{label}</span> {value}
-    </span>
-  )
-  return (
-    <span className="mt-1 flex flex-wrap items-baseline gap-x-4 gap-y-0.5 text-xs text-graphite tabular-nums" data-testid="theme-facts">
-      {item('Words', <>{stance.short}{t.fit.n < t.people && t.fit.n > 0 ? ` (${t.fit.n} of ${t.people} with a claim)` : ''}</>, stance.long)}
-      {item('Face', <>{emotionSummary(t.emotions)}{gap ? ` (${gap})` : ''}</>, emotionSummaryTitle(t.emotions))}
-      {item('Voice', <><span className="font-semibold text-ink">{off}</span> of {t.tones.n} flat or tense</>)}
-      {item('Hesitation', <><span className="font-semibold text-ink">{t.marked}</span> of {t.people} marked</>)}
-    </span>
-  )
-}
 
 /** The accepted themes with their signals, one result each. A row opens to its codes and their own verdicts. */
 export function ByTheme({ ctx, themes, tensions, focus, setFocus, onOpenTension }: { ctx: CodebookCtx; themes: ThemeSignal[]; tensions: Tension[]; focus: SignalFocus; setFocus: (f: SignalFocus) => void; onOpenTension: (id: string) => void }) {
@@ -88,9 +68,8 @@ export function ByTheme({ ctx, themes, tensions, focus, setFocus, onOpenTension 
                 <FitChip pattern={t.verdict} />
               </span>
             </span>
-            <Facts t={t} />
-            <span className="mt-1 block text-xs text-graphite" data-testid="theme-headline">
-              {t.headline}
+            <span className="mt-0.5 block text-sm text-graphite" data-testid="theme-headline">
+              {t.summary}
             </span>
           </button>
           <label className="flex w-14 shrink-0 justify-center py-3" title={t.tickable ? (t.readable ? undefined : 'Too few people to put in the report') : t.kind === 'tension' ? 'A tension theme goes in the report as a tension' : 'Tick the codes below, one at a time'}>
@@ -128,16 +107,19 @@ export function ByTheme({ ctx, themes, tensions, focus, setFocus, onOpenTension 
   return (
     <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] xl:grid-cols-[minmax(0,1fr)_minmax(0,28rem)]">
       <section aria-label="Signals by theme" className="min-w-0 rounded-md border border-mist bg-surface">
-        <div className="flex flex-wrap items-center gap-3 border-b border-mist px-4 py-2.5">
-          <p className="text-sm text-graphite">
-            <span className="font-semibold text-ink tabular-nums">{inReport}</span> of {tickable} themes in the report
-          </p>
-          <span className="flex-1" />
-          <span className="text-xs text-graphite">Face, voice and hesitation together, on the same people</span>
+        <div className="flex items-center gap-3 border-b border-mist px-4 py-2">
+          <details className="min-w-0 flex-1 text-xs text-graphite" data-testid="theme-rule-box">
+            <summary className="cursor-pointer select-none">
+              <span className="font-medium text-ink">Consistent, Mixed or Conflicting</span> says whether how people said it matched what they said. <span className="font-medium text-iris-700">How it’s decided</span>
+            </summary>
+            <p className="mt-1.5 rounded-sm bg-haze px-3 py-2" data-testid="theme-rule">
+              {THEME_RULE_TEXT}
+            </p>
+          </details>
+          <span className="w-14 shrink-0 text-center text-xs text-graphite" title={`${inReport} of ${tickable} themes are in the report`}>
+            In report
+          </span>
         </div>
-        <p className="border-b border-mist bg-haze px-4 py-1.5 text-xs text-graphite" data-testid="theme-rule">
-          <span className="font-medium text-ink">Verdict, by theme.</span> {THEME_RULE_TEXT}
-        </p>
         <div ref={arrows.ref} onKeyDown={arrows.onKeyDown}>
           <ul className="divide-y divide-mist" data-testid="theme-list">
             {own.map(row)}
