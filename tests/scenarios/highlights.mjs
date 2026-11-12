@@ -33,8 +33,9 @@ export default async ({ b, out }) => {
     await b.goto('/researcher'); await b.evaluate('localStorage.clear(); sessionStorage.clear(); true')
     await b.goto(`${STUDY}/${path}`); await b.waitFor('Explore'); await b.sleep(500)
   }
+  // A1 and A2 have an Explore button in the top bar. On A3 it is the Highlights tool in the Tools list.
   const openDrawer = async () => {
-    await click('[data-testid=explore-open]')
+    await click(/analysis\/report/.test(await b.evaluate('location.pathname')) ? '[data-testid=tool-highlights]' : '[data-testid=explore-open]')
     await expect('the drawer opens on the Highlights tab', `document.querySelector('[data-testid=explore-tab-highlights]')?.getAttribute('aria-selected')==='true'&&!!document.querySelector('[data-testid=highlights]')`)
   }
   const type = async (v) => { await b.evaluate(setIn('[data-testid=idea-input]', v)) }

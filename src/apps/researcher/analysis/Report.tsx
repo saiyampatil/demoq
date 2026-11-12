@@ -1,653 +1,290 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { Link, useSearchParams } from 'react-router'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router'
 import { Banner } from '@/components/Banner'
-import { cn } from '@/components/cn'
-import { AIGeneratedTag } from '@/components/AIGenerated'
-import { StatusGlyph } from '@/components/StatusChip'
-import type { StatusFamily } from '@/components/status'
-import { SideDrawer } from '@/components/SideDrawer'
+import { Button } from '@/components/Button'
+import { controlBase } from '@/components/Field'
+import { EmptyState, ErrorState, LoadingState } from '@/components/States'
+import { StatusChip } from '@/components/StatusChip'
+import { WizardFooter } from '@/components/WizardFooter'
 import { PageHeader } from '../../shared/PageHeader'
-import { ExploreControl } from './explore/ExploreControl'
 import { screenById, studyPath } from '@/routes/screens'
-import { excerpt, liveExcerpts, type Excerpt } from '@/state/codebook'
-import { tensionsOf } from '@/state/signals'
-import { CODE_QUESTIONS } from '@/mock/codebook'
-import { EXEC_SUMMARY_AI, FINDING_DRAFTS, QUESTION_IDS } from '@/mock/report'
+import { CODEBOOK_STUDY, dismissTension, updateCodebook } from '@/state/codebook'
 import { uid } from '@/state/brief'
+import { EXEC_SUMMARY_AI, FINDING_DRAFTS, QUESTION_IDS, type SeedSentence } from '@/mock/report'
 import {
   REPORT_USER,
+  applyUpdate,
+  approveSentence,
   copyAIToResearcher,
+  deleteSentence,
   ensureReport,
+  includeFinding,
+  omitFinding,
   replaceAIDraft,
   saveSentence,
   setActive,
-  strengthFor,
-  updateReport,
   useReport,
-  type Citation,
-  type DraftKind,
-  type ReportDoc,
+  updateReport,
+  withdrawApproval,
   type Sentence,
-  type Strength,
   type Target,
 } from '@/state/report'
+import { plural, renderTemplate, reportModel } from '@/state/reportLogic'
 import { AnalysisStepper } from './AnalysisStepper'
+import { ExploreDrawer, type ExploreTab } from './explore/ExploreControl'
+import { ExecCard, SectionRow, ThemeRows } from './report/Centre'
+import { ReviewStudio } from './report/ReviewStudio'
+import { CompareStudio, ComingStudio, ExcludedDialog, ReleaseStudio } from './report/OtherStudios'
+import { BuiltFrom, Selected } from './report/Side'
+import { Tools } from './report/Tools'
+import { WsProvider, type Act, type Selection, type ToolKey, type Ws } from './report/ws'
 import { useAnalysis } from './useAnalysis'
 
-// ---------- small helpers ----------
+const EXPLORE_TOOLS: Partial<Record<ToolKey, ExploreTab>> = { ask: 'ask', numbers: 'numbers', highlights: 'highlights' }
 
-const mmss = (sec: number) => `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2, '0')}`
-const questionLabel = (id: string) => CODE_QUESTIONS.find((q) => q.id === id)?.label ?? id
-const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
-
-const MINI = 'rounded-xs border border-mist bg-haze px-2 py-0.5 text-xs font-medium text-graphite hover:bg-paper disabled:opacity-50'
-const MINI_ON = 'rounded-xs border border-ink bg-ink px-2 py-0.5 text-xs font-medium text-white'
-
-const STRENGTH_STYLE: Record<Strength, { family: StatusFamily; cls: string }> = {
-  Strong: { family: 'positive', cls: 'bg-positive-bg text-positive-fg border-positive-line' },
-  Weak: { family: 'pending', cls: 'bg-pending-bg text-pending-fg border-pending-line' },
-  Unanswered: { family: 'negative', cls: 'bg-negative-bg text-negative-fg border-negative-line' },
-}
-
-function StrengthChip({ strength }: { strength: Strength }) {
-  const s = STRENGTH_STYLE[strength]
-  return (
-    <span className={cn('inline-flex items-center gap-1.5 rounded-xs border px-2 py-0.5 text-xs font-medium', s.cls)}>
-      <StatusGlyph family={s.family} />
-      {strength}
-    </span>
-  )
-}
-
-// What a citation points at, once looked up in the codebook. null means it no longer matches anything.
-type Resolved =
-  | { kind: 'excerpt'; ex: Excerpt }
-  | { kind: 'code'; name: string; definition: string; questionId: string; excerpts: Excerpt[] }
-  | { kind: 'theme'; name: string; definition: string; codes: { name: string; excerpts: Excerpt[] }[] }
-  | { kind: 'tension'; title: string; summary: string; type: string }
-  | null
-
-type Info = { strength: Strength; excerptCount: number; codeCount: number; asked: number; notAsked: number }
-type Update = (fn: (r: ReportDoc) => ReportDoc) => void
-
-// ---------- the screen ----------
-
+/** A3: the report the client will receive, as one workspace. Everything in it comes from what was approved earlier in Analysis. */
 export function Report() {
   const { studyId, study, review, me, accepted, doc, basis, stale, ready } = useAnalysis()
-  const [params, setParams] = useSearchParams()
-  const tab: 'findings' | 'exec' = params.get('tab') === 'exec' ? 'exec' : 'findings'
   const report = useReport(studyId)
-  const [drawer, setDrawer] = useState<Citation | null>(null)
+  const [params] = useSearchParams()
+  const [loaded, setLoaded] = useState(false)
+  const [failed, setFailed] = useState(params.get('demo') === 'error')
+  const [sel, setSel] = useState<Selection>(null)
+  const [studio, setStudio] = useState<ToolKey | null>(null)
+  const [exploreTab, setExploreTab] = useState<ExploreTab>('highlights')
+  const [openSections, setOpenSections] = useState<Set<string> | null>(null)
+  const [themesOpen, setThemesOpen] = useState(false)
+  const [excludedOpen, setExcludedOpen] = useState(false)
+  const [regenerating, setRegenerating] = useState<string | null>(null)
+  const timer = useRef<number | undefined>(undefined)
+  useEffect(() => () => window.clearTimeout(timer.current), [])
 
-  // First visit: create the report from the pre-written AI drafts. Done in an effect, never during render.
   useEffect(() => {
-    if (ready && doc && !report) {
-      ensureReport(studyId, doc.builtOn, QUESTION_IDS, { exec: EXEC_SUMMARY_AI, findings: FINDING_DRAFTS })
-    }
-  }, [ready, doc, report, studyId])
+    setLoaded(false)
+    const t = setTimeout(() => setLoaded(true), 450)
+    return () => clearTimeout(t)
+  }, [studyId])
 
-  const resolve = useMemo(
-    () =>
-      (cit: Citation): Resolved => {
-        if (!doc) return null
-        switch (cit.kind) {
-          case 'excerpt': {
-            const ex = excerpt(cit.id)
-            return ex ? { kind: 'excerpt', ex } : null
-          }
-          case 'code': {
-            const code = doc.codes.find((c) => c.id === cit.id)
-            return code ? { kind: 'code', name: code.name, definition: code.definition, questionId: code.questionId, excerpts: liveExcerpts(code, basis) } : null
-          }
-          case 'theme': {
-            const theme = doc.themes.find((th) => th.id === cit.id)
-            if (!theme) return null
-            const codes = theme.codeIds.flatMap((id) => {
-              const code = doc.codes.find((c) => c.id === id)
-              return code ? [{ name: code.name, excerpts: liveExcerpts(code, basis) }] : []
-            })
-            return { kind: 'theme', name: theme.name, definition: theme.definition, codes }
-          }
-          case 'tension': {
-            const tn = tensionsOf(doc, basis).find((x) => x.id === cit.id)
-            return tn ? { kind: 'tension', title: tn.title, summary: tn.summary, type: tn.kind } : null
-          }
-        }
+  const ctx = useMemo(() => (doc ? { doc, basis } : undefined), [doc, basis])
+  const rendered = useCallback((list: SeedSentence[]): Sentence[] => list.map((s) => ({ id: s.id, template: s.template, cites: [...s.cites], text: ctx ? renderTemplate(s.template, ctx) : s.template })), [ctx])
+
+  // First visit: make the report from the pre-written AI drafts, with today's numbers filled in. In an effect, never in render.
+  useEffect(() => {
+    if (ready && doc && ctx && !report) {
+      ensureReport(studyId, doc.builtOn, QUESTION_IDS, { exec: rendered(EXEC_SUMMARY_AI), findings: Object.fromEntries(Object.entries(FINDING_DRAFTS).map(([k, v]) => [k, rendered(v)])) })
+    }
+  }, [ready, doc, ctx, report, studyId, rendered])
+
+  const model = useMemo(() => (report && doc ? reportModel(report, doc, basis) : undefined), [report, doc, basis])
+
+  // Sections: the first one with something to approve is open to begin with.
+  const sectionsOpen = useMemo(() => {
+    if (openSections) return openSections
+    const first = model?.sections.find((s) => s.findings.some((f) => f.sentences.some((x) => x.open))) ?? model?.sections[0]
+    return new Set(first ? [first.id] : [])
+  }, [openSections, model])
+  const toggle = (id: string) => setOpenSections((prev) => {
+    const next = new Set(prev ?? sectionsOpen)
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+    return next
+  })
+
+  const excludedSessions = useMemo(() => review.filter((x) => x.status === 'Excluded'), [review])
+  const underReview = review.filter((x) => x.status === 'Under review').length
+
+  const update = useCallback((fn: Parameters<typeof updateReport>[1]) => updateReport(studyId, fn), [studyId])
+
+  const act: Act = useMemo(() => {
+    const by = REPORT_USER
+    const seedFor = (t: Target) => rendered(t === 'exec' ? EXEC_SUMMARY_AI : (FINDING_DRAFTS[t.questionId] ?? []))
+    return {
+      approve: (id, opts) => update((r) => approveSentence(r, id, { by }, opts)),
+      withdraw: (id) => update((r) => withdrawApproval(r, id, { by })),
+      applyUpdate: (target, id, live) => update((r) => applyUpdate(r, target, id, live, { by })),
+      setActive: (target, kind) => update((r) => setActive(r, target, kind, { by })),
+      startFromAI: (target) => update((r) => copyAIToResearcher(r, target, { by })),
+      regenerate: (target) => {
+        const key = target === 'exec' ? 'exec' : target.questionId
+        setRegenerating(key)
+        timer.current = window.setTimeout(() => {
+          update((r) => replaceAIDraft(r, target, seedFor(target).map((s) => ({ ...s, id: uid('s') })), { by }))
+          setRegenerating(null)
+        }, 900)
       },
-    [doc, basis],
+      save: (target, id, value) => update((r) => saveSentence(r, target, id, value, { by })),
+      remove: (target, id) => update((r) => deleteSentence(r, target, id, { by })),
+      omit: (q, why) => update((r) => omitFinding(r, q, why, { by })),
+      include: (q) => update((r) => includeFinding(r, q, { by })),
+      dismissTension: (t, why) => updateCodebook(studyId, (d) => dismissTension(d, t, { by }, why)),
+      regenerating,
+    }
+  }, [update, rendered, studyId, regenerating])
+
+  const goTo = useCallback(
+    (s: Selection) => {
+      setSel(s)
+      if (!s || !model) return
+      let el = 'exec-card'
+      if (s.kind === 'sentence') {
+        const f = model.findings.find((x) => x.sentences.some((i) => i.sentence.id === s.id))
+        if (f) {
+          const sec = model.sections.find((x) => x.findings.includes(f))
+          if (sec) setOpenSections((prev) => new Set([...(prev ?? sectionsOpen), sec.id]))
+          el = `sentence-${s.id}`
+        } else el = `sentence-${s.id}`
+      }
+      window.setTimeout(() => document.getElementById(el)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 80)
+    },
+    [model, sectionsOpen],
   )
 
-  // Citations that don't match the codebook are listed in the browser console, so a wrong ID in the mock is easy to find.
-  useEffect(() => {
-    if (!report || !doc) return
-    const missing = new Set<string>()
-    const scan = (list: Sentence[]) => list.forEach((s) => s.cites.forEach((c) => { if (!resolve(c)) missing.add(`${c.kind}:${c.id}`) }))
-    scan(report.execSummary.aiDraft)
-    scan(report.execSummary.researcherDraft)
-    report.findings.forEach((f) => { scan(f.aiDraft); scan(f.researcherDraft) })
-    if (missing.size) console.warn('[Report] citations that do not match the codebook:', [...missing])
-  }, [report, doc, resolve])
-
-  const info = useMemo(() => {
-    const map = new Map<string, Info>()
-    if (!doc) return map
-    for (const q of CODE_QUESTIONS) {
-      const codes = doc.codes.filter((c) => c.questionId === q.id && c.status === 'Accepted')
-      const excerptCount = codes.reduce((n, c) => n + liveExcerpts(c, basis).length, 0)
-      const notAsked = q.skipped.length
-      map.set(q.id, { strength: strengthFor(excerptCount, notAsked > 0), excerptCount, codeCount: codes.length, asked: accepted.length - notAsked, notAsked })
-    }
-    return map
-  }, [doc, basis, accepted.length])
-
-  const citeOptions = useMemo(() => {
-    if (!doc) return { codes: [], themes: [], tensions: [] }
-    return {
-      codes: doc.codes.filter((c) => c.status === 'Accepted').map((c) => ({ id: c.id, label: c.name })),
-      themes: doc.themes.map((th) => ({ id: th.id, label: th.name })),
-      // A tension dismissed in Emotion & behaviour is never offered.
-      tensions: tensionsOf(doc, basis)
-        .filter((x) => String(doc.tensions?.[x.id]?.status) !== 'Dismissed')
-        .map((x) => ({ id: x.id, label: x.title })),
-    }
-  }, [doc, basis])
-
-  const goTab = (t: 'findings' | 'exec') =>
-    setParams(
-      (p) => {
-        const next = new URLSearchParams(p)
-        if (t === 'findings') next.delete('tab')
-        else next.set('tab', t)
-        return next
-      },
-      { replace: true },
-    )
-
   if (!study) return null
+  const excluded = excludedSessions.length
 
   const header = (
     <>
-      <PageHeader id="A3" title="Report" description="The story for the client: a finding for each guide question, backed by quotes, themes and clips. Nothing reaches the client until you publish." actions={ready && doc ? <ExploreControl doc={doc} basis={basis} me={me} studyId={studyId} /> : undefined} />
+      <PageHeader
+        id="A3"
+        title="Report"
+        titleAside={model && ready ? <StatusChip status={model.all.length === 0 ? 'Draft' : model.open.length === 0 ? 'Approved' : model.all.some((s) => !s.open) ? 'In Review' : 'Draft'} /> : undefined}
+        description="The report the client will receive. Everything in it comes from what you approved in the codebook and Emotion & behaviour. Nothing reaches the client until you publish."
+        actions={
+          ready && doc && model ? (
+            <>
+              <label className="flex items-center gap-2 text-sm text-graphite">
+                Lens
+                <select aria-label="Lens" data-testid="lens-select" defaultValue="whole" className={controlBase + ' h-9 pr-8 text-sm text-ink'}>
+                  <option value="whole">Whole study</option>
+                  <option disabled>Make a lens in Tools › Lens builder</option>
+                </select>
+              </label>
+              <Button onClick={() => setStudio('release')} data-testid="client-preview">
+                Client preview
+              </Button>
+            </>
+          ) : undefined
+        }
+      />
       <AnalysisStepper studyId={studyId} current="report" />
     </>
   )
 
-  if (!ready || !doc) {
+  if (!ready || !doc)
     return (
       <div className="flex flex-col gap-6">
         {header}
-        <div className="flex flex-col items-center rounded-md border border-dashed border-mist-strong bg-surface px-6 py-10 text-center">
-          <p className="text-lg font-semibold text-ink">No accepted interviews yet</p>
-          <p className="mt-2 text-sm text-graphite">Findings are written only from sessions accepted in Review, after the codebook is built.</p>
-          <Link to={studyPath(studyId, screenById.A1)} className="mt-4 rounded-md bg-ink px-3 py-1.5 text-sm font-medium text-white">
-            Go to the codebook
-          </Link>
+        <div className="rounded-md border border-dashed border-mist-strong bg-surface">
+          <EmptyState
+            title={studyId === CODEBOOK_STUDY ? 'No accepted interviews yet' : 'No analysis for this study yet'}
+            description={studyId === CODEBOOK_STUDY ? 'Findings are written only from sessions accepted in Review, after the codebook is built.' : 'Results Analysis is built on Pet Food Subscription Churn in this prototype.'}
+            action={<Button to={studyPath(CODEBOOK_STUDY, screenById.A1)}>Go to the codebook</Button>}
+          />
         </div>
       </div>
     )
-  }
 
-  if (!report) {
+  if (failed)
     return (
       <div className="flex flex-col gap-6">
         {header}
-        <p className="text-sm text-graphite" role="status">Preparing the report…</p>
+        <div className="rounded-md border border-mist bg-surface">
+          <ErrorState title="The report didn’t load" description="Your drafts and approvals are safe. Try loading it again." onRetry={() => setFailed(false)} />
+        </div>
       </div>
     )
-  }
 
-  const update: Update = (fn) => updateReport(studyId, fn)
-  const excluded = review.filter((x) => x.status === 'Excluded').length
-  const all = [...info.values()]
-  const nStrong = all.filter((x) => x.strength === 'Strong').length
-  const nWeak = all.filter((x) => x.strength === 'Weak').length
-  const nUnanswered = all.filter((x) => x.strength === 'Unanswered').length
-  const resolvedDrawer = drawer ? resolve(drawer) : null
-
-  return (
-    <div className="flex flex-col gap-6">
-      {header}
-      {stale && (
-        <Banner
-          tone="warning"
-          title="Review changed after the codebook was built"
-          actions={<Link to={studyPath(studyId, screenById.A1)} className="rounded-md border border-mist bg-surface px-3 py-1 text-sm font-medium text-ink">Update the codebook</Link>}
-        >
-          The counts below follow Review. Update the codebook so they match.
-        </Banner>
-      )}
-
-      <div className="rounded-md border border-mist bg-surface p-4">
-        <div className="flex flex-wrap items-center gap-4 text-sm">
-          <span className="font-semibold text-ink">Built on {plural(accepted.length, 'accepted session')}</span>
-          {excluded > 0 && <span className="text-graphite">{excluded} excluded in Review {excluded === 1 ? 'is' : 'are'} left out.</span>}
-          <span className="flex-1" />
-          <span className="text-graphite">{nStrong} strong · {nWeak} weak · {nUnanswered} unanswered</span>
-        </div>
-      </div>
-
-      <div className="flex gap-2" role="tablist">
-        <button type="button" role="tab" aria-selected={tab === 'findings'} onClick={() => goTab('findings')} className={cn('rounded-md border px-3 py-1.5 text-sm', tab === 'findings' ? 'border-ink bg-ink text-white' : 'border-mist bg-haze text-graphite hover:bg-paper')}>
-          Findings
-        </button>
-        <button type="button" role="tab" aria-selected={tab === 'exec'} onClick={() => goTab('exec')} className={cn('rounded-md border px-3 py-1.5 text-sm', tab === 'exec' ? 'border-ink bg-ink text-white' : 'border-mist bg-haze text-graphite hover:bg-paper')}>
-          Executive summary
-        </button>
-      </div>
-
-      {tab === 'exec' ? (
-        <DraftCard
-          title="Executive summary"
-          subtitle="One narrative for the whole study, written against the approved discussion guide."
-          target="exec"
-          data={report.execSummary}
-          regenSource={EXEC_SUMMARY_AI}
-          resolve={resolve}
-          onOpen={setDrawer}
-          citeOptions={citeOptions}
-          update={update}
-        />
-      ) : (
-        <div className="flex flex-col gap-4">
-          {QUESTION_IDS.map((qId) => {
-            const finding = report.findings.find((f) => f.questionId === qId)
-            const i = info.get(qId)
-            if (!finding || !i) return null
-            const q = CODE_QUESTIONS.find((x) => x.id === qId)
-            return (
-              <DraftCard
-                key={qId}
-                title={questionLabel(qId)}
-                subtitle={q?.text}
-                meta={`${i.notAsked > 0 ? `Asked in ${i.asked} of ${accepted.length} accepted sessions` : `Asked in all ${accepted.length} accepted sessions`} · ${plural(i.excerptCount, 'excerpt')} from ${plural(i.codeCount, 'accepted code')}`}
-                chip={<StrengthChip strength={i.strength} />}
-                notes={
-                  i.strength === 'Weak' ? (
-                    <Banner tone="warning" title="Weak finding">
-                      {i.excerptCount < 6
-                        ? `Only ${plural(i.excerptCount, 'excerpt')} sit under accepted codes for this question.`
-                        : `${plural(i.notAsked, 'accepted session')} were not asked this question, so the finding rests on ${i.asked}.`}{' '}
-                      Read the quotes before you rely on it.
-                    </Banner>
-                  ) : i.strength === 'Unanswered' ? (
-                    <Banner tone="danger" title="Unanswered">
-                      {i.excerptCount === 0 ? 'No accepted codes cover this question yet.' : `Only ${plural(i.excerptCount, 'excerpt')} sit under accepted codes.`} There is no AI draft to
-                      write from. Code this question in the codebook, or write the finding yourself.
-                    </Banner>
-                  ) : null
-                }
-                target={{ questionId: qId }}
-                data={finding}
-                regenSource={FINDING_DRAFTS[qId] ?? []}
-                resolve={resolve}
-                onOpen={setDrawer}
-                citeOptions={citeOptions}
-                update={update}
-              />
-            )
-          })}
-        </div>
-      )}
-
-      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-mist pt-4">
-        <Link to={studyPath(studyId, screenById.A2)} className="rounded-md border border-mist bg-surface px-3 py-1.5 text-sm font-medium text-ink hover:bg-haze">
-          ← Emotion &amp; behaviour
-        </Link>
-        <span className="text-sm text-graphite">{nStrong} of {QUESTION_IDS.length} findings are strong. Publishing comes next.</span>
-      </div>
-
-      <SideDrawer
-        open={drawer !== null}
-        onClose={() => setDrawer(null)}
-        title={drawer ? ({ excerpt: 'Quote', code: 'Code', theme: 'Theme', tension: 'Tension' } as const)[drawer.kind] : ''}
-        description="Where this sentence comes from."
-      >
-        {drawer && <CitationDetail resolved={resolvedDrawer} />}
-      </SideDrawer>
-    </div>
-  )
-}
-
-// ---------- citation drawer ----------
-
-function ExcerptItem({ ex }: { ex: Excerpt }) {
-  return (
-    <li className="rounded-sm border border-mist px-3 py-2.5">
-      <p className="font-serif leading-snug text-ink">“{ex.text}”</p>
-      <p className="mt-1.5 text-xs text-graphite">
-        Session {ex.sessionId} · {ex.participantId} · {mmss(ex.atSec)} · {questionLabel(ex.questionId)}
-        {ex.corrected ? ' · corrected transcript' : ''}
-      </p>
-    </li>
-  )
-}
-
-function CitationDetail({ resolved }: { resolved: Resolved }) {
-  if (!resolved) {
-    return <p className="text-sm text-graphite">This citation no longer matches anything in the codebook. It may have been rejected, merged or renamed. Replace it before you publish.</p>
-  }
-  if (resolved.kind === 'excerpt') {
-    return <ul className="flex flex-col gap-2"><ExcerptItem ex={resolved.ex} /></ul>
-  }
-  if (resolved.kind === 'tension') {
+  if (!loaded || !report || !model)
     return (
-      <div className="flex flex-col gap-2">
-        <p className="text-xs font-medium text-graphite">{resolved.type}</p>
-        <p className="font-semibold text-ink">{resolved.title}</p>
-        <p className="text-sm text-ink">{resolved.summary}</p>
+      <div className="flex flex-col gap-6">
+        {header}
+        <div className="rounded-md border border-mist bg-surface p-5" role="status">
+          <LoadingState label={`Building the report from ${plural(accepted.length, 'accepted session')}`} rows={6} />
+        </div>
       </div>
     )
-  }
-  if (resolved.kind === 'code') {
-    return (
-      <div className="flex flex-col gap-3">
-        <div>
-          <p className="font-semibold text-ink">{resolved.name}</p>
-          <p className="mt-1 text-sm text-graphite">{resolved.definition}</p>
-          <p className="mt-1 text-xs text-graphite">Under: {questionLabel(resolved.questionId)}</p>
-        </div>
-        <p className="text-sm font-medium text-ink">{plural(resolved.excerpts.length, 'supporting quote')}</p>
-        <ul className="flex flex-col gap-2">
-          {resolved.excerpts.map((ex) => <ExcerptItem key={ex.id} ex={ex} />)}
-        </ul>
-      </div>
-    )
-  }
-  return (
-    <div className="flex flex-col gap-4">
-      <div>
-        <p className="font-semibold text-ink">{resolved.name}</p>
-        <p className="mt-1 text-sm text-graphite">{resolved.definition}</p>
-      </div>
-      {resolved.codes.map((code) => (
-        <div key={code.name} className="flex flex-col gap-2">
-          <p className="text-sm font-medium text-ink">{code.name} · {plural(code.excerpts.length, 'quote')}</p>
-          <ul className="flex flex-col gap-2">
-            {code.excerpts.map((ex) => <ExcerptItem key={ex.id} ex={ex} />)}
-          </ul>
-        </div>
-      ))}
-    </div>
-  )
-}
 
-// ---------- one card: AI draft and Researcher draft ----------
-
-type CiteOptions = { codes: { id: string; label: string }[]; themes: { id: string; label: string }[]; tensions: { id: string; label: string }[] }
-
-type DraftCardProps = {
-  title: string
-  subtitle?: string
-  meta?: string
-  chip?: ReactNode
-  notes?: ReactNode
-  target: Target
-  data: { aiDraft: Sentence[]; researcherDraft: Sentence[]; active: DraftKind }
-  regenSource: Sentence[]
-  resolve: (c: Citation) => Resolved
-  onOpen: (c: Citation) => void
-  citeOptions: CiteOptions
-  update: Update
-}
-
-function DraftCard({ title, subtitle, meta, chip, notes, target, data, regenSource, resolve, onOpen, citeOptions, update }: DraftCardProps) {
-  const [view, setView] = useState<DraftKind>(data.active)
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [confirm, setConfirm] = useState<'copy' | 'regen' | null>(null)
-  const [regenerating, setRegenerating] = useState(false)
-  const timer = useRef<number | undefined>(undefined)
-  useEffect(() => () => window.clearTimeout(timer.current), [])
-
-  const by = REPORT_USER
-  const hasResearcher = data.researcherDraft.some((s) => s.text.trim().length > 0)
-  const uncited = data.researcherDraft.filter((s) => s.cites.length === 0).length
-
-  const copyAI = () => {
-    setConfirm(null)
-    update((r) => copyAIToResearcher(r, target, { by }))
-    setView('researcher')
-  }
-  const regenerate = () => {
-    setConfirm(null)
-    setRegenerating(true)
-    timer.current = window.setTimeout(() => {
-      update((r) => replaceAIDraft(r, target, regenSource.map((s) => ({ ...s, id: uid('s'), cites: [...s.cites] })), { by }))
-      setRegenerating(false)
-    }, 900)
-  }
+  const ws: Ws = { goTo, studyId, me, doc, basis, ctx: { doc, basis }, report, model, accepted: accepted.length, excluded, sel, select: setSel, openStudio: setStudio, act }
+  const total = model.all.length
+  const open = model.open.length
+  const approved = total - open
+  const exploreTool = studio ? EXPLORE_TOOLS[studio] : undefined
 
   return (
-    <section className="flex flex-col gap-4 rounded-md border border-mist bg-surface p-5">
-      <header className="flex flex-col gap-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <h2 className="text-lg font-semibold text-ink">{title}</h2>
-          {chip}
-          {uncited > 0 && <span className="rounded-xs border border-negative-line bg-negative-bg px-2 py-0.5 text-xs text-negative-fg">{uncited} uncited</span>}
-        </div>
-        {subtitle && <p className="text-sm text-graphite">{subtitle}</p>}
-        {meta && <p className="text-xs text-graphite">{meta}</p>}
-      </header>
+    <WsProvider value={ws}>
+      <div className="flex flex-col gap-5">
+        {header}
 
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="flex gap-2" role="tablist">
-          <button type="button" role="tab" aria-selected={view === 'ai'} onClick={() => setView('ai')} className={view === 'ai' ? MINI_ON : MINI}>
-            AI draft{data.active === 'ai' ? ' · in the report' : ''}
-          </button>
-          <button type="button" role="tab" aria-selected={view === 'researcher'} onClick={() => setView('researcher')} className={view === 'researcher' ? MINI_ON : MINI}>
-            Researcher draft{data.active === 'researcher' ? ' · in the report' : ''}
-          </button>
-        </div>
-        <span className="flex-1" />
-        {data.active !== view && (
-          <button type="button" className={MINI} onClick={() => update((r) => setActive(r, target, view, { by }))}>
-            Use this draft in the report
-          </button>
+        {stale && (
+          <Banner tone="warning" title="Review changed after the codebook was built" actions={<Button size="sm" to={studyPath(studyId, screenById.A1)}>Update the codebook</Button>}>
+            The counts below follow Review. Update the codebook so they match.
+          </Banner>
         )}
-      </div>
 
-      {view === 'ai' ? (
-        <div className="flex flex-col gap-2">
-          <div className="flex items-center gap-2">
-            <AIGeneratedTag />
-            <span className="text-sm font-semibold text-ink">PulseAI draft</span>
-            {regenerating && <span className="text-xs text-graphite" role="status">Regenerating…</span>}
-          </div>
-          {data.aiDraft.length === 0 ? (
-            <p className="rounded-md border border-dashed border-mist-strong px-4 py-5 text-sm text-graphite">No PulseAI draft. Nothing is coded under this question yet.</p>
+        <p className="text-sm text-graphite" data-testid="built-on">
+          <span className="font-medium text-ink">Built on {plural(accepted.length, 'accepted session')}</span>
+          {' · '}
+          {excluded > 0 ? (
+            <button type="button" onClick={() => setExcludedOpen(true)} className="rounded-xs underline underline-offset-2 hover:text-ink" data-testid="excluded-open">
+              {excluded} excluded left out
+            </button>
           ) : (
-            data.aiDraft.map((s) => <SentenceView key={s.id} sentence={s} resolve={resolve} onOpen={onOpen} />)
+            'none excluded'
           )}
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              className={MINI}
-              disabled={regenerating}
-              onClick={() => (hasResearcher ? setConfirm('regen') : regenerate())}
-            >
-              Regenerate
-            </button>
-            <button
-              type="button"
-              className={MINI}
-              disabled={data.aiDraft.length === 0}
-              onClick={() => (hasResearcher ? setConfirm('copy') : copyAI())}
-            >
-              Use AI draft as starting point
-            </button>
+          {study.releaseVersion && <> · {study.releaseVersion}</>}
+        </p>
+
+        <div className="grid items-start gap-5 lg:grid-cols-[224px_minmax(0,1fr)_284px]">
+          <div className="order-2 lg:sticky lg:top-4 lg:order-1 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto">
+            <Tools />
           </div>
-          {confirm === 'regen' && (
-            <Confirm text="Regenerating replaces the AI draft. Your researcher draft is kept." yes="Regenerate" onYes={regenerate} onNo={() => setConfirm(null)} />
-          )}
-          {confirm === 'copy' && (
-            <Confirm text="This replaces your researcher draft with a copy of the AI draft." yes="Replace" onYes={copyAI} onNo={() => setConfirm(null)} />
-          )}
-        </div>
-      ) : (
-        <div className="flex flex-col gap-2">
-          <span className="text-sm font-semibold text-ink">Your draft</span>
-          {data.researcherDraft.length === 0 && editingId === null && (
-            <p className="rounded-md border border-dashed border-mist-strong px-4 py-5 text-sm text-graphite">
-              No researcher draft yet. Start from the AI draft, or add a sentence of your own. Every sentence needs a citation before you publish.
-            </p>
-          )}
-          {data.researcherDraft.map((s) =>
-            editingId === s.id ? (
-              <SentenceEditor
-                key={s.id}
-                initialText={s.text}
-                initialCites={s.cites}
-                options={citeOptions}
-                resolve={resolve}
-                onSave={(text, cites) => {
-                  update((r) => saveSentence(r, target, s.id, { text, cites }, { by }))
-                  setEditingId(null)
-                }}
-                onCancel={() => setEditingId(null)}
-              />
-            ) : (
-              <SentenceView key={s.id} sentence={s} resolve={resolve} onOpen={onOpen} onEdit={() => setEditingId(s.id)} editDisabled={editingId !== null} />
-            ),
-          )}
-          {editingId !== null && !data.researcherDraft.some((s) => s.id === editingId) && (
-            <SentenceEditor
-              initialText=""
-              initialCites={[]}
-              options={citeOptions}
-              resolve={resolve}
-              onSave={(text, cites) => {
-                update((r) => saveSentence(r, target, editingId, { text, cites }, { by }))
-                setEditingId(null)
-              }}
-              onCancel={() => setEditingId(null)}
-            />
-          )}
-          <div className="flex flex-wrap items-center gap-2">
-            <button type="button" className={MINI} disabled={editingId !== null} onClick={() => setEditingId(uid('s'))}>
-              Add a sentence
-            </button>
-            <button type="button" className={MINI} disabled={data.aiDraft.length === 0} onClick={() => (hasResearcher ? setConfirm('copy') : copyAI())}>
-              Use AI draft as starting point
-            </button>
-          </div>
-          {confirm === 'copy' && (
-            <Confirm text="This replaces your researcher draft with a copy of the AI draft." yes="Replace" onYes={copyAI} onNo={() => setConfirm(null)} />
-          )}
-        </div>
-      )}
 
-      {notes}
-    </section>
-  )
-}
-
-function Confirm({ text, yes, onYes, onNo }: { text: string; yes: string; onYes: () => void; onNo: () => void }) {
-  return (
-    <div role="alertdialog" className="flex flex-wrap items-center gap-2 rounded-md border border-pending-line bg-pending-bg px-3 py-2 text-sm text-ink">
-      <span className="flex-1">{text}</span>
-      <button type="button" className={MINI} onClick={onYes}>{yes}</button>
-      <button type="button" className={MINI} onClick={onNo}>Cancel</button>
-    </div>
-  )
-}
-
-// ---------- sentences ----------
-
-function chipLabel(cit: Citation, resolved: Resolved): string {
-  if (!resolved) return `${cit.kind} not found`
-  switch (resolved.kind) {
-    case 'excerpt':
-      return `Quote · ${resolved.ex.participantId} · ${mmss(resolved.ex.atSec)}`
-    case 'code':
-      return `Code: ${resolved.name}`
-    case 'theme':
-      return `Theme: ${resolved.name}`
-    case 'tension':
-      return `Tension: ${resolved.title}`
-  }
-}
-
-function CitationChips({ cites, resolve, onOpen, onRemove }: { cites: Citation[]; resolve: (c: Citation) => Resolved; onOpen?: (c: Citation) => void; onRemove?: (c: Citation) => void }) {
-  return (
-    <div className="flex flex-wrap gap-1">
-      {cites.map((cit) => {
-        const resolved = resolve(cit)
-        return (
-          <span key={`${cit.kind}:${cit.id}`} className={cn('inline-flex items-center rounded-xs border text-xs', resolved ? 'border-mist text-graphite' : 'border-negative-line bg-negative-bg text-negative-fg')}>
-            <button type="button" disabled={!onOpen} onClick={() => onOpen?.(cit)} className="px-2 py-0.5 hover:bg-haze disabled:hover:bg-transparent">
-              {chipLabel(cit, resolved)}
-            </button>
-            {onRemove && (
-              <button type="button" aria-label="Remove citation" onClick={() => onRemove(cit)} className="border-l border-mist px-1.5 py-0.5 hover:bg-haze">
-                ×
+          <main className="order-1 flex min-w-0 flex-col gap-3 lg:order-2" aria-label="Report" data-testid="report">
+            <ExecCard />
+            <div className="flex items-center justify-between pt-1">
+              <h2 className="text-xs font-semibold tracking-wide text-graphite uppercase">Findings by guide section</h2>
+              <button type="button" className="text-xs text-graphite underline-offset-2 hover:underline" onClick={() => setOpenSections(sectionsOpen.size === model.sections.length ? new Set() : new Set(model.sections.map((s) => s.id)))} data-testid="toggle-all-sections">
+                {sectionsOpen.size === model.sections.length ? 'Collapse all' : 'Expand all'}
               </button>
-            )}
-          </span>
-        )
-      })}
-    </div>
-  )
-}
+            </div>
+            {model.sections.map((s) => (
+              <SectionRow key={s.id} label={s.label} findings={s.findings} open={sectionsOpen.has(s.id)} onToggle={() => toggle(s.id)} />
+            ))}
+            <ThemeRows themes={model.themes} open={themesOpen} onToggle={() => setThemesOpen((o) => !o)} />
+          </main>
 
-function SentenceView({ sentence, resolve, onOpen, onEdit, editDisabled }: { sentence: Sentence; resolve: (c: Citation) => Resolved; onOpen: (c: Citation) => void; onEdit?: () => void; editDisabled?: boolean }) {
-  const uncited = sentence.cites.length === 0
-  return (
-    <div className={cn('rounded-sm border px-3 py-2.5', uncited ? 'border-negative-line' : 'border-mist')}>
-      <p className="leading-snug text-ink">{sentence.text}</p>
-      <div className="mt-2 flex flex-wrap items-center gap-2">
-        {uncited ? <span className="rounded-xs border border-negative-line bg-negative-bg px-1.5 py-0.5 text-xs text-negative-fg">Uncited</span> : <CitationChips cites={sentence.cites} resolve={resolve} onOpen={onOpen} />}
-        {onEdit && (
-          <button type="button" className={cn(MINI, 'ml-auto')} onClick={onEdit} disabled={editDisabled}>
-            Edit
-          </button>
-        )}
+          <aside className="order-3 flex flex-col gap-4 lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto">
+            <BuiltFrom underReview={underReview} />
+            <Selected />
+          </aside>
+        </div>
+
+        <WizardFooter
+          previous={{ to: studyPath(studyId, screenById.A2), label: 'Emotion & behaviour' }}
+          message={
+            <span data-testid="report-status">
+              {total === 0 ? 'The report has no sentences yet.' : open > 0 ? `${approved} of ${plural(total, 'sentence')} approved · ${open} to review before you can publish.` : `All ${plural(total, 'sentence')} approved and cited. Ready to publish.`}
+            </span>
+          }
+        >
+          {open > 0 ? (
+            <Button variant="primary" onClick={() => setStudio('review')} data-testid="primary-action">
+              Review {plural(open, 'sentence')}
+            </Button>
+          ) : (
+            <Button variant="primary" onClick={() => setStudio('release')} data-testid="primary-action">
+              Publish
+            </Button>
+          )}
+        </WizardFooter>
+
+        {studio === 'review' && <ReviewStudio onClose={() => setStudio(null)} onRelease={() => setStudio('release')} />}
+        {studio === 'compare' && <CompareStudio onClose={() => setStudio(null)} />}
+        {studio === 'release' && <ReleaseStudio onClose={() => setStudio(null)} onReview={() => setStudio('review')} stale={stale} />}
+        {studio && !exploreTool && studio !== 'review' && studio !== 'compare' && studio !== 'release' && <ComingStudio tool={studio} onClose={() => setStudio(null)} />}
+        <ExploreDrawer open={!!exploreTool} onClose={() => setStudio(null)} tab={exploreTool ?? exploreTab} onTab={(t) => (setExploreTab(t), setStudio(t))} doc={doc} basis={basis} me={me} studyId={studyId} />
+        <ExcludedDialog open={excludedOpen} onClose={() => setExcludedOpen(false)} sessions={excludedSessions} />
       </div>
-    </div>
-  )
-}
-
-function SentenceEditor({ initialText, initialCites, options, resolve, onSave, onCancel }: { initialText: string; initialCites: Citation[]; options: CiteOptions; resolve: (c: Citation) => Resolved; onSave: (text: string, cites: Citation[]) => void; onCancel: () => void }) {
-  const [text, setText] = useState(initialText)
-  const [cites, setCites] = useState<Citation[]>(initialCites)
-
-  const add = (value: string) => {
-    if (!value) return
-    const [kind, ...rest] = value.split(':')
-    const id = rest.join(':')
-    if (cites.some((c) => c.kind === kind && c.id === id)) return
-    setCites([...cites, { kind: kind as 'code' | 'theme' | 'tension', id }])
-  }
-
-  return (
-    <div className="flex flex-col gap-2 rounded-sm border border-ink px-3 py-2.5">
-      <textarea value={text} onChange={(e) => setText(e.target.value)} rows={3} aria-label="Sentence" className="w-full rounded-sm border border-mist bg-surface px-2 py-1.5 text-sm text-ink" autoFocus />
-      <CitationChips cites={cites} resolve={resolve} onRemove={(c) => setCites(cites.filter((x) => !(x.kind === c.kind && x.id === c.id)))} />
-      <select value="" onChange={(e) => add(e.target.value)} aria-label="Add a citation" className="w-full rounded-sm border border-mist bg-surface px-2 py-1 text-sm text-ink">
-        <option value="">Add a citation…</option>
-        {options.codes.length > 0 && (
-          <optgroup label="Codes">
-            {options.codes.map((o) => <option key={o.id} value={`code:${o.id}`}>{o.label}</option>)}
-          </optgroup>
-        )}
-        {options.themes.length > 0 && (
-          <optgroup label="Themes">
-            {options.themes.map((o) => <option key={o.id} value={`theme:${o.id}`}>{o.label}</option>)}
-          </optgroup>
-        )}
-        {options.tensions.length > 0 && (
-          <optgroup label="Tensions">
-            {options.tensions.map((o) => <option key={o.id} value={`tension:${o.id}`}>{o.label}</option>)}
-          </optgroup>
-        )}
-      </select>
-      <div className="flex items-center gap-2">
-        <button type="button" className={MINI_ON} disabled={text.trim().length === 0} onClick={() => onSave(text.trim(), cites)}>
-          Save
-        </button>
-        <button type="button" className={MINI} onClick={onCancel}>
-          Cancel
-        </button>
-        {cites.length === 0 && <span className="text-xs text-negative-fg">No citation yet. It will show as uncited.</span>}
-      </div>
-    </div>
+    </WsProvider>
   )
 }

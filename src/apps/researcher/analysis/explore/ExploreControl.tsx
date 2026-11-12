@@ -22,7 +22,6 @@ const TABS: { key: ExploreTab; label: string }[] = [
 export function ExploreControl({ doc, basis, me, studyId, first = 'highlights' }: { doc: CodebookDoc; basis: Basis; me: string; studyId: string; first?: ExploreTab }) {
   const [open, setOpen] = useState(false)
   const [tab, setTab] = useState<ExploreTab>(first)
-  const ctx: CodebookCtx = { doc, basis, me, studyId, act: (fn) => updateCodebook(studyId, fn) }
   const show = () => {
     setTab(first)
     setOpen(true)
@@ -32,33 +31,41 @@ export function ExploreControl({ doc, basis, me, studyId, first = 'highlights' }
       <Button onClick={show} icon={<SearchIcon size={14} />} data-testid="explore-open">
         Explore
       </Button>
-      <SideDrawer open={open} onClose={() => setOpen(false)} title="Explore" description="Look across the accepted interviews: find an idea, ask a question, count what people said.">
-        <div data-testid="explore-drawer">
-          <div role="tablist" aria-label="Explore" className="-mt-1 mb-4 flex gap-1 border-b border-mist">
-            {TABS.map((t) => (
-              <button
-                key={t.key}
-                role="tab"
-                type="button"
-                id={`explore-tab-${t.key}`}
-                aria-selected={tab === t.key}
-                aria-controls="explore-panel"
-                data-testid={`explore-tab-${t.key}`}
-                onClick={() => setTab(t.key)}
-                className={cn('-mb-px border-b-2 px-3 py-2 text-sm font-medium', tab === t.key ? 'border-ink text-ink' : 'border-transparent text-graphite hover:text-ink')}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-          <div id="explore-panel" role="tabpanel" aria-labelledby={`explore-tab-${tab}`}>
-            {tab === 'highlights' && <HighlightsTab ctx={ctx} />}
-            {tab === 'ask' && <ComingNext title="Ask" text="Type a question and get only answers that cite an exact quote, with its timestamp and a link to play it." />}
-            {tab === 'numbers' && <ComingNext title="Numbers" text="How often each theme comes up, and where segments differ, always with the quotes behind each number." />}
-          </div>
-        </div>
-      </SideDrawer>
+      <ExploreDrawer open={open} onClose={() => setOpen(false)} tab={tab} onTab={setTab} doc={doc} basis={basis} me={me} studyId={studyId} />
     </>
+  )
+}
+
+/** The drawer on its own, for a screen that opens it from somewhere else (the Report's Tools list). */
+export function ExploreDrawer({ open, onClose, tab, onTab, doc, basis, me, studyId }: { open: boolean; onClose: () => void; tab: ExploreTab; onTab: (t: ExploreTab) => void; doc: CodebookDoc; basis: Basis; me: string; studyId: string }) {
+  const ctx: CodebookCtx = { doc, basis, me, studyId, act: (fn) => updateCodebook(studyId, fn) }
+  return (
+    <SideDrawer open={open} onClose={onClose} title="Explore" description="Look across the accepted interviews: find an idea, ask a question, count what people said.">
+      <div data-testid="explore-drawer">
+        <div role="tablist" aria-label="Explore" className="-mt-1 mb-4 flex gap-1 border-b border-mist">
+          {TABS.map((t) => (
+            <button
+              key={t.key}
+              role="tab"
+              type="button"
+              id={`explore-tab-${t.key}`}
+              aria-selected={tab === t.key}
+              aria-controls="explore-panel"
+              data-testid={`explore-tab-${t.key}`}
+              onClick={() => onTab(t.key)}
+              className={cn('-mb-px border-b-2 px-3 py-2 text-sm font-medium', tab === t.key ? 'border-ink text-ink' : 'border-transparent text-graphite hover:text-ink')}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+        <div id="explore-panel" role="tabpanel" aria-labelledby={`explore-tab-${tab}`}>
+          {tab === 'highlights' && <HighlightsTab ctx={ctx} />}
+          {tab === 'ask' && <ComingNext title="Ask" text="Type a question and get only answers that cite an exact quote, with its timestamp and a link to play it." />}
+          {tab === 'numbers' && <ComingNext title="Numbers" text="How often each theme comes up, and where segments differ, always with the quotes behind each number." />}
+        </div>
+      </div>
+    </SideDrawer>
   )
 }
 
