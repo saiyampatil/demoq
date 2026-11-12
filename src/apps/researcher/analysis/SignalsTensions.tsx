@@ -7,7 +7,7 @@ import { EmptyState, ErrorState, LoadingState } from '@/components/States'
 import { screenById, studyPath } from '@/routes/screens'
 import { signalsReadiness } from '@/state/analysisProgress'
 import { CODEBOOK_STUDY, updateCodebook } from '@/state/codebook'
-import { codeSignals, coverage, plural, tensionCounts, tensionsOf } from '@/state/signals'
+import { codeSignals, coverage, plural, tensionCounts, tensionsOf, themeSignals } from '@/state/signals'
 import { PageHeader } from '../../shared/PageHeader'
 import { ExploreControl } from './explore/ExploreControl'
 import { AnalysisStepper } from './AnalysisStepper'
@@ -32,7 +32,7 @@ export function SignalsTensions() {
   const [loaded, setLoaded] = useState(false)
   const [failed, setFailed] = useState(params.get('demo') === 'error')
   const [filter, setFilter] = useState<TensionFilter>('Suggested')
-  const [focus, setFocus] = useState<SignalFocus>({ view: 'code' })
+  const [focus, setFocus] = useState<SignalFocus>({ view: (['theme', 'code', 'moment'] as const).find((v) => v === params.get('view')) ?? 'theme' })
   const [focusTension, setFocusTension] = useState<string>()
 
   useEffect(() => {
@@ -93,7 +93,8 @@ export function SignalsTensions() {
   const ctx: CodebookCtx = { doc, basis, me, studyId, act: (fn) => updateCodebook(studyId, fn) }
   const cov = coverage(accepted, excluded)
   const t = tensionCounts(doc)
-  const used = codeSignals(doc, basis).filter((s) => s.use).length
+  const codeRows = codeSignals(doc, basis)
+  const used = codeRows.filter((s) => s.use).length + themeSignals(doc, basis, codeRows).filter((t) => t.use).length
 
   const showTensions = (f: TensionFilter) => {
     setFilter(f)
@@ -174,7 +175,7 @@ export function SignalsTensions() {
         lead={tab === 'signals' && t.toReview > 0 ? { label: `Review ${plural(t.toReview, 'tension')}`, onClick: () => showTensions('Suggested') } : undefined}
         message={
           <>
-            Goes to the report: {plural(used, 'signal pattern')} and {plural(t.themes, 'tension theme')}.
+            Goes to the report: {plural(used, 'signal profile')} and {plural(t.themes, 'tension theme')}.
             {t.toReview > 0 ? <span className="ml-1.5 font-medium text-pending-fg">{plural(t.toReview, 'tension')} still to review.</span> : <span className="ml-1.5 text-positive-fg">Every tension is decided.</span>}
           </>
         }
@@ -210,7 +211,7 @@ function CoverageLine({ cov }: { cov: ReturnType<typeof coverage> }) {
 function Progress({ t, tab, filter, onPick }: { t: ReturnType<typeof tensionCounts>; tab: Tab; filter: TensionFilter; onPick: (f: TensionFilter) => void }) {
   const items: { key: TensionFilter; label: string; n: number; tone: string }[] = [
     { key: 'Suggested', label: 'To review', n: t.toReview, tone: 'bg-pending-fg' },
-    { key: 'Turned into a theme', label: 'Turned into themes', n: t.themes, tone: 'bg-positive-fg' },
+    { key: 'Added as a tension theme', label: 'Tension themes', n: t.themes, tone: 'bg-positive-fg' },
     { key: 'Dismissed', label: 'Dismissed', n: t.dismissed, tone: 'bg-held-fg' },
   ]
   const decided = t.total - t.toReview

@@ -19,7 +19,7 @@ import {
   type Theme,
 } from './codebook'
 import { toneSplit, topEmotions, TONES } from './emotion'
-import { codeSignals, tensionHeadline, tensionsFor, tensionsOf, themeRollup, type CodeSignal, type Tension } from './signals'
+import { codeSignals, tensionHeadline, tensionsFor, tensionsOf, themeSignals, type Rollup, type Tension } from './signals'
 import { citesKey, draftOf, type Approval, type Citation, type DraftKind, type ReportDoc, type Sentence, type Strength } from './report'
 
 export type Ctx = { doc: CodebookDoc; basis: Basis }
@@ -96,7 +96,7 @@ export function resolveCitation(cit: Citation, { doc, basis }: Ctx): Resolved {
       const tn = tensionsOf(doc, basis).find((x) => x.id === cit.id)
       if (!tn) return { kind: 'broken', why: 'This tension no longer exists.' }
       if (tn.status === 'Dismissed') return { kind: 'broken', why: 'This tension was dismissed in Emotion & behaviour, so it never appears in the report.' }
-      if (tn.status !== 'Turned into a theme') return { kind: 'broken', why: 'This tension has not been decided in Emotion & behaviour yet.' }
+      if (tn.status !== 'Added as a tension theme') return { kind: 'broken', why: 'This tension has not been decided in Emotion & behaviour yet.' }
       return { kind: 'tension', tension: tn }
     }
   }
@@ -184,9 +184,11 @@ export function strengthFor(people: number, someNotAsked: boolean): Strength {
 
 /** One A2 signal ticked for a finding, per channel. */
 export type SignalLine = { channel: 'Hesitation' | 'Face' | 'Voice' | 'Words vs delivery'; text: string; /** Emotion and voice are off in the client version until cleared. */ emotionVoice: boolean }
-export type FindingSignal = { codeId: string; codeName: string; lines: SignalLine[] }
+/** What "How people sounded" shows for a finding: a theme's profile from A2, or a code's signals ticked at code level (older data). */
+export type FindingSignal = { id: string; name: string; kind: 'theme' | 'code'; lines: SignalLine[] }
 
-function signalLines(s: CodeSignal): SignalLine[] {
+/** The channel lines for a theme or a code. The words-vs-delivery line is the theme's headline sentence when there is one. */
+function signalLines(s: Pick<Rollup, 'pattern' | 'marked' | 'people' | 'emotions' | 'points' | 'fit'>, headline?: string): SignalLine[] {
   const lines: SignalLine[] = [{ channel: 'Hesitation', text: `${s.pattern}: marked hesitation in ${s.marked} of ${s.people} people`, emotionVoice: false }]
   const tops = topEmotions(s.emotions)
   if (tops.length && s.emotions.read >= 3) {
@@ -198,7 +200,8 @@ function signalLines(s: CodeSignal): SignalLine[] {
   const tones = toneSplit(s.points)
   const tone = TONES.reduce((best, t) => (tones.counts[t] > tones.counts[best] ? t : best), TONES[0])
   if (tones.n >= 3 && tone !== 'Even' && tones.counts[tone] * 2 >= tones.n) lines.push({ channel: 'Voice', text: `Voice mostly ${tone.toLowerCase()} for ${tones.counts[tone]} of ${tones.n}`, emotionVoice: true })
-  if (s.fit.pattern === 'Mixed' || s.fit.pattern === 'Conflicting') lines.push({ channel: 'Words vs delivery', text: `${s.fit.pattern}: delivery did not fit the words for ${s.fit.doesnt + s.fit.partly} of ${s.fit.n} people`, emotionVoice: true })
+  if (headline) lines.push({ channel: 'Words vs delivery', text: headline, emotionVoice: true })
+  else if (s.fit.pattern === 'Mixed' || s.fit.pattern === 'Conflicting') lines.push({ channel: 'Words vs delivery', text: `${s.fit.pattern}: delivery did not fit the words for ${s.fit.doesnt + s.fit.partly} of ${s.fit.n} people`, emotionVoice: true })
   return lines
 }
 
@@ -245,6 +248,7 @@ export function reportModel(report: ReportDoc, doc: CodebookDoc, basis: Basis): 
   const ctx = { doc, basis }
   const info = (list: Sentence[]) => list.map((s) => sentenceInfo(s, report.approvals, ctx))
   const signals = codeSignals(doc, basis)
+  const profiles = themeSignals(doc, basis, signals)
   const tensions = tensionsOf(doc, basis)
   const decisions = tensionDecisions(doc)
 
@@ -254,6 +258,8 @@ export function reportModel(report: ReportDoc, doc: CodebookDoc, basis: Basis): 
     const people = new Set(codes.flatMap((c) => [...peopleOf(c, basis)])).size
     const notAsked = q.skipped.filter((s) => basis.participants.has(s.participantId)).length
     const codeIds = new Set(codes.map((c) => c.id))
+    // The themes ticked in A2 that this question's codes belong to, then any code ticked on its own (older data).
+    const tickedThemes = profiles.filter((t) => t.use && t.codes.some((c) => codeIds.has(c.code.id)))
     const ticked = signals.filter((s) => codeIds.has(s.code.id) && s.use)
     const related = new Map<string, Tension>()
     codes.forEach((c) => tensionsFor(tensions, c.id).forEach((t) => related.set(t.id, t)))
@@ -268,7 +274,10 @@ export function reportModel(report: ReportDoc, doc: CodebookDoc, basis: Basis): 
       notAsked,
       codes,
       quotes: representativeQuotes(codes, basis),
-      signals: ticked.map((s) => ({ codeId: s.code.id, codeName: s.code.name, lines: signalLines(s) })),
+      signals: [
+        ...tickedThemes.map((t): FindingSignal => ({ id: t.id, name: t.name, kind: 'theme', lines: signalLines(t, t.headline) })),
+        ...ticked.map((s): FindingSignal => ({ id: s.code.id, name: s.code.name, kind: 'code', lines: signalLines(s) })),
+      ],
       tensions: [...related.values()].filter((t) => decisions[t.id]?.status !== 'Dismissed'),
       active: f.active,
       sentences: info(draftOf(f)),
@@ -282,9 +291,9 @@ export function reportModel(report: ReportDoc, doc: CodebookDoc, basis: Basis): 
   const themes: ThemeModel[] = doc.themes
     .map((theme) => {
       const codes = themeCodes(doc, theme)
-      const ids = new Set(codes.map((c) => c.id))
-      const rollup = theme.tensionId ? undefined : themeRollup(doc, signals.filter((s) => ids.has(s.code.id)))
-      return { theme, numbers: numbersOf(theme.id, ctx), fromTension: !!theme.tensionId, codes, note: rollup?.highlight }
+      const profile = theme.tensionId ? undefined : profiles.find((p) => p.id === theme.id)
+      // A code theme's note is its A2 headline, only when delivery pulled against the words or hesitation shows.
+      return { theme, numbers: numbersOf(theme.id, ctx), fromTension: !!theme.tensionId, codes, note: profile?.notable ? profile.headline : undefined }
     })
     .filter((t) => t.numbers)
   const all = [...exec.sentences, ...findings.filter((f) => !f.omitted).flatMap((f) => f.sentences)]

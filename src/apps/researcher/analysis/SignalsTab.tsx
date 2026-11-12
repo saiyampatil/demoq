@@ -6,15 +6,16 @@ import { EmptyState } from '@/components/States'
 import { useToast } from '@/components/Toast'
 import { setSignalPick } from '@/state/codebook'
 import { EMOTIONS, FIT_RULE_TEXT, STANCE_LABEL, faceOf, faceWeight, topEmotions, type EmotionSplit } from '@/state/emotion'
-import { SMALL_GROUP, codeSignals, momentSignals, mostHesitation, mostPositive, plural, signalGroups, standouts, tensionsFor, themeRollup, type CodeSignal, type MomentSignal, type Point, type Tension } from '@/state/signals'
+import { SMALL_GROUP, codeSignals, momentSignals, mostHesitation, mostPositive, plural, signalGroups, standouts, tensionsFor, themeRollup, themeSignals, type CodeSignal, type MomentSignal, type Point, type Tension } from '@/state/signals'
 import { BandBar, BandLegend, EmotionBar, EmotionChip, EmotionLegend, FitChip, PatternChip, PointCard, ToneBar, ToneLegend, ValenceCounts, ValenceKey, noReading } from './SignalBits'
 import type { CodebookCtx } from './codebookCtx'
+import { ByTheme } from './ThemeSignals'
 
-export type View = 'code' | 'moment'
+export type View = 'theme' | 'code' | 'moment'
 /** Which channel the table reads. Words vs delivery is always shown, because it is the one that needs all three. */
 export type Lens = 'hesitation' | 'emotion' | 'voice'
 /** What the Signals tab is showing: kept by the page, so other places (a tension, a "what stands out" line) can open a code or a moment. */
-export type SignalFocus = { view: View; lens?: Lens; code?: string; moment?: string }
+export type SignalFocus = { view: View; lens?: Lens; code?: string; moment?: string; theme?: string }
 
 const LENSES: { key: Lens; label: string; hint: string }[] = [
   { key: 'emotion', label: 'Emotion', hint: 'What showed on the face, among people with video' },
@@ -32,13 +33,13 @@ const median = (xs: number[]) => {
 const r1 = (x: number) => Math.round(x * 10) / 10
 
 /** "2 of 3 read as doubt" for a split, "Tied at 2 of 6" when two or more share the top count, or why there is nothing. */
-function emotionSummary(e: EmotionSplit) {
+export function emotionSummary(e: EmotionSplit) {
   const tops = topEmotions(e)
   if (!tops.length) return e.noVideo ? 'No video' : 'No clear reading'
   const n = e.counts[tops[0]]
   return tops.length === 1 ? `${n} of ${e.read} read as ${tops[0].toLowerCase()}` : `Tied at ${n} of ${e.read}`
 }
-const emotionSummaryTitle = (e: EmotionSplit) => {
+export const emotionSummaryTitle = (e: EmotionSplit) => {
   const tops = topEmotions(e)
   const gap = noReading(e)
   return `${e.read} faces read${gap ? `, ${gap}` : ''}${tops.length > 1 ? `. Tied: ${tops.join(', ')}` : ''}`
@@ -49,6 +50,7 @@ export function SignalsTab({ ctx, focus, setFocus, tensions, onOpenTensions, onO
   const { doc, basis } = ctx
   const signals = useMemo(() => codeSignals(doc, basis), [doc, basis])
   const moments = useMemo(() => momentSignals(basis, doc), [basis, doc])
+  const themes = useMemo(() => themeSignals(doc, basis, signals), [doc, basis, signals])
   const toReview = tensions.filter((t) => t.status === 'Suggested' && !t.unavailable).length
   const items = useMemo(() => standouts(signals, moments, toReview), [signals, moments, toReview])
   const view = focus.view
@@ -92,6 +94,7 @@ export function SignalsTab({ ctx, focus, setFocus, tensions, onOpenTensions, onO
         <div role="group" aria-label="Read signals by" className="flex rounded-sm border border-mist-strong p-0.5">
           {(
             [
+              ['theme', 'By theme'],
               ['code', 'By code'],
               ['moment', 'By moment'],
             ] as const
@@ -101,25 +104,31 @@ export function SignalsTab({ ctx, focus, setFocus, tensions, onOpenTensions, onO
             </button>
           ))}
         </div>
-        <div role="group" aria-label="Channel" className="flex rounded-sm border border-mist-strong p-0.5">
-          {LENSES.map((l) => (
-            <button key={l.key} type="button" title={l.hint} aria-pressed={lens === l.key} onClick={() => setFocus({ ...focus, lens: l.key })} data-testid={`lens-${l.key}`} className={cn('h-7 rounded-xs px-3 text-sm', lens === l.key ? 'bg-iris-50 font-medium text-iris-700 shadow-[inset_0_0_0_1px_var(--color-iris-100)]' : 'text-graphite hover:bg-haze hover:text-ink')}>
-              {l.label}
-            </button>
-          ))}
-        </div>
-        <p className="min-w-0 flex-1 text-sm text-graphite">{LENSES.find((l) => l.key === lens)!.hint}.</p>
-        {lens === 'emotion' ? <EmotionLegend /> : lens === 'voice' ? <ToneLegend /> : <BandLegend />}
+        {view !== 'theme' ? (
+          <>
+            <div role="group" aria-label="Channel" className="flex rounded-sm border border-mist-strong p-0.5">
+              {LENSES.map((l) => (
+                <button key={l.key} type="button" title={l.hint} aria-pressed={lens === l.key} onClick={() => setFocus({ ...focus, lens: l.key })} data-testid={`lens-${l.key}`} className={cn('h-7 rounded-xs px-3 text-sm', lens === l.key ? 'bg-iris-50 font-medium text-iris-700 shadow-[inset_0_0_0_1px_var(--color-iris-100)]' : 'text-graphite hover:bg-haze hover:text-ink')}>
+                  {l.label}
+                </button>
+              ))}
+            </div>
+            <p className="min-w-0 flex-1 text-sm text-graphite">{LENSES.find((l) => l.key === lens)!.hint}.</p>
+            {lens === 'emotion' ? <EmotionLegend /> : lens === 'voice' ? <ToneLegend /> : <BandLegend />}
+          </>
+        ) : (
+          <p className="min-w-0 flex-1 text-sm text-graphite">Each theme with its face, voice and hesitation together, and whether delivery fit the words.</p>
+        )}
       </div>
-      {lens === 'emotion' && <ValenceKey />}
+      {view !== 'theme' && lens === 'emotion' && <ValenceKey />}
 
-      {view === 'code' ? <ByCode ctx={ctx} lens={lens} signals={signals} focus={focus} setFocus={setFocus} tensions={tensions} onOpenTension={onOpenTension} /> : <ByMoment ctx={ctx} lens={lens} moments={moments} focus={focus} setFocus={setFocus} />}
+      {view === 'theme' ? <ByTheme ctx={ctx} themes={themes} tensions={tensions} focus={focus} setFocus={setFocus} onOpenTension={onOpenTension} /> : view === 'code' ? <ByCode ctx={ctx} lens={lens} signals={signals} focus={focus} setFocus={setFocus} tensions={tensions} onOpenTension={onOpenTension} /> : <ByMoment ctx={ctx} lens={lens} moments={moments} focus={focus} setFocus={setFocus} />}
     </div>
   )
 }
 
 /** Arrow keys move through a list of rows, as in the codebook. */
-function useArrows(ids: string[], current: string | undefined, pick: (id: string) => void, attr: string) {
+export function useArrows(ids: string[], current: string | undefined, pick: (id: string) => void, attr: string) {
   const ref = useRef<HTMLDivElement>(null)
   return {
     ref,
@@ -283,7 +292,7 @@ function ByCode({ ctx, lens, signals, focus, setFocus, tensions, onOpenTension }
 }
 
 /** One channel in the code panel: a label, a bar and what it says. */
-function ChannelRow({ label, bar, children, testid }: { label: string; bar?: React.ReactNode; children: React.ReactNode; testid?: string }) {
+export function ChannelRow({ label, bar, children, testid }: { label: string; bar?: React.ReactNode; children: React.ReactNode; testid?: string }) {
   return (
     <div className="grid grid-cols-[5.5rem_minmax(0,1fr)] items-start gap-x-3 py-2" data-testid={testid}>
       <span className="pt-0.5 text-xs font-medium text-graphite">{label}</span>

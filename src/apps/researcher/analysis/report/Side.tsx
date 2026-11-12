@@ -186,7 +186,7 @@ export function Selected() {
               return <CitationBlock key={c.id} r={r} label="code" />
             })}
           </ul>
-          {t.fromTension && <p className="text-xs text-graphite">A theme made from a tension in Emotion &amp; behaviour. It counts that tension’s own finding.</p>}
+          {t.fromTension && <p className="text-xs text-graphite">A tension theme, added in Emotion &amp; behaviour. It counts that tension’s own finding.</p>}
         </div>
       )
   } else if (sel?.kind === 'exec') {

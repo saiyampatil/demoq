@@ -47,6 +47,8 @@ export type CodebookDoc = {
   tensions?: Record<string, TensionDecision>
   /** Signals the Researcher switched on or off for the report, by code. Not listed means the default: on when notable. */
   signalPicks?: Record<string, boolean>
+  /** Signal profiles the Researcher switched on or off for the report, by theme. Not listed means the default: on when the theme's pattern is notable. */
+  themePicks?: Record<string, boolean>
   /** The Researcher's corrections to face readings, by reading key. The original reading is kept beside it. */
   faceFixes?: Record<string, FaceFix>
   /** Quotes added from Explore, kept so a refresh finds them. They are put back into EXCERPTS when the codebook loads. */
@@ -160,9 +162,14 @@ export const liveExcerpts = (code: Code, basis: Basis) => code.excerpts.map(exce
 
 /** N for a code: everyone accepted who was asked its question. New codes are against everyone. */
 export function denominator(code: Pick<Code, 'questionId' | 'isNew'>, basis: Basis) {
-  if (code.isNew) return basis.participants.size
+  return askedOf(code, basis).size
+}
+
+/** Who was asked the question behind a code: everyone accepted, minus anyone it was skipped for. New codes are against everyone. */
+export function askedOf(code: Pick<Code, 'questionId' | 'isNew'>, basis: Basis): Set<string> {
+  if (code.isNew) return new Set(basis.participants)
   const skipped = new Set(questionOf(code.questionId).skipped.map((s) => s.participantId))
-  return [...basis.participants].filter((p) => !skipped.has(p)).length
+  return new Set([...basis.participants].filter((p) => !skipped.has(p)))
 }
 
 export const peopleOf = (code: Code, basis: Basis) => new Set(liveExcerpts(code, basis).map((e) => e.participantId))
@@ -388,7 +395,9 @@ export function deleteTheme(d: CodebookDoc, id: string, { by }: Who, why: string
 
 // Tensions (Emotion & behaviour)
 
-export const tensionDecisions = (d: CodebookDoc): Record<string, TensionDecision> => d.tensions ?? SEED_TENSIONS
+/** The decisions on each tension. A decision saved as "Turned into a theme", before the rename, reads as "Added as a tension theme". */
+export const tensionDecisions = (d: CodebookDoc): Record<string, TensionDecision> =>
+  Object.fromEntries(Object.entries(d.tensions ?? SEED_TENSIONS).map(([id, v]) => [id, (v.status as string) === 'Turned into a theme' ? { ...v, status: 'Added as a tension theme' as const } : v]))
 
 const tensionEntry = (by: string, t: { id: string; title: string }, action: string, detail?: string, why?: string): LogEntry => ({
   id: uid('cl'),
@@ -403,19 +412,27 @@ const tensionEntry = (by: string, t: { id: string; title: string }, action: stri
 /** Turn a tension into a theme. The theme lists the tension's codes without taking them out of the themes they're in. */
 export function turnTensionIntoTheme(d: CodebookDoc, tension: { id: string; title: string }, codeIds: string[], name: string, definition: string, { by }: Who): CodebookDoc {
   const t: Theme = { id: uid('t'), name: name.trim(), definition: definition.trim(), codeIds, by, at: now(), tensionId: tension.id }
-  const out: CodebookDoc = { ...d, themes: [...d.themes, t], tensions: { ...tensionDecisions(d), [tension.id]: { status: 'Turned into a theme', by, at: t.at, themeId: t.id } } }
-  return log(out, tensionEntry(by, tension, 'Turned into a theme', `“${t.name}”`), themeEntry(by, t, 'Created theme', 'From a tension'))
+  const out: CodebookDoc = { ...d, themes: [...d.themes, t], tensions: { ...tensionDecisions(d), [tension.id]: { status: 'Added as a tension theme', by, at: t.at, themeId: t.id } } }
+  return log(out, tensionEntry(by, tension, 'Added as a tension theme', `“${t.name}”`), themeEntry(by, t, 'Created theme', 'From a tension'))
 }
 
 export function dismissTension(d: CodebookDoc, tension: { id: string; title: string }, { by }: Who, why: string): CodebookDoc {
   return log({ ...d, tensions: { ...tensionDecisions(d), [tension.id]: { status: 'Dismissed', by, at: now(), why: why.trim() } } }, tensionEntry(by, tension, 'Dismissed', undefined, why))
 }
 
-/** Put a dismissed tension back to review. A tension turned into a theme is undone by deleting that theme. */
+/** Put a dismissed or turned tension back to review. A tension theme made from it is taken out with it, and its codes stay where they are. */
 export function restoreTension(d: CodebookDoc, tension: { id: string; title: string }, { by }: Who): CodebookDoc {
   const { [tension.id]: _gone, ...rest } = tensionDecisions(d)
   void _gone
-  return log({ ...d, tensions: rest }, tensionEntry(by, tension, 'Restored', 'Back to review'))
+  const theme = d.themes.find((t) => t.tensionId === tension.id)
+  const { [theme?.id ?? '']: _pick, ...picks } = d.themePicks ?? {}
+  void _pick
+  return log({ ...d, tensions: rest, themes: d.themes.filter((t) => t.tensionId !== tension.id), themePicks: picks }, tensionEntry(by, tension, 'Restored', theme ? `Back to review. The tension theme “${theme.name}” was taken out` : 'Back to review'))
+}
+
+/** Whether a theme's signal profile goes into the report. Not set means on when the pattern is notable. */
+export function setThemePick(d: CodebookDoc, theme: { id: string; name: string }, on: boolean, { by }: Who): CodebookDoc {
+  return log({ ...d, themePicks: { ...(d.themePicks ?? {}), [theme.id]: on } }, themeEntry(by, theme, on ? 'Signals added to the report' : 'Signals left out of the report'))
 }
 
 /** Whether a code's signals go into the report. Not set means on when the pattern is notable. */

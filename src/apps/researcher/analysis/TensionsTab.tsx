@@ -23,7 +23,7 @@ import type { CodebookCtx } from './codebookCtx'
 export type TensionFilter = TensionStatus | 'All'
 const FILTERS: { key: TensionFilter; label: string }[] = [
   { key: 'Suggested', label: 'To review' },
-  { key: 'Turned into a theme', label: 'Turned into a theme' },
+  { key: 'Added as a tension theme', label: 'Added as a tension theme' },
   { key: 'Dismissed', label: 'Dismissed' },
   { key: 'All', label: 'All' },
 ]
@@ -35,7 +35,7 @@ const KIND_HINT: Record<TensionKind, string> = {
   'Between concepts': 'A first reaction to a concept, against what they chose later',
 }
 
-/** Where what people said doesn't add up. PulseAI suggests each one; you turn it into a theme or dismiss it, and say why. */
+/** Where what people said doesn't add up. PulseAI suggests each one; you add it as a tension theme or dismiss it, and say why. */
 export function TensionsTab({ ctx, filter, setFilter, focusId, onSeeSignals, onContinue }: { ctx: CodebookCtx; filter: TensionFilter; setFilter: (f: TensionFilter) => void; focusId?: string; onSeeSignals: (codeId?: string, momentId?: string) => void; onContinue: () => void }) {
   const [kind, setKind] = useState<TensionKind | 'all'>('all')
   const [turning, setTurning] = useState<Tension>()
@@ -66,7 +66,7 @@ export function TensionsTab({ ctx, filter, setFilter, focusId, onSeeSignals, onC
             ))}
           </select>
         </label>
-        <p className="min-w-0 flex-1 text-sm text-graphite">Where what people said doesn’t match how they looked, sounded or answered. Suggested by PulseAI. Nothing reaches the report until you turn it into a theme.</p>
+        <p className="min-w-0 flex-1 text-sm text-graphite">Where what people said doesn’t match how they looked, sounded or answered. Suggested by PulseAI. Nothing reaches the report until you add it as a tension theme.</p>
       </div>
 
       {shown.length === 0 ? (
@@ -115,7 +115,7 @@ export function TensionsTab({ ctx, filter, setFilter, focusId, onSeeSignals, onC
               onDismiss={() => setDismissing(t)}
               onRestore={() => {
                 ctx.act((d) => restoreTension(d, t, { by: ctx.me }))
-                toast('Back in To review')
+                toast(t.status === 'Added as a tension theme' ? 'Back in To review. The tension theme was taken out.' : 'Back in To review')
               }}
             />
           ))}
@@ -244,30 +244,35 @@ function TensionCard({ t, ctx, focused, onSeeSignals, onTurn, onDismiss, onResto
           {t.status === 'Suggested' && (
             <>
               <Button variant="primary" onClick={onTurn} data-testid="turn-theme">
-                Turn into a theme
+                Add as a tension theme
               </Button>
               <Button onClick={onDismiss} data-testid="dismiss-tension">
                 Dismiss
               </Button>
             </>
           )}
-          {t.status === 'Turned into a theme' && t.decision && (
-            <p className="flex-1 text-sm text-graphite">
-              Theme <span className="font-medium text-ink">“{theme?.name ?? 'removed'}”</span> by {t.decision.by}, {formatStamp(t.decision.at)}.{' '}
-              {theme && (
-                <Link to={`${studyPath(ctx.studyId, screenById.A1)}?tab=themes`} className="font-medium text-iris-700 hover:underline">
-                  Open in Themes
-                </Link>
-              )}
-            </p>
+          {t.status === 'Added as a tension theme' && t.decision && (
+            <>
+              <p className="min-w-0 flex-1 text-sm text-graphite">
+                Tension theme <span className="font-medium text-ink">“{theme?.name ?? 'removed'}”</span> added by {t.decision.by}, {formatStamp(t.decision.at)}.{' '}
+                {theme && (
+                  <Link to={`${studyPath(ctx.studyId, screenById.A1)}?tab=themes`} className="font-medium text-iris-700 hover:underline">
+                    Open in Themes
+                  </Link>
+                )}
+              </p>
+              <Button size="sm" onClick={onRestore} data-testid="restore-tension">
+                Restore
+              </Button>
+            </>
           )}
           {t.status === 'Dismissed' && t.decision && (
             <>
               <p className="min-w-0 flex-1 text-sm text-graphite">
                 Dismissed by {t.decision.by}, {formatStamp(t.decision.at)}. <span className="text-ink">“{t.decision.why}”</span>
               </p>
-              <Button size="sm" onClick={onRestore}>
-                Restore to review
+              <Button size="sm" onClick={onRestore} data-testid="restore-tension">
+                Restore
               </Button>
             </>
           )}
@@ -348,8 +353,8 @@ function TurnDialog({ ctx, t, onClose }: { ctx: CodebookCtx; t?: Tension; onClos
       open={!!t}
       onClose={onClose}
       size="lg"
-      title="Turn this tension into a theme"
-      description="It joins your themes, and goes into the report. The codes it draws on stay in the themes they’re already in."
+      title="Add as a tension theme"
+      description="It joins your themes as a tension theme, and goes into the report. The codes it draws on stay in the themes they’re already in."
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
@@ -362,18 +367,18 @@ function TurnDialog({ ctx, t, onClose }: { ctx: CodebookCtx; t?: Tension; onClos
             onClick={() => {
               if (!t) return
               ctx.act((d) => turnTensionIntoTheme(d, t, t.codeIds, name, definition, { by: ctx.me }))
-              toast(`Theme “${name.trim()}” created`)
+              toast(`Tension theme “${name.trim()}” added`)
               onClose()
             }}
           >
-            Create theme
+            Add tension theme
           </Button>
         </>
       }
     >
       <div className="flex flex-col gap-4 pb-1">
         <p className="rounded-sm bg-paper px-3 py-2 text-sm text-graphite">“{t?.title}”</p>
-        <TextField label="Theme name" value={name} onChange={(e) => setName(e.target.value)} error={clash ? 'A theme with this name already exists.' : undefined} />
+        <TextField label="Tension theme name" value={name} onChange={(e) => setName(e.target.value)} error={clash ? 'A theme with this name already exists.' : undefined} />
         <TextArea label="What it means" rows={2} value={definition} onChange={(e) => setDefinition(e.target.value)} />
         <p className="text-sm text-graphite">
           Draws on {codes.length === 1 ? 'the code' : 'the codes'}: <span className="font-medium text-ink">{codes.map((c) => `“${c}”`).join(', ')}</span>.

@@ -22,7 +22,7 @@ const clickText = async (sel, label) => {
   await b.sleep(350)
 }
 const fresh = async () => {
-  await b.goto('/researcher'); await b.evaluate('localStorage.clear(); sessionStorage.clear(); true'); await b.goto(`${root}/signals`)
+  await b.goto('/researcher'); await b.evaluate('localStorage.clear(); sessionStorage.clear(); true'); await b.goto(`${root}/signals?view=code`)
   await b.waitFor('Emotion & behaviour'); await b.waitFor('What stands out'); await b.sleep(500)
 }
 const setText = (sel, v) => `(() => { const t=document.querySelector(${JSON.stringify(sel)}); Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(t,${JSON.stringify(v)}); t.dispatchEvent(new Event('input',{bubbles:true})); return true })()`
@@ -46,7 +46,7 @@ try {
   const accepted = await b.evaluate(`(()=>{const s=[...document.querySelectorAll('[data-testid=theme-suggestion]')].find(x=>/Wanting control/.test(x.innerText));if(!s)return false;s.querySelector('[data-testid=accept-theme]').click();return true})()`)
   ok('PulseAI suggests a theme for the control codes', accepted)
   await b.sleep(500)
-  await b.goto(`${root}/signals`); await b.waitFor('What stands out'); await b.sleep(500)
+  await b.goto(`${root}/signals?view=code`); await b.waitFor('What stands out'); await b.sleep(500)
 
   // ── By code: the table, the roll-up, the report switch ──
   const rows = await b.evaluate(`[...document.querySelectorAll('[data-testid=signal-row]')].map(r=>r.innerText.replace(/\\s+/g,' '))`)
@@ -90,7 +90,7 @@ try {
   ok('the log can be filtered to face readings', await b.evaluate(`!![...document.querySelectorAll('option')].find(o=>o.textContent==='Face readings only')`))
 
   // ── By moment: the concept story, split by owner, never neutral for no video ──
-  await b.goto(`${root}/signals`); await b.waitFor('What stands out'); await b.sleep(400)
+  await b.goto(`${root}/signals?view=code`); await b.waitFor('What stands out'); await b.sleep(400)
   await click('[data-testid=view-moment]')
   const moments = await b.evaluate(`[...document.querySelectorAll('[data-testid=moment-row]')].map(r=>r.innerText.replace(/\\s+/g,' '))`)
   const rowC = moments.find((r) => /Concept C/.test(r))
@@ -119,10 +119,10 @@ try {
   await b.shot('emo-a2-tensions')
 
   // ── A tension theme counts the tension's own finding ──
-  await clickText('[data-testid=tension-card] button', 'Turn into a theme')
+  await clickText('[data-testid=tension-card] button', 'Add as a tension theme')
   await b.evaluate(`document.querySelector('[data-testid=turn-theme]')?.click(); true`); await b.sleep(400)
   const opened = await b.evaluate(`!!document.querySelector('[data-testid=turn-confirm]')`)
-  ok('Turn into a theme opens the dialog', opened)
+  ok('Add as a tension theme opens the dialog', opened)
   if (opened) {
     await click('[data-testid=turn-confirm]')
     await b.goto(`${root}/codebook?tab=themes`); await b.waitFor('New theme'); await b.sleep(500)
@@ -132,7 +132,7 @@ try {
   }
 
   // ── The way on ──
-  await b.goto(`${root}/signals`); await b.waitFor('What stands out'); await b.sleep(400)
+  await b.goto(`${root}/signals?view=code`); await b.waitFor('What stands out'); await b.sleep(400)
   const foot = await text('main')
   ok('the stepper names the step', /Emotion & behaviour/.test(foot ?? ''))
   ok('invariants hold', !(await b.evaluate('window.__invariants'))?.length)

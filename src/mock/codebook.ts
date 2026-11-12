@@ -630,7 +630,7 @@ export const THEME_SUGGESTIONS: Omit<SeedTheme, 'by' | 'at'>[] = [
 export type LogEntry = { id: string; at: string; by: string; target: { kind: 'code' | 'theme' | 'tension' | 'reading' | 'codebook'; id: string; name: string }; action: string; detail?: string; why?: string }
 
 /** Decisions already made on the tensions PulseAI suggested (src/mock/signals.ts). */
-export type SeedTensionDecision = { status: 'Turned into a theme' | 'Dismissed'; by: string; at: string; why?: string; themeId?: string }
+export type SeedTensionDecision = { status: 'Added as a tension theme' | 'Dismissed'; by: string; at: string; why?: string; themeId?: string }
 export const SEED_TENSIONS: Record<string, SeedTensionDecision> = {
   'tn-vet-survey': { status: 'Dismissed', by: maya, at: '2026-09-26T10:20:00-04:00', why: 'One person out of three. Too few to read.' },
 }

@@ -515,6 +515,15 @@ Prototype decisions from the product owner, 11 Nov 2026. This supersedes "Facial
 - **Dog and cat comparison.** Off by default. When every row has a group under 5 there is one note at the top and not one on each row; if only some rows are small they keep their own.
 - **Timestamps.** Turn times are no longer equal steps: each session has its own deterministic timeline (`turnAtSec`), used by the transcript, flags, stimuli, quotes and moments, so every Play at lands on the quoted turn. Two people never share a second within a code or a moment. A concept's first reaction is the answer just after that card was shown in the session.
 
+## A2: the theme is the main unit (By theme)
+
+- **By theme is the first view and the default**, ahead of By code and By moment. The Emotion | Voice | Hesitation switch is hidden there: a theme shows face, voice and hesitation together, on the same people.
+- **One rule, applied to a theme's people.** Each person counts once, at the quote where their delivery fit their words least (then where they hesitated most). The split and the verdict are the existing `fitSplit` and `FIT_RULE` (4 in 10 clearly, 3 in 10 partly, under 3 people too few); the screen states that rule in one line. The emotion grouping is the existing one (positive, neutral, negative, unclear). Nothing new is measured: `rollupPoints` only rolls up the per-code readings.
+- **The headline is built from the numbers** (`headlineOf`): "4 of 7 people argued for it, but hesitated as they said it", more gaps after a semicolon ("; 3 of 7 also sounded flat or tense"), faces only counted among those on video and said so ("faces were read for 5 of 8; 3 audio-only"). No gap: "Delivery matched the words for 9 of 9 people." A theme of facts says there is no claim. AI-generated tag, n of N, and a Play link to the clearest moment.
+- **Nothing is stored but ticks.** The profile is worked out from the codebook and Review every time. The Report tick is saved per theme (`themePicks`); a code inside a theme goes in through its theme unless the Researcher set that code's own tick (older data).
+- **A3's "How people sounded"** reads the theme profiles ticked in A2, then any code ticked on its own. Emotion and voice lines stay marked off in the client version.
+- **Tension themes** (renamed from "turned into a theme") sit in their own group below the themes, tagged From a tension, and are read on the codes they draw on. Restore on an added tension takes its tension theme out.
+
 ## Explore drawer: real-time highlights (brief step 7)
 
 Prototype decisions from the product owner, 11 Nov 2026.

@@ -31,7 +31,7 @@ const withMod = (expr) => b.evaluate(MOD + '; ' + expr)
 const fresh = async () => {
   await b.goto('/researcher')
   await b.evaluate('localStorage.clear(); sessionStorage.clear(); true')
-  await b.goto(`${root}/signals`)
+  await b.goto(`${root}/signals?view=code`)
   await b.waitFor('What stands out')
   await b.sleep(500)
 }
@@ -155,7 +155,7 @@ try {
   await b.goto(`${root}/codebook?tab=themes`); await b.waitFor('New theme'); await b.sleep(500)
   await b.evaluate(`(()=>{const s=[...document.querySelectorAll('[data-testid=theme-suggestion]')].find(x=>/Wanting control/.test(x.innerText));s.querySelector('[data-testid=accept-theme]').click();return true})()`)
   await b.sleep(500)
-  await b.goto(`${root}/signals`); await b.waitFor('What stands out'); await b.sleep(500)
+  await b.goto(`${root}/signals?view=code`); await b.waitFor('What stands out'); await b.sleep(500)
   const rolls = await all('[data-testid=theme-rollup]')
   ok('a roll-up counts faces as read of the people in the theme, and the groups add up', rolls.length >= 3 && rolls.every((r) => {
     const m = r.match(/Faces read for (\d+) of (\d+).*?: (\d+) positive, (\d+) neutral, (\d+) negative, (\d+) unclear/)
@@ -168,7 +168,7 @@ try {
   ok('the warning’s numbers add up, and anyone outside "who spoke for it" is named', !!hm && +hm[3] + +hm[4] === +hm[2] && (people === +hm[1] ? !/The other/.test(hi) : /The other .* in this theme \(P-\d+/.test(hi)), `${hi} | people ${people}`)
 
   // ── 5. Dog and cat: one note when every row is too small, and the box is off by default ──
-  await b.goto(`${root}/signals`); await b.waitFor('What stands out'); await b.sleep(400)
+  await b.goto(`${root}/signals?view=code`); await b.waitFor('What stands out'); await b.sleep(400)
   await click('[data-testid=view-moment]')
   ok('the compare box is off by default', await b.evaluate(`document.querySelector('[data-testid=compare-pets]').checked===false`))
   ok('no note shows until it is switched on', (await b.evaluate(`document.querySelectorAll('[data-testid=compare-small]').length`)) === 0)
@@ -180,7 +180,7 @@ try {
   ok('the dog and cat counts are still shown', smallRows.every((r) => /Dog owners/.test(r) && /Cat owners/.test(r)))
 
   // ── 6 (browser). Play lands on the quoted turn ──
-  await b.goto(`${root}/signals`); await b.waitFor('What stands out'); await b.sleep(400)
+  await b.goto(`${root}/signals?view=code`); await b.waitFor('What stands out'); await b.sleep(400)
   await clickText('[data-testid=signal-row]', 'Pause would have kept them'); await b.sleep(300)
   const plays = await b.evaluate(`[...document.querySelectorAll('[data-testid=signal-point]')].filter(li=>li.querySelector('p.font-serif')).slice(0,3).map(li=>({quote:li.querySelector('p.font-serif').innerText.replace(/[“”]/g,'').trim().slice(0,40),href:li.querySelector('a[aria-label^="Play"]').getAttribute('href'),time:li.innerText.match(/\\d+:\\d\\d/)[0]}))`)
   ok('there are quotes to play', plays.length === 3)
@@ -212,7 +212,7 @@ try {
     return [...t.matchAll(/(\d+) of (\d+)/g)].map((m) => [+m[1], +m[2]])
   }
   const sidesBefore = await tensionSides()
-  await b.goto(`${root}/signals`); await b.waitFor('What stands out'); await b.sleep(400)
+  await b.goto(`${root}/signals?view=code`); await b.waitFor('What stands out'); await b.sleep(400)
   await click('[data-testid=view-moment]')
   await clickText('[data-testid=moment-row]', 'First reaction: Concept C'); await b.sleep(300)
   const standBefore = (await all('[data-testid=standout]')).find((s) => /Concept C|tie for the most positive/.test(s)) ?? ''
@@ -250,7 +250,7 @@ try {
   ok('excluded sessions appear in no by-moment count', base.excluded.length === 2 && base.leaked.length === 0, JSON.stringify(base))
   ok('quality-flagged but accepted sessions are counted, as in the codebook', base.flagged.length >= 3 && base.flaggedIn.length === base.flagged.length, JSON.stringify(base))
   ok('so the by-moment people are exactly the 20 accepted', base.people === 20, String(base.people))
-  await b.goto(`${root}/signals`); await b.waitFor('What stands out'); await b.sleep(500)
+  await b.goto(`${root}/signals?view=code`); await b.waitFor('What stands out'); await b.sleep(500)
   const cov = await text('[data-testid=coverage]')
   ok('the coverage line says the excluded sessions are left out', /excluded in Review are left out/.test(cov ?? '') && /20/.test(cov ?? ''), cov)
 } catch (e) {

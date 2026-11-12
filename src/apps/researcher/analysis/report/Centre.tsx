@@ -370,7 +370,7 @@ export function ExecCard() {
 function TensionCard({ t }: { t: Tension }) {
   const { act, studyId } = useWs()
   const [asking, setAsking] = useState(false)
-  const inReport = t.status === 'Turned into a theme'
+  const inReport = t.status === 'Added as a tension theme'
   const head = t.sides[t.sides.length - 1]
   return (
     <li data-testid="tension" data-status={t.status} className="rounded-sm border border-mist bg-surface px-3 py-2.5">
@@ -468,11 +468,13 @@ function FindingCard({ f }: { f: FindingModel }) {
 
           {f.signals.length > 0 && (
             <div data-testid="signals">
-              <p className={LABEL}>Signals ticked in Emotion &amp; behaviour</p>
+              <p className={LABEL}>How people sounded, from Emotion &amp; behaviour</p>
               <ul className="mt-1.5 flex flex-col gap-1.5">
                 {f.signals.map((s) => (
-                  <li key={s.codeId} className="rounded-sm border border-mist bg-paper px-3 py-2 text-sm">
-                    <p className="font-medium text-ink">{s.codeName}</p>
+                  <li key={s.id} className="rounded-sm border border-mist bg-paper px-3 py-2 text-sm" data-kind={s.kind}>
+                    <p className="font-medium text-ink">
+                      {s.name} <span className="font-normal text-graphite">· {s.kind === 'theme' ? 'theme' : 'code'}</span>
+                    </p>
                     <ul className="mt-0.5 flex flex-col gap-0.5 text-xs text-graphite">
                       {s.lines.map((l) => (
                         <li key={l.channel}>
@@ -579,7 +581,7 @@ export function ThemeRows({ themes, open, onToggle }: { themes: ThemeModel[]; op
                     <span className="block text-sm font-medium text-ink">{t.theme.name}</span>
                     {t.note && <span className="block text-xs text-graphite">{t.note}</span>}
                   </span>
-                  {t.fromTension && <span className="rounded-xs border border-mist px-1.5 py-0.5 text-xs text-graphite">From a tension</span>}
+                  {t.fromTension && <span className="rounded-xs border border-mist px-1.5 py-0.5 text-xs text-graphite">Tension theme</span>}
                   <span className="text-sm tabular-nums text-ink">
                     {t.numbers?.n} of {t.numbers?.of} people
                   </span>

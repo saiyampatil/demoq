@@ -18,8 +18,8 @@ import {
   type Point,
   type TensionDef,
 } from '@/mock/signals'
-import { codeThemes, denominator, peopleOf, tensionDecisions, themeCodes, type Basis, type Code, type CodebookDoc, type TensionDecision, type Theme } from './codebook'
-import { emotionSplit, faceOf, fitSplit, hasVideo, toneSplit, VALENCE, type Emotion, type EmotionSplit, type FitSplit, type ToneSplit } from './emotion'
+import { askedOf, codeThemes, denominator, peopleOf, tensionDecisions, themeCodes, unthemed, type Basis, type Code, type CodebookDoc, type TensionDecision, type Theme } from './codebook'
+import { emotionSplit, faceOf, fitOf, fitSplit, hasVideo, noReading, toneSplit, FIT_RULE_TEXT, STANCE_LABEL, VALENCE, type Emotion, type EmotionSplit, type FitPattern, type FitSplit, type Stance, type ToneSplit } from './emotion'
 
 export { BANDS, MOMENTS, TENSION_KINDS, type Band, type Moment, type Point, type TensionKind } from '@/mock/signals'
 export { SIGNAL_RULES, signsOf } from '@/mock/signals'
@@ -66,6 +66,9 @@ const worse = (a: Point, b: Point) => (bandRank(b.band) > bandRank(a.band) ? b :
 
 /** The signals on every accepted code. Only quotes from sessions accepted right now count. */
 export function codeSignals(doc: CodebookDoc, basis: Basis): CodeSignal[] {
+  // A code inside a theme goes into the report through its theme's tick. Its own tick only counts when the Researcher set one
+  // (older data), so the same signal is never in the report twice.
+  const themed = new Set(codeThemes(doc).flatMap((t) => themeCodes(doc, t).map((c) => c.id)))
   return doc.codes
     .filter((c) => c.status === 'Accepted')
     .map((code) => {
@@ -94,7 +97,7 @@ export function codeSignals(doc: CodebookDoc, basis: Basis): CodeSignal[] {
         fit,
         notable,
         readable,
-        use: readable && (doc.signalPicks?.[code.id] ?? notable),
+        use: readable && (doc.signalPicks?.[code.id] ?? (themed.has(code.id) ? false : notable)),
         points,
       }
     })
@@ -150,7 +153,7 @@ export function coverage(accepted: { media?: 'Video' | 'Audio only' }[], exclude
 
 // ─── tensions ───────────────────────────────────────────────────────────────
 
-export type TensionStatus = 'Suggested' | 'Turned into a theme' | 'Dismissed'
+export type TensionStatus = 'Suggested' | 'Added as a tension theme' | 'Dismissed'
 /** One side of a tension, in n of N. */
 export type Side = { label: string; n: number; of: number; note?: string }
 /** A face reading shown on a clip: where it was read, what was seen (the lead), and what it reads as (after any correction). */
@@ -312,7 +315,7 @@ export function tensionCounts(doc: CodebookDoc) {
   return {
     total: available.length,
     toReview: available.length - decided,
-    themes: available.filter((d) => decisions[d.id]?.status === 'Turned into a theme').length,
+    themes: available.filter((d) => decisions[d.id]?.status === 'Added as a tension theme').length,
     dismissed: available.filter((d) => decisions[d.id]?.status === 'Dismissed').length,
   }
 }
@@ -372,6 +375,205 @@ export function themeRollup(doc: CodebookDoc, rows: CodeSignal[]): ThemeRollup |
         (noVideoSpeakers ? ` ${noVideoSpeakers} of the ${speakers.length} ${noVideoSpeakers === 1 ? 'is' : 'are'} audio-only, so ${noVideoSpeakers === 1 ? 'is' : 'are'} read on hesitation alone.` : '')
       : undefined
   return { people: points.length, emotions, marked, fit, positiveClaim, unsettled, text, highlight }
+}
+
+// ─── by theme: the profile of a theme ───────────────────────────────────────
+
+/** How many of the people with a claim had each channel against the words, for one side of the words. */
+export type StanceGap = { n: number; Hesitation: number; Face: number; Voice: number; noVideo: number }
+
+/**
+ * One theme's people, rolled up with the same rules as a code. Each person counts once, at the quote where their
+ * delivery fit their words least (then where they hesitated most), so every channel is read on the same people.
+ */
+export type Rollup = {
+  people: number
+  points: Point[]
+  emotions: EmotionSplit
+  tones: ToneSplit
+  marked: number
+  some: number
+  steady: number
+  pattern: Pattern
+  /** The words-vs-delivery split over the people with a claim, by the one rule (FIT_RULE). */
+  fit: FitSplit
+  /** The verdict: the fit pattern, or "Too few to read" under MIN_PEOPLE people. */
+  verdict: FitPattern
+  /** People by what their words claim: speaks for it, complains, or states a fact. */
+  stances: Record<Stance, number>
+  positive: StanceGap
+  negative: StanceGap
+}
+
+const FIT_RANK = { Fits: 1, Partly: 2, 'Doesn’t fit': 3 } as const
+const emptyGap = (): StanceGap => ({ n: 0, Hesitation: 0, Face: 0, Voice: 0, noVideo: 0 })
+
+/** One point per person: where their delivery fit their words least, then where they hesitated most. */
+export function onePerPerson(points: Point[], doc: CodebookDoc): Point[] {
+  const score = (p: Point) => {
+    const f = fitOf(p, faceOf(p, doc)).fit
+    return (f ? FIT_RANK[f] : 0) * 10 + bandRank(p.band)
+  }
+  const byPerson = new Map<string, Point>()
+  points.forEach((p) => {
+    const cur = byPerson.get(p.participantId)
+    if (!cur || score(p) > score(cur)) byPerson.set(p.participantId, p)
+  })
+  return [...byPerson.values()].sort((a, b) => score(b) - score(a) || a.participantId.localeCompare(b.participantId))
+}
+
+/** The roll-up of a set of people's points. Pure: the same points and corrections always give the same profile. */
+export function rollupPoints(all: Point[], doc: CodebookDoc): Rollup {
+  const points = onePerPerson(all, doc)
+  const marked = points.filter((p) => p.band === 'Marked hesitation').length
+  const some = points.filter((p) => p.band === 'Some hesitation').length
+  const fit = fitSplit(points, doc)
+  const stances: Record<Stance, number> = { Positive: 0, Negative: 0, Neutral: 0 }
+  const positive = emptyGap()
+  const negative = emptyGap()
+  points.forEach((p) => {
+    const stance = p.stance ?? 'Neutral'
+    stances[stance]++
+    if (stance === 'Neutral') return
+    const g = stance === 'Positive' ? positive : negative
+    const face = faceOf(p, doc)
+    const { against } = fitOf(p, face)
+    g.n++
+    if (!face) g.noVideo++
+    against.forEach((c) => g[c]++)
+  })
+  return {
+    people: points.length,
+    points,
+    emotions: emotionSplit(points, doc),
+    tones: toneSplit(points),
+    marked,
+    some,
+    steady: points.length - marked - some,
+    pattern: patternOf(marked, points.length),
+    fit,
+    verdict: points.length < MIN_PEOPLE ? 'Too few to read' : fit.pattern,
+    stances,
+    positive,
+    negative,
+  }
+}
+
+/** The rule for a theme's verdict, in one line for the screen. It is the per-code rule, applied to the theme's people. */
+export const THEME_RULE_TEXT = `Each person counts once, at the quote where their delivery fit their words least. ${FIT_RULE_TEXT}`
+
+/** What the words claim across a theme's people, from the same per-code stance the Words row uses. */
+export function stanceSummary(r: Pick<Rollup, 'stances'>): { short: string; long: string } {
+  const { Positive: pos, Negative: neg, Neutral: neu } = r.stances
+  const kinds = [pos && 'Positive', neg && 'Negative', neu && 'Neutral'].filter(Boolean) as Stance[]
+  if (kinds.length === 0) return { short: '—', long: 'No one said it' }
+  if (kinds.length === 1) return { short: kinds[0] === 'Positive' ? 'Speaks for it' : kinds[0] === 'Negative' ? 'Complains' : 'States a fact', long: STANCE_LABEL[kinds[0]] }
+  const parts = [pos && `${pos} speak for it`, neg && `${neg} complain`, neu && `${neu} state a fact or preference`].filter(Boolean)
+  return { short: 'Mixed words', long: `Mixed: ${parts.join(', ')}` }
+}
+
+/** What the people did against their words, as a phrase that follows "people argued for it, but" or "also". */
+const AGAINST: Record<'positive' | 'negative', Partial<Record<'Hesitation' | 'Face' | 'Voice', string>>> = {
+  positive: { Hesitation: 'hesitated as they said it', Face: 'had faces that read as doubt or frustration', Voice: 'sounded flat or tense' },
+  negative: { Face: 'had faces that read as delight or interest as they said it' },
+}
+
+/** The gap, named in plain words and counted in people: "4 of 7 people argued for it, but hesitated as they said it." */
+function gapSentence(g: StanceGap, kind: 'positive' | 'negative', lead: 'but' | 'still'): string {
+  if (!g.n) return ''
+  const clauses = (['Hesitation', 'Face', 'Voice'] as const)
+    .map((c) => ({ k: g[c], c, text: AGAINST[kind][c] }))
+    .filter((x): x is { k: number; c: 'Hesitation' | 'Face' | 'Voice'; text: string } => x.k > 0 && !!x.text)
+    .sort((a, b) => b.k - a.k)
+  if (!clauses.length) return ''
+  const verb = kind === 'positive' ? 'argued for it' : 'complained about it'
+  const [first, ...rest] = clauses
+  const head = lead === 'but' ? `${first.k} of ${g.n} people ${verb}, but ${first.text}` : `Still, ${first.k} of ${g.n} ${g.n === 1 ? 'person' : 'people'} who ${verb} ${first.text}`
+  const more = rest.map((x) => `; ${x.k} of ${g.n} also ${x.text}`).join('')
+  const seen = clauses.some((x) => x.c === 'Face') && g.noVideo ? ` (faces were read for ${g.n - g.noVideo} of ${g.n}; ${g.noVideo} audio-only)` : ''
+  return `${head}${more}${seen}.`
+}
+
+/** The headline for a theme, built only from its numbers. Names the gap in plain words, or says delivery matched. */
+export function headlineOf(r: Rollup): string {
+  if (r.verdict === 'Too few to read') return `Only ${plural(r.people, 'person', 'people')} said this, too few to read a pattern.`
+  if (r.fit.n === 0) return 'These words state a fact or a preference, so there is no claim for the face, voice or hesitation to disagree with.'
+  const gaps = [gapSentence(r.positive, 'positive', r.verdict === 'Consistent' ? 'still' : 'but'), gapSentence(r.negative, 'negative', r.verdict === 'Consistent' ? 'still' : 'but')].filter(Boolean)
+  if (r.verdict === 'Consistent' || r.verdict === 'No claim') return [`Delivery matched the words for ${r.fit.fits} of ${r.fit.n} people.`, ...gaps].join(' ')
+  return gaps.length ? gaps.join(' ') : `Delivery pulled against the words for ${r.fit.partly + r.fit.doesnt} of ${r.fit.n} people.`
+}
+
+export type ThemeSignal = Rollup & {
+  /** The theme's id, "none" for codes in no theme. */
+  id: string
+  name: string
+  definition?: string
+  kind: 'theme' | 'none' | 'tension'
+  theme?: Theme
+  /** The accepted codes in it, each with its own signals and verdict. */
+  codes: CodeSignal[]
+  /** People asked at least one of its questions: the N under "said by". */
+  of: number
+  notAsked: number
+  headline: string
+  /** Where each number comes from and who is left out, so the lines add up. */
+  trace: string
+  readable: boolean
+  notable: boolean
+  /** Whether its profile goes into the report. Tension themes and "Not in a theme" are not ticked as a theme. */
+  use: boolean
+  tickable: boolean
+  /** The moment that best shows the gap, or the first one when there is none. Play opens it. */
+  play?: Point
+}
+
+function profile(base: { id: string; name: string; definition?: string; kind: ThemeSignal['kind']; theme?: Theme }, rows: CodeSignal[], doc: CodebookDoc, basis: Basis): ThemeSignal {
+  const r = rollupPoints(rows.flatMap((x) => x.points), doc)
+  const asked = new Set(rows.flatMap((x) => [...askedOf(x.code, basis)]))
+  const of = asked.size
+  const readable = r.people >= MIN_PEOPLE
+  const notable = readable && (r.pattern === 'Mixed' || r.pattern === 'Often hesitant' || r.verdict === 'Mixed' || r.verdict === 'Conflicting')
+  const tickable = base.kind === 'theme'
+  const gap = r.emotions
+  const trace = [
+    `${r.people} of ${of} said it${basis.participants.size - of ? ` (${basis.participants.size - of} weren’t asked)` : ''}`,
+    `faces read for ${gap.read} of ${r.people}${noReading(gap) ? ` (${noReading(gap)})` : ''}`,
+    `${r.fit.n} of ${r.people} spoke for or against it${r.people - r.fit.n ? `, ${r.people - r.fit.n} only stated a fact or preference` : ''}`,
+  ].join('; ')
+  return {
+    ...r,
+    ...base,
+    codes: rows,
+    of,
+    notAsked: basis.participants.size - of,
+    headline: headlineOf(r),
+    trace: `${trace[0].toUpperCase()}${trace.slice(1)}.`,
+    readable,
+    notable,
+    tickable,
+    use: tickable && readable && (doc.themePicks?.[base.id] ?? notable),
+    play: r.points[0],
+  }
+}
+
+/**
+ * Every accepted theme with its signals as one result: code themes, then the codes in no theme, then tension themes.
+ * Worked out from the codebook and Review every time. Only the Researcher's ticks are stored (doc.themePicks).
+ */
+export function themeSignals(doc: CodebookDoc, basis: Basis, signals: CodeSignal[] = codeSignals(doc, basis)): ThemeSignal[] {
+  const rowsOf = (codes: { id: string }[]) => {
+    const ids = new Set(codes.map((c) => c.id))
+    return signals.filter((s) => ids.has(s.code.id))
+  }
+  const own = codeThemes(doc)
+    .filter((t) => themeCodes(doc, t).length > 0)
+    .map((t) => profile({ id: t.id, name: t.name, definition: t.definition, kind: 'theme', theme: t }, rowsOf(themeCodes(doc, t)), doc, basis))
+  const loose = rowsOf(unthemed(doc))
+  const none = loose.length ? [profile({ id: 'none', name: 'Not in a theme', definition: 'Accepted codes that are not in a theme yet.', kind: 'none' }, loose, doc, basis)] : []
+  const tension = doc.themes
+    .filter((t) => t.tensionId)
+    .map((t) => profile({ id: t.id, name: t.name, definition: t.definition, kind: 'tension', theme: t }, rowsOf(themeCodes(doc, t)), doc, basis))
+  return [...own, ...none, ...tension]
 }
 
 // ─── what stands out ────────────────────────────────────────────────────────

@@ -111,7 +111,7 @@ export function signalsReadiness(doc: CodebookDoc): Readiness {
     warnings,
     facts: [
       { label: 'Tensions to review', value: String(t.toReview), ok: t.toReview === 0 },
-      { label: 'Turned into themes', value: String(t.themes), ok: true },
+      { label: 'Tension themes', value: String(t.themes), ok: true },
       { label: 'Dismissed', value: String(t.dismissed), ok: true },
     ],
   }

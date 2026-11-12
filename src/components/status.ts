@@ -32,7 +32,7 @@ export const vocabularies = {
   // Codes in the Results Analysis codebook (docs/ANALYSIS_PLAN.md). Not in CLAUDE.md's list.
   code: ['Suggested', 'Accepted', 'Rejected', 'Merged'],
   // Tensions in Emotion & behaviour. "Suggested" is shared with codes. Not in CLAUDE.md's list.
-  tension: ['Turned into a theme', 'Dismissed'],
+  tension: ['Added as a tension theme', 'Dismissed'],
 } as const
 
 export const vocabularyLabels: Record<keyof typeof vocabularies, string> = {
@@ -102,7 +102,7 @@ export const statusFamily: Record<Status, StatusFamily> = {
   Completed: 'positive',
   Accepted: 'positive',
   Added: 'positive',
-  'Turned into a theme': 'positive',
+  'Added as a tension theme': 'positive',
   Complete: 'positive',
 
   Ineligible: 'negative',

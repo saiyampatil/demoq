@@ -10,7 +10,7 @@ import { Tooltip } from '@/components/Tooltip'
 import { petOf } from '@/mock/codebook'
 import { screenById, studyPath } from '@/routes/screens'
 import { band as confidenceBand, correctFace } from '@/state/codebook'
-import { EMOTION_HINT, EMOTIONS, STANCE_LABEL, TONE_HINT, TONES, VALENCE, VALENCE_WORD, VALENCES, faceOf, fitOf, type Emotion, type EmotionSplit, type Face, type Fit, type FitPattern, type Tone, type ToneSplit } from '@/state/emotion'
+import { EMOTION_HINT, EMOTIONS, STANCE_LABEL, TONE_HINT, TONES, VALENCE, VALENCE_WORD, VALENCES, faceOf, fitOf, noReading, type Emotion, type EmotionSplit, type Face, type Fit, type FitPattern, type Tone, type ToneSplit } from '@/state/emotion'
 import { signsOf, type Band, type Pattern, type Point, type Split } from '@/state/signals'
 import { BANDS } from '@/state/signals'
 import { mmss } from '../review/reviewUi'
@@ -147,10 +147,6 @@ export function ValenceCounts({ e, className }: { e: EmotionSplit; className?: s
   )
 }
 
-/** Why some people have no face counted: said once, beside any "of N faces read". Empty when everyone was read. */
-export function noReading(e: EmotionSplit) {
-  return [e.noVideo ? `${e.noVideo} audio-only` : '', e.unclear ? `${e.unclear} marked no clear expression` : ''].filter(Boolean).join(', ')
-}
 
 // ─── voice ──────────────────────────────────────────────────────────────────
 
@@ -215,6 +211,8 @@ export function OneFitChip({ fit, against }: { fit: Fit; against: string[] }) {
 
 // ─── one moment ─────────────────────────────────────────────────────────────
 
+export { noReading }
+
 export const playHref = (studyId: string, sessionId: string, atSec: number) =>
   `${studyPath(studyId, { ...screenById.R22, path: screenById.R22.path.replace(':sessionId', sessionId) })}?from=signals&at=${atSec}`
 
@@ -242,7 +240,7 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
  * One person at one moment, on every channel: the quote, the face (with what was visible, and a way to correct it),
  * the voice against their usual, and the hesitation measurements. Play opens the recording there.
  */
-export function PointCard({ point: p, ctx, context }: { point: Point; ctx: CodebookCtx; context: string }) {
+export function PointCard({ point: p, ctx, context, reasons }: { point: Point; ctx: CodebookCtx; context: string; reasons?: boolean }) {
   const [fixing, setFixing] = useState(false)
   const signs = signsOf(p.facts, p.usual)
   const face = faceOf(p, ctx.doc)
@@ -307,6 +305,12 @@ export function PointCard({ point: p, ctx, context }: { point: Point; ctx: Codeb
           </span>
         </Row>
       </dl>
+      {reasons && (
+        <p className="mt-1 text-xs text-graphite" data-testid="point-reason">
+          <span className="font-medium">Why these readings: </span>
+          {p.reason} Voice: {p.voice.reason}
+        </p>
+      )}
       {p.stance && (
         <p className="mt-1 text-xs text-graphite">
           <span className="font-medium">Words: </span>

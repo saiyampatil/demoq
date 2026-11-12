@@ -77,6 +77,9 @@ export function topEmotions(s: EmotionSplit): Emotion[] {
   return EMOTIONS.filter((e) => s.counts[e] === most)
 }
 
+/** Why some people have no face counted, said beside any "of N faces read". Empty when everyone was read. */
+export const noReading = (e: EmotionSplit) => [e.noVideo ? `${e.noVideo} audio-only` : '', e.unclear ? `${e.unclear} marked no clear expression` : ''].filter(Boolean).join(', ')
+
 export type ToneSplit = { counts: Record<Tone, number>; n: number }
 export function toneSplit(points: Point[]): ToneSplit {
   const counts = Object.fromEntries(TONES.map((t) => [t, 0])) as Record<Tone, number>

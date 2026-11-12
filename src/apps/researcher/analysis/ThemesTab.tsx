@@ -183,7 +183,7 @@ function ThemeCard({ ctx, theme: t, onEdit, onDelete, move, onOpenCode }: { ctx:
       <div className="flex items-start gap-2 px-4 pt-3.5">
         <h3 className="min-w-0 flex-1 font-semibold">
           {t.name}
-          {fromTension && <span className="ml-2 inline-flex h-5 items-center rounded-xs border border-iris-100 bg-iris-50 px-1.5 align-middle text-xs font-medium text-iris-700">From a tension</span>}
+          {fromTension && <span className="ml-2 inline-flex h-5 items-center rounded-xs border border-iris-100 bg-iris-50 px-1.5 align-middle text-xs font-medium text-iris-700">Tension theme</span>}
         </h3>
         <button type="button" onClick={onEdit} className="rounded-xs px-1.5 py-0.5 text-xs font-medium text-graphite hover:bg-haze hover:text-ink">
           Edit
