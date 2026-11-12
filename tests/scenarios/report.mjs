@@ -24,6 +24,9 @@ export default async ({ b, out }) => {
   }
   const reload = async () => { await b.goto(`${STUDY}/report`); await b.waitFor('Executive summary'); await b.sleep(500) }
   const primary = () => text('[data-testid=primary-action]')
+  // The report is prose: a sentence's controls open when it is clicked, and a finding's detail opens under Details.
+  const pick = (scope) => click(`${scope} [data-testid=sentence-text]`)
+  const openDetails = () => b.evaluate(`[...document.querySelectorAll('[data-testid=finding-more]')].filter(x=>x.getAttribute('aria-expanded')==='false').forEach(x=>x.click()); true`).then(() => b.sleep(250))
   const sentenceByText = (re) => `[...document.querySelectorAll('[data-testid=sentence]')].find(e=>${re}.test(e.innerText))`
 
   // ── A report saved by the old layout (no approvals field) must not crash the screen; it is replaced ──
@@ -38,12 +41,25 @@ export default async ({ b, out }) => {
   is('the report status starts as Draft', /Draft/.test(await b.evaluate(`document.querySelector('h1')?.parentElement.innerText`)))
   for (const g of ['Outputs', 'Explore', 'Lenses', 'Review', 'Release']) is(`Tools has the group ${g}`, new RegExp(g).test(await text('[data-testid=tools]')))
   for (const t of ['Theme videos', 'Showreel', 'Word cloud', 'Theme map', 'Audio summary', 'Ask', 'Numbers', 'Highlights', 'Lens builder', 'Compare lenses', 'Approve sentences', 'Compare AI and mine', 'Exports', 'Publish']) is(`Tools lists ${t}`, (await text('[data-testid=tools]')).includes(t))
-  is('Built from your analysis links back to A1, A2 and Review', /Codebook/.test(await text('[data-testid=built-from]')) && /Emotion & behaviour/.test(await text('[data-testid=built-from]')) && /Review/.test(await text('[data-testid=built-from]')))
-  is('it says what is still open (16 codes, 5 tensions)', /16 codes still to review/.test(await text('[data-testid=built-from]')) && /5 tensions still to decide/.test(await text('[data-testid=built-from]')), await text('[data-testid=built-from]'))
+  is('the right column is hidden until something is selected', (await count('[data-testid=selected]')) === 0 && (await count('[data-testid=built-from]')) === 0)
+  is('the stepper still says what is open in the steps before (16 codes, 5 tensions)', /16 codes to review/.test(await b.evaluate('document.body.innerText')) && /5 tensions to review/.test(await b.evaluate('document.body.innerText')))
+  for (const t of ['Theme videos', 'Showreel', 'Word cloud', 'Ask', 'Lens builder', 'Exports']) is(`${t} shows no state: nothing says "Not built"`, (await count(`[data-testid=tool-state-${{ 'Theme videos': 'theme-videos', Showreel: 'showreel', 'Word cloud': 'word-cloud', Ask: 'ask', 'Lens builder': 'lens-builder', Exports: 'exports' }[t]}]`)) === 0)
+  is('and the word "Not built" is nowhere in the tools', !/Not built/.test(await text('[data-testid=tools]')))
+  is('a tool with a state shows it (Approve sentences: 15 to review)', /15 to review/.test(await text('[data-testid=tool-state-review]')))
   is('one primary button, "Review 15 sentences"', (await primary()) === 'Review 15 sentences', await primary())
   is('the footer says where things stand', /0 of 15 sentences approved · 15 to review/.test(await text('[data-testid=report-status]')), await text('[data-testid=report-status]'))
   is('a lens dropdown with Whole study', /Whole study/.test(await text('[data-testid=lens-select]')))
   is('the executive summary and 4 guide sections', (await count('[data-testid=exec-card]')) === 1 && (await count('[data-testid=section]')) === 4)
+
+  // ── The summary reads as prose; every sentence has its state in view without a click ──
+  is('the summary is one paragraph of three sentences', (await count('[data-testid=exec-card] [data-testid=prose]')) === 1 && (await count('[data-testid=exec-card] [data-testid=sentence]')) === 3)
+  is('there is no per-sentence Approve, Edit or Delete on the page until a sentence is clicked', (await count('[data-testid=approve]')) === 0 && (await count('[data-testid=edit-sentence]')) === 0 && (await count('[data-testid=sentence-tray]')) === 0)
+  is('the count stays visible under the summary: "3 sentences · 0 approved"', /3 sentences · 0 approved/.test(await text('[data-testid=exec-count]')), await text('[data-testid=exec-count]'))
+  is('the summary carries the AI-generated tag', /AI-generated/.test(await text('[data-testid=exec-card] header')))
+  const dots = await b.evaluate(`[...document.querySelectorAll('[data-testid=sentence]')].map(e=>({dot:e.dataset.dot,label:e.querySelector('[data-testid=state-dot]')?.getAttribute('aria-label'),under:getComputedStyle(e.querySelector('[data-testid=sentence-text]')).textDecorationLine}))`)
+  is('every sentence has a visible state dot, and an unapproved one says "Not approved" and is underlined', dots.length >= 5 && dots.every((d) => d.dot === 'not-approved' && /^Not approved/.test(d.label ?? '') && /underline/.test(d.under)), dots.slice(0, 2))
+  is('the sources are numbered marks at the end of each sentence', (await count('[data-testid=exec-card] [data-testid=cite-mark]')) >= 4)
+  is('and a sentence says why it is not approved on hover (waiting for your approval)', /waiting for your approval/.test(await b.evaluate(`document.querySelector('[data-testid=sentence] [data-testid=state-dot]').getAttribute('title')`)))
 
   // ── Live numbers match the codebook (A1) ──
   const exec1 = await b.evaluate(`document.querySelector('[data-testid=exec-card] [data-testid=sentence]').innerText`)
@@ -62,6 +78,7 @@ export default async ({ b, out }) => {
   const strength = await b.evaluate(`Object.fromEntries([...document.querySelectorAll('[data-testid=finding]')].map(e=>[e.dataset.q,e.dataset.strength]))`)
   is('strength: not everyone asked is at most Weak (q-schedule, q-back); the rest are Strong', strength['q-schedule'] === 'Weak' && strength['q-back'] === 'Weak' && strength['q-start'] === 'Strong' && strength['q-flex'] === 'Strong', strength)
   is('a Weak finding says why, in people', /Weak: 1 person wasn’t asked|Weak: \d+ people weren’t asked this question, so it rests on/.test(await b.evaluate(`document.querySelector('[data-q=q-schedule]').innerText`)) || /Weak:/.test(await b.evaluate(`document.querySelector('[data-q=q-schedule]').innerText`)))
+  await openDetails()
   is('each finding shows two representative quotes (when it has them)', (await b.evaluate(`document.querySelector('[data-q=q-cancel] [data-testid=rep-quotes]').children.length`)) === 2)
   const repAuthors = await b.evaluate(`[...document.querySelectorAll('[data-q=q-cancel] [data-testid=rep-quotes] [data-testid=quote]')].map(e=>e.dataset.participant)`)
   is('the two quotes are two different people', new Set(repAuthors).size === 2, repAuthors)
@@ -73,14 +90,23 @@ export default async ({ b, out }) => {
   is('a related tension shows with its A2 status', (await count('[data-testid=tension]')) >= 1, await count('[data-testid=tension]'))
 
   // ── Selected follows the selection, with real quotes ──
-  await click('[data-q=q-cancel] [data-testid=sentence] button')
-  await expect('selecting a sentence fills Selected with its sources', `!!document.querySelector('[data-testid=selected-sentence]')`)
+  await pick('[data-q=q-cancel]')
+  await expect('selecting a sentence opens the right column with its sources', `!!document.querySelector('[data-testid=selected-sentence]')`)
+  is('and its controls open under it', (await count('[data-testid=sentence-tray]')) === 1 && (await count('[data-testid=approve]')) === 1)
+  is('only one sentence has controls open at a time', (await count('[data-testid=sentence-tray]')) === 1)
+  const marks = await count('[data-q=q-cancel] [data-testid=sentence-text] ~ sup [data-testid=cite-mark]')
+  await b.evaluate(`document.querySelectorAll('[data-q=q-cancel] [data-testid=cite-mark]')[0].click(); true`)
+  await b.sleep(300)
+  is('clicking a numbered mark opens that source in the panel, marked as on', marks >= 1 && (await b.evaluate(`document.querySelector('[data-testid=source][data-n="1"]')?.dataset.on`)) === 'true', marks)
+  is('the panel numbers its sources like the marks', await b.evaluate(`[...document.querySelectorAll('[data-testid=source]')].every((e,i)=>e.dataset.n===String(i+1))`))
   is('Selected shows where the numbers come from', /Price went up: 8 of 20 people/.test(await text('[data-testid=selected-sentence]')), await text('[data-testid=selected-sentence]'))
   const selQ = await b.evaluate(`[...document.querySelectorAll('[data-testid=selected] [data-testid=quote]')].map(e=>({s:e.dataset.session,p:e.dataset.participant,a:+e.dataset.at,t:e.innerText}))`)
   is('every quote has a session, a participant and a timestamp', selQ.length >= 3 && selQ.every((x) => /^P-31\d\d-\d$/.test(x.s) && /^P-31\d\d$/.test(x.p) && x.a > 0 && /\d+:\d\d/.test(x.t)), selQ.slice(0, 2))
   await clickText('[data-testid=selected] [data-testid=quote] button', 'Play clip')
   await expect('Play opens the shared mock player right there', `!!document.querySelector('[data-testid=selected] [data-testid=clip-player]')`)
   is('and the page did not navigate away', /analysis\/report/.test(await b.evaluate('location.pathname')))
+  await click('[data-testid=selected-close]')
+  is('the close button hides the right column again', (await count('[data-testid=selected]')) === 0 && (await count('[data-testid=sentence-tray]')) === 0)
   await click('[data-testid=toggle-all-sections]'); await click('[data-testid=toggle-all-sections]')
 
   // ── Excluded and never in the report ──
@@ -88,20 +114,23 @@ export default async ({ b, out }) => {
   await expect('the excluded list opens, read-only', `/P-3112/.test(document.querySelector('[data-testid=excluded-list]')?.innerText||'')&&/P-3119/.test(document.querySelector('[data-testid=excluded-list]')?.innerText||'')`)
   await b.evaluate(`document.querySelector('[role=dialog] button[aria-label=Close]').click(); true`)
   await b.sleep(250)
+  await openDetails()
   const everyone = await b.evaluate(`[...document.querySelectorAll('[data-testid=report] [data-testid=quote]')].map(e=>e.dataset.participant)`)
   is('no quote from an excluded session (P-3112, P-3119) is in the report', everyone.length >= 6 && !everyone.some((p) => p === 'P-3112' || p === 'P-3119'), everyone)
 
   // ── Approval: one sentence at a time, recorded with who, when and version ──
   const before = (await states()).filter((s) => s === 'To review').length
+  await pick('[data-q=q-start]')
   await click('[data-q=q-start] [data-testid=approve]')
   await expect('approving a sentence makes it Approved', `document.querySelector('[data-q=q-start] [data-testid=sentence]').dataset.state==='Approved'`)
+  is('its dot turns to a tick and the underline goes', (await b.evaluate(`document.querySelector('[data-q=q-start] [data-testid=sentence]').dataset.dot`)) === 'approved' && !/underline/.test(await b.evaluate(`getComputedStyle(document.querySelector('[data-q=q-start] [data-testid=sentence-text]')).textDecorationLine`)))
   is('the footer count moves', /1 of 15 sentences approved · 14 to review/.test(await text('[data-testid=report-status]')), await text('[data-testid=report-status]'))
   is('Tools shows 13 to review', /14 to review/.test(await text('[data-testid=tool-state-review]')))
   let r = await report()
   const ap = Object.values(r.approvals)[0]
   is('the approval records who, when, which version and the exact wording', ap && ap.by === 'Maya Ortiz' && /^\d{4}-/.test(ap.at) && ap.version === 1 && ap.text.includes('5 of 20') && ap.cites.length > 0, ap)
   is('the report log has an Approved entry', r.log.some((e) => e.action === 'Approved sentence'))
-  await click('[data-q=q-start] [data-testid=sentence] button')
+  await pick('[data-q=q-start]')
   await expect('Selected shows the approval record', `/Approved by Maya Ortiz/.test(document.querySelector('[data-testid=approval-record]')?.innerText||'')`)
   is('status chip now In Review', /In Review/.test(await b.evaluate(`document.querySelector('h1')?.parentElement.innerText`)))
   await reload()
@@ -109,6 +138,7 @@ export default async ({ b, out }) => {
 
   // ── Mine: an uncited sentence blocks, a reason unblocks, and it is logged ──
   await click('[data-testid=toggle-all-sections]')
+  await click('[data-q=q-start] [data-testid=finding-more]')
   await b.evaluate(`document.querySelector('[data-q=q-start] [data-testid=draft-researcher]').click(); true`)
   await expect('switching to Mine shows an empty draft', `!!document.querySelector('[data-q=q-start] [data-testid=empty-draft]')`)
   is('the finding now has no sentences, so fewer to approve', /0 of 13 sentences approved · 13 to review/.test(await text('[data-testid=report-status]')), await text('[data-testid=report-status]'))
@@ -116,6 +146,8 @@ export default async ({ b, out }) => {
   await b.evaluate(setVal('[data-testid=sentence-editor] textarea', 'People wanted food to show up without thinking about it.', 'HTMLTextAreaElement'))
   await click('[data-testid=save-sentence]')
   await expect('a sentence with no citation shows No citation', `document.querySelector('[data-q=q-start] [data-testid=sentence]')?.dataset.state==='No citation'`)
+  is('a sentence I wrote is marked Edited, and still counts as not approved', (await b.evaluate(`document.querySelector('[data-q=q-start] [data-testid=sentence]').dataset.dot`)) === 'edited' && /Edited/.test(await b.evaluate(`document.querySelector('[data-q=q-start] [data-testid=state-dot]').getAttribute('aria-label')`)))
+  await pick('[data-q=q-start]')
   is('there is no plain Approve on it, only "Approve with a reason"', (await count('[data-q=q-start] [data-testid=approve]')) === 0 && (await count('[data-q=q-start] [data-testid=approve-reason]')) === 1)
   await click('[data-q=q-start] [data-testid=approve-reason]')
   is('the reason cannot be empty', await b.evaluate(`[...document.querySelectorAll('[data-testid=reason-field] button')].find(x=>x.innerText==='Approve').disabled`))
@@ -128,12 +160,14 @@ export default async ({ b, out }) => {
   is('and logged', r.log.some((e) => /Without a citation: A framing line/.test(e.detail || '')))
 
   // Editing an approved sentence takes its approval away.
+  await pick('[data-q=q-start]')
   await click('[data-q=q-start] [data-testid=edit-sentence]')
   await b.evaluate(setVal('[data-testid=sentence-editor] textarea', 'People wanted food to show up with no effort.', 'HTMLTextAreaElement'))
   await click('[data-testid=save-sentence]')
   await expect('editing an approved sentence puts it back to No citation (approval was of the old wording)', `document.querySelector('[data-q=q-start] [data-testid=sentence]')?.dataset.state==='No citation'`)
 
   // A live number in my own sentence, and an AI-vs-mine compare.
+  await pick('[data-q=q-start]')
   await click('[data-q=q-start] [data-testid=edit-sentence]')
   await b.evaluate(`(()=>{const s=document.querySelector('[aria-label="Insert a live number"]');s.value='c-runout';s.dispatchEvent(new Event('change',{bubbles:true}));return true})()`)
   await b.sleep(200)
@@ -177,7 +211,8 @@ export default async ({ b, out }) => {
   const changed = (await b.evaluate(`[...document.querySelectorAll('[data-testid=sentence]')].filter(e=>e.dataset.state==='Needs update').length`))
   is('sentences using that count now say Needs update', changed >= 2, changed)
   const stillOld = await b.evaluate(`document.querySelector('[data-testid=exec-card] [data-testid=sentence]').innerText`)
-  is('the wording was not silently rewritten (still says 8 of 20)', /8 of 20 people mentioned one/.test(stillOld) && /Suggested update/.test(stillOld), stillOld)
+  is('the wording was not silently rewritten (still says 8 of 20) and the sentence says the numbers changed', /8 of 20 people mentioned one/.test(stillOld) && /Numbers changed/.test(stillOld), stillOld)
+  await pick('[data-testid=exec-card]')
   is('the suggested update shows the new number (7 of 20)', /7 of 20/.test(await text('[data-testid=exec-card] [data-testid=suggested-update]')))
   is('a changed number means more to review and Publish is gone', /^Review \d+ sentences$/.test(await primary()), await primary())
   await click('[data-testid=exec-card] [data-testid=apply-update]')
@@ -188,6 +223,7 @@ export default async ({ b, out }) => {
   await click('[data-testid=toggle-all-sections]'); await b.sleep(200)
   if (!(await count('[data-testid=finding]'))) await click('[data-testid=toggle-all-sections]')
   await expect('expanded', `document.querySelectorAll('[data-testid=finding]').length===7`)
+  await click('[data-q=q-cancel] [data-testid=sentence][data-state="Needs update"] [data-testid=sentence-text]')
   await clickText('[data-q=q-cancel] [data-testid=suggested-update] button', 'Keep as written')
   await b.evaluate(setVal('[data-testid=reason-field] input', 'The earlier count was agreed with the client.'))
   await clickText('[data-testid=reason-field] button', 'Keep and approve')
@@ -201,7 +237,52 @@ export default async ({ b, out }) => {
   await reload()
   const exec3 = await b.evaluate(`document.querySelectorAll('[data-testid=exec-card] [data-testid=sentence]')[2].dataset.state`)
   is('a sentence whose only code was rejected shows No citation', exec3 === 'No citation', exec3)
-  is('and says why', /is rejected in the codebook/.test(await b.evaluate(`document.querySelectorAll('[data-testid=exec-card] [data-testid=sentence]')[2].innerText`)))
+  await b.evaluate(`document.querySelectorAll('[data-testid=exec-card] [data-testid=sentence-text]')[2].click(); true`); await b.sleep(300)
+  is('and says why', /is rejected in the codebook/.test(await text('[data-testid=sentence-tray]')))
+  is('it is flagged in the prose as well, without a click', /No citation/.test(await b.evaluate(`document.querySelectorAll('[data-testid=exec-card] [data-testid=sentence]')[2].innerText`)))
+
+  // ── Publish stays blocked until every sentence is approved and cited (or a reason is logged) ──
+  is('with sentences to review the primary button is not Publish', (await primary()) !== 'Publish' && /^Review \d+ sentences$/.test(await primary()), await primary())
+  await click('[data-testid=tool-release]')
+  await expect('the publish checklist opens', `!!document.querySelector('[data-studio=release]')`)
+  is('it says Not ready and the Publish button is disabled', /Not ready/.test(await text('[data-testid=release-verdict]')) && (await b.evaluate(`document.querySelector('[data-testid=publish-v1]').disabled`)), await text('[data-testid=release-verdict]'))
+  is('"approved" and "cited" are both failing checks', (await b.evaluate(`['approved','cited'].every(k=>document.querySelector('[data-check='+k+']').dataset.ok==='false')`)))
+  await b.evaluate(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})); true`)
+  await b.sleep(300)
+  // Approve everything that can be approved plainly: one uncited sentence is left, and it alone still blocks.
+  await click('[data-testid=primary-action]')
+  await expect('Review mode', `!!document.querySelector('[data-studio=review]')`)
+  for (let i = 0; i < 20; i++) {
+    if (!(await count('[data-testid=queue-item][data-state="To review"]'))) break
+    await b.evaluate(`document.querySelector('[data-testid=queue-item][data-state="To review"]').click(); true`)
+    await b.sleep(150)
+    if (await count('[data-testid=review-approve]')) await click('[data-testid=review-approve]')
+  }
+  await b.evaluate(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})); true`); await b.sleep(300)
+  is('two uncited sentences left (the summary’s and one finding’s): still Review 2 sentences, never Publish', (await primary()) === 'Review 2 sentences', await primary())
+  await click('[data-testid=tool-release]')
+  await expect('checklist again', `!!document.querySelector('[data-studio=release]')`)
+  is('the one that blocks is the citation: the check fails and Publish is disabled', (await b.evaluate(`document.querySelector('[data-check=cited]').dataset.ok`)) === 'false' && /Not ready/.test(await text('[data-testid=release-verdict]')) && (await b.evaluate(`document.querySelector('[data-testid=publish-v1]').disabled`)))
+  await b.evaluate(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})); true`); await b.sleep(300)
+  // A reason on the first uncited sentence is not enough while the second is still uncited.
+  await b.evaluate(`document.querySelectorAll('[data-testid=exec-card] [data-testid=sentence-text]')[2].click(); true`); await b.sleep(300)
+  await click('[data-testid=approve-reason]')
+  await b.evaluate(setVal('[data-testid=reason-field] input', 'Framing line, no code behind it.'))
+  await clickText('[data-testid=reason-field] button', 'Approve')
+  await expect('with a reason logged the summary’s sentence is approved', `document.querySelectorAll('[data-testid=exec-card] [data-testid=sentence]')[2].dataset.state==='Approved without citation'`)
+  is('but one uncited sentence is still left, so the button is Review 1 sentence, not Publish', (await primary()) === 'Review 1 sentence', await primary())
+  await click('[data-testid=toggle-all-sections]')
+  await click('[data-testid=report] [data-testid=finding] [data-testid=sentence][data-state="No citation"] [data-testid=sentence-text]')
+  await click('[data-testid=approve-reason]')
+  await b.evaluate(setVal('[data-testid=reason-field] input', 'Context line for the client.'))
+  await clickText('[data-testid=reason-field] button', 'Approve')
+  await expect('and only when the last one has a reason does the primary button become Publish', `document.querySelector('[data-testid=primary-action]')?.innerText==='Publish'`)
+  await click('[data-testid=primary-action]')
+  await expect('the checklist is ready', `/Ready to publish/.test(document.querySelector('[data-testid=release-verdict]')?.innerText||'')`)
+  await b.evaluate(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})); true`); await b.sleep(300)
+  await fresh()
+  await b.evaluate(`(()=>{const k=${q(CB)};const s=JSON.parse(localStorage.getItem(k));s['pet-food-churn'].codes.find(c=>c.id==='c-nothing').status='Rejected';localStorage.setItem(k,JSON.stringify(s));return true})()`)
+  await reload()
   await click('[data-testid=primary-action]')
   await expect('Review mode', `!!document.querySelector('[data-studio=review]')`)
   is('Review mode offers only "Approve with a reason" for it', await b.poll(`(()=>{ [...document.querySelectorAll('[data-testid=queue-item]')].find(x=>/nothing the company could have done/.test(x.innerText))?.click(); return true })()`) && (await b.poll(`!document.querySelector('[data-testid=review-approve]')&&!!document.querySelector('[data-testid=review-approve-reason]')`)))
@@ -218,6 +299,7 @@ export default async ({ b, out }) => {
   // ── Tension decisions are the same decisions as in A2; dismissed ones never appear ──
   await fresh()
   await click('[data-testid=toggle-all-sections]')
+  await openDetails()
   const tn = await b.evaluate(`[...document.querySelectorAll('[data-testid=tension]')].map(e=>e.innerText.split(String.fromCharCode(10)).filter(Boolean)[1])`)
   is('related tensions are listed on findings', tn.length >= 1, tn)
   const title = tn[0]
@@ -237,6 +319,7 @@ export default async ({ b, out }) => {
   // ── Leave a finding out; put it back ──
   await reload()
   await click('[data-testid=toggle-all-sections]')
+  await click('[data-q=q-schedule] [data-testid=finding-more]')
   await click('[data-q=q-schedule] [data-testid=omit-finding]')
   await b.evaluate(setVal('[data-testid=reason-field] input', 'Only asked of some people.'))
   await clickText('[data-testid=reason-field] button', 'Leave out')

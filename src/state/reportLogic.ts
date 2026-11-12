@@ -135,6 +135,8 @@ export type SentenceInfo = {
   state: SentenceState
   /** Blocks publishing. */
   open: boolean
+  /** In the Researcher's own draft, with wording that is not one of PulseAI's sentences: written or changed by the Researcher. */
+  edited?: boolean
 }
 
 export function sentenceInfo(s: Sentence, approvals: Record<string, Approval>, ctx: Ctx): SentenceInfo {
@@ -247,6 +249,12 @@ export type ReportModel = {
 export function reportModel(report: ReportDoc, doc: CodebookDoc, basis: Basis): ReportModel {
   const ctx = { doc, basis }
   const info = (list: Sentence[]) => list.map((s) => sentenceInfo(s, report.approvals, ctx))
+  /** Marks the sentences of the Researcher's own draft that PulseAI did not write, so the dot can say Edited. */
+  const withEdited = (list: SentenceInfo[], t: { active: DraftKind; aiDraft: Sentence[] }) => {
+    if (t.active !== 'researcher') return list
+    const ai = new Set(t.aiDraft.flatMap((a) => [a.text, a.template ?? a.text]))
+    return list.map((i) => ({ ...i, edited: !ai.has(i.sentence.text) && !ai.has(i.sentence.template ?? i.sentence.text) }))
+  }
   const signals = codeSignals(doc, basis)
   const profiles = themeSignals(doc, basis, signals)
   const tensions = tensionsOf(doc, basis)
@@ -280,13 +288,13 @@ export function reportModel(report: ReportDoc, doc: CodebookDoc, basis: Basis): 
       ],
       tensions: [...related.values()].filter((t) => decisions[t.id]?.status !== 'Dismissed'),
       active: f.active,
-      sentences: info(draftOf(f)),
+      sentences: withEdited(info(draftOf(f)), f),
       omitted: f.omitted,
       hasMine: f.researcherDraft.length > 0,
     }
   })
 
-  const exec = { active: report.execSummary.active, sentences: info(draftOf(report.execSummary)), hasMine: report.execSummary.researcherDraft.length > 0 }
+  const exec = { active: report.execSummary.active, sentences: withEdited(info(draftOf(report.execSummary)), report.execSummary), hasMine: report.execSummary.researcherDraft.length > 0 }
   const sections = REPORT_SECTIONS.map((s) => ({ id: s.id, label: s.label, findings: s.questionIds.flatMap((id) => findings.filter((f) => f.questionId === id)) }))
   const themes: ThemeModel[] = doc.themes
     .map((theme) => {

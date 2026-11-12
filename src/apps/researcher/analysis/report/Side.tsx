@@ -1,47 +1,8 @@
-import { useState } from 'react'
-import { Link } from 'react-router'
+import { useEffect, useState } from 'react'
 import { cn } from '@/components/cn'
-import { screenById, studyPath } from '@/routes/screens'
 import { formatDateTime } from '@/lib/format'
-import { counts } from '@/state/codebook'
-import { tensionCounts } from '@/state/signals'
 import { plural, quotesOf, resolveCitation, type Resolved, type SentenceInfo } from '@/state/reportLogic'
 import { LABEL, MINI, NumberText, QuoteCard, StateChip, StrengthChip, useWs } from './ws'
-
-// ─── Built from your analysis ───────────────────────────────────────────────
-
-function Row({ to, title, line, open }: { to: string; title: string; line: string; open?: string }) {
-  return (
-    <li>
-      <Link to={to} className="flex flex-col gap-0.5 rounded-sm px-2.5 py-2 hover:bg-haze">
-        <span className="flex items-center justify-between gap-2 text-sm font-medium text-ink">
-          {title}
-          <span className="text-xs font-normal text-graphite" aria-hidden="true">Open →</span>
-        </span>
-        <span className="text-xs text-graphite">{line}</span>
-        {open && <span className="text-xs font-medium text-pending-fg" data-testid="still-open">{open}</span>}
-      </Link>
-    </li>
-  )
-}
-
-/** Where the report comes from, with a way back to each step and what is still open there. */
-export function BuiltFrom({ underReview }: { underReview: number }) {
-  const { studyId, doc, model, accepted, excluded } = useWs()
-  const c = counts(doc)
-  const t = tensionCounts(doc)
-  const ticked = model.findings.reduce((n, f) => n + f.signals.length, 0)
-  return (
-    <section aria-label="Built from your analysis" data-testid="built-from" className="rounded-md border border-mist bg-surface p-2">
-      <h2 className={cn(LABEL, 'px-2.5 pt-1.5 pb-1')}>Built from your analysis</h2>
-      <ul>
-        <Row to={studyPath(studyId, screenById.A1)} title="Codebook" line={`${plural(c.accepted, 'accepted code')} · ${plural(doc.themes.filter((th) => !th.tensionId).length, 'theme')}`} open={c.suggested ? `${plural(c.suggested, 'code')} still to review` : undefined} />
-        <Row to={studyPath(studyId, screenById.A2)} title="Emotion & behaviour" line={`${plural(ticked, 'signal')} ticked for findings · ${plural(t.themes, 'tension')} in the report`} open={t.toReview ? `${plural(t.toReview, 'tension')} still to decide` : undefined} />
-        <Row to={studyPath(studyId, screenById.R21)} title="Review" line={`${accepted} accepted · ${excluded} excluded and left out`} open={underReview ? `${plural(underReview, 'session')} still under review` : undefined} />
-      </ul>
-    </section>
-  )
-}
 
 // ─── Selected ───────────────────────────────────────────────────────────────
 
@@ -84,11 +45,15 @@ export function CitationBlock({ r, label }: { r: Resolved; label: string }) {
 
 const TOKEN_IDS = /\{(?:n|of):([\w-]+)\}/g
 
-function SentenceDetail({ info }: { info: SentenceInfo }) {
+function SentenceDetail({ info, cite }: { info: SentenceInfo; cite?: number }) {
   const { ctx, doc } = useWs()
   const ids = [...new Set([...(info.sentence.template ?? '').matchAll(TOKEN_IDS)].map((m) => m[1]))]
   const nameOf = (id: string) => doc.codes.find((c) => c.id === id)?.name ?? doc.themes.find((t) => t.id === id)?.name ?? id
   const a = info.approval
+  // A source mark that was clicked brings its source into view.
+  useEffect(() => {
+    if (cite) document.getElementById(`source-${cite}`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+  }, [cite, info.sentence.id])
   return (
     <div className="flex flex-col gap-3" data-testid="selected-sentence">
       <div className="flex flex-col gap-1.5">
@@ -118,8 +83,13 @@ function SentenceDetail({ info }: { info: SentenceInfo }) {
           <p className="mt-1 text-sm text-negative-fg">No citation. It needs one, or a reason, before it can be approved.</p>
         ) : (
           <ul className="mt-1.5 flex flex-col gap-3">
-            {info.cites.map(({ cit, resolved }) => (
-              <CitationBlock key={`${cit.kind}:${cit.id}`} r={resolved} label={cit.kind} />
+            {info.cites.map(({ cit, resolved }, i) => (
+              <li key={`${cit.kind}:${cit.id}`} id={`source-${i + 1}`} data-testid="source" data-n={i + 1} data-on={cite === i + 1} className={cn('flex gap-2 rounded-sm', cite === i + 1 && 'bg-iris-50 p-1.5 ring-1 ring-iris-600')}>
+                <span className="mt-0.5 shrink-0 text-xs font-semibold text-iris-700">{i + 1}</span>
+                <ul className="min-w-0 flex-1">
+                  <CitationBlock r={resolved} label={cit.kind} />
+                </ul>
+              </li>
             ))}
           </ul>
         )}
@@ -134,13 +104,13 @@ function SentenceDetail({ info }: { info: SentenceInfo }) {
 }
 
 /** Follows the selection in the report: what a sentence, a finding or a theme is built from, with the real quotes. */
-export function Selected() {
+export function Selected({ onClose }: { onClose: () => void }) {
   const { sel, model, doc, ctx, accepted } = useWs()
   let body: React.ReactNode = <p className="text-sm text-graphite">Select a sentence, a finding or a theme to see what it is built from: the codes, the people and the quotes, each with its session and timestamp.</p>
 
   if (sel?.kind === 'sentence') {
     const info = [...model.exec.sentences, ...model.findings.flatMap((f) => f.sentences)].find((s) => s.sentence.id === sel.id)
-    if (info) body = <SentenceDetail info={info} />
+    if (info) body = <SentenceDetail info={info} cite={sel.cite} />
   } else if (sel?.kind === 'finding') {
     const f = model.findings.find((x) => x.questionId === sel.qId)
     if (f)
@@ -209,7 +179,12 @@ export function Selected() {
 
   return (
     <section aria-label="Selected" data-testid="selected" className="rounded-md border border-mist bg-surface p-4">
-      <h2 className={cn(LABEL, 'mb-2')}>Selected</h2>
+      <div className="mb-2 flex items-center justify-between">
+        <h2 className={LABEL}>Sources</h2>
+        <button type="button" onClick={onClose} aria-label="Close sources" data-testid="selected-close" className="rounded-xs px-1.5 text-lg leading-none text-graphite hover:bg-haze hover:text-ink">
+          ×
+        </button>
+      </div>
       {body}
     </section>
   )

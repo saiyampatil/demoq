@@ -524,6 +524,16 @@ Prototype decisions from the product owner, 11 Nov 2026. This supersedes "Facial
 - **A3's "How people sounded"** reads the theme profiles ticked in A2, then any code ticked on its own. Emotion and voice lines stay marked off in the client version.
 - **Tension themes** (renamed from "turned into a theme") sit in their own group below the themes, tagged From a tension, and are read on the codes they draw on. Restore on an added tension takes its tension theme out.
 
+## A3 Report: the report reads as prose, controls on demand
+
+- **Why.** The brief (Step 5) asks for a narrative, section by section, with a concise finding per guide question. The first build turned every sentence into a boxed form (status chip, citation chips, Approve, Edit, Delete). It is now a document first and a tool second.
+- **The summary is one paragraph.** Sentences flow as prose with live numbers in bold and small numbered source marks at the end of each (1, 2, 3). Clicking a mark opens that source in the right column, numbered the same way.
+- **Every sentence keeps its state in view, with no click.** A dot before each sentence: a half circle (Not approved), a tick (Approved), a ringed dot (Edited by the Researcher and not yet approved). Each has its own shape, so it never depends on colour. An unapproved sentence is also underlined, and "No citation" or "Numbers changed" is written beside it. "N sentences · N approved" stays under the summary, in amber until it is all approved.
+- **Controls open on click.** Clicking a sentence opens its tray directly under the paragraph (Approve, Approve with a reason, Withdraw, Edit, Delete, and the suggested-update block) and opens its sources on the right. One sentence at a time. The right column does not exist until something is selected, and has a close button.
+- **Findings are one block each.** The question, a Strong / Weak / Unanswered chip, "n of N people", the AI-generated tag and the answer as a short paragraph. A Weak or Unanswered finding says so in one line, always. Quotes, how people sounded (from the A2 theme profile), related tensions, the AI draft | Mine switch, Regenerate and "leave out" are under Details.
+- **Tools show a state only when they have one** (Approve sentences: 15 to review, Publish: ready or N to approve, Compare: N differ). "Not built" is gone.
+- **Unchanged rules.** Every sentence needs approval and a citation, or a logged reason, before Publish. The footer has one primary button ("Review N sentences", then "Publish"). Counts are n of N, never percentages. The stale banner stays.
+
 ## Explore drawer: real-time highlights (brief step 7)
 
 Prototype decisions from the product owner, 11 Nov 2026.

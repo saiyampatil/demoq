@@ -36,7 +36,7 @@ import { ExploreDrawer, type ExploreTab } from './explore/ExploreControl'
 import { ExecCard, SectionRow, ThemeRows } from './report/Centre'
 import { ReviewStudio } from './report/ReviewStudio'
 import { CompareStudio, ComingStudio, ExcludedDialog, ReleaseStudio } from './report/OtherStudios'
-import { BuiltFrom, Selected } from './report/Side'
+import { Selected } from './report/Side'
 import { Tools } from './report/Tools'
 import { WsProvider, type Act, type Selection, type ToolKey, type Ws } from './report/ws'
 import { useAnalysis } from './useAnalysis'
@@ -94,7 +94,6 @@ export function Report() {
   })
 
   const excludedSessions = useMemo(() => review.filter((x) => x.status === 'Excluded'), [review])
-  const underReview = review.filter((x) => x.status === 'Under review').length
 
   const update = useCallback((fn: Parameters<typeof updateReport>[1]) => updateReport(studyId, fn), [studyId])
 
@@ -237,7 +236,8 @@ export function Report() {
           {study.releaseVersion && <> · {study.releaseVersion}</>}
         </p>
 
-        <div className="grid items-start gap-5 lg:grid-cols-[224px_minmax(0,1fr)_284px]">
+        {/* The right column opens only when something is selected: a sentence, a source mark or a finding. */}
+        <div className={sel ? 'grid items-start gap-5 lg:grid-cols-[224px_minmax(0,1fr)_320px]' : 'grid items-start gap-5 lg:grid-cols-[224px_minmax(0,1fr)]'}>
           <div className="order-2 lg:sticky lg:top-4 lg:order-1 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto">
             <Tools />
           </div>
@@ -256,10 +256,11 @@ export function Report() {
             <ThemeRows themes={model.themes} open={themesOpen} onToggle={() => setThemesOpen((o) => !o)} />
           </main>
 
-          <aside className="order-3 flex flex-col gap-4 lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto">
-            <BuiltFrom underReview={underReview} />
-            <Selected />
-          </aside>
+          {sel && (
+            <aside aria-label="Sources" className="order-3 flex flex-col gap-4 lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto">
+              <Selected onClose={() => setSel(null)} />
+            </aside>
+          )}
         </div>
 
         <WizardFooter

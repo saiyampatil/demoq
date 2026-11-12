@@ -170,6 +170,7 @@ try {
   ok('the tick agrees with the code-level default (hesitation shows, or words and delivery don’t fit)', names.every((n) => ticks[n] === notable[n]), JSON.stringify({ ticks, notable }))
   await b.goto(`${root}/report`); await b.waitFor('Executive summary'); await b.sleep(600)
   await b.evaluate(`document.querySelector('[data-testid=toggle-all-sections]')?.click(); true`); await b.sleep(300)
+  await b.evaluate(`[...document.querySelectorAll('[data-testid=finding-more]')].forEach(x=>x.getAttribute('aria-expanded')==='false'&&x.click()); true`); await b.sleep(250)
   const sig = await b.evaluate(`[...document.querySelectorAll('[data-testid=signals] li[data-kind]')].map(li=>({kind:li.dataset.kind,text:li.innerText.replace(/\\s+/g,' ')}))`)
   const control = sig.find((s) => /Wanting control over deliveries/.test(s.text))
   ok('A3’s “How people sounded” shows the theme profile with its headline', !!control && control.kind === 'theme' && /\d+ of \d+ people argued for it, but /.test(control.text) && /off in the client version until cleared/.test(control.text), JSON.stringify(sig.map((s) => s.text.slice(0, 80))))
@@ -184,6 +185,7 @@ try {
   ok('the tick is stored and the profile is not', stored && !profileStored)
   await b.goto(`${root}/report`); await b.waitFor('Executive summary'); await b.sleep(600)
   await b.evaluate(`document.querySelector('[data-testid=toggle-all-sections]')?.click(); true`); await b.sleep(300)
+  await b.evaluate(`[...document.querySelectorAll('[data-testid=finding-more]')].forEach(x=>x.getAttribute('aria-expanded')==='false'&&x.click()); true`); await b.sleep(250)
   ok('so it is gone from A3', !(await b.evaluate(`[...document.querySelectorAll('[data-testid=signals] li[data-kind=theme]')].some(li=>/Wanting control/.test(li.innerText))`)))
   // A code-level tick still works for older data.
   await b.goto(`${root}/signals`); await b.waitFor('What stands out'); await b.sleep(400)
@@ -191,6 +193,7 @@ try {
   await b.evaluate(`[...document.querySelectorAll('[data-testid=signal-row]')].find(r=>/Flexibility matters more than price/.test(r.innerText)).closest('li').querySelector('[data-testid=use-signal]').click(); true`); await b.sleep(400)
   await b.goto(`${root}/report`); await b.waitFor('Executive summary'); await b.sleep(600)
   await b.evaluate(`document.querySelector('[data-testid=toggle-all-sections]')?.click(); true`); await b.sleep(300)
+  await b.evaluate(`[...document.querySelectorAll('[data-testid=finding-more]')].forEach(x=>x.getAttribute('aria-expanded')==='false'&&x.click()); true`); await b.sleep(250)
   ok('a code-level tick still reaches A3, marked as a code', await b.evaluate(`[...document.querySelectorAll('[data-testid=signals] li[data-kind=code]')].some(li=>/Flexibility matters more than price/.test(li.innerText))`))
 
   // ── Tension themes: the wording, the group below, Restore ──

@@ -9,9 +9,9 @@ import { uid } from '@/state/brief'
 import type { Citation, DraftKind, Target } from '@/state/report'
 import { hasTokens, plural, renderTemplate, resolveCitation, type FindingModel, type SentenceInfo, type ThemeModel } from '@/state/reportLogic'
 import type { Tension } from '@/state/signals'
-import { CitationChips, LABEL, MINI, MINI_ON, NumberText, QuoteCard, StateChip, StrengthChip, targetOf, useWs } from './ws'
+import { CitationChips, DOT_LABEL, LABEL, MINI, MINI_ON, NumberText, QuoteCard, SentenceMarks, StateChip, StateDot, StrengthChip, dotOf, targetOf, useWs } from './ws'
 
-// ─── a sentence ─────────────────────────────────────────────────────────────
+// ─── a sentence, in the prose ───────────────────────────────────────────────
 
 function ReasonField({ label, placeholder, yes, onYes, onNo }: { label: string; placeholder: string; yes: string; onYes: (why: string) => void; onNo: () => void }) {
   const [why, setWhy] = useState('')
@@ -28,30 +28,59 @@ function ReasonField({ label, placeholder, yes, onYes, onNo }: { label: string; 
   )
 }
 
-function SentenceCard({ info, target, mine, onEdit, editDisabled, canEditAsMine }: { info: SentenceInfo; target: Target; mine: boolean; onEdit: () => void; editDisabled: boolean; canEditAsMine: boolean }) {
-  const { act, sel, select } = useWs()
+/** Why a sentence is not approved, in a word, for the dot's tooltip. */
+const WHY: Partial<Record<SentenceInfo['state'], string>> = { 'No citation': 'no citation', 'Needs update': 'the numbers changed', 'To review': 'waiting for your approval' }
+
+/**
+ * One sentence, inside a paragraph. It always carries its dot and its numbered source marks. An unapproved sentence is
+ * underlined, so it is never easy to miss. Clicking it selects it: its controls open below and its sources open on the right.
+ */
+function Sentence({ info }: { info: SentenceInfo }) {
+  const { sel, select } = useWs()
+  const s = info.sentence
+  const selected = sel?.kind === 'sentence' && sel.id === s.id
+  const dot = dotOf(info)
+  const choose = (cite?: number) => select({ kind: 'sentence', id: s.id, ...(cite !== undefined ? { cite } : {}) })
+  return (
+    <span id={`sentence-${s.id}`} data-testid="sentence" data-id={s.id} data-state={info.state} data-dot={dot}>
+      <StateDot dot={dot} why={dot === 'approved' ? undefined : (WHY[info.state] ?? (dot === 'edited' ? 'edited, waiting for your approval' : undefined))} />
+      <span
+        role="button"
+        tabIndex={0}
+        data-testid="sentence-text"
+        aria-pressed={selected}
+        aria-label={`${DOT_LABEL[dot]}. ${s.text}`}
+        onClick={() => choose()}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            choose()
+          }
+        }}
+        className={cn('cursor-pointer rounded-xs text-ink hover:bg-haze focus-visible:outline-2 focus-visible:outline-iris-600', info.open && 'underline decoration-pending-fg decoration-dotted underline-offset-4', selected && 'bg-iris-50 hover:bg-iris-50')}
+      >
+        <NumberText text={s.text} />
+      </span>
+      <SentenceMarks cites={info.cites} onOpen={choose} />
+      {info.state === 'No citation' && <span className="ml-1.5 text-xs font-medium text-negative-fg">No citation</span>}
+      {info.numbersChanged && <span className="ml-1.5 text-xs font-medium text-pending-fg">Numbers changed</span>}{' '}
+    </span>
+  )
+}
+
+/** The controls of the selected sentence, under its paragraph: approve, edit, and the reasons that need typing. */
+function SentenceTray({ info, target, mine, canEditAsMine, editDisabled, onEdit, onDelete }: { info: SentenceInfo; target: Target; mine: boolean; canEditAsMine: boolean; editDisabled: boolean; onEdit: () => void; onDelete: () => void }) {
+  const { act } = useWs()
   const s = info.sentence
   const [asking, setAsking] = useState<'reason' | 'keep' | null>(null)
-  const selected = sel?.kind === 'sentence' && sel.id === s.id
-  const choose = () => select({ kind: 'sentence', id: s.id })
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const dot = dotOf(info)
 
   return (
-    <li
-      id={`sentence-${s.id}`}
-      data-testid="sentence"
-      data-id={s.id}
-      data-state={info.state}
-      className={cn('rounded-sm border bg-surface px-3 py-2.5', selected ? 'border-ink ring-1 ring-ink' : info.state === 'No citation' ? 'border-negative-line' : 'border-mist')}
-    >
-      <div className="flex items-start gap-3">
-        <button type="button" onClick={choose} aria-pressed={selected} className="min-w-0 flex-1 rounded-xs text-left leading-snug text-ink">
-          <NumberText text={s.text} />
-        </button>
+    <div data-testid="sentence-tray" data-id={s.id} className="mt-2 rounded-sm border border-mist bg-paper px-3 py-2.5">
+      <div className="flex flex-wrap items-center gap-2">
         <StateChip state={info.state} />
-      </div>
-
-      <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1.5">
-        {info.cited || info.cites.length ? <CitationChips cites={info.cites} onOpen={choose} /> : <span className="rounded-xs border border-negative-line bg-negative-bg px-1.5 py-0.5 text-xs text-negative-fg">Uncited</span>}
+        {dot === 'edited' && <span className="text-xs text-graphite">Edited by you, not yet approved</span>}
         <span className="ml-auto flex flex-wrap items-center gap-1.5">
           {info.state === 'To review' && (
             <button type="button" className={MINI_ON} data-testid="approve" onClick={() => act.approve(s.id)}>
@@ -78,8 +107,25 @@ function SentenceCard({ info, target, mine, onEdit, editDisabled, canEditAsMine 
               Edit as mine
             </button>
           )}
+          {mine && !confirmDelete && (
+            <button type="button" className={MINI} onClick={() => setConfirmDelete(true)} disabled={editDisabled} data-testid="delete-sentence">
+              Delete
+            </button>
+          )}
         </span>
       </div>
+
+      {mine && confirmDelete && (
+        <div role="alertdialog" className="mt-2 flex items-center gap-2 rounded-sm border border-pending-line bg-pending-bg px-3 py-1.5 text-sm">
+          <span className="flex-1">Delete this sentence from your draft?</span>
+          <button type="button" className={MINI} onClick={() => (onDelete(), setConfirmDelete(false))}>
+            Delete
+          </button>
+          <button type="button" className={MINI} onClick={() => setConfirmDelete(false)}>
+            Cancel
+          </button>
+        </div>
+      )}
 
       {info.state === 'Approved without citation' && info.approval?.reason && <p className="mt-2 text-xs text-graphite">Approved by {info.approval.by} without a citation: {info.approval.reason}</p>}
       {info.approval?.keptNumbers && <p className="mt-2 text-xs text-graphite">Numbers kept as written by {info.approval.by}: {info.approval.keptNumbers.why}</p>}
@@ -130,7 +176,331 @@ function SentenceCard({ info, target, mine, onEdit, editDisabled, canEditAsMine 
           onNo={() => setAsking(null)}
         />
       )}
-    </li>
+    </div>
+  )
+}
+
+// ─── the draft: prose, with the AI draft | Mine switch kept apart ───────────
+
+/** What the draft needs to remember between its parts: which sentence is being written, and the "Edit as mine" hand-off. */
+function useDraft(target: Target, active: DraftKind, sentences: SentenceInfo[]) {
+  const { act } = useWs()
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const pendingEdit = useRef<number | null>(null)
+  const mine = active === 'researcher'
+  // "Edit as mine" copies the AI draft, then opens the sentence at the same position once it exists.
+  useEffect(() => {
+    if (pendingEdit.current !== null && mine && sentences[pendingEdit.current]) {
+      setEditingId(sentences[pendingEdit.current].sentence.id)
+      pendingEdit.current = null
+    }
+  }, [mine, sentences])
+  const switchTo = (kind: DraftKind) => {
+    if (kind === active) return
+    setEditingId(null)
+    act.setActive(target, kind)
+  }
+  return { editingId, setEditingId, pendingEdit, mine, switchTo, editing: editingId !== null }
+}
+type Draft = ReturnType<typeof useDraft>
+
+/** AI draft | Mine, and Regenerate. For the summary it sits in its footer; for a finding it is under Details. */
+function DraftControls({ d, target, aiCount }: { d: Draft; target: Target; aiCount: number }) {
+  const { act } = useWs()
+  const key = target === 'exec' ? 'exec' : target.questionId
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <div role="group" aria-label="Which draft goes in the report" className="inline-flex overflow-hidden rounded-xs border border-mist" data-testid="draft-switch">
+        {(['ai', 'researcher'] as const).map((kind) => (
+          <button key={kind} type="button" aria-pressed={d.mine === (kind === 'researcher')} data-testid={`draft-${kind}`} onClick={() => d.switchTo(kind)} className={cn('px-2.5 py-0.5 text-xs font-medium', d.mine === (kind === 'researcher') ? 'bg-ink text-white' : 'bg-surface text-graphite hover:bg-haze')}>
+            {kind === 'ai' ? 'AI draft' : 'Mine'}
+          </button>
+        ))}
+      </div>
+      <span className="text-xs text-graphite">The {d.mine ? 'draft you wrote' : 'PulseAI draft'} is the one in the report.</span>
+      {!d.mine && (
+        <button type="button" className={cn(MINI, 'ml-auto')} onClick={() => act.regenerate(target)} disabled={act.regenerating === key || aiCount === 0} data-testid="regenerate">
+          {act.regenerating === key ? 'Regenerating…' : 'Regenerate'}
+        </button>
+      )}
+    </div>
+  )
+}
+
+/** The sentences as one paragraph. The selected sentence's controls, or its editor, open directly under it. */
+function DraftBody({ d, target, sentences, hasMine, aiCount }: { d: Draft; target: Target; sentences: SentenceInfo[]; hasMine: boolean; aiCount: number }) {
+  const { act, sel } = useWs()
+  const { mine, editingId, setEditingId, editing } = d
+  const chosen = sel?.kind === 'sentence' ? sentences.find((i) => i.sentence.id === sel.id) : undefined
+  const current = editingId ? sentences.find((x) => x.sentence.id === editingId)?.sentence : undefined
+
+  return (
+    <div className="flex flex-col gap-1">
+      {sentences.length === 0 && !editing && (
+        <div className="rounded-sm border border-dashed border-mist-strong px-4 py-4 text-sm text-graphite" data-testid="empty-draft">
+          {mine ? (
+            <>
+              <p>You have no draft of your own for this yet.</p>
+              <div className="mt-2 flex gap-2">
+                <button type="button" className={MINI} disabled={aiCount === 0} onClick={() => act.startFromAI(target)}>
+                  Start from the AI draft
+                </button>
+                <button type="button" className={MINI} onClick={() => setEditingId(uid('s'))}>
+                  Add a sentence
+                </button>
+              </div>
+            </>
+          ) : (
+            'PulseAI has no draft for this. Nothing accepted in the codebook covers it yet. Code it in the codebook, or write it yourself.'
+          )}
+        </div>
+      )}
+
+      {sentences.length > 0 && (
+        <p className="text-[15px] leading-7 text-ink" data-testid="prose">
+          {sentences.map((info) => (
+            <Sentence key={info.sentence.id} info={info} />
+          ))}
+        </p>
+      )}
+
+      {chosen && editingId !== chosen.sentence.id && (
+        <SentenceTray
+          key={chosen.sentence.id}
+          info={chosen}
+          target={target}
+          mine={mine}
+          canEditAsMine={!mine && !hasMine}
+          editDisabled={editing}
+          onDelete={() => act.remove(target, chosen.sentence.id)}
+          onEdit={() => {
+            if (mine) setEditingId(chosen.sentence.id)
+            else {
+              d.pendingEdit.current = sentences.indexOf(chosen)
+              act.startFromAI(target)
+            }
+          }}
+        />
+      )}
+
+      {editingId !== null && (
+        <ul>
+          <SentenceEditor
+            key={editingId}
+            initial={current ? { text: current.text, template: current.template, cites: current.cites } : { text: '', cites: [] }}
+            onSave={(v) => {
+              act.save(target, editingId, v)
+              setEditingId(null)
+            }}
+            onCancel={() => setEditingId(null)}
+          />
+        </ul>
+      )}
+
+      {mine && sentences.length > 0 && !editing && (
+        <div>
+          <button type="button" className={MINI} onClick={() => setEditingId(uid('s'))}>
+            Add a sentence
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── executive summary ──────────────────────────────────────────────────────
+
+export function ExecCard() {
+  const { model, report, select } = useWs()
+  const e = model.exec
+  const approved = e.sentences.filter((s) => !s.open).length
+  const d = useDraft('exec', e.active, e.sentences)
+  return (
+    <section data-testid="exec-card" aria-label="Executive summary" className="flex flex-col gap-3 rounded-md border border-mist bg-surface px-6 py-5">
+      <header className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <h2 className="text-xl font-semibold text-ink">Executive summary</h2>
+        {!d.mine && e.sentences.length > 0 && <AIGeneratedTag />}
+      </header>
+      <DraftBody d={d} target="exec" sentences={e.sentences} hasMine={e.hasMine} aiCount={report.execSummary.aiDraft.length} />
+      <footer className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-mist pt-3">
+        <p className="text-xs text-graphite tabular-nums" data-testid="exec-count">
+          {e.sentences.length ? (
+            <>
+              {plural(e.sentences.length, 'sentence')} · <span className={cn('font-medium', approved < e.sentences.length ? 'text-pending-fg' : 'text-positive-fg')}>{approved} approved</span>
+            </>
+          ) : (
+            'No sentences'
+          )}
+        </p>
+        <button type="button" className="text-xs text-graphite underline-offset-2 hover:underline" onClick={() => select({ kind: 'exec' })} data-testid="exec-sources">
+          All sources
+        </button>
+        <span className="ml-auto">
+          <DraftControls d={d} target="exec" aiCount={report.execSummary.aiDraft.length} />
+        </span>
+      </footer>
+    </section>
+  )
+}
+
+// ─── a finding ──────────────────────────────────────────────────────────────
+
+/** One finding: its question, how strong it is, and the answer as a short paragraph. Everything else is under Details. */
+function FindingCard({ f }: { f: FindingModel }) {
+  const { act, report, sel, select, accepted } = useWs()
+  const [asking, setAsking] = useState(false)
+  const [more, setMore] = useState(false)
+  const raw = report.findings.find((x) => x.questionId === f.questionId)!
+  const selected = sel?.kind === 'finding' && sel.qId === f.questionId
+  const target = targetOf(f.questionId)
+  const d = useDraft(target, f.active, f.sentences)
+
+  return (
+    <article id={`finding-${f.questionId}`} data-testid="finding" data-q={f.questionId} data-strength={f.strength} data-omitted={!!f.omitted} className={cn('flex flex-col gap-2 py-4 first:pt-3 last:pb-3', selected && 'bg-iris-50/40', f.omitted && 'opacity-80')}>
+      <header className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <h3 className="text-base font-semibold text-ink">{f.label}</h3>
+        <StrengthChip strength={f.strength} />
+        <span className="text-xs text-graphite tabular-nums">{f.people === 0 ? 'nobody' : `${f.people} of ${f.asked} people`}</span>
+        {!f.omitted && !d.mine && f.sentences.length > 0 && <AIGeneratedTag />}
+        <button type="button" className="ml-auto text-xs font-medium text-graphite underline-offset-2 hover:underline" aria-expanded={more} onClick={() => setMore((m) => !m)} data-testid="finding-more">
+          {more ? 'Hide details' : 'Details'}
+        </button>
+      </header>
+
+      {f.omitted ? (
+        <div className="rounded-sm border border-dashed border-mist-strong px-4 py-3 text-sm text-graphite" data-testid="omitted">
+          Left out of the report by {f.omitted.by}: {f.omitted.why}
+          <button type="button" className={cn(MINI, 'ml-3')} onClick={() => act.include(f.questionId)}>
+            Put back
+          </button>
+        </div>
+      ) : (
+        <>
+          {f.strength === 'Weak' && (
+            <p className="text-xs font-medium text-pending-fg">
+              Weak: {f.people < 5 ? `only ${f.people} of ${f.asked} people said something coded under this question.` : `${plural(f.notAsked, 'person', 'people')} weren’t asked this question, so it rests on ${f.asked}.`} Read the quotes before you rely on it.
+            </p>
+          )}
+          {f.strength === 'Unanswered' && (
+            <p className="text-xs font-medium text-negative-fg">
+              Unanswered: {f.people === 0 ? 'no accepted codes cover this question yet.' : `only ${plural(f.people, 'person', 'people')} said something coded under it.`} Code it in the codebook, write the finding yourself, or leave it out.
+            </p>
+          )}
+
+          <DraftBody d={d} target={target} sentences={f.sentences} hasMine={f.hasMine} aiCount={raw.aiDraft.length} />
+
+          {more && (
+            <div className="mt-1 flex flex-col gap-3 rounded-sm border border-mist bg-paper p-3" data-testid="finding-details">
+              <p className="text-xs text-graphite">
+                “{f.text}” {f.notAsked > 0 ? `Asked in ${f.asked} of ${accepted} accepted sessions` : `Asked in all ${accepted} accepted sessions`} · {f.people === 0 ? 'nobody' : `${f.people} of ${f.asked} people`} said something coded under it.
+              </p>
+              <DraftControls d={d} target={target} aiCount={raw.aiDraft.length} />
+
+              {f.quotes.length > 0 && (
+                <div>
+                  <p className={LABEL}>Two representative quotes</p>
+                  <ul className="mt-1.5 grid gap-2 md:grid-cols-2" data-testid="rep-quotes">
+                    {f.quotes.map((q) => (
+                      <QuoteCard key={q.excerpt.id} ex={q.excerpt} codeName={q.codeName} compact />
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {f.signals.length > 0 && (
+                <div data-testid="signals">
+                  <p className={LABEL}>How people sounded, from Emotion &amp; behaviour</p>
+                  <ul className="mt-1.5 flex flex-col gap-1.5">
+                    {f.signals.map((s) => (
+                      <li key={s.id} className="rounded-sm border border-mist bg-surface px-3 py-2 text-sm" data-kind={s.kind}>
+                        <p className="font-medium text-ink">
+                          {s.name} <span className="font-normal text-graphite">· {s.kind === 'theme' ? 'theme' : 'code'}</span>
+                        </p>
+                        <ul className="mt-0.5 flex flex-col gap-0.5 text-xs text-graphite">
+                          {s.lines.map((l) => (
+                            <li key={l.channel}>
+                              <span className="font-medium text-ink">{l.channel}.</span> {l.text}
+                              {l.emotionVoice && <span className="ml-1 text-muted">(off in the client version until cleared)</span>}
+                            </li>
+                          ))}
+                        </ul>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {f.tensions.length > 0 && (
+                <div>
+                  <p className={LABEL}>Related tension</p>
+                  <ul className="mt-1.5 flex flex-col gap-1.5">
+                    {f.tensions.map((t) => (
+                      <TensionCard key={t.id} t={t} />
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              <div className="flex flex-wrap items-center gap-3 border-t border-mist pt-2">
+                <button type="button" className="text-xs text-graphite underline-offset-2 hover:underline" onClick={() => select({ kind: 'finding', qId: f.questionId })} data-testid="finding-sources">
+                  What this finding is built on
+                </button>
+                <button type="button" className="text-xs text-graphite underline-offset-2 hover:underline" onClick={() => setAsking(true)} data-testid="omit-finding">
+                  Leave this finding out of the report…
+                </button>
+              </div>
+              {asking && (
+                <ReasonField
+                  label="Why leave this finding out"
+                  placeholder="Why leave it out?"
+                  yes="Leave out"
+                  onYes={(why) => {
+                    act.omit(f.questionId, why)
+                    setAsking(false)
+                  }}
+                  onNo={() => setAsking(false)}
+                />
+              )}
+            </div>
+          )}
+        </>
+      )}
+    </article>
+  )
+}
+
+// ─── a section of the guide ─────────────────────────────────────────────────
+
+export function SectionRow({ label, findings, open, onToggle }: { label: string; findings: FindingModel[]; open: boolean; onToggle: () => void }) {
+  const live = findings.filter((f) => !f.omitted)
+  const sentences = live.flatMap((f) => f.sentences)
+  const approved = sentences.filter((s) => !s.open).length
+  const weak = live.filter((f) => f.strength === 'Weak').length
+  const unanswered = live.filter((f) => f.strength === 'Unanswered').length
+  return (
+    <section data-testid="section" aria-label={label} className="rounded-md border border-mist bg-surface">
+      <button type="button" onClick={onToggle} aria-expanded={open} className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-paper">
+        <span className={cn('text-graphite transition-transform', open && 'rotate-90')}>
+          <ChevronRightIcon size={16} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block font-semibold text-ink">{label}</span>
+          <span className="block text-xs text-graphite">
+            {plural(findings.length, 'finding')}
+            {weak > 0 && ` · ${weak} weak`}
+            {unanswered > 0 && ` · ${unanswered} unanswered`}
+          </span>
+        </span>
+        <span className={cn('text-xs tabular-nums', sentences.length && approved < sentences.length ? 'font-medium text-pending-fg' : 'text-graphite')}>{sentences.length ? `${approved} of ${sentences.length} approved` : 'Nothing to approve'}</span>
+      </button>
+      {open && (
+        <div className="flex flex-col divide-y divide-mist border-t border-mist px-4">
+          {findings.map((f) => (
+            <FindingCard key={f.questionId} f={f} />
+          ))}
+        </div>
+      )}
+    </section>
   )
 }
 
@@ -206,165 +576,6 @@ function SentenceEditor({ initial, onSave, onCancel }: { initial: { text: string
   )
 }
 
-// ─── the AI draft | Mine switch and the sentences under it ──────────────────
-
-function DraftBlock({ target, active, sentences, hasMine, aiCount }: { target: Target; active: DraftKind; sentences: SentenceInfo[]; hasMine: boolean; aiCount: number }) {
-  const { act } = useWs()
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
-  const mine = active === 'researcher'
-  const key = target === 'exec' ? 'exec' : target.questionId
-  const pendingEdit = useRef<number | null>(null)
-
-  // "Edit as mine" copies the AI draft, then opens the sentence at the same position once it exists.
-  useEffect(() => {
-    if (pendingEdit.current !== null && mine && sentences[pendingEdit.current]) {
-      setEditingId(sentences[pendingEdit.current].sentence.id)
-      pendingEdit.current = null
-    }
-  }, [mine, sentences])
-
-  const switchTo = (kind: DraftKind) => {
-    if (kind === active) return
-    setEditingId(null)
-    act.setActive(target, kind)
-  }
-  const editing = editingId !== null
-
-  return (
-    <div className="flex flex-col gap-2">
-      <div className="flex flex-wrap items-center gap-2">
-        <div role="group" aria-label="Which draft goes in the report" className="inline-flex overflow-hidden rounded-xs border border-mist" data-testid="draft-switch">
-          {(['ai', 'researcher'] as const).map((kind) => (
-            <button
-              key={kind}
-              type="button"
-              aria-pressed={active === kind}
-              data-testid={`draft-${kind}`}
-              onClick={() => switchTo(kind)}
-              className={cn('px-2.5 py-0.5 text-xs font-medium', active === kind ? 'bg-ink text-white' : 'bg-surface text-graphite hover:bg-haze')}
-            >
-              {kind === 'ai' ? 'AI draft' : 'Mine'}
-            </button>
-          ))}
-        </div>
-        {!mine && <AIGeneratedTag />}
-        <span className="text-xs text-graphite">The {mine ? 'draft you wrote' : 'PulseAI draft'} is the one in the report.</span>
-        {!mine && (
-          <button type="button" className={cn(MINI, 'ml-auto')} onClick={() => act.regenerate(target)} disabled={act.regenerating === key || aiCount === 0} data-testid="regenerate">
-            {act.regenerating === key ? 'Regenerating…' : 'Regenerate'}
-          </button>
-        )}
-      </div>
-
-      {sentences.length === 0 && !editing && (
-        <div className="rounded-sm border border-dashed border-mist-strong px-4 py-4 text-sm text-graphite" data-testid="empty-draft">
-          {mine ? (
-            <>
-              <p>You have no draft of your own for this yet.</p>
-              <div className="mt-2 flex gap-2">
-                <button type="button" className={MINI} disabled={aiCount === 0} onClick={() => act.startFromAI(target)}>
-                  Start from the AI draft
-                </button>
-                <button type="button" className={MINI} onClick={() => setEditingId(uid('s'))}>
-                  Add a sentence
-                </button>
-              </div>
-            </>
-          ) : (
-            'PulseAI has no draft for this. Nothing accepted in the codebook covers it yet. Code it in the codebook, or write it yourself.'
-          )}
-        </div>
-      )}
-
-      {(sentences.length > 0 || editing) && (
-        <ul className="flex flex-col gap-2">
-          {sentences.map((info) =>
-            editingId === info.sentence.id ? (
-              <SentenceEditor
-                key={info.sentence.id}
-                initial={{ text: info.sentence.text, template: info.sentence.template, cites: info.sentence.cites }}
-                onSave={(v) => {
-                  act.save(target, info.sentence.id, v)
-                  setEditingId(null)
-                }}
-                onCancel={() => setEditingId(null)}
-              />
-            ) : (
-              <div key={info.sentence.id}>
-                <SentenceCard
-                  info={info}
-                  target={target}
-                  mine={mine}
-                  editDisabled={editing}
-                  canEditAsMine={!mine && !hasMine}
-                  onEdit={() => {
-                    if (mine) setEditingId(info.sentence.id)
-                    else {
-                      pendingEdit.current = sentences.indexOf(info)
-                      act.startFromAI(target)
-                    }
-                  }}
-                />
-                {mine && confirmDelete === info.sentence.id && (
-                  <div role="alertdialog" className="mt-1 flex items-center gap-2 rounded-sm border border-pending-line bg-pending-bg px-3 py-1.5 text-sm">
-                    <span className="flex-1">Delete this sentence from your draft?</span>
-                    <button type="button" className={MINI} onClick={() => (act.remove(target, info.sentence.id), setConfirmDelete(null))}>Delete</button>
-                    <button type="button" className={MINI} onClick={() => setConfirmDelete(null)}>Cancel</button>
-                  </div>
-                )}
-                {mine && confirmDelete !== info.sentence.id && !editing && (
-                  <button type="button" className="mt-0.5 text-xs text-graphite underline-offset-2 hover:underline" onClick={() => setConfirmDelete(info.sentence.id)}>
-                    Delete sentence
-                  </button>
-                )}
-              </div>
-            ),
-          )}
-          {editingId !== null && !sentences.some((x) => x.sentence.id === editingId) && (
-            <SentenceEditor
-              initial={{ text: '', cites: [] }}
-              onSave={(v) => {
-                act.save(target, editingId, v)
-                setEditingId(null)
-              }}
-              onCancel={() => setEditingId(null)}
-            />
-          )}
-        </ul>
-      )}
-      {mine && sentences.length > 0 && !editing && (
-        <div>
-          <button type="button" className={MINI} onClick={() => setEditingId(uid('s'))}>
-            Add a sentence
-          </button>
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ─── executive summary ──────────────────────────────────────────────────────
-
-export function ExecCard() {
-  const { model, report, sel, select } = useWs()
-  const e = model.exec
-  const approved = e.sentences.filter((s) => !s.open).length
-  return (
-    <section data-testid="exec-card" className={cn('flex flex-col gap-3 rounded-md border bg-surface p-5', sel?.kind === 'exec' ? 'border-ink' : 'border-mist')}>
-      <header className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <h2 className="text-lg font-semibold text-ink">Executive summary</h2>
-        <span className="text-xs text-graphite">{e.sentences.length ? `${approved} of ${plural(e.sentences.length, 'sentence')} approved` : 'No sentences'}</span>
-        <button type="button" className={cn(MINI, 'ml-auto')} onClick={() => select({ kind: 'exec' })}>
-          Show what it is built on
-        </button>
-      </header>
-      <p className="text-sm text-graphite">One story for the whole study, written against the discussion guide.</p>
-      <DraftBlock target="exec" active={e.active} sentences={e.sentences} hasMine={e.hasMine} aiCount={report.execSummary.aiDraft.length} />
-    </section>
-  )
-}
-
 // ─── tension from Emotion & behaviour ───────────────────────────────────────
 
 function TensionCard({ t }: { t: Tension }) {
@@ -404,154 +615,6 @@ function TensionCard({ t }: { t: Tension }) {
         />
       )}
     </li>
-  )
-}
-
-// ─── a finding ──────────────────────────────────────────────────────────────
-
-function FindingCard({ f }: { f: FindingModel }) {
-  const { act, report, sel, select, accepted } = useWs()
-  const [asking, setAsking] = useState(false)
-  const raw = report.findings.find((x) => x.questionId === f.questionId)!
-  const selected = sel?.kind === 'finding' && sel.qId === f.questionId
-  const approved = f.sentences.filter((s) => !s.open).length
-
-  return (
-    <article id={`finding-${f.questionId}`} data-testid="finding" data-q={f.questionId} data-strength={f.strength} data-omitted={!!f.omitted} className={cn('flex flex-col gap-3 rounded-md border bg-surface p-4', selected ? 'border-ink' : 'border-mist', f.omitted && 'opacity-80')}>
-      <header className="flex flex-col gap-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <h3 className="text-base font-semibold text-ink">{f.label}</h3>
-          <StrengthChip strength={f.strength} />
-          <span className="text-xs text-graphite">{f.sentences.length ? `${approved} of ${plural(f.sentences.length, 'sentence')} approved` : ''}</span>
-          <button type="button" className={cn(MINI, 'ml-auto')} onClick={() => select({ kind: 'finding', qId: f.questionId })}>
-            Show what it is built on
-          </button>
-        </div>
-        <p className="text-sm text-graphite">{f.text}</p>
-        <p className="text-xs text-graphite">
-          {f.notAsked > 0 ? `Asked in ${f.asked} of ${accepted} accepted sessions` : `Asked in all ${accepted} accepted sessions`} · {f.people === 0 ? 'nobody' : `${f.people} of ${f.asked} people`} said something coded under it
-        </p>
-      </header>
-
-      {f.omitted ? (
-        <div className="rounded-sm border border-dashed border-mist-strong px-4 py-3 text-sm text-graphite" data-testid="omitted">
-          Left out of the report by {f.omitted.by}: {f.omitted.why}
-          <button type="button" className={cn(MINI, 'ml-3')} onClick={() => act.include(f.questionId)}>
-            Put back
-          </button>
-        </div>
-      ) : (
-        <>
-          {f.strength === 'Weak' && (
-            <p className="rounded-sm border border-pending-line bg-pending-bg px-3 py-2 text-sm text-pending-fg">
-              Weak: {f.people < 5 ? `only ${f.people} of ${f.asked} people said something coded under this question.` : `${plural(f.notAsked, 'person', 'people')} weren’t asked this question, so it rests on ${f.asked}.`} Read the quotes before you rely on it.
-            </p>
-          )}
-          {f.strength === 'Unanswered' && (
-            <p className="rounded-sm border border-negative-line bg-negative-bg px-3 py-2 text-sm text-negative-fg">
-              Unanswered: {f.people === 0 ? 'no accepted codes cover this question yet.' : `only ${plural(f.people, 'person', 'people')} said something coded under it.`} Code it in the codebook, write the finding yourself, or leave it out.
-            </p>
-          )}
-
-          <DraftBlock target={targetOf(f.questionId)} active={f.active} sentences={f.sentences} hasMine={f.hasMine} aiCount={raw.aiDraft.length} />
-
-          {f.quotes.length > 0 && (
-            <div>
-              <p className={LABEL}>Two representative quotes</p>
-              <ul className="mt-1.5 grid gap-2 md:grid-cols-2" data-testid="rep-quotes">
-                {f.quotes.map((q) => (
-                  <QuoteCard key={q.excerpt.id} ex={q.excerpt} codeName={q.codeName} compact />
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {f.signals.length > 0 && (
-            <div data-testid="signals">
-              <p className={LABEL}>How people sounded, from Emotion &amp; behaviour</p>
-              <ul className="mt-1.5 flex flex-col gap-1.5">
-                {f.signals.map((s) => (
-                  <li key={s.id} className="rounded-sm border border-mist bg-paper px-3 py-2 text-sm" data-kind={s.kind}>
-                    <p className="font-medium text-ink">
-                      {s.name} <span className="font-normal text-graphite">· {s.kind === 'theme' ? 'theme' : 'code'}</span>
-                    </p>
-                    <ul className="mt-0.5 flex flex-col gap-0.5 text-xs text-graphite">
-                      {s.lines.map((l) => (
-                        <li key={l.channel}>
-                          <span className="font-medium text-ink">{l.channel}.</span> {l.text}
-                          {l.emotionVoice && <span className="ml-1 text-muted">(off in the client version until cleared)</span>}
-                        </li>
-                      ))}
-                    </ul>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {f.tensions.length > 0 && (
-            <div>
-              <p className={LABEL}>Related tension</p>
-              <ul className="mt-1.5 flex flex-col gap-1.5">
-                {f.tensions.map((t) => (
-                  <TensionCard key={t.id} t={t} />
-                ))}
-              </ul>
-            </div>
-          )}
-
-          <div className="flex items-center gap-2 border-t border-mist pt-2">
-            <button type="button" className="text-xs text-graphite underline-offset-2 hover:underline" onClick={() => setAsking(true)} data-testid="omit-finding">
-              Leave this finding out of the report…
-            </button>
-          </div>
-          {asking && (
-            <ReasonField
-              label="Why leave this finding out"
-              placeholder="Why leave it out?"
-              yes="Leave out"
-              onYes={(why) => {
-                act.omit(f.questionId, why)
-                setAsking(false)
-              }}
-              onNo={() => setAsking(false)}
-            />
-          )}
-        </>
-      )}
-    </article>
-  )
-}
-
-// ─── a section of the guide ─────────────────────────────────────────────────
-
-export function SectionRow({ label, findings, open, onToggle }: { label: string; findings: FindingModel[]; open: boolean; onToggle: () => void }) {
-  const live = findings.filter((f) => !f.omitted)
-  const sentences = live.flatMap((f) => f.sentences)
-  const approved = sentences.filter((s) => !s.open).length
-  const n = (k: string) => live.filter((f) => f.strength === k).length
-  return (
-    <section data-testid="section" aria-label={label} className="rounded-md border border-mist bg-surface">
-      <button type="button" onClick={onToggle} aria-expanded={open} className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-paper">
-        <span className={cn('text-graphite transition-transform', open && 'rotate-90')}>
-          <ChevronRightIcon size={16} />
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="block font-semibold text-ink">{label}</span>
-          <span className="block text-xs text-graphite">
-            {plural(findings.length, 'finding')} · {n('Strong')} strong, {n('Weak')} weak, {n('Unanswered')} unanswered
-          </span>
-        </span>
-        <span className="text-xs text-graphite tabular-nums">{sentences.length ? `${approved} of ${sentences.length} approved` : 'Nothing to approve'}</span>
-      </button>
-      {open && (
-        <div className="flex flex-col gap-3 border-t border-mist bg-paper p-3">
-          {findings.map((f) => (
-            <FindingCard key={f.questionId} f={f} />
-          ))}
-        </div>
-      )}
-    </section>
   )
 }
 

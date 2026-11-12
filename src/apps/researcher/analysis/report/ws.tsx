@@ -5,7 +5,7 @@ import { StatusGlyph } from '@/components/StatusChip'
 import type { StatusFamily } from '@/components/status'
 import type { Basis, CodebookDoc, Excerpt } from '@/state/codebook'
 import type { Citation, DraftKind, ReportDoc, Strength, Target } from '@/state/report'
-import { citationLabel, mmss, questionLabel, type Ctx, type Resolved, type ReportModel, type SentenceState } from '@/state/reportLogic'
+import { citationLabel, mmss, questionLabel, type Ctx, type Resolved, type ReportModel, type SentenceInfo, type SentenceState } from '@/state/reportLogic'
 import { petOf } from '@/mock/codebook'
 import { findReviewRecord } from '@/mock/review'
 
@@ -13,7 +13,8 @@ export const MINI = 'rounded-xs border border-mist bg-surface px-2 py-0.5 text-x
 export const MINI_ON = 'rounded-xs border border-ink bg-ink px-2 py-0.5 text-xs font-medium text-white disabled:opacity-50'
 export const LABEL = 'text-[11px] font-semibold tracking-wide text-graphite uppercase'
 
-export type Selection = { kind: 'sentence'; id: string } | { kind: 'finding'; qId: string } | { kind: 'theme'; id: string } | { kind: 'exec' } | null
+/** `cite` is the number of the source mark that was clicked, so the panel can show that source first. */
+export type Selection = { kind: 'sentence'; id: string; cite?: number } | { kind: 'finding'; qId: string } | { kind: 'theme'; id: string } | { kind: 'exec' } | null
 
 export type ToolKey =
   | 'theme-videos' | 'showreel' | 'word-cloud' | 'theme-map' | 'audio-summary'
@@ -98,6 +99,61 @@ export function StateChip({ state }: { state: SentenceState }) {
       <StatusGlyph family={s.family} />
       {state}
     </span>
+  )
+}
+
+/** The three looks of a sentence's dot. A shape for each, so it never depends on colour. */
+export type Dot = 'not-approved' | 'approved' | 'edited'
+export const dotOf = (i: SentenceInfo): Dot => (!i.open ? 'approved' : i.edited ? 'edited' : 'not-approved')
+export const DOT_LABEL: Record<Dot, string> = { 'not-approved': 'Not approved', approved: 'Approved', edited: 'Edited' }
+const DOT_STYLE: Record<Dot, string> = { 'not-approved': 'text-pending-fg', approved: 'text-positive-fg', edited: 'text-iris-700' }
+
+/** The state of one sentence, in the margin of the prose: a half circle when it still needs approving, a tick when approved, a filled circle when it was edited and not yet approved. */
+export function StateDot({ dot, why }: { dot: Dot; why?: string }) {
+  const glyph =
+    dot === 'approved' ? (
+      <path d="m2 6.3 2.6 2.6L10 3.4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    ) : dot === 'edited' ? (
+      <>
+        <circle cx="6" cy="6" r="4.2" fill="none" stroke="currentColor" strokeWidth="1.5" />
+        <circle cx="6" cy="6" r="2" fill="currentColor" />
+      </>
+    ) : (
+      <>
+        <circle cx="6" cy="6" r="4.2" fill="none" stroke="currentColor" strokeWidth="1.5" />
+        <path d="M6 1.8a4.2 4.2 0 0 1 0 8.4Z" fill="currentColor" />
+      </>
+    )
+  const label = `${DOT_LABEL[dot]}${why ? `: ${why}` : ''}`
+  return (
+    <span data-testid="state-dot" data-dot={dot} role="img" aria-label={label} title={label} className={cn('mr-1 inline-block size-3 shrink-0 translate-y-[1px]', DOT_STYLE[dot])}>
+      <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true">
+        {glyph}
+      </svg>
+    </span>
+  )
+}
+
+/** Small numbered marks at the end of a sentence. Each one is a source; clicking it opens that source in the right panel. */
+export function SentenceMarks({ cites, onOpen }: { cites: { cit: Citation; resolved: Resolved }[]; onOpen: (n: number) => void }) {
+  return (
+    <>
+      {cites.map(({ cit, resolved }, i) => (
+        <sup key={`${cit.kind}:${cit.id}`} className="ml-0.5">
+          <button
+            type="button"
+            data-testid="cite-mark"
+            data-broken={resolved.kind === 'broken'}
+            aria-label={`Source ${i + 1}: ${citationLabel(cit, resolved)}`}
+            title={resolved.kind === 'broken' ? resolved.why : citationLabel(cit, resolved)}
+            onClick={() => onOpen(i + 1)}
+            className={cn('rounded-xs px-0.5 text-[11px] font-semibold hover:bg-haze', resolved.kind === 'broken' ? 'text-negative-fg' : 'text-iris-700')}
+          >
+            {i + 1}
+          </button>
+        </sup>
+      ))}
+    </>
   )
 }
 
