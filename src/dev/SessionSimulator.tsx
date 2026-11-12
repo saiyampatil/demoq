@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Button } from '@/components/Button'
 import { controlBase } from '@/components/Field'
 import { sample } from '@/routes/screens'
-import { addWait, assignedJoins, endSession, fieldworkNow, handledBySystem, moderatorAnswers, needsResearcher, openLink, participantBooks, participantEnds, participantRequests, recoverSystem, resolveSession, simulateTurn, standbySlots, type EndReason, type FieldworkDoc } from '@/state/fieldwork'
+import { addWait, assignedJoins, liveOfferAnswered, moderatorName, participantAsksLive, endSession, fieldworkNow, handledBySystem, moderatorAnswers, needsResearcher, openLink, participantBooks, participantEnds, participantRequests, recoverSystem, resolveSession, simulateTurn, standbySlots, type EndReason, type FieldworkDoc } from '@/state/fieldwork'
 import { SELF_SERVICE } from '@/state/selfService'
 
 /**
@@ -72,6 +72,9 @@ export function SessionSimulator({ doc, sessionId, paused, update }: { doc: Fiel
             <Button size="sm" data-testid="sim-requests" disabled={!doc.plan.escalation?.offered} onClick={() => act((d) => participantRequests(d, s.id), 'The participant asked for a time that suits them. It waits for the standby moderator’s answer.')}>
               Asks for a time
             </Button>
+            <Button size="sm" data-testid="sim-asks-live" disabled={!doc.plan.escalation?.offered} onClick={() => act((d) => participantAsksLive(d, s.id), 'The participant asked for a person. It is offered to the standby moderators one at a time, with 60 seconds each.')}>
+              Asks live (offered to moderators first)
+            </Button>
             <span className="flex items-center gap-2">
               <select value={reason} onChange={(e) => setReason(e.target.value as EndReason)} aria-label="Why they end" className={`${controlBase} h-8 pr-7 text-sm`}>
                 {(['Can’t wait', 'Uncomfortable', 'Something else'] as const).map((x) => (
@@ -83,6 +86,20 @@ export function SessionSimulator({ doc, sessionId, paused, update }: { doc: Fiel
               </Button>
             </span>
             {booking.length === 0 && <span className="basis-full text-xs text-graphite">{doc.plan.escalation?.offered ? 'No standby time is free this week.' : 'No standby moderator is set up, so a participant isn’t offered a human.'}</span>}
+          </>
+        )}
+        {s.escalation?.status === 'Offering live' && (
+          <>
+            <span className="basis-full text-xs text-graphite">Offered to {moderatorName(s.escalation.live?.queue[s.escalation.live.index] ?? null)}. After the last moderator, the AI asks the participant for a time and a request is raised.</span>
+            <Button size="sm" data-testid="sim-live-accepts" onClick={() => act((d) => liveOfferAnswered(d, s.id, 'Accepted'), 'The offered moderator accepted and joined.')}>
+              Offered moderator accepts
+            </Button>
+            <Button size="sm" data-testid="sim-live-declines" onClick={() => act((d) => liveOfferAnswered(d, s.id, 'Declined'), 'The offered moderator declined. The next one is offered, or the AI asks for a time.')}>
+              Offered moderator declines
+            </Button>
+            <Button size="sm" data-testid="sim-live-timeout" onClick={() => act((d) => liveOfferAnswered(d, s.id, 'No answer'), 'The 60 seconds ran out. The next moderator is offered, or the AI asks for a time.')}>
+              Timer runs out
+            </Button>
           </>
         )}
         {s.escalation?.status === 'Time requested' && (

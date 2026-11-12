@@ -534,6 +534,17 @@ Prototype decisions from the product owner, 11 Nov 2026. This supersedes "Facial
 - **Tools show a state only when they have one** (Approve sentences: 15 to review, Publish: ready or N to approve, Compare: N differ). "Not built" is gone.
 - **Unchanged rules.** Every sentence needs approval and a citation, or a logged reason, before Publish. The footer has one primary button ("Review N sentences", then "Publish"). Counts are n of N, never percentages. The stale banner stays.
 
+## Moderator view: Requests for escalations
+
+- **A request is an escalation, not a second record.** It is `session.escalation` with a `request` that now carries one suggested time and the participant's zone. The Researcher's record, Needs you and the moderator's list read the same thing, so they cannot disagree. New statuses on the same field: Offering live, Waiting for participant, Cancelled by participant. A request that has been taken is Request accepted, by the moderator who booked it.
+- **The live path.** A participant asks for a person (Screen jump: "Asks live"). It is offered to the standby moderators who are online, the one idle longest first, 60 seconds each. When the last one declines or times out, the AI asks the participant for a time and the request is raised. The three existing choices (book, ask for a time, end) stay.
+- **M1 is now a screen with five tabs:** Upcoming | Requests | Completed | Submitted | Availability. Requests has a count of open ones that is always the length of its Open list, and the filters Open, Scheduled and Closed show their own lengths.
+- **Schedule at this time** books the suggested time, but only if the moderator is free then (their weekdays and hours in their own zone, and nothing else held, in any study) and the time hasn't passed. Otherwise it is disabled and says why beside the button.
+- **Edit time** offers the moderator's own free slots with the participant's local time beside each. Confirming emails the participant (a toast says so) and the request is Waiting for participant. Accept books it; Decline puts it back to Open.
+- **Can't take this** hides it for that moderator. The others still see it. Taken requests read "Taken by [name]" with no actions, and the booking function itself refuses a second moderator.
+- **After scheduling:** the session is in Upcoming with a Continued from AI tag and a line on where the AI stopped. The slot is Booked: participant ID in Availability, and held (not free) while a proposed time waits.
+- **Dev only:** "Dev: view as" (switch moderator), "Dev: create request", "Dev: participant accepts / declines new time", "Dev: participant cancels", and in Screen jump the live offer (accepts, declines, timer runs out).
+
 ## Explore drawer: real-time highlights (brief step 7)
 
 Prototype decisions from the product owner, 11 Nov 2026.

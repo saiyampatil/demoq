@@ -12,10 +12,10 @@ import { surveyAnswerFor } from '@/mock/surveys'
 import { humanIdsOf, surveysOf, type GuideDoc } from './guide'
 import type { LaunchDoc, PlanItem, StudyPlan } from './launch'
 import { SEED_SESSIONS, sessionIdOf, type SeedSession } from '@/mock/sessions'
-import { MODERATOR_ROSTER } from '@/mock/moderation'
+import { MODERATOR_ROSTER, STUDY_ZONE } from '@/mock/moderation'
 import { countryOfRegion, participantEmail } from '@/mock/participants'
 import { regionOf } from './screening'
-import { openSlots, type Slot } from './standby'
+import { busyAt, nextWeekdayAt, openSlots, slotProblem, type Busy, type Slot } from './standby'
 
 export type AccessStatus = 'Invited' | 'Opened' | 'Consented' | 'No-show'
 /** "Not started" and "Booked" are additions to the session vocabulary; see docs/OPEN_QUESTIONS.md. */
@@ -180,12 +180,16 @@ export type TimeRequest = {
   note: string
   response: 'Pending' | 'Accepted' | 'Declined'
   respondedAt?: string
+  /** The one time the participant suggested when the AI asked, as a UTC instant. Moderators on standby schedule at it or edit it. */
+  suggested?: string
+  /** The participant's own time zone, so a moderator can see their local time beside it. */
+  zone?: string
 }
 export type EndReason = 'Can’t wait' | 'Uncomfortable' | 'Something else'
 export type Escalation = {
   /** When they asked to talk to a person. */
   requestedAt: string
-  status: 'Time requested' | 'Request accepted' | 'Waiting for moderator' | 'Assigned' | 'Booking link sent' | 'Joined' | 'Given up' | 'Ended by participant' | 'Booked by participant'
+  status: 'Offering live' | 'Time requested' | 'Waiting for participant' | 'Request accepted' | 'Cancelled by participant' | 'Waiting for moderator' | 'Assigned' | 'Booking link sent' | 'Joined' | 'Given up' | 'Ended by participant' | 'Booked by participant'
   /** When it fell through to the Researcher. */
   fellThroughAt?: string
   /** The standby moderator the participant booked, or the one their request went to. */
@@ -201,6 +205,12 @@ export type Escalation = {
   actedBy?: { by: string; at: string; action: 'Assigned' | 'Booking link'; moderatorId?: string }
   /** Dev only: time added to the clock, to see a long wait. */
   extraWaitMin?: number
+  /** Live offers, one standby moderator at a time. Only while status is "Offering live", kept after for the record. */
+  live?: { queue: string[]; index: number; offeredAt: string; answers: Record<string, 'Declined' | 'No answer'> }
+  /** Moderators who pressed "Can't take this". The request is hidden for them and stays for the others. */
+  declinedBy?: string[]
+  /** A moderator changed the time. The participant was emailed Accept or Decline; until they answer, nobody else can take it. */
+  proposed?: { slot: string; by: string; at: string }
 }
 
 export type Session = {
@@ -1111,7 +1121,8 @@ export function participantRequests(doc: FieldworkDoc, sessionId: string): Field
     const t = new Date(new Date(when).getTime() + i * 86400000)
     if (t.getUTCDay() !== 0 && t.getUTCDay() !== 6) days.push(ET_DATE.format(t))
   }
-  const request: TimeRequest = { sentAt: when, days, windows: ['Afternoon', 'Evening'], note: 'Evenings after work suit me best.', response: 'Pending' }
+  const sess = doc.sessions.find((x) => x.id === sessionId)
+  const request: TimeRequest = { sentAt: when, days, windows: ['Afternoon', 'Evening'], note: 'Evenings after work suit me best.', response: 'Pending', suggested: suggestedTime(when, sess), zone: participantZone(sess) }
   return patch(doc, sessionId, (s) => {
     if (!canAsk(s)) return s
     const asking = addEventAt(asked, s, 'participant', 'Asked to talk to a human moderator')
@@ -1123,6 +1134,197 @@ export function participantRequests(doc: FieldworkDoc, sessionId: string): Field
       escalation: { requestedAt: asked, status: 'Time requested', moderatorId, request, choice: { by: 'Participant', at: when, how: 'Requested a time' } },
     }
   })
+}
+
+/** The participant's time zone, from their region. A mock: the product would take it from their device. */
+const REGION_ZONE: Record<Region, string> = { Northeast: 'America/New_York', Midwest: 'America/Chicago', South: 'America/New_York', West: 'America/Los_Angeles' }
+export const participantZone = (s: Pick<Session, 'region'> | undefined): string => (s?.region ? REGION_ZONE[s.region] : STUDY_ZONE.timeZone)
+/** The time a participant suggests when the AI asks: the next weekday at noon where they are. */
+const suggestedTime = (when: string, s: Pick<Session, 'region'> | undefined) => nextWeekdayAt(participantZone(s), when, 12, 0)
+
+/** What every request says it is about. */
+export const REQUEST_REASON = 'Asked to speak with a person'
+/** How long a live offer waits for a moderator to answer. */
+export const LIVE_OFFER_SECONDS = 60
+
+/** The sections the AI had covered when the person was asked for, with how many of each section's questions. */
+export function coveredSections(doc: FieldworkDoc, s: Session): { title: string; done: number; of: number }[] {
+  return doc.plan.sections.map((sec) => ({ title: sec.title, done: sec.items.filter((i) => s.covered.includes(i.id)).length, of: sec.items.length })).filter((x) => x.done > 0)
+}
+
+/** Standby moderators in the order a live escalation offers it: online and on standby, the one idle longest first. */
+export function liveQueue(doc: FieldworkDoc): string[] {
+  const team = new Set(standbyTeam(doc).map((m) => m.id))
+  return MODERATOR_ROSTER.filter((m) => team.has(m.id) && m.standby && m.state === 'Online')
+    .sort((a, b) => b.idleMin - a.idleMin)
+    .map((m) => m.id)
+}
+
+/** The participant asks for a person in a live interview. It is offered to the standby moderators one at a time. */
+export function participantAsksLive(doc: FieldworkDoc, sessionId: string): FieldworkDoc {
+  const when = tick(doc)
+  const asked = at(when, -1)
+  const queue = liveQueue(doc)
+  const withOffer = patch(doc, sessionId, (s) => {
+    if (!canAsk(s)) return s
+    const asking = addEventAt(asked, s, 'participant', 'Asked to talk to a human moderator')
+    return { ...addEventAt(when, asking, 'system', queue.length ? `Offered to ${moderatorName(queue[0])} (idle longest). They have ${LIVE_OFFER_SECONDS} seconds to answer.` : 'No standby moderator is online to take it live.'), escalation: { requestedAt: asked, status: 'Offering live', live: { queue, index: 0, offeredAt: when, answers: {} } } }
+  })
+  return queue.length ? withOffer : raiseRequest(withOffer, sessionId)
+}
+
+/** The moderator being offered the session accepts, declines, or doesn't answer in time. The next one is offered; after the last, the AI asks for a time. */
+export function liveOfferAnswered(doc: FieldworkDoc, sessionId: string, how: 'Accepted' | 'Declined' | 'No answer'): FieldworkDoc {
+  const s = doc.sessions.find((x) => x.id === sessionId)
+  const e = s?.escalation
+  if (!s || !e || e.status !== 'Offering live' || !e.live) return doc
+  const when = tick(doc)
+  const current = e.live.queue[e.live.index]
+  const who = moderatorName(current)
+  if (how === 'Accepted')
+    return patch(doc, sessionId, (x) => ({ ...addEventAt(when, x, 'moderator', `${who} accepted and joined`), moderatorId: current, escalation: { ...e, status: 'Joined', moderatorId: current, acceptedBy: current, joinedAt: when } }))
+  const answers = { ...e.live.answers, [current]: how }
+  const index = e.live.index + 1
+  const next = e.live.queue[index]
+  const said = how === 'Declined' ? `${who} declined.` : `${who} didn’t answer in ${LIVE_OFFER_SECONDS} seconds.`
+  const moved = patch(doc, sessionId, (x) => ({
+    ...addEventAt(when, x, 'system', next ? `${said} Offered to ${moderatorName(next)}.` : `${said} Nobody took it live.`),
+    escalation: { ...e, live: { ...e.live!, index, offeredAt: when, answers } },
+  }))
+  return next ? moved : raiseRequest(moved, sessionId)
+}
+
+/**
+ * Nobody took the live escalation. The AI asks the participant for a time to continue with a person, and a request with
+ * that time goes to every moderator on standby for the study (it also shows in Needs you, as any request nobody picked up).
+ */
+function raiseRequest(doc: FieldworkDoc, sessionId: string): FieldworkDoc {
+  const when = tick(doc)
+  const sess = doc.sessions.find((x) => x.id === sessionId)
+  if (!sess?.escalation || sess.escalation.status !== 'Offering live') return doc
+  const suggested = suggestedTime(when, sess)
+  const zone = participantZone(sess)
+  const request: TimeRequest = { sentAt: when, days: [ET_DATE.format(new Date(suggested))], windows: ['Afternoon'], note: 'Suggested when the AI asked.', response: 'Pending', suggested, zone }
+  return patch(doc, sessionId, (s) => ({
+    ...addEventAt(when, s, 'participant', `Asked for a time to continue with a person: ${formatSlot(suggested)}. Sent to the standby moderators.`),
+    status: 'Booked' as const,
+    slot: null,
+    escalation: { ...s.escalation!, status: 'Time requested', moderatorId: standbyTeam(doc)[0]?.id, request, choice: { by: 'Participant', at: when, how: 'Requested a time' } },
+  }))
+}
+
+/**
+ * Dev: a live escalation that nobody takes, from start to request. Uses an Active session that hasn't asked; failing that,
+ * starts the first one that hasn't begun, with a few turns already covered. Returns undefined when the study has no standby
+ * moderators or no session to use.
+ */
+export function devRaiseRequest(doc: FieldworkDoc): FieldworkDoc | undefined {
+  if (!doc.plan.escalation?.offered) return undefined
+  let base = doc
+  let target = doc.sessions.find((s) => canAsk(s))
+  if (!target) {
+    const idle = doc.sessions.find((s) => s.status === 'Not started' && !s.gaveUp && !s.handled)
+    if (!idle) return undefined
+    const items = planItems(doc.plan).slice(0, 3)
+    const when = tick(doc)
+    const lines = doc.lines ?? PARTICIPANT
+    base = patch(doc, idle.id, (s) => ({
+      ...addEventAt(when, s, 'system', 'Started (dev)'),
+      status: 'Active' as const,
+      startedAt: when,
+      asked: items.map((i) => i.id),
+      covered: items.slice(0, 2).map((i) => i.id),
+      transcript: items.flatMap((i, n) => [
+        { at: when, speaker: 'AI', ai: true, text: i.text },
+        { at: when, speaker: 'Participant', ai: false, text: lines[n % lines.length] },
+      ]),
+    }))
+    target = base.sessions.find((x) => x.id === idle.id)!
+  }
+  let out = participantAsksLive(base, target.id)
+  const answers = ['Declined', 'No answer', 'Declined'] as const
+  for (let i = 0; i < 6 && out.sessions.find((x) => x.id === target!.id)?.escalation?.status === 'Offering live'; i++) out = liveOfferAnswered(out, target.id, answers[i % 3])
+  return out
+}
+
+/** The times a moderator is holding in this study: booked sessions, and times they proposed and are waiting on. */
+export function busyIn(doc: FieldworkDoc, moderatorId: string): Busy[] {
+  return doc.sessions.flatMap((s) => {
+    const out: Busy[] = []
+    if (s.moderatorId === moderatorId && s.slot && s.status === 'Booked') out.push(busyAt(s.slot, s.participantId))
+    if (s.escalation?.status === 'Waiting for participant' && s.escalation.proposed?.by === moderatorId) out.push(busyAt(s.escalation.proposed.slot, `held for ${s.participantId}`))
+    return out
+  })
+}
+
+const isOpenRequest = (s: Session) => s.escalation?.status === 'Time requested' && !!s.escalation.request
+
+/** The session books the time. Only a request still open can be booked, so the first moderator to act is the only one. */
+function book(doc: FieldworkDoc, sessionId: string, moderatorId: string, slot: string, text: string): FieldworkDoc {
+  const when = tick(doc)
+  return patch(doc, sessionId, (s) => {
+    const e = s.escalation
+    if (!e?.request) return s
+    return {
+      ...addEventAt(when, s, 'system', text),
+      status: 'Booked' as const,
+      slot,
+      moderatorId,
+      escalation: { ...e, status: 'Request accepted', moderatorId, slot, acceptedBy: moderatorId, proposed: undefined, request: { ...e.request, response: 'Accepted', respondedAt: when } },
+    }
+  })
+}
+
+/** "Schedule at this time": books the participant's suggested time. Needs the moderator to be free then, and the time not to have passed. */
+export function scheduleRequest(doc: FieldworkDoc, sessionId: string, moderatorId: string, busy: readonly Busy[]): FieldworkDoc {
+  const s = doc.sessions.find((x) => x.id === sessionId)
+  const suggested = s?.escalation?.request?.suggested
+  if (!s || !isOpenRequest(s) || !suggested || s.escalation?.declinedBy?.includes(moderatorId)) return doc
+  if (slotProblem(moderatorId, new Date(suggested).getTime(), new Date(fieldworkNow(doc)).getTime(), busy)) return doc
+  return book(doc, sessionId, moderatorId, suggested, `${moderatorName(moderatorId)} scheduled it at the participant’s time: ${formatSlot(suggested)}. The session continues where the AI stopped.`)
+}
+
+/** "Edit time": the moderator picks a time they are free. The participant is emailed Accept or Decline, and the request waits. */
+export function proposeRequestTime(doc: FieldworkDoc, sessionId: string, moderatorId: string, slot: string, busy: readonly Busy[]): FieldworkDoc {
+  const s = doc.sessions.find((x) => x.id === sessionId)
+  if (!s || !isOpenRequest(s) || s.escalation?.declinedBy?.includes(moderatorId)) return doc
+  if (slotProblem(moderatorId, new Date(slot).getTime(), new Date(fieldworkNow(doc)).getTime(), busy)) return doc
+  const when = tick(doc)
+  return patch(doc, sessionId, (x) => ({
+    ...addEventAt(when, x, 'moderator', `${moderatorName(moderatorId)} proposed ${formatSlot(slot)}. The participant was emailed to accept or decline.`),
+    escalation: { ...x.escalation!, status: 'Waiting for participant', proposed: { slot, by: moderatorId, at: when } },
+  }))
+}
+
+/** Dev: the participant answers the new time. Accepting books it; declining puts the request back to Open for everyone. */
+export function participantAnswersProposal(doc: FieldworkDoc, sessionId: string, answer: 'Accepted' | 'Declined'): FieldworkDoc {
+  const s = doc.sessions.find((x) => x.id === sessionId)
+  const p = s?.escalation?.proposed
+  if (!s || s.escalation?.status !== 'Waiting for participant' || !p) return doc
+  if (answer === 'Accepted') return book(doc, sessionId, p.by, p.slot, `The participant accepted ${formatSlot(p.slot)} with ${moderatorName(p.by)}. The session continues where the AI stopped.`)
+  const when = tick(doc)
+  return patch(doc, sessionId, (x) => ({ ...addEventAt(when, x, 'participant', `Declined ${formatSlot(p.slot)}. The request is open again.`), escalation: { ...x.escalation!, status: 'Time requested', proposed: undefined } }))
+}
+
+/** Dev: the participant withdraws the request before anyone books it. */
+export function participantCancelsRequest(doc: FieldworkDoc, sessionId: string): FieldworkDoc {
+  const s = doc.sessions.find((x) => x.id === sessionId)
+  if (!s?.escalation || (s.escalation.status !== 'Time requested' && s.escalation.status !== 'Waiting for participant')) return doc
+  const when = tick(doc)
+  return patch(doc, sessionId, (x) => ({ ...addEventAt(when, x, 'participant', 'Cancelled the request to continue with a person.'), status: 'Withdrawn' as const, slot: null, escalation: { ...x.escalation!, status: 'Cancelled by participant', proposed: undefined } }))
+}
+
+/** "Can't take this": hidden for this moderator, still there for the others. When every standby moderator has said so, it falls to the Researcher. */
+export function cantTakeRequest(doc: FieldworkDoc, sessionId: string, moderatorId: string): FieldworkDoc {
+  const s = doc.sessions.find((x) => x.id === sessionId)
+  if (!s || !isOpenRequest(s)) return doc
+  const declinedBy = [...new Set([...(s.escalation!.declinedBy ?? []), moderatorId])]
+  const everyone = standbyTeam(doc).every((m) => declinedBy.includes(m.id))
+  const when = tick(doc)
+  return patch(doc, sessionId, (x) => ({
+    ...(everyone ? addEventAt(when, x, 'system', 'Every standby moderator said they can’t take it. It is waiting for the Researcher.') : x),
+    escalation: { ...x.escalation!, declinedBy, ...(everyone ? { status: 'Waiting for moderator' as const, fellThroughAt: when } : {}) },
+  }))
 }
 
 const WINDOW_HOURS: Record<RequestWindow, [number, number]> = { Morning: [5, 12], Afternoon: [12, 17], Evening: [17, 24] }

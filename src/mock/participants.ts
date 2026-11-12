@@ -14,6 +14,14 @@ export function participantEmail(id: string): string {
   return `${local}@${DOMAIN[(n * 5) % DOMAIN.length]}`
 }
 
+/** A first name and last initial for a participant, e.g. "Maya A.". Shown to a moderator who is about to meet them; Researchers see IDs. */
+export function participantName(id: string): string {
+  const n = parseInt(id.replace(/\D/g, ''), 10) || 0
+  const first = FIRST[(n * 7) % FIRST.length]
+  const last = LAST[(n * 11 + 3) % LAST.length]
+  return `${first[0].toUpperCase()}${first.slice(1)} ${last[0].toUpperCase()}.`
+}
+
 /** "j•••@gmail.com": the first letter of the name and the domain. */
 export const maskEmail = (email: string) => {
   const [local, domain] = email.split('@')

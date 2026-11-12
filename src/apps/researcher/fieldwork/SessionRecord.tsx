@@ -490,6 +490,9 @@ export function SessionRecord() {
 }
 
 const OUTCOME: Record<NonNullable<Session['escalation']>['status'], string> = {
+  'Offering live': 'Offered to standby moderators, one at a time',
+  'Waiting for participant': 'A moderator proposed a new time',
+  'Cancelled by participant': 'Cancelled the request',
   'Time requested': 'Asked for a time that suits them',
   'Request accepted': 'Request accepted, time confirmed',
   'Waiting for moderator': 'Waiting for a moderator',
@@ -516,7 +519,10 @@ function EscalationCard({ s }: { s: Session }) {
   const chose: [string, string][] = []
   if (e.choice?.how === 'Ended the interview') chose.push(['Why they ended', e.choice.reason ?? 'No reason given'])
   if (e.choice?.how === 'Booked a follow-up' || (e.slot && !r)) chose.push(['Booked with', `${standby ?? 'A standby moderator'}, ${slotText(e.choice?.slot ?? e.slot ?? null)}`])
-  if (r) {
+  if (r?.suggested) chose.push(['Time they suggested', slotText(r.suggested)])
+  if (r?.suggested && r.response === 'Accepted') chose.push([`${moderatorName(e.moderatorId ?? null)} scheduled`, slotText(e.slot ?? null)])
+  if (e.proposed) chose.push([`${moderatorName(e.proposed.by)}’s new time`, `${slotText(e.proposed.slot)}, waiting for the participant to accept or decline`])
+  if (r && !r.suggested) {
     chose.push(['Times they asked for', `${days}, ${r.windows.join(' or ').toLowerCase()}${r.note ? `. “${r.note}”` : ''}`])
     chose.push([
       `${standby ?? 'The moderator'}’s answer`,
@@ -531,6 +537,9 @@ function EscalationCard({ s }: { s: Session }) {
   if (next.length === 0)
     next.push(
       {
+        'Offering live': 'Waiting for the moderator being offered it',
+        'Waiting for participant': 'Waiting for the participant to answer the new time',
+        'Cancelled by participant': 'The participant cancelled',
         'Waiting for moderator': 'Waiting for the Researcher: assign a moderator or send a booking link',
         'Time requested': 'Waiting for the moderator’s answer',
         'Request accepted': 'Waiting for the confirmed time',
