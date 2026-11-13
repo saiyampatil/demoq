@@ -208,8 +208,9 @@ try {
   await fresh()
   const tensionSides = async () => {
     await b.goto(`${root}/signals?tab=tensions`); await b.waitFor('Tensions'); await b.sleep(500)
-    const t = await b.evaluate(`[...document.querySelectorAll('[data-testid=tension-card]')].find(c=>/Said vs emotion/.test(c.innerText)).querySelector('[data-testid=tension-sides]').innerText.replace(/\\s+/g,' ')`)
-    return [...t.matchAll(/(\d+) of (\d+)/g)].map((m) => [+m[1], +m[2]])
+    // The two main counts only: the lines under each count (everyone else in the group) are checked in a2-tension-coverage.
+    const t = await b.evaluate(`[...[...document.querySelectorAll('[data-testid=tension-card]')].find(c=>/Said vs emotion/.test(c.innerText)).querySelectorAll('[data-testid=tension-sides] > div:not([aria-hidden])')].map(d=>d.querySelector('p').innerText.replace(/\\s+/g,' '))`)
+    return t.map((x) => x.match(/(\d+) of (\d+)/)).map((m) => [+m[1], +m[2]])
   }
   const sidesBefore = await tensionSides()
   await b.goto(`${root}/signals?view=code`); await b.waitFor('What stands out'); await b.sleep(400)

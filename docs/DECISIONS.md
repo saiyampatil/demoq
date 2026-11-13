@@ -613,3 +613,10 @@ Prototype decisions from the product owner, 11 Nov 2026.
 - **Opening script:** if the first question is AI-specific it is replaced with the human script (new, or "I'll take it from here" for a continued session), using the moderator's first name.
 - **Continued from AI:** questions the AI asked or covered, or whose stimulus it showed, are collapsed and grey with "Done by AI"; the first one left is "Start here". Print opens everything.
 - **Mock dates are counted from the real clock** each time the seed runs (or from the prototype clock if that is later): +1 hour, +4 hours, tomorrow, the day after. A record dated on an earlier day is taken out and dated again. The Pet Food study's clock follows (`clockSkewMin`) so Join and the hour grid agree. Finished interviews keep their real history; only their notes are dated 1 and 3 days ago.
+
+## A2 tensions: every group is accounted for
+
+- On a tension card, each group's rows plus its "rest" lines add up to the group size. The rest lines are computed from the sessions every time (group size minus people in the rows), never stored. Groups are the accepted sessions only, so Excluded ones are out everywhere.
+- Between segments: "No clear lean or didn't say: n of N" under each group, in neutral grey ("Said both" only if someone is in both rows). Said vs survey / behaviour / concept: the "of those" row lists who answered another way, "Didn't answer the survey" or "Not measured" when there are such people (zero lines are left out). Said vs face: audio-only people are their own "no face read" line, never a neutral face.
+- When more than a third of a group has no reading, an amber line says "Based on n of N people. Read it as a prompt to look." The A2 Signals rows already list every band and show an explicit no-reading count, so they were left alone.
+- A missing survey answer is no longer counted as "named something else"; it is "didn't answer". The segment card's summary no longer implies the rest chose the opposite.

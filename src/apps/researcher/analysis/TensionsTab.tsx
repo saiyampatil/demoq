@@ -202,6 +202,11 @@ function TensionCard({ t, ctx, focused, onSeeSignals, onTurn, onDismiss, onResto
               </div>
             )}
             {t.caution && <p className="mt-2 text-xs text-pending-fg">{t.caution}</p>}
+            {t.coverage?.map((c) => (
+              <p key={c} className="mt-1 text-xs text-pending-fg" data-testid="tension-coverage">
+                {c}
+              </p>
+            ))}
 
             {t.clips.length > 0 && (
               <div className="mt-4">
@@ -288,6 +293,10 @@ function SegmentChart({ sides }: { sides: Side[] }) {
     { label: 'Said flexibility matters more', cat: sides[0], dog: sides[2] },
     { label: 'Said price matters more', cat: sides[1], dog: sides[3] },
   ]
+  // The people in neither row, so each group's lines add up to the group.
+  const restOf = (s: Side) => s.rest ?? []
+  const restLabels = [...new Set([...restOf(sides[0]), ...restOf(sides[2])].map((r) => r.label))]
+  const restRow = (label: string) => ({ label, cat: restOf(sides[0]).find((r) => r.label === label), dog: restOf(sides[2]).find((r) => r.label === label) })
   const bar = (s: Side, tone: string) => (
     <div className="flex items-center gap-2">
       <span className="h-2 flex-1 overflow-hidden rounded-full bg-haze" aria-hidden="true">
@@ -315,6 +324,17 @@ function SegmentChart({ sides }: { sides: Side[] }) {
             {bar(r.dog, 'bg-ink')}
           </div>
         ))}
+        {restLabels.map((l) => {
+          const r = restRow(l)
+          const mk = (x?: { n: number; of: number }) => (x ? bar({ label: l, n: x.n, of: x.of }, 'bg-mist-strong') : <span />)
+          return (
+            <div key={l} className="contents" data-testid="segment-rest" data-label={l}>
+              <span className="text-graphite">{l}</span>
+              {mk(r.cat)}
+              {mk(r.dog)}
+            </div>
+          )
+        })}
       </div>
     </div>
   )
@@ -332,6 +352,21 @@ function SideBlock({ s, dim }: { s: Side; dim: boolean }) {
       </div>
       <p className="mt-1.5 text-sm">{s.label}</p>
       {s.note && <p className="text-xs text-graphite">{s.note}</p>}
+      {s.rest && s.rest.length > 0 && (
+        <ul className="mt-2 flex flex-col gap-1.5 border-t border-mist pt-2" data-testid="side-rest">
+          {s.rest.map((r) => (
+            <li key={r.label} data-testid="side-rest-line" data-n={r.n} data-of={r.of} className="flex items-center gap-2 text-xs text-graphite">
+              <span className="h-1.5 w-16 shrink-0 overflow-hidden rounded-full bg-haze" aria-hidden="true">
+                <span className="block h-full rounded-full bg-mist-strong" style={{ width: `${r.of ? (r.n / r.of) * 100 : 0}%` }} />
+              </span>
+              <span className="flex-1">{r.label}</span>
+              <span className="tabular-nums">
+                {r.n} of {r.of}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   )
 }

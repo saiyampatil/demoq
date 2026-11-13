@@ -155,7 +155,17 @@ export function coverage(accepted: { media?: 'Video' | 'Audio only' }[], exclude
 
 export type TensionStatus = 'Suggested' | 'Added as a tension theme' | 'Dismissed'
 /** One side of a tension, in n of N. */
-export type Side = { label: string; n: number; of: number; note?: string }
+export type Side = {
+  label: string
+  n: number
+  of: number
+  note?: string
+  /**
+   * The people in this side's group who are in none of its rows, so the lines always add up to the group. Worked out from the
+   * sessions every time, never stored. `missing` marks the ones we have no reading for (didn't answer, no face read, not measured).
+   */
+  rest?: { label: string; n: number; of: number; missing?: boolean }[]
+}
 /** A face reading shown on a clip: where it was read, what was seen (the lead), and what it reads as (after any correction). */
 export type ClipFace = { where: string; cue: string; atSec: number; onsetSec: number; emotion: Emotion | null; intensity: string; corrected: boolean }
 export type Clip = { participantId: string; sessionId: string; atSec: number; quote?: string; note: string; faces?: ClipFace[] }
@@ -168,6 +178,8 @@ export type Tension = TensionDef & {
   unavailable?: string
   /** A caution to show beside the evidence. */
   caution?: string
+  /** Amber lines when more than a third of a group has no reading, so the card says how many people it really rests on. */
+  coverage?: string[]
 }
 
 const NEGATIVE = new Set(['Probably would not', 'Definitely would not'])
@@ -186,19 +198,27 @@ function clipFace(p: Point | undefined, doc: CodebookDoc, where: string): ClipFa
 const WARM = new Set<Emotion>(['Delight', 'Interest'])
 
 /** Everything the screen shows for a tension, from the data as it stands. */
-function evidence(def: TensionDef, doc: CodebookDoc, basis: Basis): Pick<Tension, 'sides' | 'clips' | 'caution'> {
+/** More than a third of a group has no reading. */
+const thin = (missing: number, of: number) => of > 0 && missing * 3 > of
+const basedOn = (missing: number, of: number, who?: string) => `${who ? `${who}. ` : ''}Based on ${of - missing} of ${of} people. Read it as a prompt to look.`
+const lines = (...l: ({ label: string; n: number; of: number; missing?: boolean } | false)[]) => l.filter((x): x is { label: string; n: number; of: number; missing?: boolean } => !!x && x.n > 0)
+
+function evidence(def: TensionDef, doc: CodebookDoc, basis: Basis): Pick<Tension, 'sides' | 'clips' | 'caution' | 'coverage'> {
   const code = (id: string) => doc.codes.find((c) => c.id === id)!
   const people = (id: string) => [...peopleOf(code(id), basis)].sort()
   const N = basis.participants.size
 
   if (def.id === 'tn-pause-survey') {
     const chose = people('c-idea-pause')
-    const no = chose.filter((p) => NEGATIVE.has(surveyAnswer(p, 'Retention idea reaction', /how likely/i) ?? ''))
+    const answer = (p: string) => surveyAnswer(p, 'Retention idea reaction', /how likely/i)
+    const no = chose.filter((p) => NEGATIVE.has(answer(p) ?? ''))
+    const silent = chose.filter((p) => !answer(p)).length
     return {
       sides: [
         { label: 'Picked pause as most likely to keep them', n: chose.length, of: N },
-        { label: 'Of those, answered “probably” or “definitely would not” in the locked survey', n: no.length, of: chose.length },
+        { label: 'Of those, answered “probably” or “definitely would not” in the locked survey', n: no.length, of: chose.length, rest: lines({ label: 'Answered another way', n: chose.length - silent - no.length, of: chose.length }, { label: 'Didn’t answer the survey', n: silent, of: chose.length, missing: true }) },
       ],
+      coverage: thin(silent, chose.length) ? [basedOn(silent, chose.length)] : undefined,
       clips: no.map((p) => ({ participantId: p, sessionId: sessionOfParticipant(p), atSec: excerptPoint(code('c-idea-pause').excerpts.find((e) => e.includes(p))!).atSec, quote: excerptPoint(code('c-idea-pause').excerpts.find((e) => e.includes(p))!).excerpt?.text, note: `Locked survey answer: ${surveyAnswer(p, 'Retention idea reaction', /how likely/i)}` })),
       caution: no.length < 3 ? 'Only a few people. Read it as a prompt to look, not a result.' : undefined,
     }
@@ -206,11 +226,15 @@ function evidence(def: TensionDef, doc: CodebookDoc, basis: Basis): Pick<Tension
   if (def.id === 'tn-flex-behaviour') {
     const sig = codeSignals(doc, basis).find((s) => s.code.id === 'c-flex-first')
     const hes = (sig?.points ?? []).filter((p) => p.band === 'Marked hesitation')
+    const measured = new Set((sig?.points ?? []).map((p) => p.participantId)).size
+    const base = sig?.people ?? 0
+    const unread = Math.max(0, base - measured)
     return {
       sides: [
-        { label: 'Said flexibility matters more than price', n: sig?.people ?? 0, of: N },
-        { label: 'Marked hesitation as they said it', n: hes.length, of: sig?.people ?? 0, note: 'Two or more of a long delay, a long pause, or fillers' },
+        { label: 'Said flexibility matters more than price', n: base, of: N },
+        { label: 'Marked hesitation as they said it', n: hes.length, of: base, note: 'Two or more of a long delay, a long pause, or fillers', rest: lines({ label: 'Steady, or only some hesitation', n: measured - hes.length, of: base }, { label: 'Not measured', n: unread, of: base, missing: true }) },
       ],
+      coverage: thin(unread, base) ? [basedOn(unread, base)] : undefined,
       clips: hes.map((p) => ({ participantId: p.participantId, sessionId: p.sessionId, atSec: p.atSec, quote: quoteOf(p), note: p.reason, faces: clipFace(p, doc, 'As they said it') })),
     }
   }
@@ -225,11 +249,18 @@ function evidence(def: TensionDef, doc: CodebookDoc, basis: Basis): Pick<Tension
       return !!f?.emotion && WARM.has(f.emotion)
     })
     const audioOnly = chose.length - onVideo.length
+    // On video but no face read at that moment is "not read", never a neutral face.
+    const unread = onVideo.filter((p) => {
+      const pt = atC.find((x) => x.participantId === p)
+      return !(pt && faceOf(pt, doc)?.emotion)
+    }).length
+    const missingAll = audioOnly + unread
     return {
       sides: [
-        { label: 'Picked pause as most likely to keep them, and were on video', n: onVideo.length, of: chose.length, note: audioOnly ? `${audioOnly} audio-only, so no face reading` : undefined },
-        { label: 'Of those, delight or interest at first sight of Concept C, portion-matched boxes', n: warm.length, of: onVideo.length },
+        { label: 'Picked pause as most likely to keep them, and were on video', n: onVideo.length, of: chose.length, rest: lines({ label: 'Audio-only, so no face read', n: audioOnly, of: chose.length, missing: true }) },
+        { label: 'Of those, delight or interest at first sight of Concept C, portion-matched boxes', n: warm.length, of: onVideo.length, rest: lines({ label: 'Another reading', n: onVideo.length - warm.length - unread, of: onVideo.length }, { label: 'No face read at that moment', n: unread, of: onVideo.length, missing: true }) },
       ],
+      coverage: thin(missingAll, chose.length) ? [basedOn(missingAll, chose.length)] : undefined,
       clips: onVideo.map((p) => {
         const c = atC.find((x) => x.participantId === p)
         const ex = excerptPoint(code('c-idea-pause').excerpts.find((e) => e.includes(p))!)
@@ -252,11 +283,25 @@ function evidence(def: TensionDef, doc: CodebookDoc, basis: Basis): Pick<Tension
     const said = (id: string, g: 'Cat' | 'Dog') => people(id).filter((p) => pet(p) === g).length
     const cats = group('Cat').length
     const dogs = group('Dog').length
+    const flexIds = new Set(people('c-flex-first'))
+    const priceIds = new Set(people('c-price-first'))
+    // Everyone in the group who is in neither row. Someone who said both is counted once, on their own line.
+    const rest = (g: 'Cat' | 'Dog') => {
+      const m = group(g)
+      const both = m.filter((p) => flexIds.has(p) && priceIds.has(p)).length
+      const neither = m.filter((p) => !flexIds.has(p) && !priceIds.has(p)).length
+      return { both, neither, size: m.length }
+    }
+    const rc = rest('Cat')
+    const rd = rest('Dog')
+    const restLines = (r: ReturnType<typeof rest>) => [{ label: 'No clear lean or didn’t say', n: r.neither, of: r.size, missing: true }, ...(r.both ? [{ label: 'Said both', n: r.both, of: r.size }] : [])]
+    const flags = [thin(rc.neither, rc.size) && basedOn(rc.neither, rc.size, 'Cat owners'), thin(rd.neither, rd.size) && basedOn(rd.neither, rd.size, 'Dog owners')].filter((x): x is string => !!x)
     return {
+      coverage: flags.length ? flags : undefined,
       sides: [
-        { label: 'Cat owners said flexibility matters more', n: said('c-flex-first', 'Cat'), of: cats },
+        { label: 'Cat owners said flexibility matters more', n: said('c-flex-first', 'Cat'), of: cats, rest: restLines(rc) },
         { label: 'Cat owners said price matters more', n: said('c-price-first', 'Cat'), of: cats },
-        { label: 'Dog owners said flexibility matters more', n: said('c-flex-first', 'Dog'), of: dogs },
+        { label: 'Dog owners said flexibility matters more', n: said('c-flex-first', 'Dog'), of: dogs, rest: restLines(rd) },
         { label: 'Dog owners said price matters more', n: said('c-price-first', 'Dog'), of: dogs },
       ],
       clips: [...people('c-flex-first').filter((p) => pet(p) === 'Cat').slice(0, 2), ...people('c-price-first').filter((p) => pet(p) === 'Dog').slice(0, 2)].map((p) => {
@@ -270,23 +315,29 @@ function evidence(def: TensionDef, doc: CodebookDoc, basis: Basis): Pick<Tension
   if (def.id === 'tn-pause-concept') {
     const chose = people('c-idea-pause')
     const a = momentPoints('m-concept-a').filter((p) => basis.sessions.has(p.sessionId))
-    const slow = chose.map((p) => a.find((x) => x.participantId === p)).filter((p): p is Point => !!p && p.band === 'Marked hesitation')
+    const atP = chose.map((p) => a.find((x) => x.participantId === p)).filter((p): p is Point => !!p)
+    const slow = atP.filter((p) => p.band === 'Marked hesitation')
+    const unread = chose.length - atP.length
     return {
       sides: [
         { label: 'Chose pause in the comparison', n: chose.length, of: N },
-        { label: 'Of those, marked hesitation at first sight of Concept A', n: slow.length, of: chose.length },
+        { label: 'Of those, marked hesitation at first sight of Concept A', n: slow.length, of: chose.length, rest: lines({ label: 'Steady, or only some hesitation', n: atP.length - slow.length, of: chose.length }, { label: 'Not measured at that moment', n: unread, of: chose.length, missing: true }) },
       ],
+      coverage: thin(unread, chose.length) ? [basedOn(unread, chose.length)] : undefined,
       clips: slow.map((p) => ({ participantId: p.participantId, sessionId: p.sessionId, atSec: p.atSec, note: p.reason, faces: clipFace(p, doc, 'First sight of Concept A') })),
     }
   }
   // tn-vet-survey
   const vet = people('c-vet-diet')
-  const other = vet.filter((p) => !/vet or store brand/i.test(surveyAnswer(p, 'Why they cancelled', /one reason/i) ?? ''))
+  const answer = (p: string) => surveyAnswer(p, 'Why they cancelled', /one reason/i)
+  const other = vet.filter((p) => !!answer(p) && !/vet or store brand/i.test(answer(p)!))
+  const silent = vet.filter((p) => !answer(p)).length
   return {
     sides: [
       { label: 'Said a vet’s advice ended it', n: vet.length, of: N },
-      { label: 'Of those, named something else as the one biggest reason in the survey', n: other.length, of: vet.length },
+      { label: 'Of those, named something else as the one biggest reason in the survey', n: other.length, of: vet.length, rest: lines({ label: 'Named a vet or store brand', n: vet.length - silent - other.length, of: vet.length }, { label: 'Didn’t answer the survey', n: silent, of: vet.length, missing: true }) },
     ],
+    coverage: thin(silent, vet.length) ? [basedOn(silent, vet.length)] : undefined,
     clips: other.map((p) => {
       const ex = excerptPoint(code('c-vet-diet').excerpts.find((e) => e.includes(p))!)
       return { participantId: p, sessionId: ex.sessionId, atSec: ex.atSec, quote: ex.excerpt?.text, note: `Locked survey answer: ${surveyAnswer(p, 'Why they cancelled', /one reason/i)}` }

@@ -265,7 +265,7 @@ export const TENSION_DEFS: TensionDef[] = [
     id: 'tn-pet-segments',
     kind: 'Between segments',
     title: 'Cat owners lean to flexibility; dog owners lean to price',
-    summary: 'The same question, answered differently by the two groups. Directional: the groups are small.',
+    summary: 'The same question, with different answers in each group. Not everyone in either group gave a clear answer. Directional: the groups are small.',
     themeName: 'Cats and flexibility, dogs and price',
     codeIds: ['c-flex-first', 'c-price-first'],
   },
