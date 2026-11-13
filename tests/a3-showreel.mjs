@@ -27,7 +27,8 @@ const open = async (tab = '') => { await b.goto(`${STUDY}/report/videos${tab}`);
 const pickTheme = async (i) => { await b.evaluate(`document.querySelectorAll('[data-testid=theme-row]')[${i}].click(); true`); await b.sleep(500) }
 
 try {
-  await b.goto('/researcher'); await b.evaluate('localStorage.clear(); sessionStorage.clear(); true')
+  // The demo's two Default versions are switched off for this first part, which builds its own; the seeded state is checked at the end.
+  await b.goto('/researcher'); await b.evaluate("localStorage.clear(); sessionStorage.clear(); localStorage.setItem('pulseai-qual:showreel-seed','off'); true")
 
   // ═══ Entry, and Back to Report keeps the report as it was ═══
   await b.goto(`${STUDY}/report`); await b.waitFor('EXECUTIVE SUMMARY'); await b.sleep(1500)
@@ -184,6 +185,39 @@ try {
   await click('[data-testid=order-row]:nth-child(2) [data-testid=include]'); await b.sleep(300)
   ok('with nothing included the showreel is empty and every export item is disabled with a reason', (await count('[data-testid=reel-empty]')) === 1 && (await (click('[data-testid=export-button]'), b.evaluate(`['reel-mp4','full-mp4','reel-link','reel-storyboard'].every(k=>document.querySelector('[data-testid=export-'+k+']').disabled)`))))
   ok('and it says no percentages anywhere, and no excluded session appears on the page', !/%/.test(await b.evaluate('document.body.innerText')) && !/P-3112|P-3119/.test(await b.evaluate('document.body.innerText')))
+
+  // ═══ The demo state, and every theme has its clips ═══
+  await b.goto('/researcher'); await b.evaluate('localStorage.clear(); sessionStorage.clear(); true')
+  await b.goto(`${STUDY}/report/videos`); await b.waitFor('Theme videos'); await b.sleep(1200)
+  // A theme made from suggested codes, a tension theme, and one that really has fewer than four clips (two people).
+  await run(`cb.updateCodebook('pet-food-churn', d=>cb.createTheme(d,'Wanting control over deliveries','x',['c-skip-pause','c-schedule-clash','c-idea-pause','c-flex-first','c-control','c-piling-up','c-idea-portion'],{by:'Maya Ortiz'})); cb.updateCodebook('pet-food-churn', d=>cb.turnTensionIntoTheme(d,{id:'tn-flex-behaviour',title:'t'},['c-flex-first'],'Flexibility: said, but not settled','x',{by:'Maya Ortiz'})); cb.updateCodebook('pet-food-churn', d=>cb.createTheme(d,'Nothing would keep them','x',['c-nothing'],{by:'Maya Ortiz'})); return true`)
+  await b.goto(`${STUDY}/report/videos`); await b.waitFor('Theme videos'); await b.sleep(1200)
+  const rows = await b.evaluate(`[...document.querySelectorAll('[data-testid=theme-row]')].map(r=>({name:r.querySelector('span').innerText,text:r.innerText.replace(/\\s+/g,' '),def:/Default set/.test(r.innerText)}))`)
+  ok('every theme with enough clips shows a clip count and length, never “0 clips · 0 s”', rows.length === 5 && rows.filter((r) => !/Not enough clips yet/.test(r.text)).every((r) => /[1-9]\d* clips? · [1-9]\d* s/.test(r.text)) && !rows.some((r) => /\b0 clips/.test(r.text)), rows.map((r) => r.text))
+  const small = rows.find((r) => r.name === 'Nothing would keep them')
+  ok('a theme that really has fewer than 4 clips says “Not enough clips yet” in the rail', /Not enough clips yet/.test(small.text) && !/0 clips/.test(small.text), small)
+  await b.evaluate(`[...document.querySelectorAll('[data-testid=theme-row]')].find(r=>/Nothing would keep them/.test(r.innerText)).click(); true`); await b.sleep(400)
+  ok('and cannot be exported', (await count('[data-testid=not-enough]')) === 1 && (await b.evaluate(`document.querySelector('[data-testid=export-button]').click(), [...document.querySelectorAll('[data-testid^=export-]')].filter(e=>e.tagName==='BUTTON'&&e.dataset.testid!=='export-button').every(e=>e.disabled)`)) && /Not enough clips yet/.test((await text('[data-testid=export-reason]')) ?? ''))
+  ok('the demo gives the first two themes a Default version', rows[0].def && rows[1].def && !rows[2].def && !rows[3].def)
+  await b.goto(`${STUDY}/report/videos?tab=showreel`); await b.waitFor('THEME ORDER'); await b.sleep(900)
+  ok('the Showreel tab opens with content: the two seeded themes, and only their Default versions', (await count('[data-testid=storyboard-theme]')) === 2 && (await count('[data-testid=reel-empty]')) === 0 && (await count('[data-testid=reel-player]')) === 1)
+  const inc = await b.evaluate(`[...document.querySelectorAll('[data-testid=order-row]')].map(r=>({name:r.querySelector('span span').innerText,disabled:r.querySelector('[data-testid=include]').disabled,checked:r.querySelector('[data-testid=include]').checked,text:r.innerText}))`)
+  ok('Include is disabled for a theme with no default, and it is not ticked', inc.filter((r) => r.disabled).length === 3 && inc.filter((r) => r.disabled).every((r) => !r.checked && /No default set/.test(r.text)), inc)
+  ok('there is no “Left out” wording', !/Left out/.test(await b.evaluate('document.body.innerText')))
+  await b.evaluate(`document.querySelector('[data-testid=order-row] [data-testid=include]').click(); true`); await b.sleep(300)
+  ok('un-ticking an included theme drops it, and it still says nothing extra', (await count('[data-testid=storyboard-theme]')) === 1 && !/Left out/.test(await b.evaluate('document.body.innerText')))
+
+  // chart, summary, only version
+  await b.goto(`${STUDY}/report/videos`); await b.waitFor('Theme videos'); await b.sleep(900)
+  const chart = await b.evaluate(`[...document.querySelectorAll('[data-testid=chart-row]')].map(r=>({n:Number(r.dataset.n),of:Number(r.dataset.of),w:parseFloat(r.querySelector('[data-testid=chart-bar]').style.width),label:r.innerText.match(/(\\d+) of (\\d+)/).slice(1,3).map(Number)}))`)
+  ok('every bar is n of its own N, the same two numbers as its label', chart.length === 5 && chart.every((c) => Math.abs(c.w - (c.n / c.of) * 100) < 0.01 && c.label[0] === c.n && c.label[1] === c.of), chart)
+  ok('the tension theme (4 of 7) is drawn against 7, not against 20', chart.some((c) => c.n === 4 && c.of === 7 && Math.abs(c.w - 57.14) < 0.1))
+  const order = await b.evaluate(`(()=>{const p=document.querySelector('[data-testid=reel-player]'),c=document.querySelector('[data-testid=theme-chart]'),k=document.querySelector('[data-testid=controls]'),l=document.querySelector('[data-testid=clip-list]');const before=(a,b)=>!!(a.compareDocumentPosition(b)&Node.DOCUMENT_POSITION_FOLLOWING);return {pc:before(p,c),ck:before(c,k),cl:before(c,l)}})()`)
+  ok('the chart sits directly under the player, above the clip list', order.pc && order.ck && order.cl, order)
+  ok('the summary line no longer repeats “n of N people”', !/^\d+ of \d+ people/.test((await text('[data-testid=theme-summary]')) ?? '') && (await text('[data-testid=theme-summary]')).length > 10, await text('[data-testid=theme-summary]'))
+  await b.evaluate(`[...document.querySelectorAll('[data-testid=theme-row]')].find(r=>/Wanting control/.test(r.innerText)).click(); true`); await b.sleep(500)
+  ok('a theme’s only version has its delete control disabled, with a one-line reason', (await count('[data-testid=version-chip]')) === 1 && (await b.evaluate(`document.querySelector('[data-testid=delete-version]').disabled`)) && /A theme keeps at least one version\./.test((await text('[data-testid=only-version]')) ?? ''))
+  ok('and by the code: deleting it changes nothing', await run(`const d=JSON.parse(localStorage.getItem('pulseai-qual:showreel'))['pet-food-churn']; const t=Object.keys(d.themes).find(k=>d.themes[k].versions.length===1&&!d.themes[k].defaultId); const v=d.themes[t].versions[0]; return !!st.cantDelete(d,t,v.id) && st.deleteVersion(d,t,v.id).themes[t].versions.length===1`))
 } catch (e) {
   failures.push(`stopped: ${e.message}`)
 } finally {

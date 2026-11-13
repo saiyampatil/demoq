@@ -112,10 +112,25 @@ export function autoPick(clips: Clip[], variant = 0, instruction = ''): Clip[] {
   return pool.slice(offset, offset + size)
 }
 
+/**
+ * The demo: two themes arrive with a Default version, so the Showreel tab opens with content. Switch it off for a run that needs
+ * none: localStorage "pulseai-qual:showreel-seed" = "off". Only Default versions feed the showreel.
+ */
+export const SEED_DEFAULT_THEMES = 2
+export const seedOff = () => {
+  try {
+    return localStorage.getItem('pulseai-qual:showreel-seed') === 'off'
+  } catch {
+    return false
+  }
+}
+
 /** A short plain-words line about a theme, for the header. Marked AI-generated where it is shown. */
 export function summaryOf(doc: CodebookDoc, theme: Theme, basis: Basis, n: number, of: number): string {
   const codes = themeCodes(doc, theme).map((c) => ({ name: c.name, n: new Set(liveExcerpts(c, basis).map((e) => e.participantId)).size })).sort((a, b) => b.n - a.n)
-  if (!codes.length) return `${n} of ${of} people.`
+  if (!codes.length) return ''
   const top = codes[0]
-  return codes.length > 1 ? `${n} of ${of} people. Most often “${top.name}” (${top.n} of ${of}), then “${codes[1].name}” (${codes[1].n} of ${of}).` : `${n} of ${of} people, all about “${top.name}”.`
+  // The theme's own n of N is already beside its name, so the line doesn't repeat it.
+  void n
+  return codes.length > 1 ? `Most often “${top.name}” (${top.n} of ${of}), then “${codes[1].name}” (${codes[1].n} of ${of}).` : `All about “${top.name}”.`
 }

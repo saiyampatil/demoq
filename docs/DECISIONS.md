@@ -634,3 +634,9 @@ Prototype decisions from the product owner, 11 Nov 2026.
 - **Clips come only from accepted themes, their accepted codes and accepted sessions** (`mock/showreel.ts`), so an excluded session never produces one. Scores and lengths are computed each time. Only versions (clip list, captions, instruction, Simulated flag) and the Default are stored (`state/showreel.ts`, localStorage `pulseai-qual:showreel`).
 - **Versions:** up to three per theme; Regenerate is a simulated different pick from the ranked clips; the Default cannot be deleted until another is set; only Default versions feed the Showreel and every export. A new theme gets an automatic first version when opened, which is not the Default until the Researcher says so.
 - **Exports are mocks:** MP4 toasts "Export queued (mock)", the link copies a made-up URL and shows an iframe snippet, the storyboard prints a black-on-white page. All need a Default version.
+
+## A3 showreel fixes
+
+- The rail's "0 clips" was the page, not the data: a theme's first version used to be made only when it was opened. Every theme with four or more clips now gets its first version when the page opens, and the rail shows the automatic pick until then. A theme with fewer than four says "Not enough clips yet" and can't be exported.
+- **Demo state:** the first two themes get a Default version once (`seeded` flag, switch off with localStorage `pulseai-qual:showreel-seed` = `off`), so the Showreel tab opens with content. A later change of the Researcher's is never undone.
+- Chart bars are each theme's n of its own N, the same two numbers as the label, and the chart sits under the player. A theme's only version can't be deleted. "Include" is disabled for a theme with no default.

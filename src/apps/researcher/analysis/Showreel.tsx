@@ -1,15 +1,15 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { PageHeader } from '../../shared/PageHeader'
 import { Button } from '@/components/Button'
 import { cn } from '@/components/cn'
 import { controlBase } from '@/components/Field'
 import { EmptyState, ErrorState } from '@/components/States'
-import { clipsOfTheme } from '@/mock/showreel'
+import { clipsOfTheme, SEED_DEFAULT_THEMES, seedOff } from '@/mock/showreel'
 import { screenById, studyPath } from '@/routes/screens'
 import { CODEBOOK_STUDY } from '@/state/codebook'
 import { numbersOf, plural } from '@/state/reportLogic'
-import { useShowreel } from '@/state/showreel'
+import { ensureVersions, updateShowreel, useShowreel } from '@/state/showreel'
 import { AnalysisStepper } from './AnalysisStepper'
 import { ReelTab } from './showreel/ReelTab'
 import { ThemeVideos, type ThemeData } from './showreel/ThemeVideos'
@@ -35,6 +35,11 @@ export function ShowreelPage() {
       return clips.length || num.n ? [{ id: theme.id, name: theme.name, n: num.n, of: num.of, clips, byId: new Map(clips.map((c) => [c.id, c])) }] : []
     })
   }, [doc, basis])
+
+  // Every theme gets its first version up front, and the demo's two Defaults go in once.
+  useEffect(() => {
+    if (themes.length) updateShowreel(studyId, (d) => ensureVersions(d, themes, studyId === CODEBOOK_STUDY && !seedOff(), SEED_DEFAULT_THEMES))
+  }, [themes, studyId])
 
   const header = (
     <>

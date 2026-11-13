@@ -45,12 +45,11 @@ export function ReelTab({ studyId, show, themes }: { studyId: string; show: Show
                 onDrop={() => dragFrom !== null && (move(dragFrom, i), setDragFrom(null))}
                 className="flex items-start gap-2 border-b border-mist py-2.5 last:border-b-0"
               >
-                <input type="checkbox" aria-label={`Include ${t.name}`} data-testid="include" checked={!left} onChange={() => updateShowreel(studyId, (d) => toggleLeftOut(d, id))} className="mt-1" />
+                <input type="checkbox" aria-label={`Include ${t.name}`} data-testid="include" checked={!!v && !left} disabled={!v} title={v ? undefined : 'Set a default version first'} onChange={() => updateShowreel(studyId, (d) => toggleLeftOut(d, id))} className="mt-1 disabled:opacity-50" />
                 <span className="min-w-0 flex-1 text-sm">
                   <span className="block font-medium">{t.name}</span>
                   <span className="block text-xs text-graphite tabular-nums">{t.n} of {t.of} people{v ? ` · ${plural(clips.length, 'clip')} · ${totalSeconds(clips)} s` : ''}</span>
-                  {!v && <span className="block text-xs text-pending-fg" data-testid="no-default">No default set. Left out until you set one.</span>}
-                  {v && left && <span className="block text-xs text-graphite">Left out</span>}
+                  {!v && <span className="block text-xs text-pending-fg" data-testid="no-default">No default set</span>}
                 </span>
                 <span className="flex items-center text-graphite">
                   <span aria-hidden="true" className="cursor-grab px-1">⋮⋮</span>

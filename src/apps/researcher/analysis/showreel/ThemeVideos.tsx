@@ -6,7 +6,7 @@ import { cn } from '@/components/cn'
 import { SideDrawer } from '@/components/SideDrawer'
 import { Switch } from '@/components/Switch'
 import { useToast } from '@/components/Toast'
-import { BRIEF_RANGE, clipLength, MAX_CLIPS, MIN_CLIPS, rank, scoreOf, summaryOf, type Clip, type Stimulus, type Strength } from '@/mock/showreel'
+import { autoPick, BRIEF_RANGE, clipLength, MAX_CLIPS, MIN_CLIPS, rank, scoreOf, summaryOf, type Clip, type Stimulus, type Strength } from '@/mock/showreel'
 import { screenById, studyPath } from '@/routes/screens'
 import { mmss, plural } from '@/state/reportLogic'
 import {
@@ -16,7 +16,6 @@ import {
   clipsOfVersion,
   defaultOf,
   deleteVersion,
-  firstVersion,
   moveClip,
   newVersion,
   removeClip,
@@ -64,10 +63,6 @@ export function ThemeVideos({ studyId, doc, basis, show, themes, selectedId, onS
 
   const versions = t ? versionsOf(show, t.id) : []
   const version = versions.find((v) => v.id === versionId) ?? versions.find((v) => v.id === show.themes[t?.id ?? '']?.defaultId) ?? versions[0]
-  // The first version of a theme is made the first time it is opened.
-  useEffect(() => {
-    if (t && !versions.length && t.clips.length >= MIN_CLIPS) updateShowreel(studyId, (d) => firstVersion(d, t.id, t.clips))
-  }, [t, versions.length, studyId])
   useEffect(() => {
     setPreview(null)
     setPicker(null)
@@ -94,8 +89,11 @@ export function ThemeVideos({ studyId, doc, basis, show, themes, selectedId, onS
     <nav aria-label="Themes" className="flex flex-col" data-testid="theme-rail">
       {themes.map((x) => {
         const v = defaultOf(show, x.id)
-        const len = totalSeconds(clipsOfVersion(v ?? versionsOf(show, x.id)[0], x.byId))
-        const count = clipsOfVersion(v ?? versionsOf(show, x.id)[0], x.byId).length
+        // The version that shows, or the automatic pick if there isn't one yet: a theme with enough clips never reads "0 clips".
+        const shown = clipsOfVersion(v ?? versionsOf(show, x.id)[0], x.byId)
+        const list = shown.length || x.clips.length < MIN_CLIPS ? shown : autoPick(x.clips)
+        const len = totalSeconds(list)
+        const count = list.length
         return (
           <button key={x.id} type="button" data-testid="theme-row" data-theme={x.id} aria-current={x.id === t.id} onClick={() => onSelect(x.id)} className={cn('flex flex-col gap-0.5 rounded-sm px-3 py-2 text-left text-sm hover:bg-haze', x.id === t.id && 'bg-iris-50')}>
             <span className="font-medium">{x.name}</span>
@@ -146,7 +144,25 @@ export function ThemeVideos({ studyId, doc, basis, show, themes, selectedId, onS
   )
 
   const pool = rank(t.clips.filter((c) => !chosen.some((x) => x.id === c.id)))
-  const maxN = Math.max(1, ...themes.map((x) => x.n))
+
+  const chart = (
+    <section aria-label="Themes by people" data-testid="theme-chart" className="max-w-2xl">
+      <h3 className="text-xs font-semibold tracking-wide text-graphite uppercase">Themes, by people</h3>
+      <ul className="mt-2 flex flex-col gap-1.5">
+        {themes.map((x) => (
+          <li key={x.id} data-testid="chart-row" data-theme={x.id} data-n={x.n} data-of={x.of} data-selected={x.id === t.id} className="grid grid-cols-[10rem_1fr_4.5rem] items-center gap-3 text-sm">
+            <span className={cn('truncate', x.id === t.id && 'font-semibold')}>{x.name}</span>
+            <span className="h-2 overflow-hidden rounded-full bg-haze" aria-hidden="true">
+              {/* Each bar is that theme's n of its own N, the same two numbers as the label. */}
+              <span data-testid="chart-bar" className={cn('block h-full rounded-full', x.id === t.id ? 'bg-ink' : 'bg-mist-strong')} style={{ width: `${x.of ? (x.n / x.of) * 100 : 0}%` }} />
+            </span>
+            <span className="text-xs text-graphite tabular-nums">{x.n} of {x.of}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+
 
   return (
     <div className="grid items-start gap-5 lg:grid-cols-[240px_minmax(0,1fr)]">
@@ -189,7 +205,10 @@ export function ThemeVideos({ studyId, doc, basis, show, themes, selectedId, onS
         </header>
 
         {t.clips.length < MIN_CLIPS ? (
-          <p className="rounded-sm border border-dashed border-mist-strong px-4 py-6 text-sm text-graphite" data-testid="not-enough">Not enough clips yet. {plural(t.clips.length, 'clip')} from accepted sessions; at least {MIN_CLIPS} are needed.</p>
+          <>
+            <p className="rounded-sm border border-dashed border-mist-strong px-4 py-6 text-sm text-graphite" data-testid="not-enough">Not enough clips yet. {plural(t.clips.length, 'clip')} from accepted sessions; at least {MIN_CLIPS} are needed.</p>
+            {chart}
+          </>
         ) : (
           <>
             <div className="max-w-2xl">
@@ -208,6 +227,8 @@ export function ThemeVideos({ studyId, doc, basis, show, themes, selectedId, onS
                 <p className="text-sm text-pending-fg" data-testid="few-clips">Fewer than {MIN_CLIPS} clips.</p>
               )}
             </div>
+
+            {chart}
 
             <div className="flex flex-wrap items-center gap-3" data-testid="controls">
               <span className="flex items-center gap-2 text-sm">
@@ -237,6 +258,9 @@ export function ThemeVideos({ studyId, doc, basis, show, themes, selectedId, onS
                 Regenerate
               </button>
             </div>
+            {versions.length === 1 && (
+              <p className="-mt-3 text-xs text-graphite" data-testid="only-version">A theme keeps at least one version.</p>
+            )}
             {versions.length >= MAX_VERSIONS && (
               <p className="-mt-3 text-xs text-graphite" data-testid="regen-reason">Delete a version to make a new one.</p>
             )}
@@ -277,18 +301,6 @@ export function ThemeVideos({ studyId, doc, basis, show, themes, selectedId, onS
           </>
         )}
 
-        <section aria-label="Themes by people" data-testid="theme-chart" className="max-w-2xl">
-          <h3 className="text-xs font-semibold tracking-wide text-graphite uppercase">Themes, by people</h3>
-          <ul className="mt-2 flex flex-col gap-1.5">
-            {themes.map((x) => (
-              <li key={x.id} data-testid="chart-row" data-theme={x.id} data-n={x.n} data-selected={x.id === t.id} className="grid grid-cols-[10rem_1fr_4.5rem] items-center gap-3 text-sm">
-                <span className={cn('truncate', x.id === t.id && 'font-semibold')}>{x.name}</span>
-                <span className="h-2 overflow-hidden rounded-full bg-haze" aria-hidden="true"><span className={cn('block h-full rounded-full', x.id === t.id ? 'bg-ink' : 'bg-mist-strong')} style={{ width: `${(x.n / Math.max(maxN, x.of ? x.of : 1)) * 100}%` }} /></span>
-                <span className="text-xs text-graphite tabular-nums">{x.n} of {x.of}</span>
-              </li>
-            ))}
-          </ul>
-        </section>
       </div>
 
       <PrintStoryboard title={`${t.name}: storyboard`} themes={[{ name: t.name, clips: storyboardClips }]} />

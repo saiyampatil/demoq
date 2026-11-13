@@ -24,6 +24,8 @@ export type Version = {
 export type ThemeVideo = { versions: Version[]; defaultId?: string }
 export type ShowreelDoc = {
   studyId: string
+  /** The demo's Default versions have been put in once; a later change of the Researcher's is never undone by it. */
+  seeded?: boolean
   themes: Record<string, ThemeVideo>
   /** Showreel order, by theme ID. Themes not listed follow in the codebook's order. */
   order: string[]
@@ -65,7 +67,10 @@ const empties: Record<string, ShowreelDoc> = {}
 const EMPTY = (studyId: string) => (empties[studyId] ??= blank(studyId))
 
 export function updateShowreel(studyId: string, fn: (d: ShowreelDoc) => ShowreelDoc) {
-  store = { ...store, [studyId]: fn(store[studyId] ?? blank(studyId)) }
+  const before = store[studyId] ?? blank(studyId)
+  const after = fn(before)
+  if (after === before && store[studyId]) return
+  store = { ...store, [studyId]: after }
   save()
   emit()
 }
@@ -112,8 +117,9 @@ export function newVersion(d: ShowreelDoc, themeId: string, eligible: Clip[], in
   return setTheme(d, themeId, { ...t, versions: [...t.versions, v].sort((a, b) => a.n - b.n) })
 }
 
-/** The Default can't be deleted while it is the Default: set another one first. */
-export const cantDelete = (d: ShowreelDoc, themeId: string, versionId: string): string | null => (theme(d, themeId).defaultId === versionId ? 'Set another version as the default first.' : null)
+/** The Default can't be deleted while it is the Default, and a theme's only version can't be deleted at all. */
+export const cantDelete = (d: ShowreelDoc, themeId: string, versionId: string): string | null =>
+  theme(d, themeId).defaultId === versionId ? 'Set another version as the default first.' : theme(d, themeId).versions.length <= 1 ? 'A theme keeps at least one version.' : null
 
 export function deleteVersion(d: ShowreelDoc, themeId: string, versionId: string): ShowreelDoc {
   if (cantDelete(d, themeId, versionId)) return d
@@ -123,6 +129,21 @@ export function deleteVersion(d: ShowreelDoc, themeId: string, versionId: string
 
 export const setDefault = (d: ShowreelDoc, themeId: string, versionId: string): ShowreelDoc => setTheme(d, themeId, { ...theme(d, themeId), defaultId: versionId })
 export const setCaptions = (d: ShowreelDoc, themeId: string, versionId: string, on: boolean) => mapVersion(d, themeId, versionId, (v) => ({ ...v, captions: on }))
+
+/**
+ * Every theme with enough clips has a first version, made as soon as the page opens, so no theme reads "0 clips" just because it
+ * hasn't been opened. The first time only, the first two get a Default (the demo), unless the seed is off.
+ */
+export function ensureVersions(d: ShowreelDoc, themes: { id: string; clips: Clip[] }[], seedDefaults: boolean, seedCount: number): ShowreelDoc {
+  let next = d
+  for (const t of themes) next = firstVersion(next, t.id, t.clips)
+  if (seedDefaults && !next.seeded) {
+    const withVersions = themes.filter((t) => theme(next, t.id).versions.length).slice(0, seedCount)
+    for (const t of withVersions) if (!theme(next, t.id).defaultId) next = setDefault(next, t.id, theme(next, t.id).versions[0].id)
+    next = { ...next, seeded: true }
+  }
+  return next === d ? d : next
+}
 
 // ─── editing a version's clips ──────────────────────────────────────────────
 
