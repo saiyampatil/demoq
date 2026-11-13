@@ -12,7 +12,10 @@ import type { useModeratorData } from './Sessions'
 
 type Data = ReturnType<typeof useModeratorData>
 
-const HOURS = Array.from({ length: 16 }, (_, i) => i + 6)
+/** The whole day, 12 AM to 12 AM. The grid opens scrolled to working hours. */
+const HOURS = Array.from({ length: 24 }, (_, i) => i)
+const FIRST_VISIBLE_HOUR = 8
+const ROW_PX = 32
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 const hourLabel = (h: number) => `${h % 12 === 0 ? 12 : h % 12} ${h < 12 ? 'AM' : 'PM'}`
 
@@ -34,6 +37,11 @@ export function AvailabilityEditor({ data }: { data: Data }) {
   const [menu, setMenu] = useState(false)
   const [pending, setPending] = useState<Pending>()
   const drag = useRef<boolean>(false)
+  const scroller = useRef<HTMLDivElement>(null)
+  // On first load, show the working day instead of the small hours.
+  useEffect(() => {
+    if (scroller.current) scroller.current.scrollTop = FIRST_VISIBLE_HOUR * ROW_PX
+  }, [])
   useEffect(() => {
     const up = () => (drag.current = false)
     window.addEventListener('mouseup', up)
@@ -138,10 +146,10 @@ export function AvailabilityEditor({ data }: { data: Data }) {
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-md border border-mist bg-surface" onMouseLeave={() => (drag.current = false)}>
+      <div ref={scroller} data-testid="avail-scroll" className="max-h-[32rem] overflow-auto rounded-md border border-mist bg-surface" onMouseLeave={() => (drag.current = false)}>
         <table className="w-full min-w-[44rem] table-fixed border-collapse text-sm select-none" aria-label={`Your hours, ${range}`}>
           <thead>
-            <tr className="border-b border-mist bg-haze text-xs font-medium text-graphite">
+            <tr className="sticky top-0 z-10 border-b border-mist bg-haze text-xs font-medium text-graphite">
               <th className="w-20 px-3 py-2 text-left">{zoneLabel(tz, nowMs).match(/\(([^)]+)\)/)?.[1]}</th>
               {DAYS.map((d, i) => {
                 const day = addDays(first.y, first.m, first.d, i)
@@ -155,7 +163,7 @@ export function AvailabilityEditor({ data }: { data: Data }) {
           </thead>
           <tbody>
             {HOURS.map((h) => (
-              <tr key={h} className="border-b border-mist last:border-b-0">
+              <tr key={h} data-hour-row={h} className="h-8 border-b border-mist last:border-b-0">
                 <th scope="row" className="px-3 py-0 text-left text-xs font-normal text-graphite">
                   {hourLabel(h)}
                 </th>

@@ -109,11 +109,20 @@ try {
   await clickTid('rq-schedule') // books Thursday noon, P-2042
   await mod('availability')
   const total = async () => Number((await text('[data-testid=avail-total]')).match(/Total (\d+)/)[1])
-  const idx = (day, h) => (h - 6) * 7 + day
+  const idx = (day, h) => h * 7 + day
   const cell = (day, h) => `document.querySelectorAll('[data-testid=avail-cell]')[${idx(day, h)}]`
   const stateOf = (day, h) => b.evaluate(`${cell(day, h)}.dataset.state`)
   const down = async (day, h) => { await b.evaluate(`(()=>{const c=${cell(day, h)};c.dispatchEvent(new MouseEvent('mousedown',{bubbles:true}));window.dispatchEvent(new MouseEvent('mouseup'));return true})()`); await b.sleep(200) }
   const t0 = await total()
+  const grid = await b.evaluate(`(()=>{const sc=document.querySelector('[data-testid=avail-scroll]');const rows=[...document.querySelectorAll('[data-hour-row]')];const top=sc.getBoundingClientRect().top;const head=sc.querySelector('thead').getBoundingClientRect().height;const firstSeen=rows.find(r=>r.getBoundingClientRect().bottom>top+head+1);return {cells:document.querySelectorAll('[data-testid=avail-cell]').length,labels:rows.map(r=>r.querySelector('th').innerText.trim()),scrollTop:sc.scrollTop,first:Number(firstSeen.dataset.hourRow)}})()`)
+  ok('C: the grid shows all 24 hours, 12 AM to 11 PM, for seven days', grid.cells === 168 && grid.labels.length === 24 && grid.labels[0] === '12 AM' && grid.labels[12] === '12 PM' && grid.labels[23] === '11 PM', { cells: grid.cells, labels: [grid.labels[0], grid.labels[23]] })
+  ok('C: it opens scrolled to the working day (about 8 AM), not midnight', grid.scrollTop > 0 && grid.first >= 7 && grid.first <= 9, grid)
+  await b.evaluate(`document.querySelector('[data-testid=avail-scroll]').scrollTop=0; true`); await b.sleep(150)
+  await down(4, 2)
+  ok('C: the small hours can be edited too (Friday 2 AM adds, then goes again)', (await stateOf(4, 2)) === 'on' && (await total()) === t0 + 1)
+  await b.evaluate(`${cell(4, 2)}.querySelector('[data-testid=avail-remove]').click(); true`); await b.sleep(300)
+  await clickTid('coverage-confirm')
+  ok('C: and removing it (nobody else covers 2 AM) asked first', (await stateOf(4, 2)) === 'off' && (await total()) === t0)
   ok('C: the grid is labelled with the moderator’s time zone', /Eastern Time/.test((await text('[data-testid=zone-label]')) ?? ''), await text('[data-testid=zone-label]'))
   ok('C: each day shows its hours and the total is "Total N h / week"', (await b.evaluate(`[...document.querySelectorAll('[data-testid=day-head]')].map(h=>Number(h.innerText.match(/(\\d+) h/)[1])).reduce((a,x)=>a+x,0)`)) === t0 && t0 === 30, t0)
   ok('C: hours that have started are locked (Monday 10 AM)', (await stateOf(0, 10)) === 'past-on' && (await b.evaluate(`${cell(0, 10)}.querySelector('[data-testid=avail-remove]')`)) === null)
@@ -126,7 +135,7 @@ try {
   ok('C: it is added, and the total is one more', (await stateOf(4, 16)) === 'on' && (await total()) === t0 + 1, await total())
   // Drag across empty hours.
   await b.evaluate(`(()=>{const c=${cell(5, 10)};c.dispatchEvent(new MouseEvent('mousedown',{bubbles:true}));for(const h of [11,12]){const n=${cell(5, 11).replace('11', '__H__')};}return true})()`).catch(() => undefined)
-  await b.evaluate(`(()=>{const rows=document.querySelectorAll('[data-testid=avail-cell]');const at=(d,h)=>rows[(h-6)*7+d];at(5,10).dispatchEvent(new MouseEvent('mousedown',{bubbles:true}));for(const h of [11,12]){at(5,h).dispatchEvent(new MouseEvent('mouseover',{bubbles:true}));}window.dispatchEvent(new MouseEvent('mouseup'));return true})()`)
+  await b.evaluate(`(()=>{const rows=document.querySelectorAll('[data-testid=avail-cell]');const at=(d,h)=>rows[h*7+d];at(5,10).dispatchEvent(new MouseEvent('mousedown',{bubbles:true}));for(const h of [11,12]){at(5,h).dispatchEvent(new MouseEvent('mouseover',{bubbles:true}));}window.dispatchEvent(new MouseEvent('mouseup'));return true})()`)
   await b.sleep(250)
   ok('C: dragging across empty hours adds them all', (await stateOf(5, 10)) === 'on' && (await stateOf(5, 11)) === 'on' && (await stateOf(5, 12)) === 'on' && (await total()) === t0 + 4, await total())
   // Remove: Saturday hours are nobody's coverage but Jordan's, so removing asks first.
