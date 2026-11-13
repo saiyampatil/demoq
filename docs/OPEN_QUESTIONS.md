@@ -217,6 +217,12 @@ PRD gaps and conflicts found while building. Each entry says what the prototype 
 | 211 | M | "Main reason people cancelled": which codes count. | Only approved codes under the "Why they cancelled" question are compared (Price went up 8 of 20, Pet stopped eating it 6 of 20). The theme "The pet decides" has 9 of 20 people but also holds codes from other questions, so it is not used as a cancel reason. | Open |
 | 212 | L | "What would have kept them" with one approved idea. | Only "Pause would have kept them" is approved under the retention-ideas question, so the sentence says 6 of 20 said it, not that it was picked most often. It says "most often" once a second idea is approved and this one leads. | Open |
 | 213 | L | Evidence-strength sentence counts questions, not people. | "Evidence is thin on 2 of 7 guide questions" names them. Per-question people counts are on each finding. | Open |
+| 214 | H | Consent to share participant clips with clients. | Not built. Theme videos, the showreel and their exports use real participants' words and faces. Whether participants consent to clips being shown to the client, and where that is recorded, is for product to decide before any real export. | Open |
+| 215 | H | Do client-facing clips show participant IDs? | The mock shows the ID on every clip and in the storyboard. Product to say whether the client sees IDs, first names or neither. | Open |
+| 216 | H | Face-reading consent for emotion-based clip selection. | The automatic pick uses emotion strength. Whether participants have agreed to face readings being used to choose clips is not covered by the consent wording. | Open |
+| 217 | M | Should the 45 to 90 second rule block export rather than warn? | Today it is an amber warning on the theme video only. | Open |
+| 218 | M | Clip fields are partly invented. | The quotes have a start time, participant and match score. The end time (6 to 15 s from the quote's length), emotion strength, stimulus and clarity are derived deterministically for the mock. Real values need clip boundaries and per-moment readings from the analysis. | Open |
+| 219 | L | "Read more" opens the Report, not the theme's place in it. | The Report page was not to change, so the link goes to the page with a `#theme-` anchor that nothing scrolls to yet. | Open |
 
 ## Future ideas (not built)
 

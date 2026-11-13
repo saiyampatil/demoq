@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useSearchParams } from 'react-router'
+import { useNavigate, useSearchParams } from 'react-router'
 import { Banner } from '@/components/Banner'
 import { Button } from '@/components/Button'
 import { controlBase } from '@/components/Field'
@@ -52,6 +52,7 @@ export function Report() {
   // A report saved by an older version has a different shape. It is treated as missing and replaced in the effect below.
   const report = isCurrentReport(saved) ? saved : undefined
   const [params] = useSearchParams()
+  const navigate = useNavigate()
   const [loaded, setLoaded] = useState(false)
   const [failed, setFailed] = useState(params.get('demo') === 'error')
   const [sel, setSel] = useState<Selection>(null)
@@ -215,7 +216,9 @@ export function Report() {
       </div>
     )
 
-  const ws: Ws = { goTo, studyId, me, doc, basis, ctx: { doc, basis }, report, model, accepted: accepted.length, excluded, sel, select: setSel, openStudio: setStudio, act }
+  // Theme videos and Showreel are their own page, opened only when clicked. Everything else opens a pop-up over the report.
+  const openStudio = (k: ToolKey | null) => (k === 'theme-videos' || k === 'showreel' ? navigate(`${studyPath(studyId, screenById.A3V)}${k === 'showreel' ? '?tab=showreel' : ''}`) : setStudio(k))
+  const ws: Ws = { goTo, studyId, me, doc, basis, ctx: { doc, basis }, report, model, accepted: accepted.length, excluded, sel, select: setSel, openStudio, act }
   const total = model.all.length
   const open = model.open.length
   const approved = total - open
