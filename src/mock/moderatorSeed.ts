@@ -20,6 +20,37 @@ import { nextWeekdayAt } from '@/state/standby'
 import { zonedInstant } from '@/state/zone'
 import { participantEmail } from './participants'
 
+/**
+ * The seeded sessions each hold a stimulus plan, so the session brief shows a different order for each participant, and one
+ * of them was booked under the guide's earlier version so the "Guide updated" note shows. Its own flag, so saved progress
+ * that already has the sessions picks the plans up without the sessions being added twice. Not a split study: it only shows what
+ * a plan looks like in the brief.
+ */
+export const PLAN_SEED_VERSION = 1
+const ORDERS: Record<string, number[]> = { 'P-9101': [0, 1, 2], 'P-9102': [1, 2, 0], 'P-9103': [2, 0, 1], 'P-9201': [1, 2, 0], 'P-9202': [2, 0, 1], 'P-9203': [0, 1, 2] }
+
+function seedPlans(doc: FieldworkDoc): FieldworkDoc {
+  const names = doc.plan.sections.flatMap((s) => s.items.map((i) => i.stimulus)).filter((x, i, a): x is string => !!x && a.indexOf(x) === i)
+  if (names.length < 2) return doc
+  const v = doc.plan.guideVersion
+  return {
+    ...doc,
+    planSeed: PLAN_SEED_VERSION,
+    sessions: doc.sessions.map((s) => {
+      const order = ORDERS[s.participantId]
+      if (!order || s.stimulusPlan) return s
+      const picked = order.filter((i) => i < names.length).map((i) => names[i])
+      const n = order[0]
+      return {
+        ...s,
+        // Jordan's session tomorrow was booked under the earlier guide.
+        bookedGuide: s.participantId === 'P-9103' ? Math.max(1, v - 1) : v,
+        stimulusPlan: { id: `g1-r${n}`, group: 1, order: picked, names: picked, guideVersion: v, segment: 'All participants', assignedAt: inMin(-90) },
+      }
+    }),
+  }
+}
+
 /** Bump when the seed changes, so saved progress picks it up. */
 export const MODERATOR_SEED_VERSION = 1
 
@@ -201,9 +232,9 @@ export function seedModerators(fieldworks: Record<string, FieldworkDoc>): Record
   if (off()) return fieldworks
   return Object.fromEntries(
     Object.entries(fieldworks).map(([id, doc]) => {
-      if (doc.modSeed === MODERATOR_SEED_VERSION) return [id, doc]
-      if (id === PET) return [id, { ...seedPet(doc), modSeed: MODERATOR_SEED_VERSION }]
-      return [id, doc]
+      if (id !== PET) return [id, doc]
+      const seeded = doc.modSeed === MODERATOR_SEED_VERSION ? doc : { ...seedPet(doc), modSeed: MODERATOR_SEED_VERSION }
+      return [id, seeded.planSeed === PLAN_SEED_VERSION ? seeded : seedPlans(seeded)]
     }),
   )
 }

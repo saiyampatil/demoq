@@ -14,6 +14,7 @@ import type { LaunchDoc, PlanItem, StudyPlan } from './launch'
 import { SEED_SESSIONS, sessionIdOf, type SeedSession } from '@/mock/sessions'
 import { MODERATOR_ROSTER, STUDY_ZONE } from '@/mock/moderation'
 import { countryOfRegion, participantEmail } from '@/mock/participants'
+import { inheritablePlan, planned, type SessionPlan } from './stimulusPlans'
 import { regionOf } from './screening'
 import { profileEdit } from './moderatorProfiles'
 import { getTeamPerson } from './teamModerators'
@@ -267,6 +268,12 @@ export type Session = {
   gaveUp?: { reason: string; at: string; by: string }
   /** The participant's own attempts at fixing a technical problem (P18), oldest first. */
   selfService?: SelfService[]
+  /** The stimuli this participant sees and in what order, set when they book or are accepted. A reschedule keeps it. See state/stimulusPlans.ts. */
+  stimulusPlan?: SessionPlan
+  /** The guide version a moderator was shown when this session was booked. The brief says when the guide has changed since. */
+  bookedGuide?: number
+  /** The quota segment, for a study that has more than one. Absent: the one cohort. */
+  segment?: string
   /** A draft of the moderator's notes, saved and not yet submitted. */
   notesDraft?: { takeaways: string; at: string }
   /** The moderator asked to be reassigned ("Can't make it"). The Researcher sees it in Needs you until they assign someone. */
@@ -329,6 +336,8 @@ export type FieldworkDoc = {
   reserve: ReserveCandidate[]
   /** Set when the Moderator view's mock data (src/mock/moderatorSeed.ts) has been added to this record. */
   modSeed?: number
+  /** Set when the seeded sessions have been given stimulus plans for the session brief (src/mock/moderatorSeed.ts). */
+  planSeed?: number
 }
 
 // ─── mock generation ────────────────────────────────────────────────────────
@@ -544,7 +553,7 @@ export function generateFieldwork(i: GenInput): FieldworkDoc {
     return prev ? resumeFrom(prev, s) : s
   })
 
-  return {
+  const generated: FieldworkDoc = {
     studyId: i.studyId,
     seed: SESSION_SEED,
     releaseNumber: i.releaseNumber,
@@ -559,7 +568,13 @@ export function generateFieldwork(i: GenInput): FieldworkDoc {
     log: [],
     reserve: [],
   }
+  // A release that splits or rotates the stimuli gives each session its plan, and the AI shows them in that order.
+  const withPlans = assignPlans(generated)
+  return withPlans === generated ? generated : { ...withPlans, sessions: withPlans.sessions.map((x) => (x.stimulusPlan && x.stimuli.length ? { ...x, stimuli: inPlanOrder(x) } : x)) }
 }
+
+/** A session's stimulus results in its plan's order and only its group's stimuli. The results stay in step: the first ones shown are the first in the plan. */
+const inPlanOrder = (s: Session): StimulusResult[] => s.stimulusPlan!.names.map((name, j) => ({ name, result: s.stimuli[j]?.result ?? 'Not shown' }))
 
 /**
  * The new session starts from the previous session's last saved state: questions asked, what was covered, stimuli
@@ -645,6 +660,29 @@ const patch = (doc: FieldworkDoc, id: string, fn: (s: Session) => Session): Fiel
 const addEvent = (s: Session, kind: EventKind, text: string): Session => ({ ...s, events: [...s.events, ev(now(), kind, text)] })
 const addEventAt = (when: string, s: Session, kind: EventKind, text: string): Session => ({ ...s, events: [...s.events, ev(when, kind, text)] })
 const addTurn = (s: Session, speaker: string, ai: boolean, text: string): Session => ({ ...s, transcript: [...s.transcript, { at: now(), speaker, ai, text }] })
+
+/**
+ * Gives every session that is booked, started or finished a stimulus plan, when the release splits or rotates the stimuli.
+ * Human-led sessions have one once they book; AI-led once they are accepted and start. A session that already has one keeps it,
+ * so a reschedule never changes it. Does nothing for a release where everyone sees all in the library's order.
+ */
+export function assignPlans(doc: FieldworkDoc): FieldworkDoc {
+  // Remember the guide version each session was booked under. Only the first time: a later guide change leaves it alone.
+  const stamped = doc.sessions.some((s) => s.bookedGuide === undefined && s.status !== 'Not started')
+    ? { ...doc, sessions: doc.sessions.map((s) => (s.bookedGuide === undefined && s.status !== 'Not started' ? { ...s, bookedGuide: doc.plan.guideVersion } : s)) }
+    : doc
+  const plans = stamped.plan.stimulusPlans
+  if (!plans || plans.length < 2) return stamped
+  doc = stamped
+  const when = doc.window ? tick(doc) : now()
+  let sessions = doc.sessions
+  for (const s of doc.sessions) {
+    if (s.stimulusPlan || s.status === 'Not started' || s.status === 'Withdrawn' || s.access === 'No-show' || s.gaveUp) continue
+    const given = planned(s, plans, sessions, doc.plan.guideVersion, when)
+    if (given !== s) sessions = sessions.map((x) => (x.id === s.id ? given : x))
+  }
+  return sessions === doc.sessions ? doc : { ...doc, sessions }
+}
 
 export function startSession(doc: FieldworkDoc, id: string, by: string): FieldworkDoc {
   const s = doc.sessions.find((x) => x.id === id)
@@ -951,6 +989,8 @@ export function inviteFromReserve(doc: FieldworkDoc, by: string, candidates: Res
       notes: null,
       issues: [],
       consent: null,
+      // The replacement takes over the plan of the person they replace, so the balance holds.
+      ...(doc.plan.stimulusPlans ? { stimulusPlan: inheritablePlan(next.sessions) } : {}),
     }
     // Rows from the Reserve tab carry a display label; only the candidate itself is stored.
     const { label: _label, ...plain } = c as ReserveCandidate & { label?: string }

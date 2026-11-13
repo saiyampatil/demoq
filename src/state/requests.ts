@@ -117,6 +117,22 @@ export function requestsFor(all: Record<string, FieldworkDoc>, moderatorId: stri
   return rows.sort((a, b) => a.suggested.localeCompare(b.suggested) || a.participantId.localeCompare(b.participantId))
 }
 
+/**
+ * The session a moderator may open a brief for: one that is theirs, or a request they can see. Anything else, including a
+ * session of another moderator's in the same study, is not found. `all` is already scoped to the studies they can see.
+ */
+/** A request still waiting on someone can be read ahead. One someone else took, or the participant cancelled, can't. */
+export const canOpenBrief = (r: Pick<RequestRow, 'status'>) => r.status === 'Open' || r.status === 'Waiting for participant' || r.status === 'Scheduled'
+
+export function briefAccess(all: Record<string, FieldworkDoc>, moderatorId: string, sessionId: string, studyName: (id: string) => string, language: (id: string) => string | null): { doc: FieldworkDoc; session: Session } | undefined {
+  for (const doc of Object.values(all)) {
+    const own = doc.sessions.find((s) => s.id === sessionId && s.moderatorId === moderatorId)
+    if (own) return { doc, session: own }
+  }
+  const r = requestsFor(all, moderatorId, studyName, language).find((x) => x.sessionId === sessionId && canOpenBrief(x))
+  return r ? { doc: r.doc, session: r.session } : undefined
+}
+
 const slotProblemFor = (moderatorId: string, iso: string, now: number, busy: Busy[]) => slotProblem(moderatorId, new Date(iso).getTime(), now, busy)
 
 /** The number on the Requests tab: requests that need the moderator's action. It is also the length of the Open filter. */

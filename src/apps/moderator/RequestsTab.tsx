@@ -6,7 +6,7 @@ import { EmptyState } from '@/components/States'
 import { useToast } from '@/components/Toast'
 import { availabilityFor } from '@/mock/moderation'
 import { cantTakeRequest, devRaiseRequest, fieldworkNow, participantAnswersProposal, participantCancelsRequest, proposeRequestTime, REQUEST_REASON, scheduleRequest } from '@/state/fieldwork'
-import { busyAcross, filterOf, REQUEST_FILTERS, whoHolds, type RequestFilter, type RequestRow, type RequestStatus } from '@/state/requests'
+import { busyAcross, filterOf, REQUEST_FILTERS, whoHolds, type RequestFilter, type RequestRow, type RequestStatus, canOpenBrief } from '@/state/requests'
 import { formatIn, freeSlots } from '@/state/standby'
 import { formatStamp } from '@/lib/format'
 import { HandoffDrawer } from './Handoff'
@@ -242,6 +242,13 @@ function Details({ r, myZone, onClose }: { r?: RequestRow; myZone: string; onClo
   if (!r) return null
   return (
     <HandoffDrawer open onClose={onClose} title={`${r.name} · ${r.participantId}`} subtitle={`${r.studyName} · ${r.language}`} doc={r.doc} session={r.session}>
+      {canOpenBrief(r) && (
+        <section>
+          <Button size="sm" to={`/moderator/sessions/${r.sessionId}/brief`} data-testid="view-brief">
+            View brief
+          </Button>
+        </section>
+      )}
       <section>
         <h3 className="text-xs font-semibold tracking-wide text-graphite uppercase">Suggested time</h3>
         <p className="mt-1">

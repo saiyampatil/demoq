@@ -12,7 +12,7 @@ import { audienceSummary, emptySourcing, migrateAudience, type AudienceDoc } fro
 import { briefSummary, now, type BriefDoc } from './brief'
 import { acceptedRoster, guideSummary, withTeam, type GuideDoc } from './guide'
 import { DEFAULT_TIME_ZONE } from '@/lib/timeZone'
-import { generateFieldwork, SESSION_SEED, type FieldworkDoc } from './fieldwork'
+import { assignPlans, generateFieldwork, SESSION_SEED, type FieldworkDoc } from './fieldwork'
 import { seedModerators } from '@/mock/moderatorSeed'
 import { resetReview } from './reviewState'
 import { resetCodebook } from './codebook'
@@ -311,7 +311,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
   const writeFieldwork = useCallback((id: string, fn: (doc: FieldworkDoc | undefined) => FieldworkDoc) => {
     setState((prev) => {
       const before = prev.fieldworks[id]
-      const doc = fn(before)
+      const doc = assignPlans(fn(before))
       const paused = !before?.paused && !!doc.paused
       const resumed = !!before?.paused && !doc.paused
       const closed = !before?.closed && !!doc.closed

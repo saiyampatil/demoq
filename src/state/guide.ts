@@ -4,6 +4,7 @@
 // Versioning: a version that has been shared or approved is frozen. Any edit to the moderator config, the
 // active stimuli or the guide after that creates the next version as a Draft, which needs fresh approval.
 
+import { assignmentOf, assignmentProblem, shownItems, type Assignment } from './stimulusPlans'
 import type { ArtifactStatus } from '@/components/status'
 import { AGENTS, HUMAN_MODERATORS } from '@/mock/moderation'
 import { ratingOptions, SURVEY_LIMITS, surveySummary, type SurveyDef, type SurveyFormat, type SurveyQuestion } from '@/mock/surveys'
@@ -183,7 +184,7 @@ export type Stimulus = {
   /** A survey's questions. Older items have none and keep one question in `name` and its options in `detail`. */
   questions?: SurveyQuestion[]
 }
-export type StimuliState = { items: Stimulus[]; skipped: boolean }
+export type StimuliState = { items: Stimulus[]; skipped: boolean; /** How participants are split across the stimuli and in what order. Absent: everyone sees all, in the library's order. */ assignment?: Assignment }
 
 /** A survey item's questions. An older single-question item is read as a survey of one. */
 export const questionsOfSurvey = (s: Stimulus): SurveyQuestion[] =>
@@ -492,7 +493,7 @@ export function regenerateGuide(doc: GuideDoc, by: string): GuideDoc {
 // ── stimulus ops ──
 
 export const editStimuli = (doc: GuideDoc, by: string, fn: (s: StimuliState) => StimuliState, note: string) =>
-  mutate(doc, by, (d) => ({ ...d, stimuli: fn(d.stimuli) }), note)
+  mutate(doc, by, (d) => ({ ...d, stimuli: { ...d.stimuli, ...fn(d.stimuli) } }), note)
 
 // ── guide ops ──
 
@@ -576,6 +577,8 @@ export const studyHasClient = (client: string | undefined) => !!client && client
 export function approvalBlockers(doc: GuideDoc, hasClient: boolean): string[] {
   if (!doc.guide) return ['The guide isn’t drafted yet']
   const out: string[] = []
+  const split = assignmentProblem(assignmentOf(doc.stimuli), shownItems(doc.stimuli).length)
+  if (split) out.push(`Stimuli: ${split}`)
   if (hasClient && !clientApprovedVersion(doc)) out.push(doc.status === 'In Review' ? 'Record the client’s decision first' : 'Share the guide with the client and record their approval first')
   const cov = coverageCheck(doc.guide)
   if (!cov.ok && !cov.overridden) out.push('Fix or override the coverage flag')

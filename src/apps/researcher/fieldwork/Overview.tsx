@@ -16,6 +16,7 @@ import { SessionTag } from '../SessionTag'
 import { invitedIds, invitedMessage, type FWProps } from './FieldworkBits'
 import { KpiStrip } from './KpiStrip'
 import { ParticipantJourney } from './ParticipantJourney'
+import { StimulusBalance } from './StimulusBalance'
 import { RepeatingProblemLine } from './RepeatingProblemLine'
 import { VerdictCard } from './VerdictCard'
 
@@ -78,6 +79,8 @@ export function Overview(p: FWProps) {
       <ParticipantJourney doc={doc} studyId={studyId} needsCount={needs.length} />
 
       <NeedsYou {...p} rows={needs} blockedWhy={blockedWhy} />
+
+      <StimulusBalance doc={doc} outcomes={outcomes} />
     </div>
   )
 }

@@ -15,6 +15,7 @@ import { FORMAT_LABEL, type SurveyDef } from '@/mock/surveys'
 import { allQuestions, classifyCardImage, classifyFile, editStimuli, kindLabel, newSurveyItem, questionsOfSurvey, surveyFormats, type Stimulus, type StimulusKind } from '@/state/guide'
 import { PageHeader } from '../../shared/PageHeader'
 import { GuideGate, VersionBanner } from './GuideBits'
+import { AssignmentCard } from './AssignmentCard'
 import { SurveyBuilder } from './SurveyBuilder'
 import { useGuide } from './useGuide'
 
@@ -242,6 +243,8 @@ export function StimulusLibrary() {
           )}
         </Card>
       )}
+
+      {!skipped && items.length > 0 && <AssignmentCard stimuli={doc.stimuli} set={(assignment, note) => edit((x) => ({ ...x, assignment }), note)} />}
 
       {!skipped && items.length === 0 && <p className="text-sm text-graphite">Not every study needs stimuli. Skipping keeps the guide to conversation questions only.</p>}
 

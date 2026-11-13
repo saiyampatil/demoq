@@ -82,6 +82,9 @@ export function UpcomingTab({ data }: { data: Data }) {
                 {asked && <p className="mt-1 text-xs text-graphite">Sent to the Researcher: “{asked.reason}”. Until they reassign it, the session is still yours.</p>}
               </div>
               <div className="flex items-start gap-1.5">
+                <Button size="sm" to={`/moderator/sessions/${r.session.id}/brief`} data-testid="view-brief">
+                  View brief
+                </Button>
                 {canJoin ? (
                   <Button size="sm" variant="primary" to={`/moderator/sessions/${r.session.id}/console`} data-testid="join-interview">
                     Join interview

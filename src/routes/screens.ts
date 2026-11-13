@@ -78,6 +78,7 @@ export const screens: Screen[] = [
   { id: 'M1', name: 'My sessions', app: 'moderator', module: '4.5', phase: 6, path: 'sessions' },
   { id: 'M2', name: 'Moderator console', app: 'moderator', module: '4.5', phase: 6, path: 'sessions/:sessionId/console' },
   { id: 'M4', name: 'Moderator profile', app: 'moderator', module: '4.5', phase: 6, path: 'profile' },
+  { id: 'M5', name: 'Session brief', app: 'moderator', module: '4.5', phase: 6, path: 'sessions/:sessionId/brief' },
   { id: 'M3', name: 'Post-session notes', app: 'moderator', module: '4.5 / 4.7', phase: 6, path: 'sessions/:sessionId/notes' },
 
   { id: 'O1', name: 'Backroom view', app: 'observer', module: '4.5', phase: 6, path: 'sessions/:sessionId' },

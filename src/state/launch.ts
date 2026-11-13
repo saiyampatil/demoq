@@ -2,6 +2,7 @@
 // Everything the researcher sees is computed live from the brief, audience, guide and the LaunchDoc below,
 // so a fix in an earlier module shows up the next time a launch screen renders.
 
+import { assignmentOf, buildPlans, isDefault, shownItems, type StimulusPlan } from './stimulusPlans'
 import { surveysOf, acceptedOf, acceptedStandby, agentName, allQuestions, configBlockers, coverage, humanNames, languageMismatches, moderatorKey, pendingOf, standbyOf, totalMinutes, windowWeeks, type GuideDoc, type Question } from './guide'
 import { openSlots } from './standby'
 import { STANDBY_SLOT_MIN } from '@/mock/moderation'
@@ -140,6 +141,8 @@ export type StudyPlan = {
   surveyCount: number
   /** Whether a participant in an AI-led interview can ask to talk to a person, and who they can book. Absent in plans compiled before standby moderators existed. */
   escalation?: { offered: boolean; slotMinutes: number; moderators: { id: string; name: string }[] }
+  /** How stimuli are assigned, when the study splits or rotates them. Absent for everyone-sees-all in the library's order, so such a study compiles exactly as before. */
+  stimulusPlans?: StimulusPlan[]
   signature: string
 }
 export type CompileError = { text: string; questionId?: string }
@@ -193,6 +196,8 @@ export function compileStudyPlan(g: GuideDoc | undefined, language: string | nul
     survey: q.surveyId ? surveysOf(g).find((s) => s.id === q.surveyId)?.title : undefined,
     branch: q.branch ? `If the answer to Q${num(q.branch.ifQuestionId)} is “${q.branch.answer || '…'}”, ${q.branch.action === 'skip-to' ? 'skip to' : 'branch to'} Q${num(q.branch.targetId)}` : undefined,
   })
+  const assignment = assignmentOf(g.stimuli)
+  const stimulusPlans = isDefault(assignment) ? undefined : buildPlans(shownItems(g.stimuli), assignment)
   const body = {
     guideVersion: g.version,
     mode: g.moderator.mode ?? 'ai',
@@ -208,6 +213,7 @@ export function compileStudyPlan(g: GuideDoc | undefined, language: string | nul
       slotMinutes: STANDBY_SLOT_MIN,
       moderators: g.moderator.mode === 'ai' ? acceptedStandby(g.moderator).map((t) => ({ id: moderatorKey(t), name: t.name })) : [],
     },
+    ...(stimulusPlans && stimulusPlans.length > 1 ? { stimulusPlans } : {}),
   }
   return { state: 'ok', plan: { ...body, signature: hash(JSON.stringify(body)) } }
 }
