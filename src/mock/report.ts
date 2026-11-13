@@ -13,23 +13,7 @@ const t = (id: string): Citation => ({ kind: 'theme', id })
 /** A seed sentence: `text` is filled in from the template when the report is made. */
 export type SeedSentence = Omit<Sentence, 'text'> & { template: string }
 
-export const EXEC_SUMMARY_AI: SeedSentence[] = [
-  {
-    id: 'exec-1',
-    template: 'Price rises were a leading reason people cancelled: {n:c-price-rise} of {of:c-price-rise} people mentioned one, and {n:c-flex-first} of {of:c-flex-first} said flexibility mattered more to them than a lower price.',
-    cites: [c('c-price-rise'), t('t-price'), c('c-flex-first')],
-  },
-  {
-    id: 'exec-2',
-    template: 'The pause idea was the retention idea most people picked: {n:c-idea-pause} of {of:c-idea-pause} chose it.',
-    cites: [c('c-idea-pause')],
-  },
-  {
-    id: 'exec-3',
-    template: 'For {n:c-nothing} of {of:c-nothing} people, nothing the company could have done would have kept them. The reason to leave was outside its control.',
-    cites: [c('c-nothing')],
-  },
-]
+// The executive summary is not written here: state/execSummary.ts builds it from the codebook and the tensions.
 
 export const FINDING_DRAFTS: Record<string, SeedSentence[]> = {
   'q-start': [

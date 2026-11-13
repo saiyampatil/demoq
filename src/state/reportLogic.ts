@@ -47,18 +47,35 @@ export function numbersOf(id: string, { doc, basis }: Ctx): Numbers | undefined 
   return h ? { n: h.n, of: h.of } : undefined
 }
 
-const TOKEN = /\{N\}|\{(n|of):([\w-]+)\}/g
+//   {N}                       everyone accepted
+//   {n:ID} / {of:ID}          a code, theme or tension: the people, and who they are counted against
+//   {none:ID,ID}              the accepted people in none of those codes: the ones with no clear answer
+//   {side:TENSION:i:n|of}     one side of a tension card, by position
+const TOKEN = /\{N\}|\{(n|of):([\w-]+)\}|\{none:([\w,-]+)\}|\{side:([\w-]+):(\d+):(n|of)\}/g
 
 /** Fills the numbers into a template. A token that points at nothing shows as [?], so it can't pass for a number. */
 export function renderTemplate(template: string, ctx: Ctx): string {
-  return template.replace(TOKEN, (_all, kind: string | undefined, id: string | undefined) => {
-    if (!kind || !id) return String(ctx.basis.participants.size)
-    const v = numbersOf(id, ctx)
+  return template.replace(TOKEN, (all: string, kind?: string, id?: string, none?: string, tn?: string, idx?: string, which?: string) => {
+    if (all === '{N}') return String(ctx.basis.participants.size)
+    if (none) {
+      const people = new Set<string>()
+      for (const cid of none.split(',')) {
+        const code = ctx.doc.codes.find((c) => c.id === cid)
+        if (!code || code.status !== 'Accepted') return '[?]'
+        peopleOf(code, ctx.basis).forEach((p) => people.add(p))
+      }
+      return String(ctx.basis.participants.size - people.size)
+    }
+    if (tn) {
+      const side = tensionsOf(ctx.doc, ctx.basis).find((x) => x.id === tn && !x.unavailable)?.sides[Number(idx)]
+      return side ? String(which === 'n' ? side.n : side.of) : '[?]'
+    }
+    const v = numbersOf(id!, ctx)
     return v ? String(kind === 'n' ? v.n : v.of) : '[?]'
   })
 }
 
-export const hasTokens = (text: string) => /\{N\}|\{(n|of):[\w-]+\}/.test(text)
+export const hasTokens = (text: string) => /\{N\}|\{(n|of):[\w-]+\}|\{none:[\w,-]+\}|\{side:[\w-]+:\d+:(n|of)\}/.test(text)
 
 // ─── citations ──────────────────────────────────────────────────────────────
 

@@ -157,6 +157,29 @@ export function SentenceMarks({ cites, onOpen }: { cites: { cit: Citation; resol
   )
 }
 
+ /** One mark for a sentence: a single source shows its number, two or more show a range such as 1–3. Clicking opens the sources in the right panel. */
+export function SentenceRange({ cites, onOpen }: { cites: { cit: Citation; resolved: Resolved }[]; onOpen: (n: number) => void }) {
+  if (cites.length === 0) return null
+  const broken = cites.some((c) => c.resolved.kind === 'broken')
+  const label = cites.length === 1 ? '1' : `1–${cites.length}`
+  return (
+    <sup className="ml-0.5">
+      <button
+        type="button"
+        data-testid="cite-mark"
+        data-count={cites.length}
+        data-broken={broken}
+        aria-label={`${cites.length === 1 ? 'Source 1' : `Sources 1 to ${cites.length}`}: ${cites.map((c) => citationLabel(c.cit, c.resolved)).join('; ')}`}
+        title={cites.map((c) => citationLabel(c.cit, c.resolved)).join('\n')}
+        onClick={() => onOpen(1)}
+        className={cn('rounded-xs px-0.5 text-[11px] font-semibold hover:bg-haze', broken ? 'text-negative-fg' : 'text-iris-700')}
+      >
+        {label}
+      </button>
+    </sup>
+  )
+}
+
 // ─── text with live numbers ─────────────────────────────────────────────────
 
 /** "7 of 20" and "4 of the 14" are the live counts. They are set in a heavier weight so the numbers are easy to check. */

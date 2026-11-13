@@ -9,7 +9,7 @@ import { uid } from '@/state/brief'
 import type { Citation, DraftKind, Target } from '@/state/report'
 import { hasTokens, plural, renderTemplate, resolveCitation, type FindingModel, type SentenceInfo, type ThemeModel } from '@/state/reportLogic'
 import type { Tension } from '@/state/signals'
-import { CitationChips, DOT_LABEL, LABEL, MINI, MINI_ON, NumberText, QuoteCard, SentenceMarks, StateChip, StateDot, StrengthChip, dotOf, targetOf, useWs } from './ws'
+import { CitationChips, DOT_LABEL, LABEL, MINI, MINI_ON, NumberText, QuoteCard, SentenceMarks, SentenceRange, StateChip, StateDot, StrengthChip, dotOf, targetOf, useWs } from './ws'
 
 // ─── a sentence, in the prose ───────────────────────────────────────────────
 
@@ -35,7 +35,7 @@ const WHY: Partial<Record<SentenceInfo['state'], string>> = { 'No citation': 'no
  * One sentence, inside a paragraph. It always carries its dot and its numbered source marks. An unapproved sentence is
  * underlined, so it is never easy to miss. Clicking it selects it: its controls open below and its sources open on the right.
  */
-function Sentence({ info }: { info: SentenceInfo }) {
+function Sentence({ info, calm }: { info: SentenceInfo; calm?: boolean }) {
   const { sel, select } = useWs()
   const s = info.sentence
   const selected = sel?.kind === 'sentence' && sel.id === s.id
@@ -57,11 +57,11 @@ function Sentence({ info }: { info: SentenceInfo }) {
             choose()
           }
         }}
-        className={cn('cursor-pointer rounded-xs text-ink hover:bg-haze focus-visible:outline-2 focus-visible:outline-iris-600', info.open && 'underline decoration-pending-fg decoration-dotted underline-offset-4', selected && 'bg-iris-50 hover:bg-iris-50')}
+        className={cn('cursor-pointer rounded-xs text-ink hover:bg-haze focus-visible:outline-2 focus-visible:outline-iris-600', !calm && info.open && 'underline decoration-pending-fg decoration-dotted underline-offset-4', selected && 'bg-iris-50 hover:bg-iris-50')}
       >
         <NumberText text={s.text} />
       </span>
-      <SentenceMarks cites={info.cites} onOpen={choose} />
+      {calm ? <SentenceRange cites={info.cites} onOpen={choose} /> : <SentenceMarks cites={info.cites} onOpen={choose} />}
       {info.state === 'No citation' && <span className="ml-1.5 text-xs font-medium text-negative-fg">No citation</span>}
       {info.numbersChanged && <span className="ml-1.5 text-xs font-medium text-pending-fg">Numbers changed</span>}{' '}
     </span>
@@ -69,7 +69,7 @@ function Sentence({ info }: { info: SentenceInfo }) {
 }
 
 /** The controls of the selected sentence, under its paragraph: approve, edit, and the reasons that need typing. */
-function SentenceTray({ info, target, mine, canEditAsMine, editDisabled, onEdit, onDelete }: { info: SentenceInfo; target: Target; mine: boolean; canEditAsMine: boolean; editDisabled: boolean; onEdit: () => void; onDelete: () => void }) {
+function SentenceTray({ info, target, mine, canEditAsMine, editDisabled, onEdit, onDelete, calm }: { info: SentenceInfo; target: Target; mine: boolean; canEditAsMine: boolean; editDisabled: boolean; onEdit: () => void; onDelete: () => void; calm?: boolean }) {
   const { act } = useWs()
   const s = info.sentence
   const [asking, setAsking] = useState<'reason' | 'keep' | null>(null)
@@ -77,7 +77,7 @@ function SentenceTray({ info, target, mine, canEditAsMine, editDisabled, onEdit,
   const dot = dotOf(info)
 
   return (
-    <div data-testid="sentence-tray" data-id={s.id} className="mt-2 rounded-sm border border-mist bg-paper px-3 py-2.5">
+    <div data-testid="sentence-tray" data-id={s.id} className={cn('mt-2', calm ? 'py-1' : 'rounded-sm border border-mist bg-paper px-3 py-2.5')}>
       <div className="flex flex-wrap items-center gap-2">
         <StateChip state={info.state} />
         {dot === 'edited' && <span className="text-xs text-graphite">Edited by you, not yet approved</span>}
@@ -228,7 +228,7 @@ function DraftControls({ d, target, aiCount }: { d: Draft; target: Target; aiCou
 }
 
 /** The sentences as one paragraph. The selected sentence's controls, or its editor, open directly under it. */
-function DraftBody({ d, target, sentences, hasMine, aiCount }: { d: Draft; target: Target; sentences: SentenceInfo[]; hasMine: boolean; aiCount: number }) {
+function DraftBody({ d, target, sentences, hasMine, aiCount, calm }: { d: Draft; target: Target; sentences: SentenceInfo[]; hasMine: boolean; aiCount: number; calm?: boolean }) {
   const { act, sel } = useWs()
   const { mine, editingId, setEditingId, editing } = d
   const chosen = sel?.kind === 'sentence' ? sentences.find((i) => i.sentence.id === sel.id) : undefined
@@ -256,12 +256,24 @@ function DraftBody({ d, target, sentences, hasMine, aiCount }: { d: Draft; targe
         </div>
       )}
 
-      {sentences.length > 0 && (
+      {sentences.length > 0 && !calm && (
         <p className="text-[15px] leading-7 text-ink" data-testid="prose">
           {sentences.map((info) => (
             <Sentence key={info.sentence.id} info={info} />
           ))}
         </p>
+      )}
+      {sentences.length > 0 && calm && (
+        // Short paragraphs of at most two sentences, 12px apart: reasons for leaving, what would have kept them, how strong the evidence is.
+        <div className="flex max-w-[68ch] flex-col gap-3 text-[16px] leading-[1.6] text-ink" data-testid="prose">
+          {paragraphs(sentences).map((p, i) => (
+            <p key={i} data-testid="exec-paragraph" data-count={p.length}>
+              {p.map((info) => (
+                <Sentence key={info.sentence.id} info={info} calm />
+              ))}
+            </p>
+          ))}
+        </div>
       )}
 
       {chosen && editingId !== chosen.sentence.id && (
@@ -270,6 +282,7 @@ function DraftBody({ d, target, sentences, hasMine, aiCount }: { d: Draft; targe
           info={chosen}
           target={target}
           mine={mine}
+          calm={calm}
           canEditAsMine={!mine && !hasMine}
           editDisabled={editing}
           onDelete={() => act.remove(target, chosen.sentence.id)}
@@ -299,9 +312,15 @@ function DraftBody({ d, target, sentences, hasMine, aiCount }: { d: Draft; targe
 
       {mine && sentences.length > 0 && !editing && (
         <div>
-          <button type="button" className={MINI} onClick={() => setEditingId(uid('s'))}>
-            Add a sentence
-          </button>
+          {calm ? (
+            <button type="button" className="text-sm text-graphite underline-offset-2 hover:text-ink hover:underline" onClick={() => setEditingId(uid('s'))} data-testid="add-sentence">
+              + Add a sentence
+            </button>
+          ) : (
+            <button type="button" className={MINI} onClick={() => setEditingId(uid('s'))}>
+              Add a sentence
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -310,33 +329,61 @@ function DraftBody({ d, target, sentences, hasMine, aiCount }: { d: Draft; targe
 
 // ─── executive summary ──────────────────────────────────────────────────────
 
+/** Where a sentence of the AI summary belongs, so paragraphs follow the story: reasons for leaving, what would have kept them, how strong the evidence is. */
+const GROUP = (id: string) => (id === 'exec-reason' || id === 'exec-second' ? 0 : id === 'exec-thin' ? 2 : id.startsWith('exec-') ? 1 : -1)
+
+/** At most two sentences to a paragraph. The AI draft is grouped by what it says; a draft of the Researcher's own is simply taken two at a time. */
+function paragraphs(list: SentenceInfo[]): SentenceInfo[][] {
+  const ai = list.every((i) => GROUP(i.sentence.id) >= 0)
+  const groups: SentenceInfo[][] = ai ? [0, 1, 2].map((g) => list.filter((i) => GROUP(i.sentence.id) === g)).filter((g) => g.length) : [list]
+  return groups.flatMap((g) => Array.from({ length: Math.ceil(g.length / 2) }, (_, i) => g.slice(i * 2, i * 2 + 2)))
+}
+
 export function ExecCard() {
-  const { model, report, select } = useWs()
+  const { model, report, select, act } = useWs()
   const e = model.exec
   const approved = e.sentences.filter((s) => !s.open).length
   const d = useDraft('exec', e.active, e.sentences)
+  const aiCount = report.execSummary.aiDraft.length
+  const quiet = 'text-xs text-graphite underline-offset-2 hover:text-ink hover:underline'
   return (
-    <section data-testid="exec-card" aria-label="Executive summary" className="flex flex-col gap-3 rounded-md border border-mist bg-surface px-6 py-5">
+    <section data-testid="exec-card" aria-label="Executive summary" className="flex flex-col gap-3 rounded-md border border-mist bg-surface p-6">
       <header className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <h2 className="text-xl font-semibold text-ink">Executive summary</h2>
+        <h2 className="text-xs font-semibold tracking-wide text-graphite uppercase">Executive summary</h2>
         {!d.mine && e.sentences.length > 0 && <AIGeneratedTag />}
       </header>
-      <DraftBody d={d} target="exec" sentences={e.sentences} hasMine={e.hasMine} aiCount={report.execSummary.aiDraft.length} />
-      <footer className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-mist pt-3">
+      <DraftBody d={d} target="exec" sentences={e.sentences} hasMine={e.hasMine} aiCount={aiCount} calm />
+      <footer className="flex flex-wrap items-center gap-x-4 gap-y-2 pt-1">
         <p className="text-xs text-graphite tabular-nums" data-testid="exec-count">
           {e.sentences.length ? (
             <>
-              {plural(e.sentences.length, 'sentence')} · <span className={cn('font-medium', approved < e.sentences.length ? 'text-pending-fg' : 'text-positive-fg')}>{approved} approved</span>
+              {plural(e.sentences.length, 'sentence')} · <span className={cn(approved < e.sentences.length ? 'text-pending-fg' : 'text-positive-fg')}>{approved} approved</span>
             </>
           ) : (
             'No sentences'
           )}
         </p>
-        <button type="button" className="text-xs text-graphite underline-offset-2 hover:underline" onClick={() => select({ kind: 'exec' })} data-testid="exec-sources">
+        <button type="button" className={quiet} onClick={() => select({ kind: 'exec' })} data-testid="exec-sources">
           All sources
         </button>
-        <span className="ml-auto">
-          <DraftControls d={d} target="exec" aiCount={report.execSummary.aiDraft.length} />
+        <span className="ml-auto flex flex-wrap items-center gap-3">
+          {d.mine && (
+            <span className="text-xs text-graphite" data-testid="exec-helper">
+              The report uses Mine.
+            </span>
+          )}
+          {!d.mine && (
+            <button type="button" className={quiet} onClick={() => act.regenerate('exec')} disabled={act.regenerating === 'exec' || aiCount === 0} data-testid="regenerate">
+              {act.regenerating === 'exec' ? 'Regenerating…' : 'Regenerate'}
+            </button>
+          )}
+          <span role="group" aria-label="Which draft goes in the report" className="inline-flex overflow-hidden rounded-xs border border-mist" data-testid="draft-switch">
+            {(['ai', 'researcher'] as const).map((kind) => (
+              <button key={kind} type="button" aria-pressed={d.mine === (kind === 'researcher')} data-testid={`draft-${kind}`} onClick={() => d.switchTo(kind)} className={cn('px-2.5 py-0.5 text-xs font-medium', d.mine === (kind === 'researcher') ? 'bg-ink text-white' : 'bg-surface text-graphite hover:bg-haze')}>
+                {kind === 'ai' ? 'AI draft' : 'Mine'}
+              </button>
+            ))}
+          </span>
         </span>
       </footer>
     </section>

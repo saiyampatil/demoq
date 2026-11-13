@@ -10,7 +10,8 @@ import { PageHeader } from '../../shared/PageHeader'
 import { screenById, studyPath } from '@/routes/screens'
 import { CODEBOOK_STUDY, dismissTension, updateCodebook } from '@/state/codebook'
 import { uid } from '@/state/brief'
-import { EXEC_SUMMARY_AI, FINDING_DRAFTS, QUESTION_IDS, type SeedSentence } from '@/mock/report'
+import { FINDING_DRAFTS, QUESTION_IDS, type SeedSentence } from '@/mock/report'
+import { execDraft } from '@/state/execSummary'
 import {
   REPORT_USER,
   applyUpdate,
@@ -21,6 +22,7 @@ import {
   includeFinding,
   omitFinding,
   replaceAIDraft,
+  syncAIDraft,
   saveSentence,
   setActive,
   isCurrentReport,
@@ -74,9 +76,16 @@ export function Report() {
   // First visit: make the report from the pre-written AI drafts, with today's numbers filled in. In an effect, never in render.
   useEffect(() => {
     if (ready && doc && ctx && !report) {
-      ensureReport(studyId, doc.builtOn, QUESTION_IDS, { exec: rendered(EXEC_SUMMARY_AI), findings: Object.fromEntries(Object.entries(FINDING_DRAFTS).map(([k, v]) => [k, rendered(v)])) })
+      ensureReport(studyId, doc.builtOn, QUESTION_IDS, { exec: rendered(execDraft(ctx)), findings: Object.fromEntries(Object.entries(FINDING_DRAFTS).map(([k, v]) => [k, rendered(v)])) })
     }
   }, [ready, doc, ctx, report, studyId, rendered])
+
+  // The summary's AI draft follows the data: a tension added as a theme gains its sentence, a dismissed or restored one loses or regains it.
+  const wantedExec = useMemo(() => (ctx ? rendered(execDraft(ctx)) : undefined), [ctx, rendered])
+  useEffect(() => {
+    // Only write when something would change: a write always stamps the report as updated, which would run this again.
+    if (report && wantedExec && syncAIDraft(report, 'exec', wantedExec) !== report) updateReport(studyId, (r) => syncAIDraft(r, 'exec', wantedExec))
+  }, [report, wantedExec, studyId])
 
   const model = useMemo(() => (report && doc ? reportModel(report, doc, basis) : undefined), [report, doc, basis])
 
@@ -99,7 +108,7 @@ export function Report() {
 
   const act: Act = useMemo(() => {
     const by = REPORT_USER
-    const seedFor = (t: Target) => rendered(t === 'exec' ? EXEC_SUMMARY_AI : (FINDING_DRAFTS[t.questionId] ?? []))
+    const seedFor = (t: Target) => rendered(t === 'exec' ? (ctx ? execDraft(ctx) : []) : (FINDING_DRAFTS[t.questionId] ?? []))
     return {
       approve: (id, opts) => update((r) => approveSentence(r, id, { by }, opts)),
       withdraw: (id) => update((r) => withdrawApproval(r, id, { by })),
@@ -121,7 +130,7 @@ export function Report() {
       dismissTension: (t, why) => updateCodebook(studyId, (d) => dismissTension(d, t, { by }, why)),
       regenerating,
     }
-  }, [update, rendered, studyId, regenerating])
+  }, [update, rendered, studyId, regenerating, ctx])
 
   const goTo = useCallback(
     (s: Selection) => {

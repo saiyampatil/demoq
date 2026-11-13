@@ -208,6 +208,22 @@ export function copyAIToResearcher(d: ReportDoc, target: Target, { by }: { by: s
   })
 }
 
+/**
+ * Keeps a draft's AI sentences in step with what the data now supports, without a log entry. A sentence whose wording (template)
+ * and sources are unchanged stays exactly as it is, so its approval and any "numbers changed" suggestion are untouched. A new
+ * sentence is added, one that no longer holds is dropped, and one whose wording changed is replaced.
+ */
+export function syncAIDraft(d: ReportDoc, target: Target, wanted: Sentence[]): ReportDoc {
+  const t = target === 'exec' ? d.execSummary : d.findings.find((f) => f.questionId === target.questionId)
+  if (!t) return d
+  const next = wanted.map((w) => {
+    const have = t.aiDraft.find((s) => s.id === w.id)
+    return have && have.template === w.template && citesKey(have.cites) === citesKey(w.cites) ? have : w
+  })
+  const same = next.length === t.aiDraft.length && next.every((s, i) => s === t.aiDraft[i])
+  return same ? d : patch(d, target, (x) => ({ ...x, aiDraft: next }))
+}
+
 export function replaceAIDraft(d: ReportDoc, target: Target, sentences: Sentence[], { by }: { by: string }): ReportDoc {
   return patch(d, target, (t) => ({
     ...t,
