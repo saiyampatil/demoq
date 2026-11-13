@@ -17,6 +17,7 @@ import { SessionReview } from '@/apps/researcher/review/SessionReview'
 import { Codebook } from '@/apps/researcher/analysis/Codebook'
 import { Report } from '@/apps/researcher/analysis/Report'
 import { ShowreelPage } from '@/apps/researcher/analysis/Showreel'
+import { WordCloudPage } from '@/apps/researcher/analysis/WordCloud'
 import { SignalsTensions } from '@/apps/researcher/analysis/SignalsTensions'
 import { ReviewQueue } from '@/apps/researcher/review/ReviewQueue'
 import { LaunchReadiness } from '@/apps/researcher/launch/LaunchReadiness'
@@ -74,6 +75,7 @@ const builtResearcher: Record<string, ReactNode> = {
   A2: <SignalsTensions />,
   A3: <Report />,
   A3V: <ShowreelPage />,
+  A3W: <WordCloudPage />,
 }
 
 function Root() {

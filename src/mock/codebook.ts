@@ -222,9 +222,10 @@ const DRAFTS: Draft[] = [
     confidence: 0.91,
     decided: { by: maya, at: '2026-09-24T14:16:00-04:00' },
     quotes: [
-      ['P-3115', 'My vet suggested a different diet, so that settled it.'],
-      ['P-3107', 'The vet put him on a kidney diet, and they don’t make one.'],
-      ['P-3117', 'Our vet wanted her on a prescription food.'],
+      // Three weak matches, so the word cloud has a Low confidence band to show.
+      ['P-3115', 'My vet suggested a different diet, so that settled it.', 0.52],
+      ['P-3107', 'The vet put him on a kidney diet, and they don’t make one.', 0.55],
+      ['P-3117', 'Our vet wanted her on a prescription food.', 0.58],
     ],
   },
   {

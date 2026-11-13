@@ -223,6 +223,15 @@ PRD gaps and conflicts found while building. Each entry says what the prototype 
 | 217 | M | Should the 45 to 90 second rule block export rather than warn? | Today it is an amber warning on the theme video only. | Open |
 | 218 | M | Clip fields are partly invented. | The quotes have a start time, participant and match score. The end time (6 to 15 s from the quote's length), emotion strength, stimulus and clarity are derived deterministically for the mock. Real values need clip boundaries and per-moment readings from the analysis. | Open |
 | 219 | L | "Read more" opens the Report, not the theme's place in it. | The Report page was not to change, so the link goes to the page with a `#theme-` anchor that nothing scrolls to yet. | Open |
+| 220 | H | Word cloud size: people or mentions? | The founder decision is open. The prototype sizes a word by distinct people (n of N); a person with several statements counts once. | Open |
+| 221 | M | Should Add write back to the codebook as a coding? | Today a statement added to a word is a display-layer edit saved with the cloud. The codebook, report and transcripts never change. | Open |
+| 222 | M | Can a Deleted statement be restored? | Built so it can (Removed, Restore). Product to confirm, and who may restore. | Open |
+| 223 | M | Which user details may leadership see? | The preview shows participant ID and segment only. The researcher view also shows age band and city. | Open |
+| 224 | M | Should colour default to confidence or theme? | Default is confidence, with the theme palette one click away. | Open |
+| 225 | L | Is a minimum of 2 people right? | Default 2, adjustable 1 to 5. In the demo data no accepted word has fewer than 2 people, so nothing is hidden by default; a word drops below the minimum after a delete and Regenerate. | Open |
+| 226 | L | PNG export for slide decks. | Not built. | Open |
+| 227 | M | Mock data adjusted for the Low confidence band. | Three "vet" quotes in the codebook seed were given weak match scores (0.52 to 0.58) so the cloud has a Low band. They now show a "Weak match" tag in the codebook. Age band and city per participant are made up from the participant ID. | Open |
+| 228 | L | Deleted statements are per word. | A statement deleted from the theme "Price creep" stays in the code "Price went up" word, and the other way round; each word keeps its own deletes. | Open |
 
 ## Future ideas (not built)
 

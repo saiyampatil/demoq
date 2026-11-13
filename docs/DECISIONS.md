@@ -640,3 +640,10 @@ Prototype decisions from the product owner, 11 Nov 2026.
 - The rail's "0 clips" was the page, not the data: a theme's first version used to be made only when it was opened. Every theme with four or more clips now gets its first version when the page opens, and the rail shows the automatic pick until then. A theme with fewer than four says "Not enough clips yet" and can't be exported.
 - **Demo state:** the first two themes get a Default version once (`seeded` flag, switch off with localStorage `pulseai-qual:showreel-seed` = `off`), so the Showreel tab opens with content. A later change of the Researcher's is never undone.
 - Chart bars are each theme's n of its own N, the same two numbers as the label, and the chart sits under the player. A theme's only version can't be deleted. "Include" is disabled for a theme with no default.
+
+## A3 Word cloud (mock)
+
+- **Its own page** `/analysis/report/wordcloud` (screen A3W, hidden), opened from Tools; same pattern as Theme videos. Settings (minimum people, 40-word cap, font range, confidence bands and colours, theme palette) are in `src/config/wordcloud.ts`.
+- **A display layer over the codebook.** A word's number is the codebook's, minus statements deleted or ignored, plus statements added. Only deletes and adds are saved (`pulseai-qual:wordcloud`) and logged; ignores live in the page and vanish when the Researcher leaves. Nothing writes to the codebook, report or transcripts.
+- **Regenerate** applies the edits; until then the cloud keeps its last picture and the panel shows live counts. Layout is a deterministic spiral (`lib/cloudLayout.ts`) made from every word, so the minimum, the panel and a reload never move a word.
+- **Leadership preview** shows the last regenerated cloud with deletes and adds, no ignores, no pending changes, no edit controls, and only participant ID and segment.

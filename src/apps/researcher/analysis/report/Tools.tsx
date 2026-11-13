@@ -9,7 +9,7 @@ const GROUPS: { label: string; tools: Tool[] }[] = [
     tools: [
       { key: 'theme-videos', label: 'Theme videos', built: true },
       { key: 'showreel', label: 'Showreel', built: true },
-      { key: 'word-cloud', label: 'Word cloud', built: false },
+      { key: 'word-cloud', label: 'Word cloud', built: true },
       { key: 'theme-map', label: 'Theme map', built: false },
       { key: 'audio-summary', label: 'Audio summary', built: false },
     ],
