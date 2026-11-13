@@ -81,10 +81,15 @@ export function bubblesOf(doc: CodebookDoc, basis: Basis, seg: Segment): Bubble[
 
 export const bandWords = (b: Bubble) => (b.notEnough || !b.band ? 'not enough read' : `${b.band.toLowerCase()} reaction strength`)
 export const verdictWords = (v: FitPattern) => (v === 'Consistent' ? 'words and delivery matched' : v === 'Conflicting' ? 'words and delivery pulled apart' : v === 'Mixed' ? 'words and delivery partly matched' : 'too few to read')
-export const accessibleName = (b: Bubble, seg: Segment) => `${b.name}, ${b.n} of ${b.of} ${segmentNoun(seg)}, ${bandWords(b)}, ${verdictWords(b.verdict)}`
+export const accessibleName = (b: Bubble, seg: Segment) => (b.kind === 'none' ? `${b.name}, ${b.n} of ${b.of} ${segmentNoun(seg)}, not grouped into a theme yet` : `${b.name}, ${b.n} of ${b.of} ${segmentNoun(seg)}, ${bandWords(b)}, ${verdictWords(b.verdict)}`)
 
 /** Who is said by both of two sets of people: the layout's only use of it. */
 export const peopleSets = (bubbles: Bubble[]) => new Map(bubbles.map((b) => [b.key, b.people]))
+/** How many people said both of two themes, from the same sets the layout uses. */
+export const sharedCount = (a: Bubble, b: Bubble) => [...a.people].filter((p) => b.people.has(p)).length
+/** The real themes that share people with a bubble, with how many. "Not in a theme" is never one of them. */
+export const sharing = (bubble: Bubble, all: Bubble[]) => all.filter((o) => o.key !== bubble.key && o.kind === 'theme' && bubble.kind === 'theme').map((o) => ({ other: o, shared: sharedCount(bubble, o) })).filter((x) => x.shared > 0)
+export const sharedLabel = (n: number) => `${n} ${n === 1 ? 'person' : 'people'} in both`
 
 // ─── tension lines ──────────────────────────────────────────────────────────
 
@@ -116,8 +121,9 @@ export function summaryOf(bubbles: Bubble[]): string {
   const top = Math.max(...themes.map((b) => b.n))
   const leaders = themes.filter((b) => b.n === top).map((b) => b.name)
   const first = leaders.length === 1 ? `${leaders[0]} is the largest theme.` : `${leaders.join(' and ')} are the largest themes.`
-  const apart = themes.filter((b) => b.verdict === 'Conflicting').length
-  return apart > 0 ? `${first} ${apart} ${plural(apart, 'theme shows', 'themes show')} words and delivery pulling apart.` : first
+  const apart = themes.filter((b) => b.verdict === 'Conflicting').map((b) => b.name)
+  const names = apart.length <= 2 ? apart.join(' and ') : `${apart.slice(0, -1).join(', ')} and ${apart[apart.length - 1]}`
+  return apart.length > 0 ? `${first} ${names} ${plural(apart.length, 'shows', 'show')} words and delivery pulling apart.` : first
 }
 
 /** What a step of the tour says about a bubble: its name, its people, and A2's fit, using only the bubble's own numbers. */
@@ -127,8 +133,28 @@ export function tourCaption(b: Bubble, seg: Segment): string {
   return `${b.name}. ${b.n} of ${b.of} ${segmentNoun(seg)}. ${tail}`
 }
 export const TOUR_END = 'That is every approved theme.'
-/** The tour visits bubbles largest first. */
-export const tourOrder = (bubbles: Bubble[]) => [...bubbles].filter((b) => b.n > 0).sort((a, b) => b.n - a.n || a.name.localeCompare(b.name))
+/** The last step: the end, and the one place "Not in a theme" is mentioned. */
+export function tourEnd(bubbles: Bubble[], seg: Segment): string {
+  const none = bubbles.find((b) => b.kind === 'none' && b.n > 0)
+  return none ? `${TOUR_END} ${none.n} of ${none.of} ${segmentNoun(seg)} said something not grouped yet.` : TOUR_END
+}
+/** The tour visits real themes largest first. "Not in a theme" is not one of them. */
+export const tourOrder = (bubbles: Bubble[]) => [...bubbles].filter((b) => b.kind === 'theme' && b.n > 0).sort((a, b) => b.n - a.n || a.name.localeCompare(b.name))
+
+export type Row = { label: string; n: number; of: number; unit: string }
+/** The panel's facts, one a row, each with its own denominator, from A2's numbers for these people. No new rule. */
+export function panelRows(b: Bubble): Row[] {
+  const r = b.rollup
+  const tones = r.tones
+  return [
+    { label: 'Spoke for it', n: r.stances.Positive, of: r.people, unit: 'people read' },
+    { label: 'Sounded flat or tense', n: tones.counts.Flat + tones.counts.Tense, of: tones.n, unit: 'voices read' },
+    { label: 'Hesitated markedly', n: r.marked, of: r.people, unit: 'people read' },
+    { label: 'Faces read', n: r.emotions.read, of: r.people, unit: 'people' },
+    { label: 'Audio-only, no face', n: r.emotions.noVideo, of: r.people, unit: 'people' },
+  ]
+}
+export const headlineShort = (v: FitPattern) => (v === 'Consistent' ? 'Delivery matched the words' : v === 'Conflicting' ? 'Words and delivery pulled apart' : v === 'Mixed' ? 'Words and delivery partly matched' : 'Too few read to say')
 
 export const headline = (b: Bubble) => headlineOf(b.rollup)
 

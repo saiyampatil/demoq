@@ -655,3 +655,12 @@ Prototype decisions from the product owner, 11 Nov 2026.
 - **Bubbles** are accepted themes plus one grey "Not in a theme". Size is people on a square-root scale. Position comes from how much the people overlap (a small deterministic layout, no library) and stays put when the segment changes.
 - **Motion** is only what the brief lists (settle, resize, dim, rescale, crossfade, the tour), and all of it is instant under "reduce motion".
 - **Read only.** The map never writes to the codebook; the tour changes nothing and opens no panel.
+
+## A3 Theme map polish
+
+- Each bubble shows its name (two lines at most) and "n of N" under it, using the segment's N; a bubble too small for the number keeps its name and the tooltip has the number. Text colours are in the config and all pass 4.5:1.
+- Layout gives each bubble its ring in the layout size and keeps 12px between outer rings. Positions come from the Everyone view only, so hover, selection, the panel, colour mode and segment never move a bubble.
+- "Not in a theme" is plain grey with a thin dashed outline and no strength colour or ring, drawn smaller than a real theme of the same count, placed toward the edge, with its own caption and a link to the codebook. It is not in the summary or the tour, except one line on the tour's last step.
+- Hover dims the others to 70% (never lower); with the panel open nothing is dimmed. Hover or selection draws thin lines to the themes that share people, with the shared count. A segment draws a dashed ghost circle at each theme's Everyone size.
+- The panel shows a one-line headline and short rows, each with its own n of N and denominator, from A2's numbers. Quotes show "P-3101 · 10:16 · Play"; the session ID is in the title only.
+- The five legend lines became one row of swatches; the card is about 70vh and the SVG scales inside it.

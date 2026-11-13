@@ -29,7 +29,16 @@ export const THEME_MAP = {
   /** The ring round a bubble says how words and delivery fit, in both colour modes. */
   ring: { colour: '#4b5563', amber: '#b45309' },
   motion: { settleMs: 600, resizeMs: 400, hoverMs: 120, selectMs: 200, crossfadeMs: 250, staggerMs: 90, tourAutoMs: 5000 },
-  dimOpacity: 0.4,
+  /** On hover (and in the tour) the other bubbles drop to this, never lower. With the panel open nothing is dimmed. */
+  dimOpacity: 0.7,
+  /** A bubble's ring reaches this far past its edge, and bubbles keep this gap between their outer rings. */
+  ringOutset: 6,
+  gap: 12,
+  /** "Not in a theme" is drawn smaller than a real theme of the same count and never bigger than this share of the largest real one. */
+  noneScale: 0.8,
+  noneCap: 0.9,
+  /** Under this radius a bubble keeps only its name; the number is in the tooltip. */
+  minRadiusForNumber: 40,
 } as const
 
 export type StrengthBand = 'High' | 'Medium' | 'Low'

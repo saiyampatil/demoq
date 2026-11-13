@@ -15,7 +15,35 @@ export function overlapOf(a: ReadonlySet<string>, b: ReadonlySet<string>): numbe
   return both / (a.size + b.size - both)
 }
 
-export function layoutBubbles(items: BubbleIn[], overlap: (a: string, b: string) => number, width: number, height: number, seed: string, gap = 10): BubbleAt[] {
+/**
+ * `edge` names a bubble to put toward the edge of the picture instead of among the others: the one that is not a theme. It goes where it
+ * is furthest from every other bubble, still inside the picture and still `gap` clear of them.
+ */
+export function layoutBubbles(items: BubbleIn[], overlap: (a: string, b: string) => number, width: number, height: number, seed: string, gap = 10, edge?: string): BubbleAt[] {
+  if (edge && items.length > 1) {
+    const rest = layoutBubbles(items.filter((i) => i.key !== edge), overlap, width, height, seed, gap)
+    const me = items.find((i) => i.key === edge)!
+    const phase = seedOf(seed) % 360
+    let best: BubbleAt | undefined
+    let bestScore = -Infinity
+    for (let a = 0; a < 360; a += 6) {
+      const t = ((a + phase) * Math.PI) / 180
+      for (const inset of [0, 0.12, 0.25]) {
+        const x = Math.min(width - me.r - 6, Math.max(me.r + 6, width / 2 + Math.cos(t) * (width / 2 - me.r - 6) * (1 - inset)))
+        const y = Math.min(height - me.r - 6, Math.max(me.r + 6, height / 2 + Math.sin(t) * (height / 2 - me.r - 6) * (1 - inset)))
+        const clear = Math.min(...rest.map((o) => Math.hypot(o.x - x, o.y - y) - o.r - me.r))
+        if (clear < gap) continue
+        // Furthest from the middle, and clear of the rest by as much as possible.
+        const score = Math.hypot(x - width / 2, y - height / 2) + clear * 0.1
+        if (score > bestScore) (bestScore = score), (best = { key: me.key, x, y, r: me.r })
+      }
+    }
+    if (!best) {
+      // No clear spot at the edge: lay everything out together so nothing overlaps.
+      return layoutBubbles(items, overlap, width, height, seed, gap)
+    }
+    return [...rest, { ...best, x: Math.round(best.x * 10) / 10, y: Math.round(best.y * 10) / 10 }]
+  }
   const list = [...items].sort((a, b) => b.r - a.r || a.key.localeCompare(b.key))
   if (!list.length) return []
   const phase = (seedOf(seed) % 360) * (Math.PI / 180)

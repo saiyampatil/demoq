@@ -4,7 +4,7 @@ import { cn } from '@/components/cn'
 import { screenById, studyPath } from '@/routes/screens'
 import type { Basis, CodebookDoc } from '@/state/codebook'
 import { mmss } from '@/state/reportLogic'
-import { bandWords, headline, quotesOf, segmentNoun, segmentOf, verdictWords, type Bubble, type Segment } from '@/state/themeMap'
+import { bandWords, headlineShort, panelRows, quotesOf, segmentNoun, segmentOf, verdictWords, type Bubble, type Segment } from '@/state/themeMap'
 import { peopleOf } from '@/state/codebook'
 
 const LINK = 'text-sm text-graphite underline-offset-2 hover:text-ink hover:underline'
@@ -26,8 +26,19 @@ export function Panel({ studyId, doc, basis, bubble, seg, tensionId, onClose }: 
           <span>· {bandWords(bubble)}</span>
           <span className="rounded-xs border border-mist-strong px-1.5 py-0.5 text-xs" data-testid="panel-verdict">{bubble.verdict}</span>
         </p>
-        <p className="text-sm" data-testid="panel-headline">{headline(bubble)}</p>
+        {bubble.kind === 'theme' && <p className="text-sm font-medium" data-testid="panel-headline">{headlineShort(bubble.verdict)}</p>}
       </header>
+
+      {bubble.kind === 'theme' && (
+        <dl className="grid grid-cols-[1fr_auto] gap-x-4 gap-y-1 text-sm" data-testid="panel-rows">
+          {panelRows(bubble).map((r) => (
+            <div key={r.label} className="contents" data-testid="panel-row">
+              <dt className="text-graphite">{r.label}</dt>
+              <dd className="text-right tabular-nums" data-n={r.n} data-of={r.of}>{r.n} of {r.of} {r.unit}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
 
       <div className="flex flex-wrap gap-1.5" role="group" aria-label="Codes in this theme">
         {bubble.codes.map((c) => {
@@ -48,10 +59,10 @@ export function Panel({ studyId, doc, basis, bubble, seg, tensionId, onClose }: 
 
       <ul data-testid="quotes" className="flex flex-col">
         {quotes.map(({ excerpt: e, code, reading }) => (
-          <li key={e.id} data-testid="quote" data-participant={e.participantId} className="border-b border-mist py-3 last:border-b-0">
+          <li key={e.id} data-testid="quote" data-participant={e.participantId} title={`Session ${e.sessionId}`} className="border-b border-mist py-3 last:border-b-0">
             <p className="font-serif leading-snug text-ink">“{e.text}”</p>
             <p className="mt-1 text-xs text-graphite tabular-nums">
-              {e.participantId} · {e.sessionId} · {mmss(e.atSec)} · <Link to={href(e.sessionId, e.atSec)} className="font-medium text-iris-700 hover:underline" data-testid="play">Play</Link>
+              {e.participantId} · {mmss(e.atSec)} · <Link to={href(e.sessionId, e.atSec)} className="font-medium text-iris-700 hover:underline" data-testid="play">Play</Link>
             </p>
             <p className="text-xs text-graphite">{segmentOf(e.participantId)} owner · {code.name}</p>
             <p className="text-xs text-graphite" data-testid="reading">{reading}</p>
