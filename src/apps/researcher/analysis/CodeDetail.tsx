@@ -2,13 +2,14 @@ import { useMemo, useState } from 'react'
 import { Link } from 'react-router'
 import { AIGeneratedTag } from '@/components/AIGenerated'
 import { Button } from '@/components/Button'
+import { ClipPlayer } from '@/components/ClipPlayer'
 import { cn } from '@/components/cn'
 import { PlayIcon, SparkIcon } from '@/components/icons'
 import { StatusChip } from '@/components/StatusChip'
 import { useToast } from '@/components/Toast'
 import { formatStamp } from '@/lib/format'
 import { petOf } from '@/mock/codebook'
-import { transcriptFor } from '@/mock/review'
+import { findReviewRecord, transcriptFor } from '@/mock/review'
 import { screenById, studyPath } from '@/routes/screens'
 import {
   acceptCodes,
@@ -340,6 +341,7 @@ export function CodeDetail({ ctx, code: c, onDecided, onOpen }: { ctx: CodebookC
 /** A quote, who said it and when. Context shows the question it answered; Play opens the session at that moment. */
 function QuoteItem({ e, studyId, canRemove, onRemove }: { e: Excerpt; studyId: string; canRemove: boolean; onRemove: () => void }) {
   const [context, setContext] = useState(false)
+  const [playing, setPlaying] = useState(false)
   const turns = useMemo(() => (context ? transcriptFor(e.sessionId, 'reviewed') : []), [context, e.sessionId])
   const asked = turns[e.turnIndex - 1]
   const href = `${studyPath(studyId, { ...screenById.R22, path: screenById.R22.path.replace(':sessionId', e.sessionId) })}?from=codebook&at=${e.atSec}`
@@ -362,8 +364,11 @@ function QuoteItem({ e, studyId, canRemove, onRemove }: { e: Excerpt; studyId: s
         <button type="button" onClick={() => setContext((x) => !x)} aria-expanded={context} className="rounded-xs px-1 font-medium hover:bg-haze hover:text-ink">
           {context ? 'Hide question' : 'Question'}
         </button>
-        <Link to={href} className="inline-flex items-center gap-1 rounded-xs px-1 font-medium text-iris-700 hover:bg-iris-50" aria-label={`Play ${e.participantId} at ${mmss(e.atSec)}`}>
-          <PlayIcon size={11} /> Play
+        <button type="button" onClick={() => setPlaying((p) => !p)} aria-expanded={playing} data-testid="quote-play" className="inline-flex items-center gap-1 rounded-xs px-1 font-medium text-iris-700 hover:bg-iris-50" aria-label={`${playing ? 'Hide clip of' : 'Play'} ${e.participantId} at ${mmss(e.atSec)}`}>
+          <PlayIcon size={11} /> {playing ? 'Hide clip' : 'Play'}
+        </button>
+        <Link to={href} className="rounded-xs px-1 font-medium hover:bg-haze hover:text-ink" data-testid="quote-open-session">
+          Open session
         </Link>
         {canRemove && (
           <button type="button" onClick={onRemove} className="rounded-xs px-1 font-medium hover:bg-haze hover:text-negative-fg">
@@ -371,6 +376,7 @@ function QuoteItem({ e, studyId, canRemove, onRemove }: { e: Excerpt; studyId: s
           </button>
         )}
       </div>
+      {playing && <ClipPlayer className="mt-2" label={`${e.participantId} · ${petOf(e.participantId)}`} startSec={e.atSec} caption={e.text} audioOnly={findReviewRecord(e.sessionId)?.media === 'Audio only'} />}
     </li>
   )
 }

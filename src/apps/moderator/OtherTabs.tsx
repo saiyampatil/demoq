@@ -57,7 +57,7 @@ export function UpcomingTab({ data }: { data: Data }) {
           return (
             <li key={r.key} data-testid="upcoming-row" data-session={r.session.id} className="flex flex-wrap items-start gap-x-6 gap-y-2 px-5 py-3.5">
               <div className="min-w-44">
-                <p className="font-medium tabular-nums">{formatIn(r.session.slot!, myZone)}</p>
+                <p className="font-medium tabular-nums" data-slot={r.session.slot}>{formatIn(r.session.slot!, myZone)}</p>
                 <p className="text-xs text-graphite tabular-nums">
                   {participantName(r.session.participantId)}: {formatIn(r.session.slot!, participantZone(r.session))}
                 </p>

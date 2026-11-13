@@ -17,7 +17,7 @@
 import { uid } from '@/state/brief'
 import { FIELDWORK_NOW, moderatorName, planItems, type EventKind, type FieldworkDoc, type Notes, type Region, type Session, type SessionEvent } from '@/state/fieldwork'
 import { nextWeekdayAt } from '@/state/standby'
-import { zonedInstant } from '@/state/zone'
+import { addDays, zonedInstant } from '@/state/zone'
 import { participantEmail } from './participants'
 
 /**
@@ -27,7 +27,7 @@ import { participantEmail } from './participants'
  * a plan looks like in the brief.
  */
 export const PLAN_SEED_VERSION = 1
-const ORDERS: Record<string, number[]> = { 'P-9101': [0, 1, 2], 'P-9102': [1, 2, 0], 'P-9103': [2, 0, 1], 'P-9201': [1, 2, 0], 'P-9202': [2, 0, 1], 'P-9203': [0, 1, 2] }
+const ORDERS: Record<string, number[]> = { 'P-9101': [0, 1, 2], 'P-9102': [1, 2, 0], 'P-9103': [2, 0, 1], 'P-9104': [0, 1, 2], 'P-9201': [1, 2, 0], 'P-9202': [2, 0, 1], 'P-9203': [0, 1, 2], 'P-9204': [2, 0, 1] }
 
 function seedPlans(doc: FieldworkDoc): FieldworkDoc {
   const names = doc.plan.sections.flatMap((s) => s.items.map((i) => i.stimulus)).filter((x, i, a): x is string => !!x && a.indexOf(x) === i)
@@ -59,11 +59,22 @@ const RAVI = 'tm-ravi'
 const PET = 'pet-food-churn'
 
 const MIN = 60000
-const NOW = new Date(FIELDWORK_NOW).getTime()
+const PROTO_NOW = new Date(FIELDWORK_NOW).getTime()
+/**
+ * "Now" for the seed, set each time it runs: the real current time, or the prototype clock if that is later. Every seeded time is
+ * counted from it, so an upcoming session is never in the past, whenever the prototype is opened.
+ */
+let NOW = PROTO_NOW
 const iso = (ms: number) => new Date(ms).toISOString()
 const inMin = (m: number) => iso(NOW + m * MIN)
+const ET = 'America/New_York'
+const etDay = (ms: number) => new Intl.DateTimeFormat('en-CA', { timeZone: ET, year: 'numeric', month: '2-digit', day: '2-digit' }).format(ms)
 /** A wall-clock time in Eastern, `days` after today. */
-const eastern = (days: number, hh: number, mm: number) => iso(zonedInstant(2026, 11, 11 + days, hh, mm, 'America/New_York'))
+const eastern = (days: number, hh: number, mm: number) => {
+  const [y, m, d] = etDay(NOW).split('-').map(Number)
+  const t = addDays(y, m, d, days)
+  return iso(zonedInstant(t.y, t.m, t.d, hh, mm, ET))
+}
 
 const REGIONS: Region[] = ['Northeast', 'Midwest', 'South', 'West']
 const STATES: Record<Region, string> = { Northeast: 'New York', Midwest: 'Illinois', South: 'Georgia', West: 'California' }
@@ -179,7 +190,8 @@ const NOTES = (by: string, n: number): Notes => ({
   recontact: (['Yes', 'Maybe', 'No'] as const)[n % 3],
   recontactNote: '',
   by,
-  at: inMin(-1500 - n * 60),
+  // One day ago for some, three days ago for the rest.
+  at: inMin(-(n % 2 === 0 ? 1 : 3) * 1440 - n * 5),
 })
 
 /** Gives finished interviews to a moderator: `completed` still need notes (some with a draft), `submitted` have them. */
@@ -192,7 +204,7 @@ function giveFinished(doc: FieldworkDoc, moderatorId: string, completed: number,
     if (i < completed) given.set(s.id, { moderatorId, ...(i < draftOn ? { notesDraft: { takeaways: NOTES(by, i).takeaways, at: inMin(-200 - i * 30) } } : {}) })
     else given.set(s.id, { moderatorId, notes: NOTES(by, i) })
   })
-  return { ...doc, sessions: doc.sessions.map((s) => (given.has(s.id) ? { ...s, ...given.get(s.id) } : s)) }
+  return { ...doc, modGiven: [...(doc.modGiven ?? []), ...given.keys()], sessions: doc.sessions.map((s) => (given.has(s.id) ? { ...s, ...given.get(s.id) } : s)) }
 }
 
 const addStandby = (doc: FieldworkDoc, id: string, name: string): FieldworkDoc =>
@@ -201,17 +213,19 @@ const addStandby = (doc: FieldworkDoc, id: string, name: string): FieldworkDoc =
 /** Pet Food Subscription Churn: bookings and finished interviews for Jordan and Ravi, and three requests both can see. */
 function seedPet(doc: FieldworkDoc): FieldworkDoc {
   const sessions = [
-    // Jordan: one in about 15 minutes (Continued from AI, Join interview there but not active yet), one later today, one tomorrow.
-    booked(doc, 9101, JORDAN, inMin(15), 'ai'),
-    booked(doc, 9102, JORDAN, eastern(0, 19, 0), 'human'),
+    // Four each, counted from now: in an hour (Continued from AI, Join interview there but not active yet), in four hours, tomorrow, the day after.
+    booked(doc, 9101, JORDAN, inMin(60), 'ai'),
+    booked(doc, 9102, JORDAN, inMin(240), 'human'),
     booked(doc, 9103, JORDAN, eastern(1, 11, 0), 'human'),
-    // Ravi covers US evenings from India: 17:15 Eastern is 03:45 IST, 19:00 is 05:30 IST.
-    booked(doc, 9201, RAVI, inMin(15), 'ai'),
-    booked(doc, 9202, RAVI, eastern(0, 19, 0), 'human'),
+    booked(doc, 9104, JORDAN, eastern(2, 14, 0), 'human'),
+    // Ravi covers US evenings from India, so his times show in IST.
+    booked(doc, 9201, RAVI, inMin(60), 'ai'),
+    booked(doc, 9202, RAVI, inMin(240), 'human'),
     booked(doc, 9203, RAVI, eastern(1, 18, 0), 'human'),
+    booked(doc, 9204, RAVI, eastern(2, 19, 0), 'human'),
     // Three requests, for every moderator on this study's standby list.
-    request(doc, 9111, 'future', { suggested: nextWeekdayAt('America/New_York', FIELDWORK_NOW, 12, 0) }),
-    request(doc, 9112, 'passed', { suggested: eastern(0, 11, 0) }), // already passed: only Edit time works
+    request(doc, 9111, 'future', { suggested: nextWeekdayAt('America/New_York', iso(NOW), 12, 0) }),
+    request(doc, 9112, 'passed', { suggested: inMin(-150) }), // already passed: only Edit time works
     request(doc, 9113, 'waiting', { suggested: eastern(1, 13, 0), proposed: { slot: eastern(1, 14, 0), by: JORDAN } }),
   ]
   const withBookings = addStandby({ ...doc, sessions: [...doc.sessions, ...sessions] }, RAVI, 'Ravi Menon')
@@ -227,13 +241,37 @@ const off = () => {
   }
 }
 
-/** Adds the Moderator view's mock data to the studies that have fieldwork. Safe to run twice: a seeded record says so. */
+/** The seeded participants, so a new day can take them out and put them back with new times. */
+const isSeeded = (s: Session) => /^P-9[12]\d\d$/.test(s.participantId)
+
+/** Takes the seed out of a record: its sessions, and the notes and moderator it handed to finished interviews. */
+function unseed(doc: FieldworkDoc): FieldworkDoc {
+  // A record seeded before this tracked what it handed out: finished interviews now held by a seeded moderator, with no escalation.
+  const given = new Set(doc.modGiven ?? doc.sessions.filter((s) => (s.moderatorId === JORDAN || s.moderatorId === RAVI) && s.status === 'Completed' && !s.escalation && !isSeeded(s)).map((s) => s.id))
+  return {
+    ...doc,
+    modSeed: undefined,
+    planSeed: undefined,
+    modGiven: undefined,
+    sessions: doc.sessions.filter((s) => !isSeeded(s)).map((s) => (given.has(s.id) ? { ...s, moderatorId: null, notes: null, notesDraft: undefined } : s)),
+  }
+}
+
+/**
+ * Adds the Moderator view's mock data to the studies that have fieldwork. Dated from now, so a record seeded on an earlier day is
+ * taken out and seeded again. Safe to run twice on the same day: a seeded record says so.
+ */
 export function seedModerators(fieldworks: Record<string, FieldworkDoc>): Record<string, FieldworkDoc> {
   if (off()) return fieldworks
+  // Whole minutes: every other slot in the app is, and the hour grid assumes it.
+  NOW = Math.floor(Math.max(Date.now(), PROTO_NOW) / MIN) * MIN
+  const today = etDay(NOW)
   return Object.fromEntries(
     Object.entries(fieldworks).map(([id, doc]) => {
       if (id !== PET) return [id, doc]
-      const seeded = doc.modSeed === MODERATOR_SEED_VERSION ? doc : { ...seedPet(doc), modSeed: MODERATOR_SEED_VERSION }
+      const current = doc.modSeed === MODERATOR_SEED_VERSION && doc.modDay === today
+      const base = current ? doc : doc.modSeed ? unseed(doc) : doc
+      const seeded = base.modSeed === MODERATOR_SEED_VERSION ? base : { ...seedPet(base), modSeed: MODERATOR_SEED_VERSION, modDay: today, clockSkewMin: Math.max(0, Math.round((NOW - PROTO_NOW) / MIN)) }
       return [id, seeded.planSeed === PLAN_SEED_VERSION ? seeded : seedPlans(seeded)]
     }),
   )

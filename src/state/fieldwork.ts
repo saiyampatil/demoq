@@ -338,6 +338,9 @@ export type FieldworkDoc = {
   modSeed?: number
   /** Set when the seeded sessions have been given stimulus plans for the session brief (src/mock/moderatorSeed.ts). */
   planSeed?: number
+  /** The day (Eastern) the Moderator view's mock data was dated from, and the finished interviews it handed to moderators. A new day re-dates it. */
+  modDay?: string
+  modGiven?: string[]
 }
 
 // ─── mock generation ────────────────────────────────────────────────────────

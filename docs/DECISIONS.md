@@ -605,3 +605,11 @@ Prototype decisions from the product owner, 11 Nov 2026.
 - **Fieldwork** shows a balance table per stimulus (people, seen first, shown so far), a warning when any stimulus differs by more than 1, and a line when a segment has fewer people than plans. It is absent for a study that doesn't split or rotate.
 - **Session brief (M5)** is read-only, reusable (`apps/moderator/SessionBrief.tsx`, so the console can embed it) and never carries screener answers, criteria, the balance or other people's plans. A moderator opens only their own sessions or requests they can see. "Guide updated" shows when the plan's guide version is newer than the one recorded when the session was booked (`Session.bookedGuide`). Thumbnails are generated placeholder cards.
 - **Seed:** the six seeded Pet Food sessions hold plans (own flag `planSeed`) and Jordan's tomorrow session shows "Guide updated". Gaps are in OPEN_QUESTIONS #205–209.
+
+## Moderator brief: a preparation document
+
+- **One linear document, for before the session** (phone, or printed). The live console is for during. No panels or tabs: header (when, guide version, moderator, a must-cover count, one line with the stimulus order), the objective, then the guide section by section.
+- **Stimuli sit in the guide.** The stimulus-showing questions are slots in guide order; slot k shows what this participant's plan puts k-th, with the question's wording swapped for this view only. A participant in a split sees fewer, so extra slots are left out. The stored guide is never edited.
+- **Opening script:** if the first question is AI-specific it is replaced with the human script (new, or "I'll take it from here" for a continued session), using the moderator's first name.
+- **Continued from AI:** questions the AI asked or covered, or whose stimulus it showed, are collapsed and grey with "Done by AI"; the first one left is "Start here". Print opens everything.
+- **Mock dates are counted from the real clock** each time the seed runs (or from the prototype clock if that is later): +1 hour, +4 hours, tomorrow, the day after. A record dated on an earlier day is taken out and dated again. The Pet Food study's clock follows (`clockSkewMin`) so Join and the hour grid agree. Finished interviews keep their real history; only their notes are dated 1 and 3 days ago.

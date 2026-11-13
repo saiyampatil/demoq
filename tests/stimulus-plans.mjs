@@ -87,13 +87,13 @@ try {
   await b.evaluate(`(()=>{const k='pulseai-qual:v2';const s=JSON.parse(localStorage.getItem(k));const d=s.fieldworks['pet-food-churn'];const names=[...new Set(d.plan.sections.flatMap(x=>x.items.map(i=>i.stimulus)).filter(Boolean))].filter(n=>/^Concept/.test(n));d.plan.stimulusPlans=[0,1,2].map(r=>{const o=[...names.slice(r),...names.slice(0,r)];return {id:'g1-r'+r,group:1,order:o,names:o}});localStorage.setItem(k,JSON.stringify(s));return true})()`)
   await b.goto('/researcher/studies/pet-food-churn/fieldwork/command-center'); await b.waitFor('Stimulus balance'); await b.sleep(400)
   const rowsOf = await b.evaluate(`[...document.querySelectorAll('[data-testid=balance-row]')].map(r=>({n:r.dataset.stimulus,saw:Number(r.dataset.saw),first:Number(r.dataset.first)}))`)
-  ok('Fieldwork shows the balance per stimulus: people and seen first, for the sessions that hold a plan', rowsOf.length === 3 && rowsOf.every((r) => r.saw === 6 && r.first === 2), rowsOf)
+  ok('Fieldwork shows the balance per stimulus: people and seen first, for the sessions that hold a plan', rowsOf.length === 3 && rowsOf.every((r) => r.saw === 8) && rowsOf.reduce((n, r) => n + r.first, 0) === 8, rowsOf)
   ok('even here, so no warning', (await count('[data-testid=balance-warning]')) === 0)
   await withMod(`(async()=>{})()`)
   await b.evaluate(`(()=>{const k='pulseai-qual:v2';const s=JSON.parse(localStorage.getItem(k));const d=s.fieldworks['pet-food-churn'];d.sessions.filter(x=>['P-9102','P-9202'].includes(x.participantId)).forEach(x=>{x.access='No-show'});localStorage.setItem(k,JSON.stringify(s));return true})()`)
   await b.goto('/researcher/studies/pet-food-churn/fieldwork/command-center'); await b.waitFor('Stimulus balance'); await b.sleep(400)
   const after = await b.evaluate(`[...document.querySelectorAll('[data-testid=balance-row]')].map(r=>Number(r.dataset.saw))`)
-  ok('two no-shows leave the balance: their plans are released', after.every((n) => n === 4), after)
+  ok('two no-shows leave the balance: their plans are released', after.every((n) => n === 6), after)
 
   // ═══ The Stimuli step: the setting and the lock ═══
   const blockers = await withMod(`(async()=>{
@@ -110,14 +110,14 @@ try {
   // ═══ The brief ═══
   await as('u-jordan')
   await b.goto('/moderator/sessions?tab=upcoming'); await b.waitFor('My sessions'); await b.sleep(500)
-  ok('Upcoming rows have View brief', (await count('[data-testid=upcoming-row] [data-testid=view-brief]')) === 3)
+  ok('Upcoming rows have View brief', (await count('[data-testid=upcoming-row] [data-testid=view-brief]')) === 4)
   await b.goto('/moderator/sessions/P-9101-1/brief'); await b.waitFor('Session brief'); await b.sleep(400)
   const brief = (await text('[data-testid=session-brief]')) ?? ''
-  const order1 = await b.evaluate(`[...document.querySelectorAll('[data-testid=brief-stimuli] li')].map(l=>l.dataset.stimulus)`)
-  ok('the brief shows the objective, the guide version, sections with minutes, questions, probes and must-cover items', (await text('[data-testid=brief-objective]'))?.length > 40 && /Guide version 2/.test((await text('[data-testid=brief-version]')) ?? '') && (await count('[data-testid=brief-section]')) >= 3 && (await count('[data-testid=brief-question]')) >= 5 && /min/.test(brief) && (await count('[data-testid=brief-must] li')) >= 1 && /Must cover/.test(brief), brief.slice(0, 200))
+  const order1 = await b.evaluate(`[...document.querySelectorAll('[data-testid=stimulus-card]')].map(l=>l.dataset.stimulus)`)
+  ok('the brief shows the objective, the guide version, sections with minutes, questions and a must-cover count', (await text('[data-testid=brief-objective]'))?.length > 40 && /Guide version 2/.test((await text('[data-testid=brief-version]')) ?? '') && (await count('[data-testid=brief-section]')) >= 3 && (await count('[data-testid=brief-question]')) >= 5 && /min/.test(brief) && /\d+ must-cover questions/.test(brief), brief.slice(0, 200))
   await b.goto('/moderator/sessions/P-9102-1/brief'); await b.waitFor('Session brief'); await b.sleep(400)
-  const order2 = await b.evaluate(`[...document.querySelectorAll('[data-testid=brief-stimuli] li')].map(l=>l.dataset.stimulus)`)
-  ok('"Your participant sees" lists thumbnails in each participant’s own order', order1.length === 3 && order2.length === 3 && order1[0] !== order2[0] && (await count('[data-testid=brief-stimuli] [role=img]')) === 3, { order1, order2 })
+  const order2 = await b.evaluate(`[...document.querySelectorAll('[data-testid=stimulus-card]')].map(l=>l.dataset.stimulus)`)
+  ok('stimulus cards sit in the guide in each participant’s own order', order1.length === 3 && order2.length === 3 && order1[0] !== order2[0] && (await count('[data-testid=stimulus-card] [role=img]')) === 3, { order1, order2 })
   const all = (await text('[data-testid=session-brief]')) ?? ''
   ok('the brief never shows screener answers, criteria, the balance table or other plans', !/screener|criteria|eligib|needs review|balance|seen first|P-9101|P-9103/i.test(all), all.match(/screener|criteria|eligib|needs review|balance|seen first|P-9101|P-9103/i)?.[0])
   await b.goto('/moderator/sessions/P-9103-1/brief'); await b.waitFor('Session brief'); await b.sleep(400)

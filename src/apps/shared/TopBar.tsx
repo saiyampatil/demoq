@@ -13,7 +13,7 @@ type TopBarProps = {
 
 export function TopBar({ home, context, nav, right }: TopBarProps) {
   return (
-    <header className="sticky top-0 z-30 flex h-topbar items-center gap-6 border-b border-mist bg-surface px-4 sm:px-5">
+    <header className="sticky top-0 z-30 flex print:hidden h-topbar items-center gap-6 border-b border-mist bg-surface px-4 sm:px-5">
       <div className="flex items-center gap-2.5">
         <Link to={home} className="flex items-center gap-2 rounded-xs font-semibold text-ink">
           <PulseMark />

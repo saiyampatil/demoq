@@ -155,9 +155,9 @@ function petAudience(brief: BriefDoc): AudienceDoc {
 // ─── the guide ──────────────────────────────────────────────────────────────
 
 const stimuliItems: Stimulus[] = [
-  { id: 'st-a', name: 'Concept A: Pause, don’t cancel', kind: 'concept', detail: '1 page', active: true, addedAt: '2026-08-12T10:00:00-04:00', addedBy: maya },
-  { id: 'st-b', name: 'Concept B: Recipe swap guarantee', kind: 'concept', detail: '1 page', active: true, addedAt: '2026-08-12T10:02:00-04:00', addedBy: maya },
-  { id: 'st-c', name: 'Concept C: Portion-matched boxes', kind: 'concept', detail: '1 page', active: true, addedAt: '2026-08-12T10:04:00-04:00', addedBy: maya },
+  { id: 'st-a', name: 'Concept A: Pause, don’t cancel', kind: 'concept', detail: '1 page', text: 'Skip up to two boxes a year without cancelling. Your plan and price stay as they are.', active: true, addedAt: '2026-08-12T10:00:00-04:00', addedBy: maya },
+  { id: 'st-b', name: 'Concept B: Recipe swap guarantee', kind: 'concept', detail: '1 page', text: 'If your pet won’t eat a recipe, swap it for another one, free, within 14 days.', active: true, addedAt: '2026-08-12T10:02:00-04:00', addedBy: maya },
+  { id: 'st-c', name: 'Concept C: Portion-matched boxes', kind: 'concept', detail: '1 page', text: 'Boxes sized to your pet’s weight and appetite, so there is less left over and less to throw away.', active: true, addedAt: '2026-08-12T10:04:00-04:00', addedBy: maya },
   { id: 'st-v', name: 'Unboxing walkthrough, 20 seconds', kind: 'video', detail: 'MP4, 6.1 MB', active: false, addedAt: '2026-08-12T10:10:00-04:00', addedBy: maya },
   surveyItem('st-sv-keep', PET_SURVEYS.keep, '2026-08-12T10:15:00-04:00', 'PulseAI'),
   surveyItem('st-sv-reason', PET_SURVEYS.reason, '2026-08-12T10:16:00-04:00', 'PulseAI'),
