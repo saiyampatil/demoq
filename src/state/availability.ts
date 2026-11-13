@@ -4,7 +4,7 @@
 // what a participant can book and what Schedule at this time checks.
 import { useSyncExternalStore } from 'react'
 import { availabilityFor } from '@/mock/moderation'
-import { addDays, localDate, weekOf, zonedInstant } from './zone'
+import { addDays, localDate, offsetMin, weekOf, zonedInstant } from './zone'
 
 const KEY = 'pulseai-qual:moderator-availability'
 const HOUR = 3600000
@@ -51,6 +51,12 @@ export const useAvailabilityVersion = () =>
 
 export const zoneOf = (moderatorId: string) => availabilityFor(moderatorId).availability.timeZone
 
+/** The start of the hour an instant falls in, by the zone's own clock. In a half-hour zone such as India that is half past on the UTC clock. */
+export function hourStartOf(timeZone: string, ms: number): number {
+  const off = offsetMin(timeZone, ms) * 60000
+  return Math.floor((ms + off) / HOUR) * HOUR - off
+}
+
 /** The hour blocks of a week, from the roster window: the starting point for anyone who hasn't edited. */
 function windowBlocks(moderatorId: string, key: string): string[] {
   const { availability: a } = availabilityFor(moderatorId)
@@ -92,14 +98,16 @@ export function blocksOfWeek(moderatorId: string, key: string): Set<string> {
 }
 
 /** Whether the hour starting at this instant is one of the moderator's available hours. */
-export function isAvailableHour(moderatorId: string, hourStartMs: number): boolean {
-  const key = weekOf(zoneOf(moderatorId), hourStartMs).key
-  return blocksOfWeek(moderatorId, key).has(new Date(hourStartMs).toISOString())
+export function isAvailableHour(moderatorId: string, atMs: number): boolean {
+  const tz = zoneOf(moderatorId)
+  const start = hourStartOf(tz, atMs)
+  return blocksOfWeek(moderatorId, weekOf(tz, start).key).has(new Date(start).toISOString())
 }
 
-/** Whether the whole span (start to start + length) is covered by available hours. Every zone here has whole-hour offsets, so hours start on the UTC hour. */
+/** Whether the whole span (start to start + length) is covered by available hours, hour by hour on the moderator's own clock. */
 export function isAvailableSpan(moderatorId: string, startMs: number, lengthMs: number): boolean {
-  for (let t = Math.floor(startMs / HOUR) * HOUR; t < startMs + lengthMs; t += HOUR) if (!isAvailableHour(moderatorId, t)) return false
+  const tz = zoneOf(moderatorId)
+  for (let t = hourStartOf(tz, startMs); t < startMs + lengthMs; t += HOUR) if (!isAvailableHour(moderatorId, t)) return false
   return true
 }
 

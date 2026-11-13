@@ -154,34 +154,80 @@ export function UpcomingTab({ data }: { data: Data }) {
   )
 }
 
-function Ended({ rows, empty, note }: { rows: SessionRow[]; empty: { title: string; description: string }; note: (r: SessionRow) => string }) {
+/** A finished interview: who, which study, the recording, and where the notes stand. */
+function EndedRow({ r, studyName, children, right }: { r: SessionRow; studyName: string; children?: React.ReactNode; right: React.ReactNode }) {
+  const s = r.session
+  return (
+    <li data-testid="ended-row" data-session={s.id} className="px-5 py-3">
+      <div className="flex flex-wrap items-baseline gap-x-6 gap-y-1">
+        <span className="min-w-44 font-medium">
+          {participantName(s.participantId)} <span className="text-xs font-normal text-graphite tabular-nums">{s.participantId}</span>
+        </span>
+        <span className="text-sm text-graphite">{studyName}</span>
+        <span data-testid="recording" className="rounded-xs border border-mist bg-haze px-1.5 py-0.5 text-xs font-medium text-graphite tabular-nums">
+          Recording · {s.durationMin ?? '—'} min
+        </span>
+        <span className="ml-auto text-xs text-graphite">{right}</span>
+      </div>
+      {children}
+    </li>
+  )
+}
+
+export function CompletedTab({ data }: { data: Data }) {
+  const rows = completedFor(data.all, data.me.id)
   if (rows.length === 0)
     return (
       <Box>
-        <EmptyState title={empty.title} description={empty.description} />
+        <EmptyState title="No interviews waiting for notes" description="Interviews you finish appear here until you submit your notes." />
       </Box>
     )
   return (
     <Box>
-      <ul className="divide-y divide-mist">
+      <ul className="divide-y divide-mist" data-testid="completed-list">
         {rows.map((r) => (
-          <li key={r.key} className="flex flex-wrap items-baseline gap-x-6 px-5 py-3">
-            <span className="min-w-44 font-medium">
-              {participantName(r.session.participantId)} <span className="text-xs font-normal text-graphite tabular-nums">{r.session.participantId}</span>
-            </span>
-            <span className="text-sm text-graphite">{r.doc.studyId}</span>
-            <span className="ml-auto text-xs text-graphite">{note(r)}</span>
-          </li>
+          <EndedRow key={r.key} r={r} studyName={data.studyName(r.studyId)} right={r.session.notesDraft ? <span data-testid="notes-state" data-state="draft">Draft notes saved {formatStamp(r.session.notesDraft.at)}. Not submitted.</span> : <span data-testid="notes-state" data-state="none">Notes not added yet</span>}>
+            {r.session.notesDraft && <p className="mt-1 text-xs text-graphite">“{r.session.notesDraft.takeaways}”</p>}
+          </EndedRow>
         ))}
       </ul>
     </Box>
   )
 }
 
-export function CompletedTab({ data }: { data: Data }) {
-  return <Ended rows={completedFor(data.all, data.me.id)} empty={{ title: 'No interviews waiting for notes', description: 'Interviews you finish appear here until you submit your notes.' }} note={(r) => `Ended ${formatStamp(r.session.events[r.session.events.length - 1]?.at ?? '')}. Notes not submitted yet.`} />
-}
-
+/** Notes already submitted. Read only. */
 export function SubmittedTab({ data }: { data: Data }) {
-  return <Ended rows={submittedFor(data.all, data.me.id)} empty={{ title: 'No notes submitted yet', description: 'Interviews whose notes you submitted are listed here.' }} note={(r) => `Notes submitted ${formatStamp(r.session.notes!.at)}`} />
+  const rows = submittedFor(data.all, data.me.id)
+  if (rows.length === 0)
+    return (
+      <Box>
+        <EmptyState title="No notes submitted yet" description="Interviews whose notes you submitted are listed here." />
+      </Box>
+    )
+  return (
+    <Box>
+      <ul className="divide-y divide-mist" data-testid="submitted-list">
+        {rows.map((r) => {
+          const n = r.session.notes!
+          return (
+            <EndedRow key={r.key} r={r} studyName={data.studyName(r.studyId)} right={`Notes submitted ${formatStamp(n.at)}`}>
+              <details className="mt-1.5 text-sm">
+                <summary className="cursor-pointer text-xs font-medium text-iris-700">Read the notes (read only)</summary>
+                <dl className="mt-1.5 grid max-w-2xl gap-x-4 gap-y-1 text-sm sm:grid-cols-[8rem_1fr]">
+                  <dt className="text-graphite">Takeaways</dt>
+                  <dd>{n.takeaways}</dd>
+                  <dt className="text-graphite">Friction</dt>
+                  <dd>{n.friction}</dd>
+                  <dt className="text-graphite">Missing</dt>
+                  <dd>{n.missing}</dd>
+                  <dt className="text-graphite">May we contact them again</dt>
+                  <dd>{n.recontact}</dd>
+                </dl>
+              </details>
+            </EndedRow>
+          )
+        })}
+      </ul>
+    </Box>
+  )
 }

@@ -62,6 +62,8 @@ export const AVAILABILITY: Record<string, Availability> = {
   'u-sam': { timeZone: 'America/Los_Angeles', zone: 'PT', days: [2, 3, 4, 5, 6], from: '09:00', to: '15:00' },
   'u-elena': { timeZone: 'America/Chicago', zone: 'CT', days: [1, 2, 3, 4, 5], from: '09:00', to: '15:00' },
   'u-marta': { timeZone: 'America/Los_Angeles', zone: 'PT', days: [1, 2, 3, 4, 5], from: '09:00', to: '14:00' },
+  // A team moderator who works from India and covers US evenings: 04:00 to 07:00 IST is 5:30 to 8:30 PM Eastern, Monday to Friday over there.
+  'tm-ravi': { timeZone: 'Asia/Kolkata', zone: 'IST', days: [2, 3, 4, 5, 6], from: '04:00', to: '07:00' },
 }
 /**
  * A mock default for standby people who aren't on the PulseAI roster (the Researcher, or someone from the team): Monday to

@@ -267,6 +267,8 @@ export type Session = {
   gaveUp?: { reason: string; at: string; by: string }
   /** The participant's own attempts at fixing a technical problem (P18), oldest first. */
   selfService?: SelfService[]
+  /** A draft of the moderator's notes, saved and not yet submitted. */
+  notesDraft?: { takeaways: string; at: string }
   /** The moderator asked to be reassigned ("Can't make it"). The Researcher sees it in Needs you until they assign someone. */
   reassign?: { by: string; reason: string; at: string }
   /** Human-led: the moderator didn't join the booked slot. Our fault, so the participant is never marked No-show. Mock-driven until the moderator flow exists. */
@@ -325,6 +327,8 @@ export type FieldworkDoc = {
   log: LogEntry[]
   /** Reserve people who have been invited. The rest of the reserve is read from screening (R9). */
   reserve: ReserveCandidate[]
+  /** Set when the Moderator view's mock data (src/mock/moderatorSeed.ts) has been added to this record. */
+  modSeed?: number
 }
 
 // ─── mock generation ────────────────────────────────────────────────────────
@@ -1235,34 +1239,44 @@ function raiseRequest(doc: FieldworkDoc, sessionId: string): FieldworkDoc {
  * moderators or no session to use.
  */
 export function devRaiseRequest(doc: FieldworkDoc): FieldworkDoc | undefined {
-  if (!doc.plan.escalation?.offered) return undefined
-  let base = doc
-  let target = doc.sessions.find((s) => canAsk(s))
-  if (!target) {
-    const idle = doc.sessions.find((s) => s.status === 'Not started' && !s.gaveUp && !s.handled)
-    if (!idle) return undefined
-    const items = planItems(doc.plan).slice(0, 3)
-    const when = tick(doc)
-    const lines = doc.lines ?? PARTICIPANT
-    base = patch(doc, idle.id, (s) => ({
-      ...addEventAt(when, s, 'system', 'Started (dev)'),
-      status: 'Active' as const,
-      startedAt: when,
-      asked: items.map((i) => i.id),
-      covered: items.slice(0, 2).map((i) => i.id),
-      transcript: items.flatMap((i, n) => [
-        { at: when, speaker: 'AI', ai: true, text: i.text },
-        { at: when, speaker: 'Participant', ai: false, text: lines[n % lines.length] },
-      ]),
-    }))
-    target = base.sessions.find((x) => x.id === idle.id)!
-  }
+  const prepared = devSessionToAsk(doc)
+  if (!prepared) return undefined
+  const { base, target } = prepared
   let out = participantAsksLive(base, target.id)
   // One moderator declines, the timer runs out on the rest.
-  const first = out.sessions.find((x) => x.id === target!.id)?.escalation?.live?.offeredTo[0]
+  const first = out.sessions.find((x) => x.id === target.id)?.escalation?.live?.offeredTo[0]
   if (first) out = liveOfferAnswered(out, target.id, first, 'Declined')
-  out = liveOfferExpired(out, target.id)
-  return out
+  return liveOfferExpired(out, target.id)
+}
+
+/** Dev: a participant asks for a person live and the offer stays open, so a moderator's pinned card shows. */
+export function devTriggerEscalation(doc: FieldworkDoc): FieldworkDoc | undefined {
+  const prepared = devSessionToAsk(doc)
+  return prepared ? participantAsksLive(prepared.base, prepared.target.id) : undefined
+}
+
+/** An Active session that hasn't asked yet, or the first one that hasn't begun, started with a few turns covered. */
+function devSessionToAsk(doc: FieldworkDoc): { base: FieldworkDoc; target: Session } | undefined {
+  if (!doc.plan.escalation?.offered) return undefined
+  const ready = doc.sessions.find((s) => canAsk(s))
+  if (ready) return { base: doc, target: ready }
+  const idle = doc.sessions.find((s) => s.status === 'Not started' && !s.gaveUp && !s.handled)
+  if (!idle) return undefined
+  const items = planItems(doc.plan).slice(0, 3)
+  const when = tick(doc)
+  const lines = doc.lines ?? PARTICIPANT
+  const base = patch(doc, idle.id, (s) => ({
+    ...addEventAt(when, s, 'system', 'Started (dev)'),
+    status: 'Active' as const,
+    startedAt: when,
+    asked: items.map((i) => i.id),
+    covered: items.slice(0, 2).map((i) => i.id),
+    transcript: items.flatMap((i, n) => [
+      { at: when, speaker: 'AI', ai: true, text: i.text },
+      { at: when, speaker: 'Participant', ai: false, text: lines[n % lines.length] },
+    ]),
+  }))
+  return { base, target: base.sessions.find((x) => x.id === idle.id)! }
 }
 
 /** The times a moderator is holding in this study: booked sessions, and times they proposed and are waiting on. */

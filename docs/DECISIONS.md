@@ -555,6 +555,17 @@ Prototype decisions from the product owner, 11 Nov 2026. This supersedes "Facial
 - **Upcoming:** Join interview (active 10 minutes before, opens the M2 placeholder) and Can't make it, which asks the study's Researcher to reassign, with a reason, as a Needs you row.
 - **Scoping.** PulseAI moderators see their sessions across clients. A team moderator sees only their own company's studies. An invited one sees only "Accept your invitation".
 
+## Moderator view: mock data
+
+- **One file, easy to remove:** `src/mock/moderatorSeed.ts`, called once from `state/StudyContext.tsx`. Delete both and the Moderator view is empty again. It writes into the same fieldwork record the Researcher sees (booked sessions, requests as escalations, finished interviews given to a moderator), never a second store. Switch it off for a run with `localStorage "pulseai-qual:moderator-seed" = "off"`; the earlier Moderator tests do, because they start from empty tabs.
+- **Two moderators, both in Pet Food Subscription Churn** (the one study with fieldwork in every state):
+  - **Jordan Lee (PulseAI, Eastern).** Upcoming 3: in about 15 minutes (Continued from AI, Join interview there but not active), later today, tomorrow. Completed 3 with recordings (one with notes not added, two with a draft). Submitted 2, read only.
+  - **Ravi Menon (team moderator, Burrow Pet, India).** The same set, in IST, with US-evening hours (04:00 to 07:00 IST, 5:30 to 8:30 PM Eastern, which is Tuesday to Saturday there). He is on Pet Food's standby list.
+  - **Requests, 3, seen by both:** Open with a future time (Jordan can schedule it; for Ravi it is outside his hours, so Schedule is disabled with the reason), Open with a time that has passed (only Edit time works), and Waiting for participant (a time Jordan proposed; under Scheduled). Booked and held hours match in Availability.
+- **The Moisturizer study is left alone on purpose.** Its live fieldwork is the Researcher's demo of the gap, Needs you and recovery. Adding booked sessions there closed the gap and changed which session the dev "moderator no-show" picks, which broke four Researcher tests. So the seed adds nothing to it.
+- **Dev: trigger escalation** is on every tab of the Moderator view. It has a participant ask for a person, offered at once to the online standby moderators, so the pinned card shows.
+- **India's half-hour offset:** an hour block starts at half past on the UTC clock, so availability floors to the moderator's own hour, not the UTC hour. Times show "IST", which the browser would otherwise write "GMT+5:30".
+
 ## Explore drawer: real-time highlights (brief step 7)
 
 Prototype decisions from the product owner, 11 Nov 2026.

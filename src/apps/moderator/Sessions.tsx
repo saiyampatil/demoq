@@ -5,7 +5,8 @@ import { useStudies } from '@/state/StudyContext'
 import { completedFor, openCount, requestsFor, scopeDocs, submittedFor, upcomingFor } from '@/state/requests'
 import { activateTeamPerson } from '@/state/teamModerators'
 import { Button } from '@/components/Button'
-import type { FieldworkDoc } from '@/state/fieldwork'
+import { devTriggerEscalation, type FieldworkDoc } from '@/state/fieldwork'
+import { useToast } from '@/components/Toast'
 import { PageHeader } from '../shared/PageHeader'
 import { AvailabilityEditor } from './AvailabilityEditor'
 import { LiveCards } from './LiveCards'
@@ -33,6 +34,35 @@ export function useModeratorData() {
   const act = (studyId: string, fn: (d: FieldworkDoc) => FieldworkDoc) => updateFieldwork(studyId, fn)
   const all = scopeDocs(fieldworks, me, (id) => studies.find((s) => s.id === id)?.client)
   return { me, all, act, studyName, language: getLanguage }
+}
+
+/** Dev only: starts a live escalation so the pinned card shows. It offers the session to the standby moderators of the first study this moderator is on standby for. */
+function DevBar({ data }: { data: ReturnType<typeof useModeratorData> }) {
+  const { me, all, act } = data
+  const toast = useToast()
+  return (
+    <div className="flex items-center gap-2 rounded-sm border border-dashed border-mist-strong px-3 py-2">
+      <Button
+        size="sm"
+        data-testid="dev-trigger-escalation"
+        onClick={() => {
+          for (const [studyId, doc] of Object.entries(all)) {
+            if (!doc.plan.escalation?.moderators.some((m) => m.id === me.id)) continue
+            const next = devTriggerEscalation(doc)
+            if (next) {
+              act(studyId, () => next)
+              toast('Dev: a participant asked for a person. The card is pinned for the standby moderators.')
+              return
+            }
+          }
+          toast('Dev: no study you are on standby for has a session to use.')
+        }}
+      >
+        Dev: trigger escalation
+      </Button>
+      <span className="text-xs text-graphite">Shows the pinned live card, offered at once to every online standby moderator.</span>
+    </div>
+  )
 }
 
 /** Someone invited as a team moderator who hasn't accepted yet: the invitation is all there is. */
@@ -78,6 +108,7 @@ function SessionsTabs({ data }: { data: ReturnType<typeof useModeratorData> }) {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader id="M1" title="My sessions" description="The interviews you have booked, the requests from participants who asked to speak with a person, and the times you are free." />
+      {import.meta.env.DEV && <DevBar data={data} />}
       <LiveCards data={data} />
       <div>
         <div role="tablist" aria-label="My sessions" className="flex gap-1 border-b border-mist">

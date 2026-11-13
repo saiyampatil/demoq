@@ -29,4 +29,4 @@ export const ROSTER_EXPERTISE: Record<string, string[]> = {
  * Which client company an email domain belongs to. A team moderator works for one company and sees only that company's
  * studies. A mock: in the product it comes from the invitation.
  */
-export const DOMAIN_COMPANY: Record<string, string> = { 'verdane.com': 'Verdane Skincare' }
+export const DOMAIN_COMPANY: Record<string, string> = { 'verdane.com': 'Verdane Skincare', 'burrowpet.com': 'Burrow Pet' }

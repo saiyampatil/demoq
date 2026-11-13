@@ -42,9 +42,18 @@ export function addDays(y: number, m: number, d: number, offset: number) {
   return { y: t.getUTCFullYear(), m: t.getUTCMonth() + 1, d: t.getUTCDate() }
 }
 
-/** The zone's name for a person: "Eastern Time (EST)". */
+/** Short names the browser doesn't give: it says "GMT+5:30" for India. */
+const SHORT: Record<string, string> = { 'Asia/Kolkata': 'IST' }
+/** "EST", "PST", "IST": the zone's short name at an instant. */
+export function zoneShort(timeZone: string, atMs: number): string {
+  const short = new Intl.DateTimeFormat('en-US', { timeZone, timeZoneName: 'short' }).formatToParts(atMs).find((p) => p.type === 'timeZoneName')?.value ?? ''
+  return SHORT[timeZone] ?? short
+}
+
+/** The zone's name for a person: "Eastern Time (EST)", "India Standard Time (IST)". */
 export function zoneLabel(timeZone: string, atMs: number = Date.now()): string {
   const long = new Intl.DateTimeFormat('en-US', { timeZone, timeZoneName: 'long' }).formatToParts(atMs).find((p) => p.type === 'timeZoneName')?.value ?? timeZone
-  const short = new Intl.DateTimeFormat('en-US', { timeZone, timeZoneName: 'short' }).formatToParts(atMs).find((p) => p.type === 'timeZoneName')?.value ?? ''
-  return `${long.replace(/ (Standard|Daylight) Time$/, ' Time')} (${short})`
+  // US zones are "Eastern Time" in speech, whichever of standard and daylight time it is. Others keep their full name.
+  const name = /^(Eastern|Central|Mountain|Pacific|Alaska|Hawaii)/.test(long) ? long.replace(/ (Standard|Daylight) Time$/, ' Time') : long
+  return `${name} (${zoneShort(timeZone, atMs)})`
 }

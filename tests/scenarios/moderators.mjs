@@ -68,8 +68,8 @@ export default async ({ b, out, stage, mutate, open, prefix }) => {
 
   // 3. Someone from my team: the shared list
   await click('[data-testid=open-team]')
-  await expect('team list seeded: 3 people', `document.querySelectorAll('[data-testid=team-person]').length===3`)
-  await expect('team list has 2 Active and 1 Invited', `document.querySelectorAll('[data-testid=team-person][data-status=Active]').length===2&&document.querySelectorAll('[data-testid=team-person][data-status=Invited]').length===1`)
+  await expect('team list seeded: 4 people (the Moderator view\'s mock team moderator, Ravi Menon, is one of them)', `document.querySelectorAll('[data-testid=team-person]').length===4`)
+  await expect('team list has 3 Active and 1 Invited', `document.querySelectorAll('[data-testid=team-person][data-status=Active]').length===3&&document.querySelectorAll('[data-testid=team-person][data-status=Invited]').length===1`)
   await click('[aria-label="Add Dana Whitfield"]')
   await expect('Active team person is added and counts', rowHas('Dana Whitfield', 'My team', 'Added'))
 

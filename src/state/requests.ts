@@ -4,7 +4,7 @@
 
 import { participantName } from '@/mock/participants'
 import { busyIn, coveredSections, fieldworkNow, isOfferedTo, moderatorName, participantZone, sessionEnded, type Escalation, type FieldworkDoc, type Session } from './fieldwork'
-import { isAvailableHour } from './availability'
+import { hourStartOf, isAvailableHour, zoneOf } from './availability'
 import { openSlots, slotProblem, type Busy } from './standby'
 
 export type RequestStatus = 'Open' | 'Waiting for participant' | 'Scheduled' | 'Taken by someone else' | 'Cancelled by participant'
@@ -52,13 +52,15 @@ const onStandby = (doc: FieldworkDoc, moderatorId: string) => !!doc.plan.escalat
 const suggestedOf = (e: Escalation) => e.request?.suggested ?? new Date(`${e.request!.days[0]}T14:00:00-05:00`).toISOString()
 
 function statusFor(e: Escalation, me: string): { status: RequestStatus; heldBy?: string } | null {
+  // "Can't take this" hides the request for that moderator whatever happens to it next.
+  if (e.declinedBy?.includes(me)) return null
   switch (e.status) {
     case 'Cancelled by participant':
       return { status: 'Cancelled by participant' }
     case 'Waiting for participant':
       return { status: 'Waiting for participant', heldBy: e.proposed?.by }
     case 'Time requested':
-      return e.declinedBy?.includes(me) ? null : { status: 'Open' }
+      return { status: 'Open' }
     case 'Request accepted':
     case 'Joined':
     case 'Assigned':
@@ -192,7 +194,8 @@ const HOUR = 3600000
 /** The hour blocks that hold a booked session or a time waiting on a participant, so they can't be taken off. Hour start (UTC ISO) to what holds it. */
 export function heldHours(all: Record<string, FieldworkDoc>, moderatorId: string): Map<string, string> {
   const out = new Map<string, string>()
-  for (const b of busyAcross(all, moderatorId)) for (let t = Math.floor(b.start / HOUR) * HOUR; t < b.end; t += HOUR) out.set(new Date(t).toISOString(), b.who)
+  const tz = zoneOf(moderatorId)
+  for (const b of busyAcross(all, moderatorId)) for (let t = hourStartOf(tz, b.start); t < b.end; t += HOUR) out.set(new Date(t).toISOString(), b.who)
   return out
 }
 

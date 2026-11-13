@@ -26,6 +26,7 @@ export type TeamPerson = {
 const SEED: TeamPerson[] = [
   { id: 'tm-dana', name: 'Dana Whitfield', email: 'dana.whitfield@verdane.com', tags: ['Skincare', 'Concept testing'], status: 'Active', createdBy: currentUser.name, createdAt: '2026-09-14T10:00:00-04:00' },
   { id: 'tm-ben', name: 'Ben Ortiz', email: 'ben.ortiz@verdane.com', tags: ['Consumer goods'], status: 'Active', createdBy: currentUser.name, createdAt: '2026-09-14T10:05:00-04:00' },
+  { id: 'tm-ravi', name: 'Ravi Menon', email: 'ravi.menon@burrowpet.com', tags: ['Pet care', 'Subscriptions'], status: 'Active', createdBy: currentUser.name, createdAt: '2026-09-02T09:00:00-04:00' },
   { id: 'tm-nisha', name: 'Nisha Kapoor', email: 'nisha.kapoor@verdane.com', tags: ['Pricing'], status: 'Invited', createdBy: currentUser.name, createdAt: '2026-11-04T15:30:00-05:00', invitedAt: '2026-11-04T15:30:00-05:00' },
 ]
 

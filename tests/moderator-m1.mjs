@@ -22,8 +22,9 @@ const clickTid = async (tid) => {
 const MOD = `window.__mod = (path) => import(performance.getEntriesByType('resource').map((r) => r.name).filter((n) => n.includes(path + '.ts')).pop() ?? path + '.ts')`
 const withMod = (expr) => b.evaluate(MOD + '; ' + expr)
 const setText = (sel, v, proto = 'HTMLTextAreaElement') => `(() => { const t=document.querySelector(${JSON.stringify(sel)}); Object.getOwnPropertyDescriptor(${proto}.prototype,'value').set.call(t,${JSON.stringify(v)}); t.dispatchEvent(new Event('input',{bubbles:true})); return true })()`
+// These tests start from empty tabs, so the Moderator view's mock data (src/mock/moderatorSeed.ts) is switched off for them.
 const stage = async () => {
-  await b.goto('/researcher'); await b.evaluate('localStorage.clear(); sessionStorage.clear(); true'); await b.goto('/researcher'); await b.waitFor('Screen jump')
+  await b.goto('/researcher'); await b.evaluate("localStorage.clear(); sessionStorage.clear(); localStorage.setItem('pulseai-qual:moderator-seed','off'); true"); await b.goto('/researcher'); await b.waitFor('Screen jump')
   await b.evaluate(`__click('Screen jump')`); await b.sleep(300)
   await b.evaluate(`[...document.querySelectorAll('[role=dialog] label')].find(l=>l.textContent.startsWith('Live in fieldwork')).click(); true`); await b.sleep(500)
   await b.evaluate(`document.querySelector('[aria-label="Close screen jump"]')?.click(); true`)

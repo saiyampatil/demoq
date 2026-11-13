@@ -13,6 +13,7 @@ import { briefSummary, now, type BriefDoc } from './brief'
 import { acceptedRoster, guideSummary, withTeam, type GuideDoc } from './guide'
 import { DEFAULT_TIME_ZONE } from '@/lib/timeZone'
 import { generateFieldwork, SESSION_SEED, type FieldworkDoc } from './fieldwork'
+import { seedModerators } from '@/mock/moderatorSeed'
 import { resetReview } from './reviewState'
 import { resetCodebook } from './codebook'
 import { studyLanguage } from './language'
@@ -168,8 +169,11 @@ function slugify(name: string) {
   return `${base || 'study'}-${Math.random().toString(36).slice(2, 6)}`
 }
 
+/** The Moderator view's mock data goes onto the fieldwork records wherever they come from: a fresh start, saved progress, a new stage. */
+const withSeed = (p: Persisted): Persisted => ({ ...p, fieldworks: seedModerators(p.fieldworks) })
+
 export function StudyProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<Persisted>(load)
+  const [state, setState] = useState<Persisted>(() => withSeed(load()))
 
   useEffect(() => {
     try {
@@ -196,7 +200,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
         void _seedLaunch
         void _seedFieldwork
         const next = seedStage(stage)
-        return { ...prev, ...next, briefs: { ...otherBriefs, ...next.briefs }, audiences: { ...otherAudiences, ...next.audiences }, guides: { ...otherGuides, ...next.guides }, launches: { ...otherLaunches, ...next.launches }, fieldworks: { ...otherFieldworks, ...next.fieldworks } }
+        return withSeed({ ...prev, ...next, briefs: { ...otherBriefs, ...next.briefs }, audiences: { ...otherAudiences, ...next.audiences }, guides: { ...otherGuides, ...next.guides }, launches: { ...otherLaunches, ...next.launches }, fieldworks: { ...otherFieldworks, ...next.fieldworks } })
       })
     },
     [],
@@ -205,7 +209,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     resetReview()
     resetCodebook()
     resetTeamModerators()
-    setState(freshState())
+    setState(withSeed(freshState()))
   }, [])
 
   const createStudy = useCallback((name: string) => {

@@ -3,7 +3,7 @@
 
 import { availabilityText, STANDBY_DAYS, STANDBY_NOTICE_HOURS, STANDBY_SLOT_MIN } from '@/mock/moderation'
 import { isAvailableSpan, runsOnDay, zoneOf } from './availability'
-import { addDays, localDate, zonedInstant } from './zone'
+import { addDays, localDate, zonedInstant, zoneShort } from './zone'
 
 export type Slot = { moderatorId: string; name: string; /** UTC instants. Show them with formatSlot, which adds the zone. */ start: string; end: string }
 
@@ -70,5 +70,8 @@ export function freeSlots(moderator: { id: string; name: string }, from: string,
 }
 
 /** "Thu, Nov 12, 2:00 PM EST" in a zone. */
-export const formatIn = (iso: string, timeZone: string) =>
-  new Intl.DateTimeFormat('en-US', { timeZone, weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' }).format(new Date(iso))
+export const formatIn = (iso: string, timeZone: string) => {
+  const ms = new Date(iso).getTime()
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone, weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(ms)
+  return `${parts} ${zoneShort(timeZone, ms)}`
+}
