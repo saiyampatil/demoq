@@ -232,6 +232,13 @@ PRD gaps and conflicts found while building. Each entry says what the prototype 
 | 226 | L | PNG export for slide decks. | Not built. | Open |
 | 227 | M | Mock data adjusted for the Low confidence band. | Three "vet" quotes in the codebook seed were given weak match scores (0.52 to 0.58) so the cloud has a Low band. They now show a "Weak match" tag in the codebook. Age band and city per participant are made up from the participant ID. | Open |
 | 228 | L | Deleted statements are per word. | A statement deleted from the theme "Price creep" stays in the code "Price went up" word, and the other way round; each word keeps its own deletes. | Open |
+| 229 | H | Theme map: should "emotional" or "common" drive colour? | Colour is how strong the delivery was among the people who could be read. A common theme can be plain; an uncommon one can be loud. Founder decision. | Open |
+| 230 | H | Theme map: may the face reading feed the colour before sign-off? | Default is voice and hesitation only. The face is behind `faceInColour` in `src/config/themeMap.ts`, off. | Open |
+| 231 | M | Theme map: is a segment minimum of 5 right? | Under 5 people a segment shows "Directional. Fewer than 5 people." In the demo data the segments are 8 and 12, so the line is covered by a test, not seen on screen. | Open |
+| 232 | M | Theme map: are tension lines wanted? | A line is drawn only for a tension the Researcher added as a theme, between the two bubbles its codes sit in. One whose codes sit in a single bubble has nothing to connect and draws no line. In the demo data that is every tension except "Cat owners lean to flexibility; dog owners lean to price", which links "Not in a theme" and "Price creep". | Open |
+| 233 | L | Theme map: PNG export for slides. | Not built. | Open |
+| 234 | M | Theme map: the demo has only two accepted themes. | Price creep and The pet decides, plus the grey "Not in a theme" bubble. More themes appear when the Researcher accepts the AI's theme suggestions. One approved tension line, and a map of four to nine themes, need that step. The seed was not changed because other screens and tests count its themes. | Open |
+| 235 | L | Theme map: positions don't depend on the segment. | The layout is made once from everyone's overlap and kept when the segment changes, so bubbles resize and recolour without moving (the motion brief), not re-laid out per segment. | Open |
 
 ## Future ideas (not built)
 

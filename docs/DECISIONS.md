@@ -647,3 +647,11 @@ Prototype decisions from the product owner, 11 Nov 2026.
 - **A display layer over the codebook.** A word's number is the codebook's, minus statements deleted or ignored, plus statements added. Only deletes and adds are saved (`pulseai-qual:wordcloud`) and logged; ignores live in the page and vanish when the Researcher leaves. Nothing writes to the codebook, report or transcripts.
 - **Regenerate** applies the edits; until then the cloud keeps its last picture and the panel shows live counts. Layout is a deterministic spiral (`lib/cloudLayout.ts`) made from every word, so the minimum, the panel and a reload never move a word.
 - **Leadership preview** shows the last regenerated cloud with deletes and adds, no ignores, no pending changes, no edit controls, and only participant ID and segment.
+
+## A3 Theme map (mock)
+
+- **Its own page** `/analysis/report/themes-map` (screen A3M, hidden), opened from Tools; same pattern as the other A3 pages. Thresholds, bubble sizes and colours are in `src/config/themeMap.ts`.
+- **Reused from A2, not recomputed:** each theme's verdict and per-person readings come from `themeSignals` and `rollupPoints`; a segment applies A2's own roll-up to that segment's people. Strength is the share of readable people whose voice is animated or tense, or whose hesitation is marked; the face is behind a flag, off.
+- **Bubbles** are accepted themes plus one grey "Not in a theme". Size is people on a square-root scale. Position comes from how much the people overlap (a small deterministic layout, no library) and stays put when the segment changes.
+- **Motion** is only what the brief lists (settle, resize, dim, rescale, crossfade, the tour), and all of it is instant under "reduce motion".
+- **Read only.** The map never writes to the codebook; the tour changes nothing and opens no panel.

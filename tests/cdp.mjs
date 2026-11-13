@@ -36,5 +36,5 @@ export async function launch() {
     writeFileSync(`${SP}/${name}.png`, Buffer.from(r.result.data, 'base64'))
   }
   const close = () => { try { ws.close() } catch {} proc.kill() }
-  return { viewport, evaluate, poll, goto, shot, waitFor, sleep, close, refreshHelpers: () => evaluate(helpers) }
+  return { send, viewport, evaluate, poll, goto, shot, waitFor, sleep, close, refreshHelpers: () => evaluate(helpers) }
 }

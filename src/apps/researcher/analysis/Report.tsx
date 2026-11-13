@@ -217,7 +217,7 @@ export function Report() {
     )
 
   // Theme videos and Showreel are their own page, opened only when clicked. Everything else opens a pop-up over the report.
-  const openStudio = (k: ToolKey | null) => (k === 'theme-videos' || k === 'showreel' ? navigate(`${studyPath(studyId, screenById.A3V)}${k === 'showreel' ? '?tab=showreel' : ''}`) : k === 'word-cloud' ? navigate(studyPath(studyId, screenById.A3W)) : setStudio(k))
+  const openStudio = (k: ToolKey | null) => (k === 'theme-videos' || k === 'showreel' ? navigate(`${studyPath(studyId, screenById.A3V)}${k === 'showreel' ? '?tab=showreel' : ''}`) : k === 'word-cloud' ? navigate(studyPath(studyId, screenById.A3W)) : k === 'theme-map' ? navigate(studyPath(studyId, screenById.A3M)) : setStudio(k))
   const ws: Ws = { goTo, studyId, me, doc, basis, ctx: { doc, basis }, report, model, accepted: accepted.length, excluded, sel, select: setSel, openStudio, act }
   const total = model.all.length
   const open = model.open.length

@@ -113,3 +113,16 @@
   #brief-root [data-keep-together] { break-inside: avoid; page-break-inside: avoid; }
   #brief-root { max-width: none !important; padding: 0 !important; }
 }
+
+/* Theme map (A3). The only motion on the page, each part short and once. With "reduce motion" set, none of it runs. */
+.tm-bubble { transition: opacity 120ms ease-out; }
+.tm-fill { transition: r 400ms ease-out, fill 250ms ease-out; }
+.tm-ring { transition: r 400ms ease-out, stroke 250ms ease-out; }
+.tm-text { transition: font-size 400ms ease-out, fill 250ms ease-out; }
+.tm-halo { transition: r 200ms ease-out, opacity 200ms ease-out; }
+.tm-settle { animation: tm-settle 600ms ease-out both; transform-box: fill-box; transform-origin: center; }
+.tm-cols { transition: grid-template-columns 200ms ease-out; }
+@keyframes tm-settle { from { opacity: 0; transform: scale(0.7); } to { opacity: 1; transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) {
+  .tm-bubble, .tm-fill, .tm-ring, .tm-text, .tm-halo, .tm-settle, .tm-cols, .tm-motion * { transition: none !important; animation: none !important; }
+}

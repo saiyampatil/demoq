@@ -325,8 +325,8 @@ export default async ({ b, out }) => {
   await expect('Highlights opens the Explore drawer on its tab', `document.querySelector('[data-testid=explore-tab-highlights]')?.getAttribute('aria-selected')==='true'`)
   await b.evaluate(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})); true`)
   await b.sleep(300)
-  await click('[data-testid=tool-theme-map]')
-  await expect('an unbuilt tool opens a pop-up that says it is not built yet', `/Not built yet in the prototype/.test(document.querySelector('[data-studio=theme-map]')?.innerText||'')`)
+  await click('[data-testid=tool-audio-summary]')
+  await expect('an unbuilt tool opens a pop-up that says it is not built yet', `/Not built yet in the prototype/.test(document.querySelector('[data-studio=audio-summary]')?.innerText||'')`)
   is('and it lists what it would be built on with real counts', /20 accepted sessions/.test(await text('[data-testid=coming-studio]')))
   await b.evaluate(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})); true`)
 
