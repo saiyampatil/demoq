@@ -664,3 +664,11 @@ Prototype decisions from the product owner, 11 Nov 2026.
 - Hover dims the others to 70% (never lower); with the panel open nothing is dimmed. Hover or selection draws thin lines to the themes that share people, with the shared count. A segment draws a dashed ghost circle at each theme's Everyone size.
 - The panel shows a one-line headline and short rows, each with its own n of N and denominator, from A2's numbers. Quotes show "P-3101 · 10:16 · Play"; the session ID is in the title only.
 - The five legend lines became one row of swatches; the card is about 70vh and the SVG scales inside it.
+
+## A3 Audio summary: logic and store (step 1 of 6)
+
+- **Settings** are in `src/config/audioSummary.ts` (150 words a minute, 0.6 s pause, 8/10/12 minute targets, 28 words a line). Length is worked out from spoken words each time and never stored.
+- **One narration validator** (`state/narration.ts`): one claim and one "n of N", short, no percentages, "most" only above half, findings and not advice. The executive summary's sentences pass it too (25 words there). Digits become words only for speaking (`spoken`).
+- **The script** (`state/audioScript.ts`) is built from accepted sessions, approved themes and approved tensions: about, headline, a chapter for each theme (largest first), where the picture splits, where the evidence is thin, close. A narration line carries exact respondent turns; a quote is the respondent's own words and never edited, one person once. The opening and closing lines are locked.
+- **The store** (`state/audioSummary.ts`, localStorage `pulseai-qual:audio-summary`) keeps only lines, voices, target, release and the log. A line stores a fingerprint of what it was written from; whether it is out of date is compared with the data on every load. Nothing is rewritten automatically; an edited line is never overwritten without a choice.
+- **Rebuild** keeps lines that are Approved, Edited, notes or removed, and replaces only Not-approved AI lines. **Start over** says how many edits are lost.
