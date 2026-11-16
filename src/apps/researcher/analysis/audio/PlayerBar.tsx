@@ -4,6 +4,11 @@ import { cn } from '@/components/cn'
 import { Switch } from '@/components/Switch'
 import { chapterTitle, clock, outsideBrief, type Ctx, type Timed } from '@/state/audioScript'
 
+/** What plays: everything, only the findings (narration, notes and the frame lines), or only the people's own words. */
+export type PlayMode = 'all' | 'findings' | 'quotes'
+export const MODES: [PlayMode, string][] = [['all', 'Everything'], ['findings', 'Findings'], ['quotes', 'Quotes only']]
+export const inMode = (type: string, mode: PlayMode) => mode === 'all' || (mode === 'quotes' ? type === 'quote' : type !== 'quote')
+
 /**
  * The playback clock. There is no audio file: playing runs a clock through the lines using their computed lengths. The current line is
  * the one the clock is in. Nothing here starts by itself.
@@ -35,6 +40,7 @@ export function usePlayback(timeline: Timed[]) {
     const line = timeline[Math.min(Math.max(0, i), timeline.length - 1)]
     if (line) setT(line.start)
   }
+  const seek = (s: number) => setT(Math.min(Math.max(0, s), total))
   return {
     t,
     total,
@@ -42,30 +48,106 @@ export function usePlayback(timeline: Timed[]) {
     playing,
     speed,
     setSpeed,
-    seek: (s: number) => setT(Math.min(Math.max(0, s), total)),
+    seek,
     jump,
+    skip: (by: number) => seek(t + by),
     toggle: () => setPlaying((p) => (t >= total && total > 0 ? (setT(0), true) : !p)),
     pause: () => setPlaying(false),
     next: () => jump(index + 1),
-    prev: () => jump(t - timeline[index].start > 1.5 ? index : index - 1),
+    prev: () => jump(timeline.length && t - timeline[index].start > 1.5 ? index : index - 1),
   }
 }
 export type Playback = ReturnType<typeof usePlayback>
 
 const BTN = 'rounded-xs border border-mist-strong bg-surface px-2.5 py-1 text-sm font-medium hover:bg-haze disabled:opacity-50'
+const hash = (s: string) => [...s].reduce((n, c) => ((n * 31 + c.charCodeAt(0)) >>> 0), 5)
 
-/** The sticky bar: play and pause, previous and next line, a scrubber with a tick at each chapter, the clock, speed, chapters, follow along, length. */
-export function PlayerBar({ p, timeline, chapters, ctx, follow, onFollow, onChapter }: { p: Playback; timeline: Timed[]; chapters: string[]; ctx: Ctx; follow: boolean; onFollow: (on: boolean) => void; onChapter: (key: string) => void }) {
+/**
+ * The scrubber drawn as a waveform: a bar for each half second, taller and a different colour where a person's own words are, so you can
+ * see where the quotes sit. Played bars are dark. The bars are fixed by the script, never animated; the only thing that moves is the
+ * played edge. A real range input sits over it for the mouse, the keyboard and screen readers.
+ */
+function Waveform({ p, timeline, chapters }: { p: Playback; timeline: Timed[]; chapters: { key: string; start: number }[] }) {
+  const bars = useMemo(
+    () =>
+      timeline.flatMap((l) => {
+        const n = Math.max(1, Math.round(l.seconds * 2))
+        return Array.from({ length: n }, (_, i) => ({ at: l.start + (i + 0.5) * (l.seconds / n), type: l.type, h: 0.35 + ((hash(`${l.id}${i}`) % 60) / 100) * (l.type === 'quote' ? 1 : 0.7) }))
+      }),
+    [timeline],
+  )
+  const frac = p.total ? p.t / p.total : 0
+  return (
+    <div className="relative h-9 focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-iris-600" data-testid="waveform">
+      <svg viewBox="0 0 1000 36" preserveAspectRatio="none" className="absolute inset-0 h-full w-full" aria-hidden="true">
+        {bars.map((b, i) => {
+          const x = p.total ? (b.at / p.total) * 1000 : 0
+          const played = p.total ? b.at / p.total <= frac : false
+          return <rect key={i} data-testid="wave-bar" data-type={b.type} data-played={played} x={x - 1.1} y={18 - (b.h * 36) / 2} width={2.2} height={b.h * 36} rx={1} fill={b.type === 'quote' ? (played ? '#4a43b3' : '#b9b5ec') : played ? '#1b1d22' : '#c4c8d0'} />
+        })}
+      </svg>
+      {chapters.map((c) => (
+        <span key={c.key} aria-hidden="true" data-testid="chapter-tick" className="pointer-events-none absolute inset-y-0 w-px bg-graphite/60" style={{ left: `${p.total ? (c.start / p.total) * 100 : 0}%` }} />
+      ))}
+      <input
+        type="range"
+        min={0}
+        max={Math.max(1, Math.round(p.total * 10))}
+        value={Math.round(p.t * 10)}
+        onChange={(e) => p.seek(Number(e.target.value) / 10)}
+        aria-label="Position"
+        aria-valuetext={`${clock(p.t)} of ${clock(p.total)}`}
+        data-testid="scrubber"
+        className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+      />
+    </div>
+  )
+}
+
+/** The sticky bar: play and pause, previous and next line, back and forward 15 seconds, a waveform scrubber, the clock, speed, chapters, follow along, length. */
+export function PlayerBar({
+  p,
+  timeline,
+  chapters,
+  ctx,
+  follow,
+  onFollow,
+  onChapter,
+  fullLength,
+  mode,
+  onMode,
+  resumeAt,
+  onResume,
+}: {
+  p: Playback
+  timeline: Timed[]
+  chapters: string[]
+  ctx: Ctx
+  follow: boolean
+  onFollow: (on: boolean) => void
+  onChapter: (key: string) => void
+  /** The whole script's length: the brief's range is about this, not about the part being played. */
+  fullLength: number
+  mode: PlayMode
+  onMode: (m: PlayMode) => void
+  resumeAt?: number
+  onResume: () => void
+}) {
   const [menu, setMenu] = useState(false)
   const box = useRef<HTMLDivElement>(null)
-  const starts = chapters.map((c) => ({ key: c, start: timeline.find((l) => l.chapter === c)?.start ?? 0 }))
+  const starts = chapters.flatMap((c) => {
+    const first = timeline.find((l) => l.chapter === c)
+    return first ? [{ key: c, start: first.start }] : []
+  })
   useEffect(() => {
     if (!menu) return
     const off = (e: MouseEvent) => !box.current?.contains(e.target as Node) && setMenu(false)
     document.addEventListener('mousedown', off)
     return () => document.removeEventListener('mousedown', off)
   }, [menu])
-  const warn = outsideBrief(p.total)
+  const here = [...starts].reverse().find((c) => p.t >= c.start)
+  const nextChapter = starts.find((c) => c.start > p.t)
+  const warn = outsideBrief(fullLength)
   return (
     <div className="sticky top-0 z-20 -mx-1 flex flex-col gap-2 border-b border-mist bg-surface px-1 py-2.5" data-testid="player" role="region" aria-label="Player">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
@@ -74,6 +156,8 @@ export function PlayerBar({ p, timeline, chapters, ctx, follow, onFollow, onChap
         </button>
         <button type="button" className={BTN} onClick={p.prev} data-testid="prev-line" aria-label="Previous line">‹ Line</button>
         <button type="button" className={BTN} onClick={p.next} data-testid="next-line" aria-label="Next line">Line ›</button>
+        <button type="button" className={BTN} onClick={() => p.skip(-15)} data-testid="back-15" aria-label="Back 15 seconds">−15 s</button>
+        <button type="button" className={BTN} onClick={() => p.skip(15)} data-testid="forward-15" aria-label="Forward 15 seconds">+15 s</button>
         <span className="text-sm tabular-nums text-graphite" data-testid="clock" aria-label={`${clock(p.t)} of ${clock(p.total)}`}>
           {clock(p.t)} / {clock(p.total)}
         </span>
@@ -85,6 +169,13 @@ export function PlayerBar({ p, timeline, chapters, ctx, follow, onFollow, onChap
             ))}
           </select>
         </label>
+        <div role="group" aria-label="What to play" className="inline-flex overflow-hidden rounded-xs border border-mist" data-testid="mode">
+          {MODES.map(([m, label]) => (
+            <button key={m} type="button" aria-pressed={mode === m} data-testid={`mode-${m}`} onClick={() => onMode(m)} className={cn('px-2.5 py-1 text-sm font-medium', mode === m ? 'bg-ink text-white' : 'bg-surface text-graphite hover:bg-haze')}>
+              {label}
+            </button>
+          ))}
+        </div>
         <div className="relative" ref={box}>
           <button type="button" className={BTN} aria-haspopup="menu" aria-expanded={menu} onClick={() => setMenu((m) => !m)} data-testid="chapters-menu">Chapters ▾</button>
           {menu && (
@@ -105,24 +196,17 @@ export function PlayerBar({ p, timeline, chapters, ctx, follow, onFollow, onChap
           Follow along
         </span>
         <span className="flex-1" />
-        <span className="text-sm tabular-nums" data-testid="length">Length {clock(p.total)}</span>
+        <span className="text-sm tabular-nums" data-testid="length">Length {clock(fullLength)}</span>
       </div>
-      <div className="relative h-5" data-testid="scrubber-wrap">
-        <input
-          type="range"
-          min={0}
-          max={Math.max(1, Math.round(p.total * 10))}
-          value={Math.round(p.t * 10)}
-          onChange={(e) => p.seek(Number(e.target.value) / 10)}
-          aria-label="Position"
-          aria-valuetext={`${clock(p.t)} of ${clock(p.total)}`}
-          data-testid="scrubber"
-          className="absolute inset-x-0 top-0 h-3 w-full cursor-pointer accent-ink"
-        />
-        {starts.map((c) => (
-          <span key={c.key} aria-hidden="true" data-testid="chapter-tick" className="pointer-events-none absolute top-3 h-2 w-px bg-graphite" style={{ left: `${p.total ? (c.start / p.total) * 100 : 0}%` }} />
-        ))}
-      </div>
+      <Waveform p={p} timeline={timeline} chapters={starts} />
+      <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-graphite" data-testid="now-next">
+        {here && <span data-testid="now-chapter">Now: {chapterTitle(here.key, ctx)}</span>}
+        {nextChapter && <span data-testid="up-next">Up next: {chapterTitle(nextChapter.key, ctx)} at {clock(nextChapter.start)}</span>}
+        {mode !== 'all' && <span data-testid="mode-note">Playing {mode === 'quotes' ? 'only what people said' : 'the findings, without the quotes'}.</span>}
+        {resumeAt !== undefined && resumeAt > 5 && p.t < 1 && (
+          <button type="button" className="underline-offset-2 hover:text-ink hover:underline" onClick={onResume} data-testid="resume">Resume from {clock(resumeAt)}</button>
+        )}
+      </p>
       {warn && (
         <p className="text-sm text-pending-fg" data-testid="length-warning">
           The brief asks for {AUDIO.range.min} to {AUDIO.range.max} minutes.

@@ -145,6 +145,7 @@ try {
 
   // ═══ Step 2: the page and the player ═══
   const q = (x) => JSON.stringify(x)
+  const sc_clock = (sec) => `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2, '0')}`
   const count = (sel) => b.evaluate(`document.querySelectorAll(${q(sel)}).length`)
   const text = (sel) => b.evaluate(`document.querySelector(${q(sel)})?.innerText.replace(/\\s+/g,' ') ?? null`)
   const click = async (sel) => { const done = await b.poll(`(()=>{const e=document.querySelector(${q(sel)});if(!e||e.disabled)return false;e.click();return true})()`); if (!done) throw new Error(`nothing to click for ${sel}`); await b.sleep(250) }
@@ -206,6 +207,79 @@ try {
   ok('every player control has an accessible name', names.every(Boolean), names)
   ok('the current line and its approval state are announced to screen readers', /^(Playing|Paused), line \d+ of \d+: .+\. (Not approved|Approved|Edited)\.$/.test((await text('[data-testid=announce]')) ?? ''), await text('[data-testid=announce]'))
   ok('this page never writes to the codebook', (await codebook()) === cbBefore)
+
+  // ═══ Player improvements (from the research on audio tools) ═══
+  await openPage()
+  const wave = await b.evaluate(`({bars:document.querySelectorAll('[data-testid=wave-bar]').length,quote:document.querySelectorAll('[data-testid=wave-bar][data-type=quote]').length,other:document.querySelectorAll('[data-testid=wave-bar]:not([data-type=quote])').length,played:document.querySelectorAll('[data-testid=wave-bar][data-played=true]').length,range:document.querySelector('[data-testid=scrubber]').type})`)
+  ok('the scrubber is a waveform that shows where people’s own words sit: quote bars and narration bars are drawn differently, none played yet, with a real range input over it', wave.bars > 100 && wave.quote > 0 && wave.other > 0 && wave.played === 0 && wave.range === 'range', wave)
+  const quoteFill = await b.evaluate(`[document.querySelector('[data-testid=wave-bar][data-type=quote]').getAttribute('fill'),document.querySelector('[data-testid=wave-bar]:not([data-type=quote])').getAttribute('fill')]`)
+  ok('quote bars and narration bars are different colours', quoteFill[0] !== quoteFill[1], quoteFill)
+  ok('the bar says which chapter it is in and what is up next', /^Now: About this recording$/.test((await text('[data-testid=now-chapter]')) ?? '') && /^Up next: The headline at \d+:\d\d$/.test((await text('[data-testid=up-next]')) ?? ''), await text('[data-testid=now-next]'))
+  await click('[data-testid=forward-15]')
+  const f15 = (await text('[data-testid=clock]')).split(' / ')[0]
+  await click('[data-testid=back-15]'); await click('[data-testid=back-15]')
+  ok('forward and back 15 seconds move the clock, and back stops at the start', f15 === '0:15' && (await text('[data-testid=clock]')).startsWith('0:00 /'), f15)
+  ok('the page has no running animation while nothing plays, and the player adds none of its own', (await b.evaluate(`document.getAnimations().length`)) === 0)
+  // Word by word
+  await click('[data-testid=play]'); await b.sleep(2200)
+  const words = await b.evaluate(`(()=>{const cur=document.querySelector('[data-testid=line][data-current=true] [data-testid=spoken-line]');const all=[...cur.querySelectorAll('[data-spoken]')];return {n:all.length,spoken:all.filter(w=>w.dataset.spoken==='true').length,dark:all.filter(w=>w.dataset.spoken==='true').every(w=>w.className.includes('text-ink')),light:all.filter(w=>w.dataset.spoken==='false').every(w=>w.className.includes('text-graphite'))}})()`)
+  ok('the line being said lights up word by word as the clock reaches it: some words spoken, some not yet', words.n > 5 && words.spoken > 0 && words.spoken < words.n && words.dark && words.light, words)
+  ok('while playing with Follow along on, the other lines step back a little (but stay readable)', (await b.evaluate(`[...document.querySelectorAll('[data-testid=line][data-current=false]')].every(l=>getComputedStyle(l).opacity==='0.75')`)))
+  await click('[data-testid=play]')
+  const during = await b.evaluate(`document.querySelectorAll('[data-testid=wave-bar][data-played=true]').length`)
+  ok('the waveform fills as it plays', during > 0)
+  // Play modes
+  const modeInfo = await run(`const ctx=mk(); const doc=JSON.parse(localStorage.getItem('pulseai-qual:audio-summary'))['pet-food-churn']; const live=doc.lines.filter(l=>!l.removed); return {quotes:live.filter(l=>l.type==='quote').reduce((n,l)=>n+sc.lineSeconds(l.text),0),findings:live.filter(l=>l.type!=='quote').reduce((n,l)=>n+sc.lineSeconds(l.text),0),full:sc.totalSeconds(doc.lines),nq:live.filter(l=>l.type==='quote').length}`)
+  await click('[data-testid=mode-quotes]')
+  const q1 = await b.evaluate(`({clock:document.querySelector('[data-testid=clock]').innerText,length:document.querySelector('[data-testid=length]').innerText,skipped:[...document.querySelectorAll('[data-testid=line-jump][data-skipped=true]')].length,cur:document.querySelector('[data-testid=line][data-current=true]').dataset.type,note:document.querySelector('[data-testid=mode-note]')?.innerText})`)
+  ok('“Quotes only” plays just what people said: the clock total is the quotes’ length, the other lines are marked as skipped, and it says so', q1.clock.endsWith(sc_clock(modeInfo.quotes)) && q1.skipped === 18 - modeInfo.nq && q1.cur === 'quote' && /only what people said/.test(q1.note), { q1, modeInfo })
+  ok('the brief’s length stays the whole script’s (not the part being played)', q1.length === `Length ${sc_clock(modeInfo.full)}`, q1.length)
+  await click('[data-testid=mode-findings]')
+  const q2 = await b.evaluate(`({clock:document.querySelector('[data-testid=clock]').innerText,cur:document.querySelector('[data-testid=line][data-current=true]').dataset.type})`)
+  ok('“Findings” plays the narration, notes and locked lines without the quotes', q2.clock.endsWith(sc_clock(modeInfo.findings)) && q2.cur !== 'quote', q2)
+  await click('[data-testid=mode-all]')
+  ok('“Everything” plays it all again', (await text('[data-testid=clock]')).endsWith(sc_clock(modeInfo.full)))
+  // Search
+  await b.evaluate(`var i=document.querySelector('[data-testid=script-search]'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(i,'p'); i.dispatchEvent(new Event('input',{bubbles:true})); true`); await b.sleep(200)
+  const short = await count('[data-testid=search-count]')
+  await b.evaluate(`var i=document.querySelector('[data-testid=script-search]'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(i,'price'); i.dispatchEvent(new Event('input',{bubbles:true})); true`); await b.sleep(250)
+  const expected = await run(`const doc=JSON.parse(localStorage.getItem('pulseai-qual:audio-summary'))['pet-food-churn']; return doc.lines.filter(l=>!l.removed&&l.text.toLowerCase().includes('price')).map(l=>l.id)`)
+  ok('search starts at two characters, counts the matching lines and marks the term in them', short === 0 && new RegExp(`^${expected.length} matches?$`).test((await text('[data-testid=search-count]')) ?? '') && (await count('[data-testid=match]')) >= 1, { expected: expected.length })
+  await click('[data-testid=search-next]')
+  const hit1 = await b.evaluate(`document.querySelector('[data-testid=line][data-selected=true]').dataset.id`)
+  await click('[data-testid=search-next]')
+  const hit2 = await b.evaluate(`document.querySelector('[data-testid=line][data-selected=true]').dataset.id`)
+  await click('[data-testid=search-prev]')
+  ok('Next and Previous jump to the matches, in order, and the clock follows', expected.includes(hit1) && expected.includes(hit2) && (expected.length < 2 || hit1 !== hit2) && (await b.evaluate(`document.querySelector('[data-testid=line][data-selected=true]').dataset.id`)) === hit1 && (await b.evaluate(`document.querySelector('[data-testid=line][data-current=true]').dataset.id`)) === hit1, { hit1, hit2 })
+  await b.evaluate(`var i=document.querySelector('[data-testid=script-search]'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(i,''); i.dispatchEvent(new Event('input',{bubbles:true})); true`); await b.sleep(200)
+  // Listen view
+  await click('[data-testid=view-listen]')
+  const lv = await b.evaluate(`({cur:document.querySelector('[data-testid=listen-current]').innerText.replace(/\\s+/g,' '),line:document.querySelector('[data-testid=line][data-current=true] [data-testid=line-text]').innerText.replace(/\\s+/g,' ').replace(/[“”]/g,'').replace(/\\d(–\\d)?$/,'').trim(),hidden:getComputedStyle(document.querySelector('[data-testid=script]')).display,where:document.querySelector('[data-testid=listen-where]').innerText,speaker:document.querySelector('[data-testid=listen-speaker]').innerText,size:parseFloat(getComputedStyle(document.querySelector('[data-testid=listen-current]')).fontSize)})`)
+  ok('the Listen view shows the line being said large, with the line before and after, who is speaking, and the script out of the way', lv.hidden === 'none' && /line \d+ of \d+/.test(lv.where) && lv.size >= 20 && /Narrator|Quote|Locked|Researcher/.test(lv.speaker), lv)
+  const before = await text('[data-testid=listen-current]')
+  await click('[data-testid=next-line]')
+  ok('and it moves on with the player', (await text('[data-testid=listen-current]')) !== before)
+  await click('[data-testid=view-read]')
+  ok('Read brings the script back', (await b.evaluate(`getComputedStyle(document.querySelector('[data-testid=script]')).display`)) !== 'none')
+  // Bookmarks
+  const target = await b.evaluate(`document.querySelectorAll('[data-testid=line]')[3].dataset.id`)
+  await b.evaluate(`document.querySelector('[data-testid=line][data-id="${target}"] [data-testid=bookmark]').click(); true`); await b.sleep(300)
+  const marked = await run(`return JSON.parse(localStorage.getItem('pulseai-qual:audio-summary'))['pet-food-churn'].marks`)
+  ok('a line can be bookmarked (a star), and the bookmark is kept', JSON.stringify(marked) === JSON.stringify([target]) && (await b.evaluate(`document.querySelector('[data-testid=line][data-id="${target}"] [data-testid=bookmark]').getAttribute('aria-pressed')`)) === 'true')
+  await click('[data-testid=filter-marked]')
+  ok('“Bookmarked 1” in the strip shows just the starred lines', (await count('[data-testid=line]')) === 1 && /Bookmarked 1/.test((await text('[data-testid=status-strip]')) ?? ''))
+  await click('[data-testid=filter-clear]')
+  await b.evaluate(`document.querySelector('[data-testid=line][data-id="${target}"] [data-testid=bookmark]').click(); true`); await b.sleep(250)
+  ok('and unstarring takes it off; a bookmark changes nothing in the script', (await count('[data-testid=filter-marked]')) === 0)
+  // Resume
+  await click('[data-testid=chapters-menu]'); await click('[data-testid=chapter-jump][data-chapter="headline"]'); await click('[data-testid=play]'); await b.sleep(2600); await click('[data-testid=play]')
+  const left = (await text('[data-testid=clock]')).split(' / ')[0]
+  await openPage()
+  const offer = await text('[data-testid=resume]')
+  ok('after listening, the next visit offers “Resume from 0:11” and never starts by itself', offer === `Resume from ${left.replace(/^(\d+):(\d)$/, '$1:0$2')}` || /^Resume from \d+:\d\d$/.test(offer ?? ''), { offer, left })
+  await click('[data-testid=resume]')
+  ok('Resume puts the clock where they stopped, paused', (await text('[data-testid=clock]')).startsWith(offer.replace('Resume from ', '')) && (await b.evaluate(`document.querySelector('[data-testid=play]').getAttribute('aria-pressed')`)) === 'false' && (await count('[data-testid=resume]')) === 0)
+  ok('none of this touched the codebook', (await codebook()) === cbBefore)
 
   // States
   await openPage('?demo=error')

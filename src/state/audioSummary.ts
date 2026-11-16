@@ -22,6 +22,8 @@ export type AudioDoc = {
   releases: number
   log: LogEntry[]
   writtenAt: string
+  /** Lines the Researcher has starred, to come back to or lift into a deck. */
+  marks?: string[]
 }
 
 // ─── the store ──────────────────────────────────────────────────────────────
@@ -88,6 +90,9 @@ export function newDoc(studyId: string, draft: Draft, target: number, by: string
   const lines = draft.lines.map((l) => hist(l, 'PulseAI', 'Written'))
   return log({ studyId, lines, target, voice: { narrator: AUDIO.narratorVoices[0], quote: AUDIO.quoteVoices[0] }, releases: 0, log: [], writtenAt: stamp }, by, 'Wrote the draft', `${lines.length} lines for ${target} minutes`)
 }
+
+/** Star or unstar a line. A convenience for the Researcher: it changes nothing in the script. */
+export const toggleMark = (d: AudioDoc, id: string): AudioDoc => (find(d, id) ? { ...d, marks: (d.marks ?? []).includes(id) ? (d.marks ?? []).filter((x) => x !== id) : [...(d.marks ?? []), id] } : d)
 
 // ─── approval ───────────────────────────────────────────────────────────────
 
