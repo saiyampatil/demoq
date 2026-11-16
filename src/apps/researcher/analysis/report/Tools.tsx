@@ -11,7 +11,7 @@ const GROUPS: { label: string; tools: Tool[] }[] = [
       { key: 'showreel', label: 'Showreel', built: true },
       { key: 'word-cloud', label: 'Word cloud', built: true },
       { key: 'theme-map', label: 'Theme map', built: true },
-      { key: 'audio-summary', label: 'Audio summary', built: false },
+      { key: 'audio-summary', label: 'Audio summary', built: true },
     ],
   },
   {

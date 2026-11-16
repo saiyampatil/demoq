@@ -55,6 +55,7 @@ export const screens: Screen[] = [
   { id: 'A1', name: 'Codebook', app: 'researcher', module: '5', phase: 10, path: 'analysis/codebook', step: 'analysis', demoStudy: 'pet-food-churn' },
   { id: 'A2', name: 'Emotion & behaviour', app: 'researcher', module: '5', phase: 10, path: 'analysis/signals', step: 'analysis', demoStudy: 'pet-food-churn' },
   { id: 'A3', name: 'Report', app: 'researcher', module: '5', phase: 10, path: 'analysis/report', step: 'analysis', demoStudy: 'pet-food-churn' },
+  { id: 'A3P', name: 'Audio summary', app: 'researcher', module: '5', phase: 10, path: 'analysis/report/audio-summary', step: 'analysis', hidden: true, demoStudy: 'pet-food-churn' },
   { id: 'A3M', name: 'Theme map', app: 'researcher', module: '5', phase: 10, path: 'analysis/report/themes-map', step: 'analysis', hidden: true, demoStudy: 'pet-food-churn' },
   { id: 'A3W', name: 'Word cloud', app: 'researcher', module: '5', phase: 10, path: 'analysis/report/wordcloud', step: 'analysis', hidden: true, demoStudy: 'pet-food-churn' },
   { id: 'A3V', name: 'Theme videos and showreel', app: 'researcher', module: '5', phase: 10, path: 'analysis/report/videos', step: 'analysis', hidden: true, demoStudy: 'pet-food-churn' },
@@ -136,7 +137,7 @@ export function screensForStep(step: StepKey) {
 }
 
 /** Researcher screens that are built. The sub-stepper lists the rest as upcoming. */
-export const builtScreenIds = new Set(['R1', 'R4', 'R5', 'R6', 'R7', 'R8', 'R9', 'R11', 'R12', 'R13', 'R14', 'R15', 'R16', 'R17', 'R18', 'R19', 'R21', 'R22', 'A1', 'A2', 'A3', 'A3V', 'A3W', 'A3M'])
+export const builtScreenIds = new Set(['R1', 'R4', 'R5', 'R6', 'R7', 'R8', 'R9', 'R11', 'R12', 'R13', 'R14', 'R15', 'R16', 'R17', 'R18', 'R19', 'R21', 'R22', 'A1', 'A2', 'A3', 'A3V', 'A3W', 'A3M', 'A3P'])
 
 /** Short names for the sub-stepper inside a step. */
 export const wizardLabel: Record<string, string> = {
@@ -164,6 +165,7 @@ export const wizardLabel: Record<string, string> = {
   A3V: 'Theme videos',
   A3W: 'Word cloud',
   A3M: 'Theme map',
+  A3P: 'Audio summary',
 }
 
 /** Position of a screen in the global order, used to pick the slide direction. */
