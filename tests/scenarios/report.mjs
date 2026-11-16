@@ -21,6 +21,8 @@ export default async ({ b, out }) => {
   const fresh = async (path = 'report') => {
     await b.goto('/researcher'); await b.evaluate('localStorage.clear(); sessionStorage.clear(); true')
     await b.goto(`${STUDY}/${path}`); await b.waitFor('EXECUTIVE SUMMARY'); await b.sleep(500)
+    // The seed has one approved tension (for the audio summary). These checks start with none, so it is put back to review first.
+    await b.evaluate(`window.__mod = (path) => import(performance.getEntriesByType('resource').map((r) => r.name).filter((n) => n.includes(path + '.ts')).pop() ?? path + '.ts'); (async()=>{const cb=await window.__mod('/src/state/codebook'); cb.updateCodebook('pet-food-churn', d=>cb.restoreTension(d,{id:'tn-pause-concept',title:'t'},{by:'test'})); return true})()`); await b.sleep(600)
   }
   const reload = async () => { await b.goto(`${STUDY}/report`); await b.waitFor('EXECUTIVE SUMMARY'); await b.sleep(500) }
   const primary = () => text('[data-testid=primary-action]')

@@ -30,6 +30,10 @@ try {
   // The demo's two Default versions are switched off for this first part, which builds its own; the seeded state is checked at the end.
   await b.goto('/researcher'); await b.evaluate("localStorage.clear(); sessionStorage.clear(); localStorage.setItem('pulseai-qual:showreel-seed','off'); true")
 
+  // The seed has one approved tension (for the audio summary), which is a theme here. These checks start with none, so it is put back to review.
+  await b.goto('/researcher/studies/pet-food-churn/analysis/report/videos'); await b.waitFor('Theme videos'); await b.sleep(900)
+  await b.evaluate(`window.__mod = (path) => import(performance.getEntriesByType('resource').map((r) => r.name).filter((n) => n.includes(path + '.ts')).pop() ?? path + '.ts'); (async()=>{const cb=await window.__mod('/src/state/codebook'); cb.updateCodebook('pet-food-churn', d=>cb.restoreTension(d,{id:'tn-pause-concept',title:'t'},{by:'test'})); return true})()`); await b.sleep(800)
+
   // ═══ Entry, and Back to Report keeps the report as it was ═══
   await b.goto(`${STUDY}/report`); await b.waitFor('EXECUTIVE SUMMARY'); await b.sleep(1500)
   await b.evaluate(`document.querySelector('[data-testid=exec-card] [data-testid=sentence-text]').click(); true`); await b.sleep(300)
@@ -189,6 +193,7 @@ try {
   // ═══ The demo state, and every theme has its clips ═══
   await b.goto('/researcher'); await b.evaluate('localStorage.clear(); sessionStorage.clear(); true')
   await b.goto(`${STUDY}/report/videos`); await b.waitFor('Theme videos'); await b.sleep(1200)
+  await b.evaluate(`window.__mod = (path) => import(performance.getEntriesByType('resource').map((r) => r.name).filter((n) => n.includes(path + '.ts')).pop() ?? path + '.ts'); (async()=>{const cb=await window.__mod('/src/state/codebook'); cb.updateCodebook('pet-food-churn', d=>cb.restoreTension(d,{id:'tn-pause-concept',title:'t'},{by:'test'})); return true})()`); await b.sleep(800)
   // A theme made from suggested codes, a tension theme, and one that really has fewer than four clips (two people).
   await run(`cb.updateCodebook('pet-food-churn', d=>cb.createTheme(d,'Wanting control over deliveries','x',['c-skip-pause','c-schedule-clash','c-idea-pause','c-flex-first','c-control','c-piling-up','c-idea-portion'],{by:'Maya Ortiz'})); cb.updateCodebook('pet-food-churn', d=>cb.turnTensionIntoTheme(d,{id:'tn-flex-behaviour',title:'t'},['c-flex-first'],'Flexibility: said, but not settled','x',{by:'Maya Ortiz'})); cb.updateCodebook('pet-food-churn', d=>cb.createTheme(d,'Nothing would keep them','x',['c-nothing'],{by:'Maya Ortiz'})); return true`)
   await b.goto(`${STUDY}/report/videos`); await b.waitFor('Theme videos'); await b.sleep(1200)

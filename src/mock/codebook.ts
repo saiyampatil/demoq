@@ -612,11 +612,13 @@ placed.forEach((lines, sessionId) => placeTranscriptLines(sessionId, lines))
 
 // ─── themes ─────────────────────────────────────────────────────────────────
 
-export type SeedTheme = { id: string; name: string; definition: string; codeIds: string[]; by: string; at: string }
+export type SeedTheme = { id: string; name: string; definition: string; codeIds: string[]; by: string; at: string; /** A theme made from a tension: it borrows codes and owns none. */ tensionId?: string }
 
 export const SEED_THEMES: SeedTheme[] = [
   { id: 't-price', name: 'Price creep', definition: 'Repeated price rises wore down the sense of value until people left.', codeIds: ['c-price-rise', 'c-price-first', 'c-stable-price'], by: maya, at: '2026-09-25T09:30:00-04:00' },
   { id: 't-pet', name: 'The pet decides', definition: 'The pet’s appetite or health ended the subscription, whatever the owner wanted.', codeIds: ['c-pet-refused', 'c-vet-diet', 'c-nothing'], by: maya, at: '2026-09-25T09:42:00-04:00' },
+  // One approved tension, so the audio summary (and anything else that reads approved tensions) has one to show.
+  { id: 't-tn-slow', name: 'Pause: a slow first reaction', definition: 'The first reaction to Concept A and the later choice point in different directions for some people.', codeIds: ['c-idea-pause'], by: maya, at: '2026-09-26T10:05:00-04:00', tensionId: 'tn-pause-concept' },
 ]
 
 /** Themes PulseAI would propose for accepted codes that aren't in a theme yet. Each appears only once one of its codes qualifies. */
@@ -633,6 +635,7 @@ export type LogEntry = { id: string; at: string; by: string; target: { kind: 'co
 /** Decisions already made on the tensions PulseAI suggested (src/mock/signals.ts). */
 export type SeedTensionDecision = { status: 'Added as a tension theme' | 'Dismissed'; by: string; at: string; why?: string; themeId?: string }
 export const SEED_TENSIONS: Record<string, SeedTensionDecision> = {
+  'tn-pause-concept': { status: 'Added as a tension theme', by: maya, at: '2026-09-26T10:05:00-04:00', themeId: 't-tn-slow' },
   'tn-vet-survey': { status: 'Dismissed', by: maya, at: '2026-09-26T10:20:00-04:00', why: 'One person out of three. Too few to read.' },
 }
 

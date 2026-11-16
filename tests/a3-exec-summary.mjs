@@ -28,6 +28,13 @@ try {
   await b.goto('/researcher'); await b.evaluate('localStorage.clear(); sessionStorage.clear(); true')
   await b.goto(`${STUDY}/report`); await b.waitFor('EXECUTIVE SUMMARY'); await b.sleep(1500)
 
+  // ═══ The seed: one tension is approved, so exactly one tension sentence is there ═══
+  const seeded = await read()
+  ok('the seed has one approved tension (Between concepts), so the summary has exactly one tension sentence, and the 4 suggested and 1 dismissed leave none', seeded.length === 6 && seeded.filter((x) => x.id.startsWith('exec-tn-')).map((x) => x.id).join() === 'exec-tn-tn-pause-concept' && /people who chose pause showed marked hesitation at first sight of Concept A/.test(seeded.find((x) => x.id.startsWith('exec-tn-')).text), seeded.map((x) => x.id))
+  // The checks below start with none approved, so it is put back to review.
+  await b.evaluate(`window.__mod = (path) => import(performance.getEntriesByType('resource').map((r) => r.name).filter((n) => n.includes(path + '.ts')).pop() ?? path + '.ts'); (async()=>{const cb=await window.__mod('/src/state/codebook'); cb.updateCodebook('pet-food-churn', d=>cb.restoreTension(d,{id:'tn-pause-concept',title:'t'},{by:'test'})); return true})()`); await b.sleep(800)
+  ok('putting it back to review takes its sentence out', (await read()).length === 5)
+
   // ═══ What it says today ═══
   const today = await read()
   ok('at most six sentences', today.length >= 3 && today.length <= 6, today.length)
@@ -75,7 +82,7 @@ try {
   ok('the heading is the same size as the page’s other section headings, and the card padding is 24px', css.h === css.other && css.pad === '24px', css)
   ok('an unapproved sentence has no dotted underline and no grey fill until hovered or selected', css.deco === 'none' && /rgba\(0, 0, 0, 0\)|transparent/.test(css.bg), css)
   ok('the AI-generated tag is there once', (css.headerText.match(/AI-generated/gi) ?? []).length === 1 && (await count('[data-testid=exec-card] [data-testid=sentence] [data-testid=ai-generated]')) === 0, css.headerText)
-  ok('the footer is one quiet line: “5 sentences · 0 approved”, All sources, then the toggle; no helper text on the AI draft', /5 sentences · 0 approved/.test(css.footer) && /All sources/.test(css.footer) && !/The report uses Mine/.test(css.footer), css.footer)
+  ok('the footer is one quiet line: “6 sentences · 0 approved” (the seed has one approved tension), All sources, then the toggle; no helper text on the AI draft', /6 sentences · 0 approved/.test(css.footer) && /All sources/.test(css.footer) && !/The report uses Mine/.test(css.footer), css.footer)
   await b.evaluate(`document.querySelector('[data-testid=exec-card] [data-testid=draft-researcher]').click(); true`); await b.sleep(400)
   const mine = await b.evaluate(`({footer:document.querySelector('[data-testid=exec-card] footer').innerText.replace(/\\s+/g,' '),tag:/AI-generated/i.test(document.querySelector('[data-testid=exec-card] header').innerText),add:!!document.querySelector('[data-testid=exec-card] [data-testid=add-sentence]')})`)
   ok('on Mine the helper reads “The report uses Mine.” and the AI tag goes', /The report uses Mine\./.test(mine.footer) && !mine.tag, mine)
@@ -84,12 +91,12 @@ try {
   // ═══ Publish ═══
   ok('Publish stays blocked until every sentence is approved: the primary button is Review, not Publish', /^Review \d+ sentences$/.test(await b.evaluate(`document.querySelector('[data-testid=primary-action]').innerText`)))
   // Approve every sentence of the summary only: the rest of the report still blocks it.
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < 6; i++) {
     await b.evaluate(`document.querySelectorAll('[data-testid=exec-card] [data-testid=sentence-text]')[${i}].click(); true`); await b.sleep(250)
     await b.evaluate(`document.querySelector('[data-testid=exec-card] [data-testid=approve]')?.click(); true`); await b.sleep(250)
   }
   const after = await b.evaluate(`({count:document.querySelector('[data-testid=exec-count]').innerText.replace(/\\s+/g,' '),primary:document.querySelector('[data-testid=primary-action]').innerText})`)
-  ok('approving the whole summary still leaves Publish blocked while findings are unapproved', /5 approved/.test(after.count) && /^Review \d+ sentences?$/.test(after.primary), after)
+  ok('approving the whole summary still leaves Publish blocked while findings are unapproved', /6 approved/.test(after.count) && /^Review \d+ sentences?$/.test(after.primary), after)
 } catch (e) {
   failures.push(`stopped: ${e.message}`)
 } finally {
