@@ -225,7 +225,9 @@ export function rebuild(d: AudioDoc, draft: Draft, target: number, by: string): 
   const order = new Map(draft.lines.map((l, i) => [l.key, i]))
   const all = [...keep, ...fresh]
   const pos = (l: Line) => (l.key && order.has(l.key) ? order.get(l.key)! : Number.POSITIVE_INFINITY)
-  const chapters = chaptersOf(all)
+  // Chapters follow the draft's order (so a focus can move a theme up); chapters only the Researcher's lines are in keep their place after.
+  const inDraft = chaptersOf(draft.lines)
+  const chapters = [...inDraft.filter((c) => all.some((l) => l.chapter === c)), ...chaptersOf(all).filter((c) => !inDraft.includes(c))]
   const sorted = chapters.flatMap((c) => all.filter((l) => l.chapter === c).sort((a, b) => pos(a) - pos(b) || all.indexOf(a) - all.indexOf(b)))
   return log({ ...d, lines: sorted, target, writtenAt: now() }, by, 'Rebuilt the draft', `${target} minutes, ${fresh.length} lines replaced`)
 }

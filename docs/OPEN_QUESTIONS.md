@@ -241,7 +241,7 @@ PRD gaps and conflicts found while building. Each entry says what the prototype 
 | 235 | L | Theme map: positions don't depend on the segment. | The layout is made once from everyone's overlap and kept when the segment changes, so bubbles resize and recolour without moving (the motion brief), not re-laid out per segment. | Open |
 | 236 | H | Audio summary: may quotes be played in the original participant's voice instead of a second voice? | The opening line says quotes are read by a second voice. Original audio is not used. Needs consent wording (see #214). | Open |
 | 237 | M | Audio summary: where does the brand voice come from? | "Smytten brand voice" is a mock option. No brand voice exists yet. | Open |
-| 238 | M | Audio summary: should 8 to 12 minutes block release rather than warn? | Today a length outside the range is an amber warning. With the demo data the draft is about three minutes, because there are only two themes and one approved tension. | Open |
+| 238 | M | Audio summary: should 8 to 12 minutes block release rather than warn? | Today a length outside the range is an amber warning. With the demo data the draft is about three minutes, because there are only two themes and one approved tension.  For a small study, is 8 minutes a floor at all, or should 8 to 12 only be a ceiling? The focus box is deliberately narrow: it can reorder themes but never add a claim (#246). | Open |
 | 239 | M | Audio summary: which text-to-speech vendor? | None. The only audio is the optional browser voice, labelled demo only. | Open |
 | 240 | M | Audio summary: do listeners see sources? | The listener preview hides sources and IDs. Product to decide whether a real listener may open them. | Open |
 | 241 | H | Audio summary: may implications ever be AI-drafted? | Today the AI states findings only. Implications come only from the Researcher's labelled notes. | Open |
@@ -249,6 +249,7 @@ PRD gaps and conflicts found while building. Each entry says what the prototype 
 | 243 | L | Audio summary: how is Lens-specific audio labelled? | Only "Whole study" exists today. | Open |
 | 244 | L | The executive summary had no standalone validator. | Its rules were built into the sentences and enforced by tests. `src/state/narration.ts` is now the one validator; the audio summary uses it, and a test runs the executive summary's sentences through it. The executive summary's own code was not changed. | Open |
 | 245 | L | The seed now has one approved tension (Between concepts). | Added so the audio summary has one to show. It adds one sentence to the executive summary (6 in all) and one tension theme to the showreel and A2. Tests that assume none start by putting it back to review. | Open |
+| 246 | L | Audio summary: the Focus box only understands theme and code names. | "Start with price creep" moves that theme first. Anything else, including anything with a number, advice or a new idea, is refused with "I can change emphasis and order, not add advice or new findings". A smarter reading of free text would be a real AI call. | Open |
 
 ## Future ideas (not built)
 

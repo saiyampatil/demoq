@@ -101,7 +101,8 @@ function tensionNums(t: Tension): { n: number; of: number } | undefined {
 export type Current = { gone?: string; snap: Snap }
 /** What a line's source says now. `gone` is why it can no longer be shown. */
 export function currentOf(source: SourceRef | undefined, cites: Cite[], ctx: Ctx): Current {
-  const live = cites.every((c) => ctx.basis.sessions.has(c.sessionId) && !!excerpt(c.excerptId))
+  // A quote from the transcripts (found by search) has no coded excerpt; it is live while its session is accepted.
+  const live = cites.every((c) => ctx.basis.sessions.has(c.sessionId) && (c.excerptId.startsWith('turn:') || !!excerpt(c.excerptId)))
   const base = (snap: Snap): Current => ({ snap: { ...snap, label: live ? snap.label : `${snap.label ?? ''} (a cited quote is no longer in the analysis)`.trim() } })
   if (!source) return { snap: {} }
   if (source.kind === 'study') return { snap: { n: ctx.basis.sessions.size, label: `${ctx.studyName}, ${ctx.release}` } }
@@ -282,7 +283,7 @@ export type LeftOut = { kind: 'theme' | 'tension'; id: string; name: string; why
  * for the two largest). Themes go in largest first while they fit the target; the rest are listed as left out. Quotes are verbatim, one a
  * person across the episode. Nothing is added to fill time.
  */
-export function buildDraft(ctx: Ctx, targetMin: number, include: string[] = []): Draft {
+export function buildDraft(ctx: Ctx, targetMin: number, include: string[] = [], emphasis: string[] = []): Draft {
   const { doc, basis } = ctx
   const N = basis.sessions.size
   const people = basis.participants.size
@@ -296,6 +297,8 @@ export function buildDraft(ctx: Ctx, targetMin: number, include: string[] = []):
     .map((t) => ({ t, nums: numbersOf(t.id, ctx), codes: themeCodes(doc, t) }))
     .filter((x) => x.nums && x.nums.n > 0 && x.codes.length)
     .sort((a, b) => b.nums!.n - a.nums!.n || a.t.name.localeCompare(b.t.name))
+    // The Researcher's focus may bring themes to the front. It changes the order, never what is said.
+    .sort((a, b) => Number(emphasis.includes(b.t.id)) - Number(emphasis.includes(a.t.id)))
 
   // Theme chapters first, so the headline and the length rule only deal with the themes that are in.
   type Chap = { theme: Theme; nums: { n: number; of: number }; codes: Code[]; lines: Line[]; quotes: Line[] }
@@ -416,4 +419,52 @@ export function leftOutOf(lines: Line[], ctx: Ctx, written: boolean): LeftOut[] 
     ...themes.filter((t) => !have.has(`theme:${t.id}`)).map((t): LeftOut => ({ kind: 'theme', id: t.id, name: t.name, why: written ? 'new' : 'time' })),
     ...tensions.filter((t) => !have.has(`tension:${t.id}`)).map((t): LeftOut => ({ kind: 'tension', id: t.id, name: t.title, why: written ? 'new' : 'time' })),
   ]
+}
+
+// ─── what a line can be linked to, and what the focus box may do ────────────
+
+export type SourceOption = { ref: SourceRef; label: string }
+/** Everything a Researcher's note can cite: approved themes, accepted codes, and approved tensions. */
+export function sourceOptions(ctx: Ctx): SourceOption[] {
+  const themes = codeThemes(ctx.doc).filter((t) => themeCodes(ctx.doc, t).length > 0)
+  const tensions = tensionsOf(ctx.doc, ctx.basis).filter((t) => !t.unavailable && tensionDecisions(ctx.doc)[t.id]?.status === 'Added as a tension theme')
+  return [
+    ...themes.map((t): SourceOption => ({ ref: { kind: 'theme', id: t.id }, label: `Theme: ${t.name}` })),
+    ...themes.flatMap((t) => themeCodes(ctx.doc, t).map((c): SourceOption => ({ ref: { kind: 'code', id: c.id }, label: `Code: ${c.name}` }))),
+    ...tensions.map((t): SourceOption => ({ ref: { kind: 'tension', id: t.id }, label: `Tension: ${t.title}` })),
+  ]
+}
+/** The exact turns behind a source: the best few quotes of its accepted codes, from accepted sessions. */
+export function citesFor(ref: SourceRef, ctx: Ctx): Cite[] {
+  const codes =
+    ref.kind === 'code'
+      ? ctx.doc.codes.filter((c) => c.id === ref.id && c.status === 'Accepted')
+      : ref.kind === 'theme'
+        ? (() => {
+            const t = ctx.doc.themes.find((x) => x.id === ref.id)
+            return t ? themeCodes(ctx.doc, t) : []
+          })()
+        : ref.kind === 'tension'
+          ? (() => {
+              const t = ctx.doc.themes.find((x) => x.tensionId === ref.id)
+              return t ? themeCodes(ctx.doc, t) : []
+            })()
+          : []
+  return citesOf(codes, ctx)
+}
+
+export const FOCUS_REFUSAL = 'I can change emphasis and order, not add advice or new findings'
+export type FocusPlan = { ok: boolean; first: string[]; message?: string }
+/**
+ * What the focus box may do: bring approved themes to the front. It may not add a claim, a number, advice, or a theme nobody approved,
+ * so anything else is refused with one line. Text that names no approved theme changes nothing.
+ */
+export function focusPlan(focus: string, ctx: Ctx): FocusPlan {
+  const text = focus.trim().toLowerCase()
+  if (!text) return { ok: true, first: [] }
+  if (/\d|%|percent/.test(text) || AUDIO.adviceWords.some((w) => text.includes(w)) || /\b(add|new|suggest|improve|launch|offer|fix|invent|include)\b/.test(text)) return { ok: false, first: [], message: FOCUS_REFUSAL }
+  const themes = codeThemes(ctx.doc).filter((t) => themeCodes(ctx.doc, t).length > 0)
+  const words = (s: string) => s.toLowerCase().split(/[^a-z]+/).filter((w) => w.length > 3 && !['that', 'this', 'with', 'what', 'from', 'they'].includes(w))
+  const first = themes.filter((t) => words(t.name).some((w) => text.includes(w)) || themeCodes(ctx.doc, t).some((c) => words(c.name).some((w) => text.includes(w)))).map((t) => t.id)
+  return first.length ? { ok: true, first } : { ok: false, first: [], message: FOCUS_REFUSAL }
 }

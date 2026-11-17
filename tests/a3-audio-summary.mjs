@@ -338,6 +338,146 @@ try {
   ok('a quote in the Listen view reads “Participant quote · P-3114 · Dog owner”', /^Participant quote · P-\d+ · (Dog|Cat) owner$/.test(((await text('[data-testid=listen-speaker]')) ?? '').split(' · ').slice(1).join(' · ')), await text('[data-testid=listen-speaker]'))
   await click('[data-testid=view-read]')
 
+  // ═══ Step B: line editing ═══
+  await b.evaluate(`localStorage.removeItem('pulseai-qual:audio-summary'); localStorage.removeItem('pulseai-qual:audio-position:pet-food-churn'); true`)
+  await openPage()
+  const setVal = (sel, v, proto = 'HTMLTextAreaElement') => b.evaluate(`var t=document.querySelector(${q(sel)}); Object.getOwnPropertyDescriptor(${proto}.prototype,'value').set.call(t,${q(v)}); t.dispatchEvent(new Event('input',{bubbles:true})); true`)
+  const lineSel = (key) => `[data-testid=line][data-key="${key}"]`
+  const store2 = () => b.evaluate(`JSON.parse(localStorage.getItem('pulseai-qual:audio-summary'))['pet-food-churn']`)
+  const KEY = 'theme:t-price:c-price-rise'
+  const reveal = async (key) => { await b.evaluate(`document.querySelector('${lineSel(key)} [data-testid=line-jump]').click(); true`); await b.sleep(200) }
+  // Edit: blocked on a mismatch, with the data's number
+  await reveal(KEY)
+  const t0 = await text('[data-testid=clock]')
+  await click(`${lineSel(KEY)} [data-testid=edit]`)
+  await setVal('[data-testid=editor-text]', '“Price went up” came up for 9 of 20 people.'); await b.sleep(200)
+  const bad = await b.evaluate(`({nums:document.querySelector('[data-testid=check-numbers]').innerText,save:document.querySelector('[data-testid=editor-save]').disabled,len:document.querySelector('[data-testid=check-length]').innerText})`)
+  ok('the editor checks as you type: spoken length, and “Says 9 of 20. The data says 8 of 20” blocks Save', bad.nums === 'Says 9 of 20. The data says 8 of 20' && bad.save === true && /^Takes \d+\.\d s to say$/.test(bad.len), bad)
+  await setVal('[data-testid=editor-text]', '“Price went up” was raised by 8 of 20 people.'); await b.sleep(200)
+  const good = await b.evaluate(`({nums:document.querySelector('[data-testid=check-numbers]').innerText,cited:document.querySelector('[data-testid=check-cited]').innerText,save:document.querySelector('[data-testid=editor-save]').disabled})`)
+  ok('with the right number it says “Numbers match the data” and “Cited”, and Save is on', good.nums === 'Numbers match the data' && good.cited === 'Cited' && good.save === false, good)
+  await click('[data-testid=editor-save]'); await b.sleep(300)
+  const saved = await b.evaluate(`({edited:!!document.querySelector('${lineSel(KEY)} [data-testid=edited-tag]'),audio:document.querySelector('${lineSel(KEY)} [data-testid=needs-audio]')?.innerText,state:document.querySelector('${lineSel(KEY)}').dataset.state,text:document.querySelector('${lineSel(KEY)} [data-testid=line-text]').innerText,playing:document.querySelector('[data-testid=play]').getAttribute('aria-pressed')})`)
+  const st1 = await store2()
+  ok('saving marks the line Edited, Needs audio and not approved, and the clock stays where it was, paused', saved.edited && saved.audio === 'Audio out of date' && saved.state === 'Edited' && /was raised by 8 of 20/.test(saved.text) && saved.playing === 'false' && (await text('[data-testid=clock]')).split(' / ')[0] === t0.split(' / ')[0], { saved, t0, now: await text('[data-testid=clock]') })
+  ok('the old wording is in History', st1.lines.find((l) => l.key === KEY).history.at(-1).action === 'Edited' && /came up for 8 of 20/.test(st1.lines.find((l) => l.key === KEY).history.at(-1).previous))
+  // Approve, withdraw, keyboard
+  await click(`${lineSel(KEY)} [data-testid=approve]`)
+  ok('Approve marks the line Approved (a cited line whose numbers match and is in date)', (await b.evaluate(`document.querySelector('${lineSel(KEY)}').dataset.state`)) === 'Approved')
+  await click(`${lineSel(KEY)} [data-testid=unapprove]`)
+  ok('Withdraw approval takes it back, keeping the Edited tag', (await b.evaluate(`document.querySelector('${lineSel(KEY)}').dataset.state`)) === 'Edited')
+  await b.evaluate(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'a',bubbles:true})); true`); await b.sleep(250)
+  ok('the A key approves the selected line', (await b.evaluate(`document.querySelector('${lineSel(KEY)}').dataset.state`)) === 'Approved')
+  await b.evaluate(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'e',bubbles:true})); true`); await b.sleep(250)
+  ok('and the E key opens its editor', (await count('[data-testid=line-editor]')) === 1)
+  await click('[data-testid=editor-cancel]')
+  // Back to AI
+  await click(`${lineSel(KEY)} [data-testid=edit]`)
+  await click('[data-testid=editor-back-to-ai]'); await b.sleep(250)
+  ok('Back to AI draft puts the AI’s own wording back and needs audio', /came up for 8 of 20/.test(await b.evaluate(`document.querySelector('${lineSel(KEY)} [data-testid=line-text]').innerText`)) && (await b.evaluate(`document.querySelector('${lineSel(KEY)}').dataset.state`)) === 'Not approved')
+  // Rewrite
+  const RK = 'theme:t-pet:c-pet-refused'
+  const beforeRW = await b.evaluate(`document.querySelector('${lineSel(RK)} [data-testid=line-text]').innerText.replace(/\\d(–\\d)?$/,'')`)
+  await click(`${lineSel(RK)} [data-testid=rewrite]`)
+  await setVal('[data-testid=rewrite-instruction]', 'Shorter', 'HTMLInputElement')
+  await click('[data-testid=rewrite-go]'); await b.sleep(300)
+  const stRW = await store2()
+  const rl = stRW.lines.find((l) => l.key === RK)
+  ok('Rewrite gives another wording of the same claim (same number), passes the rules, is not approved, needs audio, and keeps the old wording in History', rl.text !== beforeRW.trim() && /6 of 20/.test(rl.text) && rl.audio === 'Needs audio' && rl.state === 'Not approved' && /^Rewritten \(Shorter\)$/.test(rl.history.at(-1).action) && rl.history.at(-1).previous.length > 10, rl)
+  // Remove, restore
+  await click(`${lineSel(RK)} [data-testid=more]`); await click('[data-testid=remove]'); await b.sleep(300)
+  ok('Remove takes the line out of the script and shows “Removed (1)” at the bottom of its chapter', (await count(lineSel(RK))) === 0 && /Removed \(1\)/.test((await text('[data-chapter="theme:t-pet"] [data-testid=removed-toggle]')) ?? ''))
+  await click('[data-chapter="theme:t-pet"] [data-testid=removed-toggle]')
+  ok('it lists who removed it and when, with Restore', /Removed by Maya Ortiz, \w{3} \d+, \d+:\d\d/.test((await text('[data-testid=removed-row]')) ?? '') && (await count('[data-testid=restore]')) === 1)
+  await click('[data-testid=restore]'); await b.sleep(300)
+  ok('Restore puts it back, needing audio', (await count(lineSel(RK))) === 1 && /Audio out of date/.test((await text(`${lineSel(RK)} [data-testid=needs-audio]`)) ?? ''))
+  // Add a note
+  await click('[data-chapter="headline"] [data-testid=add-line]'); await click('[data-testid=add-note]')
+  await setVal('[data-testid=editor-text]', 'It was 9 of 20 people.'); await b.sleep(200)
+  const noSrc = await b.evaluate(`({save:document.querySelector('[data-testid=editor-save]').disabled,msg:[...document.querySelectorAll('[data-testid=editor-checks] li')].map(x=>x.innerText)})`)
+  ok('a Researcher’s note with a count is blocked until it links a source that matches', noSrc.save === true && noSrc.msg.some((m) => /needs a source/.test(m)), noSrc)
+  await b.evaluate(`(()=>{const sel=document.querySelector('[data-testid=editor-source]'); const o=[...sel.options].find(x=>x.text==='Theme: The pet decides'); Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(sel,o.value); sel.dispatchEvent(new Event('change',{bubbles:true})); return true})()`); await b.sleep(200)
+  ok('linked to the theme it matches (9 of 20) the note can be saved', (await b.evaluate(`document.querySelector('[data-testid=editor-save]').disabled`)) === false && (await text('[data-testid=check-numbers]')) === 'Numbers match the data')
+  await click('[data-testid=editor-save]'); await b.sleep(300)
+  await click('[data-chapter="headline"] [data-testid=add-line]'); await click('[data-testid=add-note]')
+  await setVal('[data-testid=editor-text]', 'A thought of mine, with no count.'); await b.sleep(150); await click('[data-testid=editor-save]'); await b.sleep(300)
+  const notes = await b.evaluate(`[...document.querySelectorAll('[data-testid=line][data-type=note]')].map(l=>({label:l.querySelector('[data-testid=line-label]').innerText,state:l.dataset.state,text:l.querySelector('[data-testid=line-text]').innerText}))`)
+  ok('notes are labelled “Researcher’s note · name”, set apart from the AI’s lines, and start not approved', notes.length === 2 && notes.every((n) => n.label === 'Researcher’s note · Maya Ortiz' && n.state === 'Not approved'), notes)
+  // Add a quote from the transcripts
+  await click('[data-chapter="theme:t-price"] [data-testid=add-line]'); await click('[data-testid=add-quote]')
+  await setVal('[data-testid=picker-search]', 'price', 'HTMLInputElement'); await b.sleep(400)
+  const hitsInfo = await b.evaluate(`({n:document.querySelectorAll('[data-testid=picker-hit]').length,ids:[...document.querySelectorAll('[data-testid=picker-hit]')].map(h=>h.dataset.participant)})`)
+  ok('quote search covers accepted sessions only: results, and never an excluded person (P-3112, P-3119)', hitsInfo.n > 0 && !hitsInfo.ids.some((i) => i === 'P-3112' || i === 'P-3119'), hitsInfo)
+  const chosen = await b.evaluate(`(()=>{const h=[...document.querySelectorAll('[data-testid=picker-hit]')].find(x=>x.querySelector('[data-testid=picker-use]'));return {p:h.dataset.participant,text:h.querySelector('p').innerText.replace(/[“”]/g,'')}})()`)
+  await b.evaluate(`[...document.querySelectorAll('[data-testid=picker-hit]')].find(x=>x.querySelector('[data-testid=picker-use]')).querySelector('[data-testid=picker-use]').click(); true`); await b.sleep(400)
+  const added = (await store2()).lines.filter((l) => l.type === 'quote' && !l.key)
+  ok('the chosen quote joins the chapter verbatim, with its own session, participant and time', added.length === 1 && added[0].text === chosen.text && added[0].cites[0].participantId === chosen.p && added[0].cites[0].sessionId && added[0].state === 'Not approved', { added, chosen })
+  await click('[data-chapter="theme:t-price"] [data-testid=add-line]'); await click('[data-testid=add-quote]')
+  await setVal('[data-testid=picker-search]', 'price', 'HTMLInputElement'); await b.sleep(400)
+  ok('the same segment is then marked “Already included” and can’t be added twice', (await count('[data-testid=picker-already]')) >= 1 && await b.evaluate(`[...document.querySelectorAll('[data-testid=picker-already]')].every(x=>x.disabled)`))
+  await b.evaluate(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})); true`); await b.sleep(250)
+  // Replace a quote
+  const QK = 'theme:t-price:q1'
+  const qBefore = await b.evaluate(`document.querySelector('${lineSel(QK)} [data-testid=line-label]').innerText`)
+  await click(`${lineSel(QK)} [data-testid=replace]`)
+  await b.evaluate(`document.querySelector('[data-testid=picker-quote] [data-testid=picker-use]').click(); true`); await b.sleep(400)
+  const qAfter = await b.evaluate(`document.querySelector('${lineSel(QK)} [data-testid=line-label]').innerText`)
+  ok('Replace puts another person’s words in the same place, and it needs audio', qAfter !== qBefore && /Audio out of date/.test((await text(`${lineSel(QK)} [data-testid=needs-audio]`)) ?? ''), { qBefore, qAfter })
+  ok('quotes have Replace, Hear original and Approve, and no Edit or Rewrite', await b.evaluate(`['replace','hear-original','approve'].every(t=>document.querySelector('${lineSel(QK)} [data-testid='+t+']')) && !document.querySelector('${lineSel(QK)} [data-testid=edit]') && !document.querySelector('${lineSel(QK)} [data-testid=rewrite]')`))
+  // Approve is blocked when a line can't be approved
+  const blockedApprove = await run(`const ctx=mk(); const doc=JSON.parse(localStorage.getItem('pulseai-qual:audio-summary'))['pet-food-churn']; const l=doc.lines.find(x=>x.key==='theme:t-pet:c-vet-diet'); return {ok:st.approvalProblem(l,ctx),none:st.approvalProblem({...l,cites:[]},ctx),wrong:st.approvalProblem({...l,text:l.text.replace(/\\d+ of \\d+/,'9 of 20')},ctx)}`)
+  ok('a line can be approved only if cited, its numbers match and it is in date', blockedApprove.ok === null && blockedApprove.none === 'It has no source' && /Says 9 of 20/.test(blockedApprove.wrong), blockedApprove)
+  // Voices
+  await click('[data-testid=voice-menu]')
+  await b.evaluate(`(()=>{const s=document.querySelector('[data-testid=voice-quote]'); Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,'Second voice, warm'); s.dispatchEvent(new Event('change',{bubbles:true})); return true})()`); await b.sleep(300)
+  const afterQ = await store2()
+  const nQuotes = afterQ.lines.filter((l) => !l.removed && l.type === 'quote').length
+  ok('changing the quote voice marks every quote line Needs audio, and nothing else new', afterQ.lines.filter((l) => !l.removed && l.type === 'quote').every((l) => l.audio === 'Needs audio') && afterQ.voice.quote === 'Second voice, warm', afterQ.lines.filter((l) => l.audio === 'Needs audio').length)
+  const nNeeds = afterQ.lines.filter((l) => !l.removed && l.audio === 'Needs audio').length
+  ok('“Regenerate changed lines (n)” counts exactly the lines that need audio', new RegExp(`^Regenerate changed lines \\(${nNeeds}\\)$`).test((await text('[data-testid=regen-changed]')) ?? ''), { nNeeds })
+  await b.evaluate(`document.dispatchEvent(new MouseEvent('mousedown',{bubbles:true})); true`)
+  await click('[data-testid=regen-changed]'); await b.sleep(500)
+  ok('regenerating shows a plain counter, “Producing audio, 2 of n”, with no spinner', new RegExp(`^Producing audio, \\d+ of ${nNeeds}$`).test((await text('[data-testid=producing]')) ?? '') && !(await count('[role=progressbar], svg.animate-spin, [data-testid=spinner]')))
+  await b.poll(`!document.querySelector('[data-testid=producing]')`, 12000)
+  const afterRegen = await store2()
+  ok('afterwards only those lines are Current, and nothing needs audio', afterRegen.lines.filter((l) => !l.removed).every((l) => l.audio === 'Current') && (await text('[data-testid=regen-changed]')) === 'Regenerate changed lines (0)' && await b.evaluate(`document.querySelector('[data-testid=regen-changed]').disabled`))
+  // single-line regenerate
+  await click(`${lineSel('theme:t-pet:c-vet-diet')} [data-testid=edit]`)
+  const vet = (await store2()).lines.find((l) => l.key === 'theme:t-pet:c-vet-diet')
+  const vetReal = /(\d+ of \d+)/.exec(vet.text)[1]
+  await setVal('[data-testid=editor-text]', `“Vet recommended a different diet” was raised by ${vetReal} people.`); await b.sleep(200); await click('[data-testid=editor-save]'); await b.sleep(300)
+  await click(`${lineSel('theme:t-pet:c-vet-diet')} [data-testid=regen-audio]`); await b.poll(`!document.querySelector('[data-testid=producing]')`, 5000); await b.sleep(300)
+  const single = await store2()
+  ok('“Regenerate audio” on one line makes audio for that line only', single.lines.find((l) => l.key === 'theme:t-pet:c-vet-diet').audio === 'Current' && single.lines.filter((l) => !l.removed && l.audio === 'Needs audio').length === 0, single.lines.filter((l) => l.audio === 'Needs audio').length)
+  // Target length, Rebuild, Focus, Start over
+  const keysBefore = new Set((await store2()).lines.map((l) => l.key).filter(Boolean))
+  await click(`${lineSel('theme:t-pet:c-pet-refused')} [data-testid=approve]`)
+  await b.evaluate(`(()=>{const s=document.querySelector('[data-testid=target]'); Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,'12'); s.dispatchEvent(new Event('change',{bubbles:true})); return true})()`)
+  await setVal('[data-testid=focus]', 'start with price creep', 'HTMLInputElement')
+  await click('[data-testid=rebuild]'); await b.sleep(500)
+  const rb2 = await store2()
+  ok('Rebuild for 12 minutes keeps what was approved, edited or added, and the target is 12', rb2.target === 12 && rb2.lines.find((l) => l.key === KEY && !l.removed) && rb2.lines.find((l) => l.key === 'theme:t-pet:c-vet-diet').edited === true && rb2.lines.filter((l) => l.type === 'note').length === 2 && rb2.lines.some((l) => l.type === 'quote' && !l.key) && rb2.lines.find((l) => l.key === 'theme:t-pet:c-pet-refused').state === 'Approved')
+  const order = await b.evaluate(`[...document.querySelectorAll('[data-testid=chapter]')].map(c=>c.dataset.chapter)`)
+  ok('the focus “start with price creep” moved that theme to the front, and only the order changed', order.indexOf('theme:t-price') < order.indexOf('theme:t-pet') && [...new Set(rb2.lines.map((l) => l.key).filter(Boolean))].every((k) => keysBefore.has(k) || /^(signpost|headline|tension|thin|theme)/.test(k)), order)
+  for (const bad of ['recommend a discount for price creep', 'add a new theme about delivery', '20 percent more price quotes', 'something unrelated']) {
+    await setVal('[data-testid=focus]', bad, 'HTMLInputElement')
+    const linesBefore = (await store2()).lines.length
+    await click('[data-testid=rebuild]'); await b.sleep(300)
+    ok(`the focus “${bad}” is refused: “I can change emphasis and order, not add advice or new findings”, and nothing is rebuilt`, (await text('[data-testid=focus-message]')) === 'I can change emphasis and order, not add advice or new findings' && (await store2()).lines.length === linesBefore)
+  }
+  await setVal('[data-testid=focus]', '', 'HTMLInputElement')
+  // Start over warns with the number of edits lost
+  const lostN = await run(`const doc=JSON.parse(localStorage.getItem('pulseai-qual:audio-summary'))['pet-food-churn']; return st.editsLost(doc)`)
+  await click('[data-testid=start-over]')
+  ok('Start over warns with the number of edits that will be lost', new RegExp(`^Start over\\? ${lostN} edits will be lost\\.`).test((await text('[data-testid=start-over-confirm]')) ?? '') && lostN >= 4, { lostN, msg: await text('[data-testid=start-over-confirm]') })
+  await b.evaluate(`[...document.querySelectorAll('[data-testid=start-over-confirm] button')].find(x=>/Keep my edits/.test(x.innerText)).click(); true`); await b.sleep(200)
+  ok('“Keep my edits” leaves everything as it is', (await count('[data-testid=start-over-confirm]')) === 0 && (await store2()).lines.some((l) => l.type === 'note'))
+  await click('[data-testid=start-over]'); await click('[data-testid=start-over-yes]'); await b.sleep(400)
+  const fresh2 = await store2()
+  ok('Start over restores the whole AI draft: no notes, no added quotes, nothing edited', fresh2.lines.every((l) => l.type !== 'note' && !l.edited && !l.removed) && !fresh2.lines.some((l) => l.type === 'quote' && !l.key) && fresh2.target === 12)
+  ok('none of the editing touched the codebook', (await codebook()) === cbBefore)
+  ok('the player still works after editing: play, jump, speed and chapters', await (async () => { await openPage(); await click('[data-testid=play]'); await b.sleep(800); await click('[data-testid=play]'); await click('[data-testid=chapters-menu]'); await click('[data-testid=chapter-jump][data-chapter="tensions"]'); return (await b.evaluate(`document.querySelector('[data-testid=line][data-current=true]').dataset.type`)) === 'signpost' })())
+
   // States
   await openPage('?demo=error')
   ok('?demo=error shows “The audio summary didn’t load” with Retry', /The audio summary didn’t load/.test(await b.evaluate('document.body.innerText')))
