@@ -40,6 +40,10 @@ function Spoken({ text, progress }: { text: string; progress: number }) {
   )
 }
 
+/** Who is speaking a line, in words. Respondent words, AI lines and researcher notes are always told apart. */
+const speakerOf = (l: Line) =>
+  l.type === 'quote' ? `Participant quote · ${l.cites[0].participantId} · ${segmentLabel(l.cites[0].participantId)}` : l.type === 'note' ? `Researcher’s note · ${l.author}` : l.type === 'frame' ? 'Locked line' : l.type === 'signpost' ? 'Signpost' : 'Narrator, AI-written'
+
 const positionKey = (studyId: string) => `pulseai-qual:audio-position:${studyId}`
 /** The same script retimed for what is played: lines out of the mode drop out and the rest run on from each other. */
 function retime(tl: ReturnType<typeof timeline>, mode: PlayMode) {
@@ -280,15 +284,25 @@ export function AudioSummaryPage() {
 
       {view === 'listen' && current && (
         <section aria-label="Listening view" className="max-w-[720px] py-6" data-testid="listen">
-          <p className="text-sm text-graphite" data-testid="listen-where">{chapterTitle(current.chapter, ctx)} · line {pb.index + 1} of {tl.length}</p>
-          <p className="mt-4 min-h-8 text-base text-graphite" data-testid="listen-prev">{prevLine?.text ?? ''}</p>
-          <p className={cn('my-3 leading-snug text-ink', current.type === 'quote' ? 'border-l-2 border-mist-strong pl-4 font-serif text-[26px]' : 'text-[26px] font-medium')} data-testid="listen-current" aria-live="off">
-            <Spoken text={current.text} progress={Math.min(1, Math.max(0, (pb.t - current.start) / Math.max(0.1, current.seconds - AUDIO.pauseSec)))} />
-          </p>
-          <p className="text-sm text-graphite" data-testid="listen-speaker">
-            {current.type === 'quote' ? `${current.cites[0].participantId} · ${segmentLabel(current.cites[0].participantId)} (quote)` : current.type === 'note' ? `Researcher’s note · ${current.author}` : current.type === 'frame' ? 'Locked line' : 'Narrator (AI-written)'}
-          </p>
-          <p className="mt-4 min-h-8 text-base text-graphite" data-testid="listen-next">{nextLine?.text ?? ''}</p>
+          <p className="text-sm text-graphite" data-testid="listen-where">Line {pb.index + 1} of {tl.length}</p>
+          {prevLine && (
+            <div className="mt-4 opacity-70" data-testid="listen-prev-wrap">
+              <p className="text-xs text-graphite" data-testid="listen-prev-label">{chapterTitle(prevLine.chapter, ctx)} · {speakerOf(prevLine)}</p>
+              <p className="text-base text-ink" data-testid="listen-prev">{prevLine.text}</p>
+            </div>
+          )}
+          <div className="my-4" data-testid="listen-current-wrap">
+            <p className="text-sm text-graphite" data-testid="listen-speaker">{chapterTitle(current.chapter, ctx)} · {speakerOf(current)}</p>
+            <p className={cn('mt-1 leading-snug text-ink', current.type === 'quote' ? 'border-l-2 border-mist-strong pl-4 font-serif text-[26px]' : 'text-[26px] font-medium')} data-testid="listen-current" aria-live="off">
+              <Spoken text={current.text} progress={Math.min(1, Math.max(0, (pb.t - current.start) / Math.max(0.1, current.seconds - AUDIO.pauseSec)))} />
+            </p>
+          </div>
+          {nextLine && (
+            <div className="opacity-70" data-testid="listen-next-wrap">
+              <p className="text-xs text-graphite" data-testid="listen-next-label">{chapterTitle(nextLine.chapter, ctx)} · {speakerOf(nextLine)}</p>
+              <p className="text-base text-ink" data-testid="listen-next">{nextLine.text}</p>
+            </div>
+          )}
         </section>
       )}
 
@@ -311,6 +325,8 @@ export function AudioSummaryPage() {
                 {shown.map((l) => {
                   const t = startOf.get(l.id)
                   const isCurrent = current?.id === l.id
+                  // One line is lit: the one being played, or, when paused, the one selected (else the one the clock is at).
+                  const lit = (pb.playing ? current?.id : (selected ?? current?.id)) === l.id
                   const starred = marks.includes(l.id)
                   const stale = staleOf(l, ctx)
                   const showAI = l.type === 'narration' && !aiLabelled && ((aiLabelled = true), !l.edited)
@@ -325,8 +341,9 @@ export function AudioSummaryPage() {
                       data-state={l.state}
                       data-current={isCurrent}
                       data-selected={selected === l.id}
+                      data-lit={lit}
                       aria-current={isCurrent ? 'true' : undefined}
-                      className={cn('group flex gap-3 border-b border-mist py-2.5', isCurrent && 'bg-iris-50', !isCurrent && pb.playing && follow && 'opacity-75', !t && 'opacity-50', selected === l.id && 'outline outline-1 outline-iris-600')}
+                      className={cn('group flex gap-3 border-b border-mist py-2.5', lit && 'bg-iris-50', !isCurrent && pb.playing && follow && 'opacity-75', !t && 'opacity-50')}
                     >
                       <button type="button" onClick={() => { if (t) pb.seek(t.start); setSelected(l.id) }} aria-label={t ? `Go to ${clock(t.start)}: ${l.text}` : `Select, not played in this mode: ${l.text}`} data-testid="line-jump" data-skipped={!t} className="w-10 shrink-0 pt-0.5 text-left text-xs tabular-nums text-graphite hover:text-ink">
                         {t ? clock(t.start) : '–'}
@@ -342,6 +359,7 @@ export function AudioSummaryPage() {
                           <>
                             {l.type === 'note' && <p className={LABEL} data-testid="line-label">Researcher’s note · {l.author}</p>}
                             {l.type === 'frame' && <p className={LABEL} data-testid="line-label">{l.key === 'frame-open' ? 'Opening, locked' : 'Closing, locked'}</p>}
+                            {l.type === 'signpost' && <p className={LABEL} data-testid="line-label">Signpost</p>}
                             {showAI && <p className={LABEL} data-testid="ai-label">AI-written</p>}
                             <p className="text-base leading-snug text-ink" data-testid="line-text">
                               {body(l, isCurrent)}

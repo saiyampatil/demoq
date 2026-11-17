@@ -123,7 +123,7 @@ export type EditResult = { doc: AudioDoc; problems: string[] }
  */
 export function editLine(d: AudioDoc, id: string, text: string, by: string, ctx: Ctx, source?: SourceRef, cites?: Cite[]): EditResult {
   const l = find(d, id)
-  if (!l || l.locked || l.type === 'quote' || l.removed) return { doc: d, problems: ['This line can’t be edited'] }
+  if (!l || l.locked || l.type === 'quote' || l.type === 'signpost' || l.removed) return { doc: d, problems: ['This line can’t be edited'] }
   const src = source ?? l.source
   const useCites = cites ?? l.cites
   const check = checkEdit(text, l.type, src, useCites, ctx)

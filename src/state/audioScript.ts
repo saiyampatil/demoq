@@ -4,19 +4,20 @@
 import { AUDIO } from '@/config/audioSummary'
 import { clipsOfTheme } from '@/mock/showreel'
 import { petOf } from '@/mock/codebook'
-import { CODE_QUESTIONS, codeThemes, excerpt, liveExcerpts, peopleOf, tensionDecisions, themeCodes, type Basis, type Code, type CodebookDoc, type Excerpt, type Theme } from './codebook'
+import { CODE_QUESTIONS, codeThemes, excerpt, liveExcerpts, peopleOf, tensionDecisions, themeCodes, themePeople, type Basis, type Code, type CodebookDoc, type Excerpt, type Theme } from './codebook'
 import { execDraft } from './execSummary'
 import { checkNarration, figures, spokenWords } from './narration'
 import { numbersOf, renderTemplate, strengthFor } from './reportLogic'
 import { tensionsOf, type Tension } from './signals'
 
-export type LineType = 'narration' | 'quote' | 'note' | 'frame'
+export type LineType = 'narration' | 'quote' | 'note' | 'frame' | 'signpost'
 export type LineState = 'Not approved' | 'Approved' | 'Edited'
 export type AudioStatus = 'Current' | 'Needs audio'
 /** An exact respondent turn. */
 export type Cite = { excerptId: string; sessionId: string; participantId: string; turnIndex: number; atSec: number }
-export type SourceRef = { kind: 'theme' | 'code' | 'tension' | 'thin' | 'study'; id: string }
-export type Snap = { n?: number; of?: number; label?: string }
+/** `pair` is two themes set side by side (id "a|b"); `pairNone` is how many people are in neither. */
+export type SourceRef = { kind: 'theme' | 'code' | 'tension' | 'thin' | 'study' | 'pair' | 'pairNone'; id: string }
+export type Snap = { n?: number; of?: number; n2?: number; of2?: number; label?: string }
 export type HistoryEntry = { at: string; by: string; action: string; previous?: string }
 
 export type Line = {
@@ -123,6 +124,17 @@ export function currentOf(source: SourceRef | undefined, cites: Cite[], ctx: Ctx
     if (status !== 'Added as a tension theme') return { gone: status === 'Dismissed' ? 'This tension was dismissed' : 'This tension is no longer approved', snap: {} }
     return base(tensionNums(t) ?? {})
   }
+  if (source.kind === 'pair' || source.kind === 'pairNone') {
+    const [a, b] = source.id.split('|')
+    const na = numbersOf(a, ctx)
+    const nb = numbersOf(b, ctx)
+    const ta = ctx.doc.themes.find((t) => t.id === a)
+    const tb = ctx.doc.themes.find((t) => t.id === b)
+    if (!na || !nb || !ta || !tb) return { gone: 'One of these themes no longer exists', snap: {} }
+    if (source.kind === 'pair') return base({ n: na.n, of: na.of, n2: nb.n, of2: nb.of })
+    const either = new Set([...themePeople(ctx.doc, ta, ctx.basis), ...themePeople(ctx.doc, tb, ctx.basis)])
+    return base({ n: ctx.basis.participants.size - either.size, of: ctx.basis.participants.size })
+  }
   // The evidence line: the number of weak or unanswered questions, from the executive summary's own source.
   const thin = thinText(ctx)
   if (!thin) return { gone: 'No guide question is thin any more', snap: {} }
@@ -154,6 +166,8 @@ export function ruleOf(line: Line, ctx: Ctx): string {
   if (s.kind === 'theme') return `${n} of ${of} accepted people have an approved code under this theme.`
   if (s.kind === 'code') return `${n} of ${of} accepted people were coded with “${ctx.doc.codes.find((c) => c.id === s.id)?.name}”, an approved code.`
   if (s.kind === 'tension') return `This tension was approved as a theme. ${n} of ${of} people are in the group its sentence describes.`
+  if (s.kind === 'pair') return `${n} of ${of} and ${cur.snap.n2} of ${cur.snap.of2} accepted people have an approved code under these two leading themes, which are within one person of each other.`
+  if (s.kind === 'pairNone') return `${n} of ${of} accepted people are in neither of the two leading themes.`
   if (s.kind === 'thin') return `${n} of ${of} guide questions have too few accepted people, or some were not asked.`
   return `The recording uses ${n} accepted sessions. Excluded sessions are left out.`
 }
@@ -166,10 +180,12 @@ export function numbersCheck(text: string, source: SourceRef | undefined, cites:
   const figs = figures(text)
   if (!figs.length) return []
   const cur = source ? currentOf(source, cites, ctx) : undefined
-  return figs.map((f) => {
+  return figs.map((f, i) => {
     const shown = `${f.n} of ${f.of}`
-    if (!cur || cur.gone || cur.snap.n === undefined) return { text: shown, ok: false }
-    const expected = cur.snap.of !== undefined ? `${cur.snap.n} of ${cur.snap.of}` : undefined
+    const n = i === 1 ? cur?.snap.n2 : cur?.snap.n
+    const of = i === 1 ? cur?.snap.of2 : cur?.snap.of
+    if (!cur || cur.gone || n === undefined) return { text: shown, ok: false }
+    const expected = of !== undefined ? `${n} of ${of}` : undefined
     return { text: shown, expected, ok: expected === shown }
   })
 }
@@ -180,7 +196,7 @@ export function checkEdit(text: string, type: LineType, source: SourceRef | unde
   const numbers = numbersCheck(text, source, cites, ctx)
   const problems: string[] = []
   if (type === 'narration') {
-    problems.push(...checkNarration(text).problems)
+    problems.push(...checkNarration(text, { figuresAllowed: source?.kind === 'pair' ? 2 : 1 }).problems)
     if (!cites.length) problems.push('Add a source')
   }
   numbers.forEach((n) => !n.ok && problems.push(n.expected ? `Says ${n.text}. The data says ${n.expected}` : `${n.text} needs a source that matches it`))
@@ -235,61 +251,83 @@ const TENSION_ALTS: Record<string, (n: number, of: number) => string[]> = {
 }
 
 /** A narration line that passes the rules, or nothing. A sentence that breaks one is never used. */
-const narr = (o: Omit<Line, 'id' | 'type' | 'state' | 'audio' | 'history' | 'fingerprint' | 'cites'> & { cites: Cite[]; faceBased?: boolean }, ctx: Ctx): Line[] => {
-  const { faceBased, alts, ...rest } = o
-  if (!o.cites.length || !checkNarration(o.text, { faceBased }).ok) return []
-  // Only wordings that pass the rules, and that still say the same figure, are offered for Rewrite.
+const narr = (o: Omit<Line, 'id' | 'type' | 'state' | 'audio' | 'history' | 'fingerprint' | 'cites'> & { cites: Cite[]; faceBased?: boolean; figuresAllowed?: number }, ctx: Ctx): Line[] => {
+  const { faceBased, figuresAllowed, alts, ...rest } = o
+  const rules = { faceBased, figuresAllowed }
+  if (!o.cites.length || !checkNarration(o.text, rules).ok) return []
+  // Only wordings that pass the rules, and that still say the same figures, are offered for Rewrite.
   const same = figures(o.text).map((f) => `${f.n} of ${f.of}`).join()
-  const good = (alts ?? []).filter((a) => a !== o.text && checkNarration(a, { faceBased }).ok && figures(a).map((f) => `${f.n} of ${f.of}`).join() === same)
+  const good = (alts ?? []).filter((a) => a !== o.text && checkNarration(a, rules).ok && figures(a).map((f) => `${f.n} of ${f.of}`).join() === same)
   return [mkLine({ ...rest, type: 'narration', alts: good }, ctx)]
+}
+
+/** A line that only points the listener to what comes next. Fixed wording, no number and no claim. */
+export const SIGNPOST_MAX_WORDS = 12
+const signpost = (chapter: string, text: string, ctx: Ctx): Line[] =>
+  /\d/.test(text) || text.trim().split(/\s+/).length > SIGNPOST_MAX_WORDS ? [] : [mkLine({ key: `signpost:${chapter}`, chapter, type: 'signpost', text, state: 'Approved' }, ctx)]
+const SIGNPOSTS: Record<string, (name: string) => string> = {
+  headline: () => 'First, the headline.',
+  theme: (name) => `Next, ${name.charAt(0).toLowerCase()}${name.slice(1)}.`,
+  tensions: () => 'Now, where the picture splits.',
+  thin: () => 'Finally, where the evidence is thin.',
+  close: () => 'That brings us to the end.',
 }
 
 export type Draft = { lines: Line[]; leftOut: LeftOut[] }
 export type LeftOut = { kind: 'theme' | 'tension'; id: string; name: string; why: 'time' | 'new' }
 
 /**
- * The AI draft for a target length. Chapters in order; a chapter with no data is left out. Themes go in largest first while they fit the
- * target, the rest are listed as left out. Quotes are verbatim, one a person across the episode. Every narration line is cited to exact
- * turns and passes the narration rules.
+ * The AI draft for a target length. Chapters in order; a chapter with no data is left out. Each starts with a signpost. The headline is made
+ * of themes (codes appear only inside their theme's chapter). A theme chapter has a line for each accepted code and then two quotes (three
+ * for the two largest). Themes go in largest first while they fit the target; the rest are listed as left out. Quotes are verbatim, one a
+ * person across the episode. Nothing is added to fill time.
  */
 export function buildDraft(ctx: Ctx, targetMin: number, include: string[] = []): Draft {
   const { doc, basis } = ctx
   const N = basis.sessions.size
+  const people = basis.participants.size
   const lines: Line[] = []
   const used = new Set<string>()
   const targetSec = targetMin * 60
 
-  lines.push(
-    mkLine({ key: 'frame-open', chapter: 'about', type: 'frame', locked: true, state: 'Approved', source: { kind: 'study', id: 'study' }, text: `This is an AI-generated summary of the study. It uses ${N} accepted sessions. What people said is read by a second voice.` }, ctx),
-  )
+  lines.push(mkLine({ key: 'frame-open', chapter: 'about', type: 'frame', locked: true, state: 'Approved', source: { kind: 'study', id: 'study' }, text: `This is an AI-generated summary of the study. It uses ${N} accepted sessions. What people said is read by a second voice.` }, ctx))
 
-  // The headline: the study's own leading findings, from the executive summary's sentences and the two answers it sets side by side.
-  const exec = execDraft({ doc, basis })
-  const execLine = (id: string, key: string, codeId: string) => {
-    const s = exec.find((x) => x.id === id)
-    const code = doc.codes.find((c) => c.id === codeId)!
-    const nums = numbersOf(codeId, ctx)
-    const fig = nums ? `${nums.n} of ${nums.of}` : ''
-    const alts = id === 'exec-reason' ? [`${fig} people gave “${code.name}” as their reason for cancelling.`] : id === 'exec-nothing' ? [`${fig} people said nothing the company could have done would have kept them.`] : [`${fig} people said ${code.name.charAt(0).toLowerCase()}${code.name.slice(1)}.`]
-    return s ? narr({ key, chapter: 'headline', text: renderTemplate(s.template, ctx), source: { kind: 'code', id: codeId }, cites: citesOf([code], ctx), alts }, ctx) : []
-  }
-  const topReason = exec.find((x) => x.id === 'exec-reason')?.cites[0]?.id
-  if (topReason) lines.push(...execLine('exec-reason', 'headline-reason', topReason))
-  const flex = doc.codes.find((c) => c.id === 'c-flex-first' && c.status === 'Accepted')
-  const price = doc.codes.find((c) => c.id === 'c-price-first' && c.status === 'Accepted')
-  for (const [code, text] of [[flex, 'said flexibility matters more than price'], [price, 'said price matters more than flexibility']] as const) {
-    const nums = code && numbersOf(code.id, ctx)
-    if (code && nums && nums.n > 0) lines.push(...narr({ key: `headline-${code.id}`, chapter: 'headline', text: `${nums.n} of ${nums.of} people ${text}.`, source: { kind: 'code', id: code.id }, cites: citesOf([code], ctx), alts: [code.id === 'c-flex-first' ? `Flexibility mattered more than price to ${nums.n} of ${nums.of} people.` : `Price mattered more than flexibility to ${nums.n} of ${nums.of} people.`] }, ctx))
-  }
-  const keepCode = exec.find((x) => x.id === 'exec-keep')?.cites[0]?.id
-  if (keepCode) lines.push(...execLine('exec-keep', 'headline-keep', keepCode))
-  if (exec.some((x) => x.id === 'exec-nothing')) lines.push(...execLine('exec-nothing', 'headline-nothing', 'c-nothing'))
+  const themes = codeThemes(doc)
+    .map((t) => ({ t, nums: numbersOf(t.id, ctx), codes: themeCodes(doc, t) }))
+    .filter((x) => x.nums && x.nums.n > 0 && x.codes.length)
+    .sort((a, b) => b.nums!.n - a.nums!.n || a.t.name.localeCompare(b.t.name))
 
-  // Fixed chapters first (they always fit), so the themes are given the time that is left.
-  const tail: Line[] = []
+  // Theme chapters first, so the headline and the length rule only deal with the themes that are in.
+  type Chap = { theme: Theme; nums: { n: number; of: number }; codes: Code[]; lines: Line[]; quotes: Line[] }
+  const chapters: Chap[] = themes.map(({ t, nums, codes }) => {
+    const key = `theme:${t.id}`
+    const ranked = codes.map((c) => ({ c, n: numbersOf(c.id, ctx)! })).filter((x) => x.n && x.n.n > 0).sort((a, b) => b.n.n - a.n.n || a.c.name.localeCompare(b.c.name))
+    const ls = [
+      ...signpost(key, SIGNPOSTS.theme(t.name), ctx),
+      ...ranked.flatMap(({ c, n }) =>
+        narr({ key: `${key}:${c.id}`, chapter: key, text: `“${c.name}” came up for ${n.n} of ${n.of} people.`, source: { kind: 'code', id: c.id }, cites: citesOf([c], ctx), alts: [`${n.n} of ${n.of} people gave “${c.name}” as a reason.`, `“${c.name}” was raised by ${n.n} of ${n.of} people.`] }, ctx),
+      ),
+    ]
+    return { theme: t, nums: nums!, codes, lines: ls, quotes: [] }
+  })
+  const quoteLine = (theme: Theme, key: string, chapter: string, id: string, text: string): Line =>
+    mkLine({ key, chapter, type: 'quote', text, source: { kind: theme.tensionId ? 'tension' : 'theme', id: theme.tensionId ?? theme.id }, cites: [citeOf(excerpt(id))] }, ctx)
+  const pick = (theme: Theme, taken: Set<string>) => clipsOfTheme(doc, theme, basis).find((c) => !taken.has(c.participantId) && !!excerpt(c.id.slice(5)))
+  const takeQuotes = (c: Chap, count: number) => {
+    const key = `theme:${c.theme.id}`
+    while (c.quotes.length < count) {
+      const clip = pick(c.theme, used)
+      if (!clip) return
+      used.add(clip.participantId)
+      c.quotes.push(quoteLine(c.theme, `${key}:q${c.quotes.length + 1}`, key, clip.id.slice(5), clip.quote))
+    }
+  }
+  chapters.forEach((c, i) => takeQuotes(c, i < AUDIO.largestCount ? AUDIO.quotesForLargest : AUDIO.quotesPerTheme))
+
+  // Approved tensions: a line for each, a quote for the words side and one for the delivery side.
   const tensions = tensionsOf(doc, basis).filter((t) => !t.unavailable && tensionDecisions(doc)[t.id]?.status === 'Added as a tension theme')
-  const tensionLeftOut: LeftOut[] = []
   const tensionLines: Line[] = []
+  const tensionLeftOut: LeftOut[] = []
   for (const t of tensions) {
     const nums = tensionNums(t)
     const make = TENSION_TEXT[t.id]
@@ -304,71 +342,68 @@ export function buildDraft(ctx: Ctx, targetMin: number, include: string[] = []):
     tensionLines.push(...got)
     if (!got.length) tensionLeftOut.push({ kind: 'tension', id: t.id, name: t.title, why: 'time' })
   }
-  const thin = thinText(ctx)
-  const thinFig = thin ? figures(thin)[0] : undefined
-  const thinNames = thin ? thin.slice(thin.indexOf(':') + 1).trim() : ''
-  if (thin) tail.push(...narr({ key: 'thin', chapter: 'thin', text: thin, source: { kind: 'thin', id: 'thin' }, cites: citesOf(weakQuestionCodes(ctx), ctx), alts: thinFig ? [`${thinFig.n} of ${thinFig.of} guide questions have thin evidence: ${thinNames}`] : [] }, ctx))
-  tail.push(mkLine({ key: 'frame-close', chapter: 'close', type: 'frame', locked: true, state: 'Approved', source: { kind: 'study', id: 'study' }, text: `That is the summary of ${ctx.studyName}, ${ctx.release}.` }, ctx))
+  void tensionLines
 
-  // Themes, largest first.
-  const themes = codeThemes(doc)
-    .map((t) => ({ t, nums: numbersOf(t.id, ctx), codes: themeCodes(doc, t) }))
-    .filter((x) => x.nums && x.nums.n > 0 && x.codes.length)
-    .sort((a, b) => b.nums!.n - a.nums!.n || a.t.name.localeCompare(b.t.name))
-  const chapters: { theme: Theme; lines: Line[]; quotes: Line[] }[] = []
+  // The length rule: a theme beyond the target length is left out, smallest first.
   const leftOut: LeftOut[] = [...tensionLeftOut]
-  const quoteLine = (theme: Theme, key: string, chapter: string, cl: ReturnType<typeof clipsOfTheme>[number]): Line =>
-    mkLine({ key, chapter, type: 'quote', text: cl.quote, source: { kind: theme.tensionId ? 'tension' : 'theme', id: theme.tensionId ?? theme.id }, cites: [citeOf(excerpt(cl.id.slice(5)))] }, ctx)
-  const pick = (theme: Theme, taken: Set<string>) => clipsOfTheme(doc, theme, basis).find((c) => !taken.has(c.participantId) && !!excerpt(c.id.slice(5)))
-  for (const { t, nums, codes } of themes) {
-    const key = `theme:${t.id}`
-    const ls = [
-      ...narr({ key: `${key}:n`, chapter: key, text: `${t.name} came up for ${nums!.n} of ${nums!.of} people.`, source: { kind: 'theme', id: t.id }, cites: citesOf(codes, ctx), alts: [`${nums!.n} of ${nums!.of} people raised ${t.name}.`, `${t.name} was raised by ${nums!.n} of ${nums!.of} people.`] }, ctx),
-    ]
-    const top = [...codes].map((c) => ({ c, n: peopleOf(c, basis).size })).sort((a, b) => b.n - a.n || a.c.name.localeCompare(b.c.name))[0]
-    if (codes.length > 1 && top) {
-      const cn = numbersOf(top.c.id, ctx)!
-      ls.push(...narr({ key: `${key}:code`, chapter: key, text: `“${top.c.name}” was the most common reason inside it, for ${cn.n} of ${cn.of} people.`, source: { kind: 'code', id: top.c.id }, cites: citesOf([top.c], ctx), alts: [`${cn.n} of ${cn.of} people gave “${top.c.name}” as a reason.`, `Inside it, “${top.c.name}” came up for ${cn.n} of ${cn.of} people.`] }, ctx))
-    }
-    chapters.push({ theme: t, lines: ls, quotes: [] })
-  }
-  // Quotes: one for each theme first, then a second for the largest while there is time. One quote a person.
-  const take = (c: (typeof chapters)[number], count: number) => {
-    const key = `theme:${c.theme.id}`
-    while (c.quotes.length < count) {
-      const clip = pick(c.theme, used)
-      if (!clip) return
-      used.add(clip.participantId)
-      c.quotes.push(quoteLine(c.theme, `${key}:q${c.quotes.length + 1}`, key, clip))
-    }
-  }
-  const size = () => totalSeconds([...lines, ...chapters.flatMap((c) => [...c.lines, ...c.quotes]), ...tensionLines, ...tail])
-  chapters.forEach((c) => take(c, AUDIO.quotesPerTheme))
-  // A theme beyond the target length is left out, smallest first.
-  const kept = [...chapters]
-  while (kept.length > 1 && (kept.length > AUDIO.maxThemes || size() > targetSec * 1.15)) {
-    const drop = [...kept].reverse().find((c) => !include.includes(c.theme.id))
+  const thin = thinText(ctx)
+  const thinLines = thin ? narr({ key: 'thin', chapter: 'thin', text: thin, source: { kind: 'thin', id: 'thin' }, cites: citesOf(weakQuestionCodes(ctx), ctx), alts: figures(thin)[0] ? [`${figures(thin)[0].n} of ${figures(thin)[0].of} guide questions have thin evidence: ${thin.slice(thin.indexOf(':') + 1).trim()}`] : [] }, ctx) : []
+  const closeLines = [...signpost('close', SIGNPOSTS.close(''), ctx), mkLine({ key: 'frame-close', chapter: 'close', type: 'frame', locked: true, state: 'Approved', source: { kind: 'study', id: 'study' }, text: `That is the summary of ${ctx.studyName}, ${ctx.release}.` }, ctx)]
+  const fixed = () => [...lines, ...thinLines, ...closeLines, ...tensionLines]
+  const size = () => totalSeconds([...fixed(), ...chapters.flatMap((c) => [...c.lines, ...c.quotes])])
+  while (chapters.length > 1 && (chapters.length > AUDIO.maxThemes || size() > targetSec * 1.15)) {
+    const drop = [...chapters].reverse().find((c) => !include.includes(c.theme.id))
     if (!drop) break
-    kept.splice(kept.indexOf(drop), 1)
-    drop.quotes.forEach((q) => used.delete(q.cites[0].participantId))
-    drop.quotes = []
     chapters.splice(chapters.indexOf(drop), 1)
+    drop.quotes.forEach((q) => used.delete(q.cites[0].participantId))
     leftOut.push({ kind: 'theme', id: drop.theme.id, name: drop.theme.name, why: 'time' })
   }
   themes.filter((x) => !chapters.some((c) => c.theme.id === x.t.id) && !leftOut.some((l) => l.id === x.t.id)).forEach((x) => leftOut.push({ kind: 'theme', id: x.t.id, name: x.t.name, why: 'time' }))
-  chapters.slice(0, AUDIO.largestCount).forEach((c) => size() < targetSec && take(c, AUDIO.quotesForLargest))
+
+  // The headline: the themes that are in, with their counts. The two leading themes within one person of each other are said together.
+  const head: Line[] = [...signpost('headline', SIGNPOSTS.headline(''), ctx)]
+  const [a, b] = chapters
+  const close = a && b && Math.abs(a.nums.n - b.nums.n) <= 1
+  if (close) {
+    const either = new Set([...themePeople(doc, a.theme, basis), ...themePeople(doc, b.theme, basis)])
+    const pairCites = [...citesOf(a.codes, ctx, 2), ...citesOf(b.codes, ctx, 2)]
+    head.push(
+      ...narr({ key: 'headline-close', chapter: 'headline', text: `${a.theme.name} and ${b.theme.name} were close to even: ${a.nums.n} of ${a.nums.of} people and ${b.nums.n} of ${b.nums.of} people.`, source: { kind: 'pair', id: `${a.theme.id}|${b.theme.id}` }, cites: pairCites, figuresAllowed: 2 }, ctx),
+      ...narr({ key: 'headline-none', chapter: 'headline', text: `${people - either.size} of ${people} people gave no clear answer to either.`, source: { kind: 'pairNone', id: `${a.theme.id}|${b.theme.id}` }, cites: pairCites }, ctx),
+    )
+  }
+  chapters.slice(close ? 2 : 0).forEach((c) => head.push(...narr({ key: `headline:${c.theme.id}`, chapter: 'headline', text: `${c.theme.name}: ${c.nums.n} of ${c.nums.of} people.`, source: { kind: 'theme', id: c.theme.id }, cites: citesOf(c.codes, ctx), alts: [`${c.nums.n} of ${c.nums.of} people raised ${c.theme.name}.`] }, ctx)))
+  if (!close) void 0
+  lines.push(...(head.length > 1 ? head : []))
+
+  // A second look at the leading themes' time: more quotes only while there is room, never to fill.
   chapters.forEach((c) => lines.push(...c.lines, ...c.quotes))
 
-  // Tension quotes: one for each approved tension theme, a person not yet heard.
-  for (const t of tensions) {
-    const theme = doc.themes.find((x) => x.tensionId === t.id)
-    const clip = theme && pick(theme, used)
-    if (theme && clip && tensionLines.some((l) => l.source?.id === t.id)) {
-      used.add(clip.participantId)
-      tensionLines.push(quoteLine(theme, `tension:${t.id}:q`, 'tensions', clip))
+  // The tension chapter: the line, then a quote for the words and one for the delivery.
+  if (tensionLines.length) {
+    lines.push(...signpost('tensions', SIGNPOSTS.tensions(''), ctx))
+    for (const t of tensions) {
+      const theme = doc.themes.find((x) => x.tensionId === t.id)
+      const mine = tensionLines.filter((l) => l.source?.id === t.id)
+      if (!theme || !mine.length) continue
+      lines.push(...mine)
+      const clipFolk = new Set(t.clips.map((c) => c.participantId))
+      // The delivery side: a person from the second row. The words side: someone who said it, not in that row.
+      const delivery = t.clips.find((c) => !used.has(c.participantId) && themeCodes(doc, theme).some((code) => liveExcerpts(code, basis).some((e) => e.participantId === c.participantId)))
+      if (delivery) {
+        const e = themeCodes(doc, theme).flatMap((code) => liveExcerpts(code, basis)).filter((x) => x.participantId === delivery.participantId).sort((x, y) => y.confidence - x.confidence)[0]
+        used.add(delivery.participantId)
+        lines.push(quoteLine(theme, `tension:${t.id}:q2`, 'tensions', e.id, e.text))
+      }
+      const words = clipsOfTheme(doc, theme, basis).find((c) => !used.has(c.participantId) && !clipFolk.has(c.participantId) && !!excerpt(c.id.slice(5))) ?? clipsOfTheme(doc, theme, basis).find((c) => !used.has(c.participantId) && !!excerpt(c.id.slice(5)))
+      if (words) {
+        used.add(words.participantId)
+        lines.splice(lines.findIndex((l) => l.key === `tension:${t.id}:q2`) >= 0 ? lines.findIndex((l) => l.key === `tension:${t.id}:q2`) : lines.length, 0, quoteLine(theme, `tension:${t.id}:q1`, 'tensions', words.id.slice(5), words.quote))
+      }
     }
   }
-  lines.push(...tensionLines, ...tail)
+  if (thinLines.length) lines.push(...signpost('thin', SIGNPOSTS.thin(''), ctx), ...thinLines)
+  lines.push(...closeLines)
   return { lines, leftOut }
 }
 

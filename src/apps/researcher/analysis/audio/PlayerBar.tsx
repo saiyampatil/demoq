@@ -134,7 +134,15 @@ export function PlayerBar({
   onResume: () => void
 }) {
   const [menu, setMenu] = useState(false)
+  const [pmenu, setPmenu] = useState(false)
   const box = useRef<HTMLDivElement>(null)
+  const pbox = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!pmenu) return
+    const off = (e: MouseEvent) => !pbox.current?.contains(e.target as Node) && setPmenu(false)
+    document.addEventListener('mousedown', off)
+    return () => document.removeEventListener('mousedown', off)
+  }, [pmenu])
   const starts = chapters.flatMap((c) => {
     const first = timeline.find((l) => l.chapter === c)
     return first ? [{ key: c, start: first.start }] : []
@@ -158,17 +166,10 @@ export function PlayerBar({
         <button type="button" className={BTN} onClick={p.next} data-testid="next-line" aria-label="Next line">Line ›</button>
         <button type="button" className={BTN} onClick={() => p.skip(-15)} data-testid="back-15" aria-label="Back 15 seconds">−15 s</button>
         <button type="button" className={BTN} onClick={() => p.skip(15)} data-testid="forward-15" aria-label="Forward 15 seconds">+15 s</button>
-        <span className="text-sm tabular-nums text-graphite" data-testid="clock" aria-label={`${clock(p.t)} of ${clock(p.total)}`}>
+        <span className="text-sm tabular-nums text-graphite" data-testid="clock" aria-label={mode === 'all' ? `${clock(p.t)} of ${clock(p.total)}` : `${clock(p.t)} of ${clock(p.total)} played, ${clock(fullLength)} in all`}>
           {clock(p.t)} / {clock(p.total)}
+          {mode !== 'all' && <> of {clock(fullLength)} total</>}
         </span>
-        <label className="flex items-center gap-1.5 text-sm text-graphite">
-          Speed
-          <select aria-label="Speed" data-testid="speed" value={p.speed} onChange={(e) => p.setSpeed(Number(e.target.value))} className="h-8 rounded-sm border border-mist-strong bg-surface px-1.5 text-sm text-ink">
-            {AUDIO.speeds.map((s) => (
-              <option key={s} value={s}>{s}×</option>
-            ))}
-          </select>
-        </label>
         <div role="group" aria-label="What to play" className="inline-flex overflow-hidden rounded-xs border border-mist" data-testid="mode">
           {MODES.map(([m, label]) => (
             <button key={m} type="button" aria-pressed={mode === m} data-testid={`mode-${m}`} onClick={() => onMode(m)} className={cn('px-2.5 py-1 text-sm font-medium', mode === m ? 'bg-ink text-white' : 'bg-surface text-graphite hover:bg-haze')}>
@@ -191,12 +192,26 @@ export function PlayerBar({
             </ul>
           )}
         </div>
-        <span className="flex items-center gap-2 text-sm">
-          <Switch checked={follow} label="Follow along" onChange={onFollow} />
-          Follow along
-        </span>
+        <div className="relative" ref={pbox}>
+          <button type="button" className={BTN} aria-haspopup="menu" aria-expanded={pmenu} onClick={() => setPmenu((m) => !m)} data-testid="playback-menu">Playback ▾</button>
+          {pmenu && (
+            <div role="menu" className="absolute left-0 z-30 mt-1 flex w-64 flex-col gap-3 rounded-sm border border-mist bg-surface p-3 shadow-md" data-testid="playback-panel">
+              <label className="flex items-center justify-between gap-3 text-sm">
+                Speed
+                <select aria-label="Speed" data-testid="speed" value={p.speed} onChange={(e) => p.setSpeed(Number(e.target.value))} className="h-8 rounded-sm border border-mist-strong bg-surface px-1.5 text-sm text-ink">
+                  {AUDIO.speeds.map((s) => (
+                    <option key={s} value={s}>{s}×</option>
+                  ))}
+                </select>
+              </label>
+              <span className="flex items-center justify-between gap-3 text-sm">
+                Follow along
+                <Switch checked={follow} label="Follow along" onChange={onFollow} />
+              </span>
+            </div>
+          )}
+        </div>
         <span className="flex-1" />
-        <span className="text-sm tabular-nums" data-testid="length">Length {clock(fullLength)}</span>
       </div>
       <Waveform p={p} timeline={timeline} chapters={starts} />
       <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-graphite" data-testid="now-next">
@@ -207,11 +222,9 @@ export function PlayerBar({
           <button type="button" className="underline-offset-2 hover:text-ink hover:underline" onClick={onResume} data-testid="resume">Resume from {clock(resumeAt)}</button>
         )}
       </p>
-      {warn && (
-        <p className="text-sm text-pending-fg" data-testid="length-warning">
-          The brief asks for {AUDIO.range.min} to {AUDIO.range.max} minutes.
-        </p>
-      )}
+      <p className={cn('text-sm', warn ? 'text-pending-fg' : 'text-graphite')} data-testid="length-note" data-outside={warn}>
+        Target {AUDIO.range.min} to {AUDIO.range.max} minutes. This runs {clock(fullLength)}.
+      </p>
     </div>
   )
 }

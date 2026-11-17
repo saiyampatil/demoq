@@ -676,3 +676,10 @@ Prototype decisions from the product owner, 11 Nov 2026.
 ## A3 Audio summary: player improvements from research
 
 Researched other audio and transcript tools (`docs/AUDIO_SUMMARY_RESEARCH.md`) and took: word-by-word highlight of the line being said, a waveform scrubber coloured by who is speaking, "Now" and "Up next" chapter labels, back and forward 15 seconds, play modes (Everything, Findings, Quotes only), script search that jumps to matches, a Listen view, bookmarks, and a resume offer. Not taken: AI hosts or voice cloning (quotes stay the participants' own words), auto soundbites (the Showreel's job). All of it is display only; the script, lengths and the brief's 8 to 12 minute rule are unchanged, and nothing autoplays.
+
+## A3 Audio summary: content and UI fixes
+
+- **Headline is built from themes** ("Price creep: 8 of 20 people"). Codes appear only inside their theme's chapter. When the two leading themes are within one person it is one line with both counts and one line for how many gave no clear answer to either (two figures are allowed only in that line).
+- **Richer draft, no padding:** each theme chapter has a line for every accepted code, then two quotes (three for the two largest), one person once. The tension chapter has the approved tension's line and a quote for the words and one for the delivery. If the script is under eight minutes it stays so (the amber note is the message).
+- **Signposts** open each chapter after the first, from fixed templates: no digits, no claim, 12 words at most, labelled "Signpost". They cannot be edited.
+- **Player:** Speed and Follow along live in a Playback menu; the bar reads "Target 8 to 12 minutes. This runs 1:58."; in Findings and Quotes modes the clock reads "0:18 / 0:26 of 1:58 total"; only the playing line is lit (or the selected line when paused). The Listen view labels every line with its chapter and speaker, with neighbours at 70%.

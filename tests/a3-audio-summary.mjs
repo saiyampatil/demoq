@@ -33,8 +33,8 @@ try {
 
   // ═══ Narration rules ═══
   const rules = await run(`const ctx=mk(); const d=sc.buildDraft(ctx,10); const n=d.lines.filter(l=>l.type==='narration')
-    return n.map(l=>({key:l.key,text:l.text,cites:l.cites.length,figs:nr.figures(l.text).length,words:nr.words(l.text),pct:/%|percent/i.test(l.text),ok:nr.checkNarration(l.text,{faceBased:l.key==='tension:tn-pause-portion-face:n'}).ok,numbers:sc.numbersCheck(l.text,l.source,l.cites,ctx).every(x=>x.ok),mostOk:!/\\b(most people|majority)\\b/i.test(l.text)||nr.figures(l.text).some(f=>f.n*2>f.of)}))`)
-  ok('every narration line has a citation and exactly one “n of N”', rules.length >= 8 && rules.every((r) => r.cites >= 1 && r.figs === 1), rules.filter((r) => r.cites < 1 || r.figs !== 1))
+    return n.map(l=>({key:l.key,text:l.text,cites:l.cites.length,figs:nr.figures(l.text).length,close:l.key==='headline-close',words:nr.words(l.text),pct:/%|percent/i.test(l.text),ok:nr.checkNarration(l.text,{faceBased:l.key==='tension:tn-pause-portion-face:n',figuresAllowed:l.key==='headline-close'?2:1}).ok,numbers:sc.numbersCheck(l.text,l.source,l.cites,ctx).every(x=>x.ok),mostOk:!/\\b(most people|majority)\\b/i.test(l.text)||nr.figures(l.text).some(f=>f.n*2>f.of)}))`)
+  ok('every narration line has a citation and exactly one “n of N” (the close-to-even line has two, set side by side)', rules.length >= 8 && rules.every((r) => r.cites >= 1 && r.figs === (r.close ? 2 : 1)), rules.filter((r) => r.cites < 1 || r.figs !== (r.close ? 2 : 1)))
   ok('none is over 28 words, none has a percentage, “most” only above half, and all pass the shared rules', rules.every((r) => r.words <= 28 && !r.pct && r.mostOk && r.ok), rules.filter((r) => !r.ok))
   ok('every number in a line equals its source’s count', rules.every((r) => r.numbers), rules.filter((r) => !r.numbers))
   const quotes = await run(`const ctx=mk(); const d=sc.buildDraft(ctx,10); const q=d.lines.filter(l=>l.type==='quote'); return {n:q.length,verbatim:q.every(l=>l.text===cb.excerpt(l.cites[0].excerptId).text),people:q.map(l=>l.cites[0].participantId),withSegment:q.every(l=>/(Dog|Cat) owner/.test(sc.segmentLabel(l.cites[0].participantId))),cited:q.every(l=>l.cites.length===1&&!!l.cites[0].sessionId&&l.cites[0].atSec>=0)}`)
@@ -59,10 +59,10 @@ try {
   ok('the closing names the study and release; both are locked: they can’t be edited or removed', /Pet Food Subscription Churn, Release v1\.0/.test(frames.close) && frames.locked && frames.editBlocked && frames.removeBlocked, frames)
 
   // ═══ Editing ═══
-  const edit = await run(`const ctx=mk(); let doc=st.newDoc('pet-food-churn',sc.buildDraft(ctx,10),10,'Maya Ortiz'); const line=doc.lines.find(l=>l.key==='theme:t-price:n'); const real=sc.numbersCheck(line.text,line.source,line.cites,ctx)[0].text
+  const edit = await run(`const ctx=mk(); let doc=st.newDoc('pet-food-churn',sc.buildDraft(ctx,10),10,'Maya Ortiz'); const line=doc.lines.find(l=>l.key==='theme:t-price:c-price-rise'); const real=sc.numbersCheck(line.text,line.source,line.cites,ctx)[0].text
     doc=st.approve(doc,line.id,'Maya Ortiz',ctx); const wasApproved=doc.lines.find(l=>l.id===line.id).state
-    const bad=st.editLine(doc,line.id,'Price creep came up for 9 of 20 people.','Maya Ortiz',ctx); const nosrc=st.editLine(doc,line.id,'Price creep came up for 8 of 20 people.','Maya Ortiz',ctx,undefined,[])
-    const good=st.editLine(doc,line.id,'Price creep was raised by '+real+' people.','Maya Ortiz',ctx); const after=good.doc.lines.find(l=>l.id===line.id)
+    const bad=st.editLine(doc,line.id,'“Price went up” came up for 9 of 20 people.','Maya Ortiz',ctx); const nosrc=st.editLine(doc,line.id,'“Price went up” came up for 8 of 20 people.','Maya Ortiz',ctx,undefined,[])
+    const good=st.editLine(doc,line.id,'“Price went up” was raised by '+real+' people.','Maya Ortiz',ctx); const after=good.doc.lines.find(l=>l.id===line.id)
     const note=st.addNote(doc,'headline','A plain thought from me.','Maya Ortiz',ctx); const noteNum=st.addNote(doc,'headline','It was 9 of 20 people.','Maya Ortiz',ctx); const noteMatch=st.addNote(doc,'headline','It was '+real+' people.','Maya Ortiz',ctx,line.source,line.cites)
     const added=note.doc.lines.find(l=>l.type==='note')
     return {real,wasApproved,badProblems:bad.problems,badSaved:bad.doc!==doc,nosrcProblems:nosrc.problems,goodProblems:good.problems,after:{state:after.state,edited:after.edited,audio:after.audio,prev:after.history.at(-1)},noteOk:note.problems.length===0&&added.state==='Not approved'&&added.author==='Maya Ortiz',noteNumBlocked:noteNum.problems.length>0&&/needs a source/.test(noteNum.problems[0]),noteMatchOk:noteMatch.problems.length===0}`)
@@ -70,7 +70,7 @@ try {
   ok('Save is blocked on a narration line with no source', edit.nosrcProblems.includes('Add a source'), edit.nosrcProblems)
   ok('a good edit saves: the line is Edited, needs audio, its approval is gone and the old wording is in History', edit.wasApproved === 'Approved' && edit.goodProblems.length === 0 && edit.after.state === 'Edited' && edit.after.edited === true && edit.after.audio === 'Needs audio' && edit.after.prev.action === 'Edited' && /came up for/.test(edit.after.prev.previous), edit)
   ok('a Researcher’s note with no count saves as it is; one with a count needs a linked source that matches', edit.noteOk && edit.noteNumBlocked && edit.noteMatchOk, edit)
-  const rw = await run(`const ctx=mk(); let doc=st.newDoc('pet-food-churn',sc.buildDraft(ctx,10),10,'Maya Ortiz'); const line=doc.lines.find(l=>l.key==='theme:t-price:n'); const before=line.text
+  const rw = await run(`const ctx=mk(); let doc=st.newDoc('pet-food-churn',sc.buildDraft(ctx,10),10,'Maya Ortiz'); const line=doc.lines.find(l=>l.key==='theme:t-price:c-price-rise'); const before=line.text
     const r1=st.rewrite(doc,line.id,'','Maya Ortiz'); const a=r1.lines.find(l=>l.id===line.id); const r2=st.rewrite(r1,line.id,'Shorter','Maya Ortiz'); const b2=r2.lines.find(l=>l.id===line.id)
     return {changed:a.text!==before,fig:nr.figures(a.text)[0]&&nr.figures(a.text)[0].n===nr.figures(before)[0].n&&nr.figures(a.text)[0].of===nr.figures(before)[0].of,passes:nr.checkNarration(a.text).ok&&nr.checkNarration(b2.text).ok,keptBefore:a.history.at(-1).previous===before,audio:a.audio,state:a.state,numbers:sc.numbersCheck(a.text,a.source,a.cites,ctx).every(x=>x.ok),short:b2.text.length<=a.text.length}`)
   ok('Rewrite gives another wording of the same claim: same figure, passes the rules, previous wording in History, needs audio', rw.changed && rw.fig && rw.passes && rw.keptBefore && rw.audio === 'Needs audio' && rw.state === 'Not approved' && rw.numbers, rw)
@@ -79,7 +79,7 @@ try {
   const au = await run(`const ctx=mk(); let doc=st.newDoc('pet-food-churn',sc.buildDraft(ctx,10),10,'Maya Ortiz'); const live=doc.lines.filter(l=>!l.removed)
     const nv=st.setVoice(doc,'narrator','Warm','Maya Ortiz'); const qv=st.setVoice(doc,'quote','Second voice, warm','Maya Ortiz')
     const nNeeds=nv.lines.filter(l=>l.audio==='Needs audio'); const qNeeds=qv.lines.filter(l=>l.audio==='Needs audio')
-    const edited=st.editLine(doc,live.find(l=>l.key==='theme:t-price:n').id,'Price creep was raised by '+sc.numbersCheck(live.find(l=>l.key==='theme:t-price:n').text,live.find(l=>l.key==='theme:t-price:n').source,live.find(l=>l.key==='theme:t-price:n').cites,ctx)[0].text+' people.','Maya Ortiz',ctx).doc
+    const edited=st.editLine(doc,live.find(l=>l.key==='theme:t-price:c-price-rise').id,'Price creep was raised by '+sc.numbersCheck(live.find(l=>l.key==='theme:t-price:c-price-rise').text,live.find(l=>l.key==='theme:t-price:c-price-rise').source,live.find(l=>l.key==='theme:t-price:c-price-rise').cites,ctx)[0].text+' people.','Maya Ortiz',ctx).doc
     const r=st.regenerateAudio(edited,undefined,'Maya Ortiz'); const before=edited.lines.filter(l=>l.audio==='Needs audio').length
     const one=st.regenerateAudio(nv,[live.find(l=>l.type==='quote').id],'Maya Ortiz')
     return {nOnly:nNeeds.every(l=>l.type!=='quote')&&nNeeds.length===live.filter(l=>l.type!=='quote').length,qOnly:qNeeds.every(l=>l.type==='quote')&&qNeeds.length===live.filter(l=>l.type==='quote').length,textSame:JSON.stringify(nv.lines.map(l=>l.text))===JSON.stringify(doc.lines.map(l=>l.text)),statesSame:JSON.stringify(nv.lines.map(l=>l.state))===JSON.stringify(doc.lines.map(l=>l.state)),before,made:r.made,after:r.doc.lines.filter(l=>l.audio==='Needs audio').length,untouched:r.doc.lines.filter(l=>l.audio==='Current').length===live.length,oneMade:one.made,oneLeft:one.doc.lines.filter(l=>l.audio==='Needs audio').length,nonQuote:live.filter(l=>l.type!=='quote').length,total:live.length}`)
@@ -89,10 +89,10 @@ try {
 
   // ═══ Remove, restore, rebuild, start over ═══
   const rb = await run(`const ctx=mk(); let doc=st.newDoc('pet-food-churn',sc.buildDraft(ctx,10),10,'Maya Ortiz'); const k=(key)=>doc.lines.find(l=>l.key===key)
-    const approvedKey='theme:t-price:n', editedKey='theme:t-pet:n', removedKey='headline-keep'
+    const approvedKey='theme:t-price:c-price-rise', editedKey='theme:t-pet:c-pet-refused', removedKey='theme:t-pet:c-vet-diet'
     doc=st.approve(doc,k(approvedKey).id,'Maya Ortiz',ctx)
     const realText=sc.numbersCheck(k(editedKey).text,k(editedKey).source,k(editedKey).cites,ctx)[0].text
-    doc=st.editLine(doc,k(editedKey).id,'The pet decides was raised by '+realText+' people.','Maya Ortiz',ctx).doc
+    doc=st.editLine(doc,k(editedKey).id,'“Pet stopped eating it” was raised by '+realText+' people.','Maya Ortiz',ctx).doc
     doc=st.addNote(doc,'headline','My own thought.','Maya Ortiz',ctx).doc
     doc=st.removeLine(doc,k(removedKey).id,'Maya Ortiz')
     const removed=doc.lines.find(l=>l.key===removedKey).removed
@@ -116,12 +116,12 @@ try {
     const d3=JSON.parse(JSON.stringify(ctx.doc)); d3.tensions={...d3.tensions,'tn-pause-concept':{status:'Dismissed',by:'t',at:'now',why:'x'}}; d3.themes=d3.themes.filter(t=>t.tensionId!=='tn-pause-concept')
     const ctx3={...ctx,doc:d3}; const tension=doc.lines.find(l=>l.key==='tension:tn-pause-concept:n'); const ts=sc.staleOf(tension,ctx3)
     // An edited line is never overwritten by an update.
-    const line=doc.lines.find(l=>l.key==='headline-reason'); const real=sc.numbersCheck(line.text,line.source,line.cites,ctx)[0].text
+    const line=doc.lines.find(l=>l.key==='theme:t-price:c-price-rise'); const real=sc.numbersCheck(line.text,line.source,line.cites,ctx)[0].text
     const edited=st.editLine(doc,line.id,'“Price went up” was given by '+real+' people.','Maya Ortiz',ctx).doc
     const draft2=sc.buildDraft(ctx2,10); const kept=st.chooseUpdate(edited,line.id,'mine',draft2,'Maya Ortiz',ctx2); const taken=st.chooseUpdate(edited,line.id,'new',draft2,'Maya Ortiz',ctx2)
-    return {allCurrentBefore:before.every(([,s])=>s==='current'),changed,was:after.find(x=>x.key==='headline-reason').s,tensionState:ts,keptText:kept.lines.find(l=>l.id===line.id).text===edited.lines.find(l=>l.id===line.id).text,keptFlag:!!kept.lines.find(l=>l.id===line.id).keptAs,keptNotStale:!st.isOutOfDate(kept.lines.find(l=>l.id===line.id),ctx2),takenText:taken.lines.find(l=>l.id===line.id).text,takenState:taken.lines.find(l=>l.id===line.id).state,untouchedNoOp:st.updateLine(edited,'nope',draft2,'x')===edited}`)
+    return {allCurrentBefore:before.every(([,s])=>s==='current'),changed,was:after.find(x=>x.key==='theme:t-price:c-price-rise').s,tensionState:ts,keptText:kept.lines.find(l=>l.id===line.id).text===edited.lines.find(l=>l.id===line.id).text,keptFlag:!!kept.lines.find(l=>l.id===line.id).keptAs,keptNotStale:!st.isOutOfDate(kept.lines.find(l=>l.id===line.id),ctx2),takenText:taken.lines.find(l=>l.id===line.id).text,takenState:taken.lines.find(l=>l.id===line.id).state,untouchedNoOp:st.updateLine(edited,'nope',draft2,'x')===edited}`)
   ok('before anything changes, no line is out of date', ch.allCurrentBefore)
-  ok('lowering a count marks exactly the lines built from it (and no others), with the old and new values', ch.changed.includes('headline-reason') && ch.changed.includes('theme:t-price:code') && ch.was.state === 'changed' && /^Was 8 of 20, now 7 of 20$/.test(ch.was.why) && !ch.changed.includes('frame-open') && !ch.changed.includes('theme:t-pet:n'), ch)
+  ok('lowering a count marks exactly the lines built from it (and no others), with the old and new values', ch.changed.includes('theme:t-price:c-price-rise') && ch.was.state === 'changed' && /^Was 8 of 20, now 7 of 20$/.test(ch.was.why) && !ch.changed.includes('frame-open') && !ch.changed.includes('theme:t-pet:n'), ch)
   ok('dismissing the approved tension makes its line “gone”: This tension was dismissed, so it can only be removed', ch.tensionState.state === 'gone' && ch.tensionState.why === 'This tension was dismissed', ch.tensionState)
   ok('an edited line is never overwritten without a choice: “keep mine” leaves the text and flags it kept; “take the new one” rewrites it', ch.keptText && ch.keptFlag && ch.keptNotStale && ch.takenState === 'Not approved' && /7 of 20/.test(ch.takenText) && ch.untouchedNoOp, ch)
 
@@ -173,7 +173,7 @@ try {
   ok('a quote is serif with “Quote · P-3107 · Dog owner” beneath; the opening and closing lines say they are locked', kinds.quote.length >= 4 && kinds.quote.every((l) => /^Quote · P-\d+ · (Dog|Cat) owner$/.test(l)) && /serif/i.test(kinds.serif) && kinds.frame.join() === 'Opening, locked,Closing, locked', kinds)
   ok('every line has a start time and a state dot; every narration line has one citation mark, a range such as 1–3 when it has several', kinds.dots && kinds.times.every((t) => /^\d+:\d\d$/.test(t)) && kinds.marks.length === kinds.narr && kinds.marks.every((m) => /^(1|1–\d)$/.test(m)), kinds)
   ok('“AI-written” is shown once for each chapter that has narration, not on every line', (await count('[data-testid=ai-label]')) === view.narrationChapters, { n: await count('[data-testid=ai-label]'), want: view.narrationChapters })
-  ok('the player bar shows the length, and the amber line “The brief asks for 8 to 12 minutes.” when outside it', /^Length \d+:\d\d$/.test((await text('[data-testid=length]')) ?? '') && /The brief asks for 8 to 12 minutes\./.test((await text('[data-testid=length-warning]')) ?? ''))
+  ok('the bar says “Target 8 to 12 minutes. This runs 1:58.” in amber when outside the range', /^Target 8 to 12 minutes\. This runs \d+:\d\d\.$/.test((await text('[data-testid=length-note]')) ?? '') && (await b.evaluate(`document.querySelector('[data-testid=length-note]').dataset.outside`)) === 'true' && !/The brief asks/.test(await b.evaluate('document.body.innerText')))
   ok('the scrubber has a tick at each chapter start', (await count('[data-testid=chapter-tick]')) === view.chapters.length)
 
   // Playback
@@ -190,7 +190,7 @@ try {
   await click('[data-testid=prev-line]')
   ok('previous line goes back one', (await b.evaluate(`document.querySelector('[data-testid=line][data-current=true]').dataset.id`)) !== jumpTo)
   await click('[data-testid=chapters-menu]'); await click('[data-testid=chapter-jump][data-chapter="theme:t-price"]')
-  ok('the Chapters menu jumps to a chapter’s first line', (await b.evaluate(`document.querySelector('[data-testid=line][data-current=true]').dataset.key`)) === 'theme:t-price:n')
+  ok('the Chapters menu jumps to a chapter’s first line', (await b.evaluate(`document.querySelector('[data-testid=line][data-current=true]').dataset.key`)) === 'signpost:theme:t-price')
   await b.evaluate(`document.body.focus(); document.dispatchEvent(new KeyboardEvent('keydown',{key:' ',bubbles:true})); true`); await b.sleep(300)
   const spaced = await b.evaluate(`document.querySelector('[data-testid=play]').getAttribute('aria-pressed')`)
   await b.evaluate(`document.dispatchEvent(new KeyboardEvent('keydown',{key:' ',bubbles:true})); true`); await b.sleep(200)
@@ -200,9 +200,10 @@ try {
   const k1 = await b.evaluate(`document.querySelector('[data-testid=line][data-current=true]').dataset.id`)
   await b.evaluate(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowUp',bubbles:true})); true`); await b.sleep(200)
   ok('the arrow keys move between lines', k1 !== k0 && (await b.evaluate(`document.querySelector('[data-testid=line][data-current=true]').dataset.id`)) === k0)
-  const speedRun = async (v) => { await b.evaluate(`(()=>{const s=document.querySelector('[data-testid=speed]'); Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,${q(String(v))}); s.dispatchEvent(new Event('change',{bubbles:true})); return true})()`); await click('[data-testid=chapters-menu]'); await click('[data-testid=chapter-jump][data-chapter="headline"]'); await click('[data-testid=play]'); await b.sleep(2000); await click('[data-testid=play]'); const t = (await text('[data-testid=clock]')).split(' / ')[0].split(':'); return Number(t[0]) * 60 + Number(t[1]) }
+  const speedRun = async (v) => { if (!(await count('[data-testid=speed]'))) await click('[data-testid=playback-menu]'); await b.evaluate(`(()=>{const s=document.querySelector('[data-testid=speed]'); Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,${q(String(v))}); s.dispatchEvent(new Event('change',{bubbles:true})); return true})()`); await click('[data-testid=chapters-menu]'); await click('[data-testid=chapter-jump][data-chapter="headline"]'); await click('[data-testid=play]'); await b.sleep(2000); await click('[data-testid=play]'); const t = (await text('[data-testid=clock]')).split(' / ')[0].split(':'); return Number(t[0]) * 60 + Number(t[1]) }
   const slowT = await speedRun(0.75); const fastT = await speedRun(1.5)
   ok('speed changes how fast the clock runs: 1.5× gets further than 0.75× in the same time', fastT > slowT, { slowT, fastT })
+  if (!(await count('[role=switch][aria-label="Follow along"]'))) await click('[data-testid=playback-menu]')
   const names = await b.evaluate(`['[data-testid=play]','[data-testid=prev-line]','[data-testid=next-line]','[data-testid=speed]','[data-testid=scrubber]','[data-testid=chapters-menu]','[role=switch][aria-label="Follow along"]'].map(s=>{const e=document.querySelector(s);return !!(e&&(e.getAttribute('aria-label')||e.innerText))})`)
   ok('every player control has an accessible name', names.every(Boolean), names)
   ok('the current line and its approval state are announced to screen readers', /^(Playing|Paused), line \d+ of \d+: .+\. (Not approved|Approved|Edited)\.$/.test((await text('[data-testid=announce]')) ?? ''), await text('[data-testid=announce]'))
@@ -231,14 +232,14 @@ try {
   // Play modes
   const modeInfo = await run(`const ctx=mk(); const doc=JSON.parse(localStorage.getItem('pulseai-qual:audio-summary'))['pet-food-churn']; const live=doc.lines.filter(l=>!l.removed); return {quotes:live.filter(l=>l.type==='quote').reduce((n,l)=>n+sc.lineSeconds(l.text),0),findings:live.filter(l=>l.type!=='quote').reduce((n,l)=>n+sc.lineSeconds(l.text),0),full:sc.totalSeconds(doc.lines),nq:live.filter(l=>l.type==='quote').length}`)
   await click('[data-testid=mode-quotes]')
-  const q1 = await b.evaluate(`({clock:document.querySelector('[data-testid=clock]').innerText,length:document.querySelector('[data-testid=length]').innerText,skipped:[...document.querySelectorAll('[data-testid=line-jump][data-skipped=true]')].length,cur:document.querySelector('[data-testid=line][data-current=true]').dataset.type,note:document.querySelector('[data-testid=mode-note]')?.innerText})`)
-  ok('“Quotes only” plays just what people said: the clock total is the quotes’ length, the other lines are marked as skipped, and it says so', q1.clock.endsWith(sc_clock(modeInfo.quotes)) && q1.skipped === 18 - modeInfo.nq && q1.cur === 'quote' && /only what people said/.test(q1.note), { q1, modeInfo })
-  ok('the brief’s length stays the whole script’s (not the part being played)', q1.length === `Length ${sc_clock(modeInfo.full)}`, q1.length)
+  const q1 = await b.evaluate(`({clock:document.querySelector('[data-testid=clock]').innerText,length:document.querySelector('[data-testid=length-note]').innerText,skipped:[...document.querySelectorAll('[data-testid=line-jump][data-skipped=true]')].length,cur:document.querySelector('[data-testid=line][data-current=true]').dataset.type,note:document.querySelector('[data-testid=mode-note]')?.innerText})`)
+  ok('“Quotes only” plays just what people said: the clock reads “0:00 / 0:26 of 1:58 total”, the other lines are marked as skipped, and it says so', q1.clock.endsWith(` / ${sc_clock(modeInfo.quotes)} of ${sc_clock(modeInfo.full)} total`) && q1.skipped === view.status.lines - modeInfo.nq && q1.cur === 'quote' && /only what people said/.test(q1.note), { q1, modeInfo })
+  ok('the target note stays about the whole script, not the part being played', q1.length === `Target 8 to 12 minutes. This runs ${sc_clock(modeInfo.full)}.`, q1.length)
   await click('[data-testid=mode-findings]')
   const q2 = await b.evaluate(`({clock:document.querySelector('[data-testid=clock]').innerText,cur:document.querySelector('[data-testid=line][data-current=true]').dataset.type})`)
-  ok('“Findings” plays the narration, notes and locked lines without the quotes', q2.clock.endsWith(sc_clock(modeInfo.findings)) && q2.cur !== 'quote', q2)
+  ok('“Findings” plays the narration, notes and locked lines without the quotes', q2.clock.endsWith(` / ${sc_clock(modeInfo.findings)} of ${sc_clock(modeInfo.full)} total`) && q2.cur !== 'quote', q2)
   await click('[data-testid=mode-all]')
-  ok('“Everything” plays it all again', (await text('[data-testid=clock]')).endsWith(sc_clock(modeInfo.full)))
+  ok('“Everything” plays it all again, shown plainly as “0:00 / 1:58”', (await text('[data-testid=clock]')) === `0:00 / ${sc_clock(modeInfo.full)}`)
   // Search
   await b.evaluate(`var i=document.querySelector('[data-testid=script-search]'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(i,'p'); i.dispatchEvent(new Event('input',{bubbles:true})); true`); await b.sleep(200)
   const short = await count('[data-testid=search-count]')
@@ -255,7 +256,7 @@ try {
   // Listen view
   await click('[data-testid=view-listen]')
   const lv = await b.evaluate(`({cur:document.querySelector('[data-testid=listen-current]').innerText.replace(/\\s+/g,' '),line:document.querySelector('[data-testid=line][data-current=true] [data-testid=line-text]').innerText.replace(/\\s+/g,' ').replace(/[“”]/g,'').replace(/\\d(–\\d)?$/,'').trim(),hidden:getComputedStyle(document.querySelector('[data-testid=script]')).display,where:document.querySelector('[data-testid=listen-where]').innerText,speaker:document.querySelector('[data-testid=listen-speaker]').innerText,size:parseFloat(getComputedStyle(document.querySelector('[data-testid=listen-current]')).fontSize)})`)
-  ok('the Listen view shows the line being said large, with the line before and after, who is speaking, and the script out of the way', lv.hidden === 'none' && /line \d+ of \d+/.test(lv.where) && lv.size >= 20 && /Narrator|Quote|Locked|Researcher/.test(lv.speaker), lv)
+  ok('the Listen view shows the line being said large, with the line before and after, who is speaking, and the script out of the way', lv.hidden === 'none' && /Line \d+ of \d+/.test(lv.where) && lv.size >= 20 && /Narrator|Participant quote|Locked|Researcher|Signpost/.test(lv.speaker), lv)
   const before = await text('[data-testid=listen-current]')
   await click('[data-testid=next-line]')
   ok('and it moves on with the player', (await text('[data-testid=listen-current]')) !== before)
@@ -280,6 +281,62 @@ try {
   await click('[data-testid=resume]')
   ok('Resume puts the clock where they stopped, paused', (await text('[data-testid=clock]')).startsWith(offer.replace('Resume from ', '')) && (await b.evaluate(`document.querySelector('[data-testid=play]').getAttribute('aria-pressed')`)) === 'false' && (await count('[data-testid=resume]')) === 0)
   ok('none of this touched the codebook', (await codebook()) === cbBefore)
+
+  // ═══ Step A: content and UI fixes ═══
+  const A = await run(`const ctx=mk(); const d=sc.buildDraft(ctx,10); const L=d.lines; const doc=ctx.doc
+    const by={}; L.forEach(l=>by[l.type]=(by[l.type]||0)+1)
+    const headline=L.filter(l=>l.chapter==='headline'&&l.type==='narration')
+    const codeOutside=L.filter(l=>l.type==='narration'&&l.source?.kind==='code'&&!l.chapter.startsWith('theme:')).length
+    const themes=cb.codeThemes(doc).filter(t=>cb.themeCodes(doc,t).length)
+    const perTheme=themes.map(t=>({id:t.id,codes:cb.themeCodes(doc,t).filter(c=>rl.numbersOf(c.id,ctx)?.n>0).length,codeLines:L.filter(l=>l.chapter==='theme:'+t.id&&l.type==='narration').length,quotes:L.filter(l=>l.chapter==='theme:'+t.id&&l.type==='quote').length,n:rl.numbersOf(t.id,ctx).n}))
+    const tension=L.filter(l=>l.chapter==='tensions')
+    const signposts=L.filter(l=>l.type==='signpost')
+    const chaps=sc.chaptersOf(L)
+    // two leading themes more than one person apart: no close-to-even line, each theme on its own
+    const d2=JSON.parse(JSON.stringify(doc)); d2.themes.find(t=>t.id==='t-price').codeIds=['c-stable-price']; const far=sc.buildDraft({...ctx,doc:d2},10).lines.filter(l=>l.chapter==='headline'&&l.type==='narration')
+    const close=L.find(l=>l.key==='headline-close'), none=L.find(l=>l.key==='headline-none')
+    const sets=['t-pet','t-price'].map(id=>cb.themePeople(doc,doc.themes.find(t=>t.id===id),ctx.basis))
+    const either=new Set([...sets[0],...sets[1]])
+    return {by,total:L.length,seconds:sc.totalSeconds(L),headline:headline.map(l=>({key:l.key,text:l.text,src:l.source?.kind,figs:nr.figures(l.text).length,ok:sc.numbersCheck(l.text,l.source,l.cites,ctx).every(x=>x.ok)})),codeOutside,perTheme,tension:tension.map(l=>({type:l.type,key:l.key})),
+      signposts:signposts.map(l=>({chapter:l.chapter,text:l.text,digits:/\\d/.test(l.text),words:nr.words(l.text),state:l.state,cites:l.cites.length})),chaps,far:far.map(l=>l.key),closeText:close?.text,noneText:none?.text,noneN:people(none),pe:either.size,n:ms.ACCEPTED_PARTICIPANTS.length,sizes:sets.map(x=>x.size)}
+    function people(l){return l&&nr.figures(l.text)[0]?.n}`)
+  const headNarr = A.headline
+  ok('the headline is made of themes: only theme, pair and no-answer lines, each with its theme’s count; no code appears outside its own theme’s chapter', headNarr.length >= 2 && headNarr.every((h) => ['theme', 'pair', 'pairNone'].includes(h.src) && h.ok) && A.codeOutside === 0, { headNarr, codeOutside: A.codeOutside })
+  ok('close to even: the two leading themes are 9 and 8 people, within one, so there is one line with both counts, and one for how many gave no clear answer', A.sizes[0] === 9 && A.sizes[1] === 8 && /close to even: 9 of 20 people and 8 of 20 people\.$/.test(A.closeText) && A.noneN === A.n - A.pe && /gave no clear answer to either\.$/.test(A.noneText) && A.headline.find((h) => h.key === 'headline-close').figs === 2, { close: A.closeText, none: A.noneText, noneN: A.noneN, want: A.n - A.pe })
+  ok('and when the leading two are more than one person apart there is no such line: each theme stands alone', !A.far.includes('headline-close') && !A.far.includes('headline-none') && A.far.some((k) => k.startsWith('headline:')), A.far)
+  ok('each theme chapter has one line for every accepted code, then two quotes (three for the two largest), no padding', A.perTheme.every((t) => t.codeLines === t.codes && t.quotes === 3), A.perTheme)
+  ok('the tension chapter has only the approved tension: one line, then one quote for the words and one for the delivery', JSON.stringify(A.tension.map((t) => t.type)) === JSON.stringify(['signpost', 'narration', 'quote', 'quote']), A.tension)
+  ok('signposts open every chapter except the first: fixed wording, no digits, 12 words or fewer, no source and no claim', A.signposts.length === A.chaps.length - 1 && A.signposts.every((sp) => !sp.digits && sp.words <= 12 && sp.cites === 0 && sp.state === 'Approved') && A.chaps.slice(1).every((c) => A.signposts.some((sp) => sp.chapter === c)), A.signposts)
+  ok('a signpost can’t be edited', await run(`const ctx=mk(); const doc=st.newDoc('pet-food-churn',sc.buildDraft(ctx,10),10,'x'); const sp=doc.lines.find(l=>l.type==='signpost'); const r=st.editLine(doc,sp.id,'Hello','x',ctx); return r.doc===doc&&r.problems.length>0`))
+  ok('the new draft is about two minutes with no filler: 26 lines (frame 2, signpost 6, narration 10, quote 8)', A.by.frame === 2 && A.by.signpost === 6 && A.by.narration === 10 && A.by.quote === 8 && A.total === 26 && A.seconds > 100 && A.seconds < 140, { by: A.by, seconds: A.seconds })
+
+  // Page
+  await openPage()
+  const pageA = await b.evaluate(`(()=>{const sp=[...document.querySelectorAll('[data-testid=line][data-type=signpost] [data-testid=line-label]')].map(x=>x.innerText);return {sp,lit:document.querySelectorAll('[data-testid=line][data-lit=true]').length,litIsCurrent:document.querySelector('[data-testid=line][data-lit=true]')?.dataset.current,speedInBar:!!document.querySelector('[data-testid=player] > div > [data-testid=speed]'),menu:!!document.querySelector('[data-testid=playback-menu]'),followOutside:!!document.querySelector('[data-testid=player] > div > span [role=switch]')}})()`)
+  ok('signposts are labelled “Signpost” in the script', pageA.sp.length === 6 && pageA.sp.every((l) => l === 'Signpost'), pageA)
+  ok('exactly one line is lit (paused with nothing selected: the one the clock is at)', pageA.lit === 1 && pageA.litIsCurrent === 'true', pageA)
+  await b.evaluate(`document.querySelectorAll('[data-testid=line] [data-testid=line-jump]')[6].click(); true`); await b.sleep(250)
+  await click('[data-testid=play]'); await b.sleep(600)
+  const playingLit = await b.evaluate(`({n:document.querySelectorAll('[data-testid=line][data-lit=true]').length,cur:document.querySelector('[data-testid=line][data-lit=true]').dataset.current,sel:document.querySelectorAll('[data-testid=line][data-selected=true]').length})`)
+  ok('while playing only the playing line is lit, even if another is selected', playingLit.n === 1 && playingLit.cur === 'true', playingLit)
+  await click('[data-testid=play]')
+  await b.evaluate(`document.querySelectorAll('[data-testid=line] [data-testid=line-jump]')[2].click(); true`); await b.sleep(150)
+  await b.evaluate(`(()=>{const l=document.querySelectorAll('[data-testid=line]')[9].querySelector('[data-testid=cite-mark]')||document.querySelectorAll('[data-testid=line]')[9].querySelector('[data-testid=line-jump]');l.click();return true})()`); await b.sleep(200)
+  const pausedLit = await b.evaluate(`({n:document.querySelectorAll('[data-testid=line][data-lit=true]').length,sel:document.querySelector('[data-testid=line][data-lit=true]').dataset.selected})`)
+  ok('paused, the selected line is the one lit', pausedLit.n === 1 && pausedLit.sel === 'true', pausedLit)
+  ok('Speed and Follow along are in a Playback menu, not in the bar', pageA.menu && !pageA.speedInBar && (await count('[data-testid=speed]')) === 0)
+  await click('[data-testid=playback-menu]')
+  ok('the Playback menu holds Speed and Follow along', (await count('[data-testid=speed]')) === 1 && (await count('[role=switch][aria-label="Follow along"]')) === 1)
+  await b.evaluate(`document.dispatchEvent(new MouseEvent('mousedown',{bubbles:true})); true`); await b.sleep(150)
+  // Listen labels
+  await click('[data-testid=view-listen]')
+  const lab = await b.evaluate(`({cur:document.querySelector('[data-testid=listen-speaker]').innerText,prev:document.querySelector('[data-testid=listen-prev-label]')?.innerText,next:document.querySelector('[data-testid=listen-next-label]')?.innerText,curOp:getComputedStyle(document.querySelector('[data-testid=listen-current-wrap]')).opacity,prevOp:getComputedStyle(document.querySelector('[data-testid=listen-prev-wrap]')).opacity,nextOp:getComputedStyle(document.querySelector('[data-testid=listen-next-wrap]')).opacity})`)
+  ok('in the Listen view every line is labelled with its chapter and speaker', [lab.cur, lab.prev, lab.next].every((t) => /^.+ · (Narrator, AI-written|Signpost|Locked line|Researcher’s note · .+|Participant quote · P-\d+ · (Dog|Cat) owner)$/.test(t)), lab)
+  ok('the current line is at full contrast and its neighbours at 70%', lab.curOp === '1' && lab.prevOp === '0.7' && lab.nextOp === '0.7', lab)
+  await b.evaluate(`document.querySelector('[data-testid=chapters-menu]').click(); true`); await b.sleep(200)
+  await click('[data-testid=chapter-jump][data-chapter="tensions"]'); await click('[data-testid=next-line]'); await click('[data-testid=next-line]')
+  ok('a quote in the Listen view reads “Participant quote · P-3114 · Dog owner”', /^Participant quote · P-\d+ · (Dog|Cat) owner$/.test(((await text('[data-testid=listen-speaker]')) ?? '').split(' · ').slice(1).join(' · ')), await text('[data-testid=listen-speaker]'))
+  await click('[data-testid=view-read]')
 
   // States
   await openPage('?demo=error')

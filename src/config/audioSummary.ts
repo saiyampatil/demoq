@@ -8,10 +8,10 @@ export const AUDIO = {
   targets: [8, 10, 12] as const,
   defaultTarget: 10,
   range: { min: 8, max: 12 },
-  /** The most theme chapters in an episode, and quotes for each: one, or two for the largest when time allows. */
+  /** The most theme chapters in an episode, and quotes for each: two, or three for the two largest. Fewer if there are not enough different people. */
   maxThemes: 6,
-  quotesPerTheme: 1,
-  quotesForLargest: 2,
+  quotesPerTheme: 2,
+  quotesForLargest: 3,
   largestCount: 2,
   /** A narration line is one claim, this long at most. */
   maxLineWords: 28,
