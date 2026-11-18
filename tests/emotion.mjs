@@ -34,7 +34,7 @@ try {
   ok('step is named Emotion & behaviour', /Emotion & behaviour/.test(page ?? ''))
   ok('the old step name is gone from the header', !/Signals & tensions/.test(page ?? ''))
   ok('the coverage line says who has no face reading', /audio-only, so no face reading/.test((await text('[data-testid=coverage]')) ?? ''), await text('[data-testid=coverage]'))
-  ok('By code shows Face and Speech side by side, with no channel switch', /Face Speech Words vs delivery/.test((await text('[data-testid=signal-head]')) ?? '') && (await b.evaluate(`document.querySelectorAll('[data-testid=lens-emotion]').length`)) === 0)
+  ok('the codes show Face and Speech side by side, with no channel switch', /Code Said by Face Speech Words vs delivery/.test((await text('[data-testid=theme-codes]')) ?? '') && (await b.evaluate(`document.querySelectorAll('[data-testid=lens-emotion]').length`)) === 0)
   await b.shot('emo-a2-overview')
 
   // The positive-claim theme only exists once the Researcher accepts PulseAI's suggestion for it.
@@ -48,8 +48,8 @@ try {
   const rows = await b.evaluate(`[...document.querySelectorAll('[data-testid=signal-row]')].map(r=>r.innerText.replace(/\\s+/g,' '))`)
   const nothing = rows.find((r) => /Nothing would have kept them/.test(r))
   ok('a code with two people reads "Too few to read"', /Too few to read/.test(nothing ?? ''), nothing)
-  ok('and it says “Nothing to show” instead of a toggle', await b.evaluate(`[...document.querySelectorAll('[data-testid=signal-row]')].find(r=>/Nothing would have kept them/.test(r.innerText)).querySelector('[data-testid=row-state]').innerText==='Nothing to show'`))
-  ok('every group is a plain label with its number of codes', (await b.evaluate(`[...document.querySelectorAll('[data-testid=group-count]')].every(e=>/^\\d+ codes?$/.test(e.innerText))`)))
+  ok('and it has no toggle or inline tag', !(await b.evaluate(`[...document.querySelectorAll('[data-testid=signal-row]')].find(r=>/Nothing would have kept them/.test(r.innerText)).querySelector('[role=switch],[data-testid=row-state]')`)))
+  ok('every theme is a row with its reading', (await b.evaluate(`document.querySelectorAll('[data-testid=theme-row] [data-testid=reading-chip]').length`)) >= 1)
   // ── The code panel: every channel, and the pause story ──
   await selectCode('Pause would have kept them')
   const panel = await text('[data-testid=signal-panel]')

@@ -86,10 +86,11 @@ try {
   await click('[data-testid=how-faces]')
   ok('"How faces are read" says a reading is an interpretation that can be corrected', /interpretation/.test((await text('[data-testid=how-faces-note]')) ?? '') && /correct/.test((await text('[data-testid=how-faces-note]')) ?? ''))
   const summaries = await all('[data-testid=face-cell]')
-  ok('rows say “Mostly interest”, “Mixed” or “Not read”, never a bare emotion name or “Tied at”', summaries.some((r) => /^Mostly [a-z]+$/.test(r)) && summaries.every((r) => /^(Mostly [a-z]+|Mixed|Not read)$/.test(r)), summaries.slice(0, 4).join(' | '))
+  ok('rows say the leading reading with its count (“Doubt 2 of 3”) or “No clear lead”, never “Mixed” or “Tied at”', summaries.some((r) => /^[A-Z][a-z]+ \d+ of \d+$/.test(r)) && summaries.every((r) => /^([A-Z][a-z]+ \d+ of \d+|No clear lead|No faces read|—)$/.test(r)), summaries.slice(0, 4).join(' | '))
 
   // ── 3. One vocabulary: positive, neutral, negative, unclear; confusion is its own group ──
-  const key = await text('[data-testid=valence-key]')
+  await click('[data-testid=key]')
+  const key = await text('[data-testid=key-pop] [data-testid=valence-key]')
   ok('a legend says how each emotion is grouped, with confusion on its own', /positive: Delight, Interest/.test(key ?? '') && /negative: Doubt, Frustration/.test(key ?? '') && /unclear: Confusion/.test(key ?? '') && /neutral: Surprise, Neutral/.test(key ?? ''), key)
   const emoCounts = await all('[data-testid=valence-counts]')
   ok('the code panel counts positive, neutral, negative and unclear', emoCounts.length >= 1 && emoCounts.every((t) => /\d+ positive · \d+ neutral · \d+ negative · \d+ unclear/.test(t)), emoCounts.join(' | '))

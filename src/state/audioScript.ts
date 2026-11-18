@@ -83,7 +83,7 @@ export const outsideBrief = (sec: number) => sec < AUDIO.range.min * 60 || sec >
 
 // ─── sources and fingerprints ───────────────────────────────────────────────
 
-const hash = (s: string) => [...s].reduce((n, c) => ((n * 31 + c.charCodeAt(0)) >>> 0), 7).toString(36)
+export const hash = (s: string) => [...s].reduce((n, c) => ((n * 31 + c.charCodeAt(0)) >>> 0), 7).toString(36)
 export const segmentLabel = (participantId: string) => `${petOf(participantId)} owner`
 const citeOf = (e: Excerpt): Cite => ({ excerptId: e.id, sessionId: e.sessionId, participantId: e.participantId, turnIndex: e.turnIndex, atSec: e.atSec })
 

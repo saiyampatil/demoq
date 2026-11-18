@@ -210,8 +210,8 @@ export function OneFitChip({ fit, against }: { fit: Fit; against: string[] }) {
   )
 }
 
-/** The rule in five lines, behind a small link, so the table itself stays clear. Closes on Escape or a click elsewhere. */
-export function HowItsDecided() {
+/** A small link that opens a box beside it. Closes on Escape or a click elsewhere. */
+export function Popover({ label, testid, title, children, width = 'w-80' }: { label: string; testid: string; title: string; children: React.ReactNode; width?: string }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLSpanElement>(null)
   useEffect(() => {
@@ -227,22 +227,54 @@ export function HowItsDecided() {
   }, [open])
   return (
     <span ref={ref} className="relative inline-block">
-      <button type="button" aria-expanded={open} aria-haspopup="dialog" onClick={() => setOpen((o) => !o)} data-testid="how-decided" className="rounded-xs text-xs font-medium text-iris-700 hover:underline">
-        How it’s decided
+      <button type="button" aria-expanded={open} aria-haspopup="dialog" onClick={() => setOpen((o) => !o)} data-testid={testid} className="rounded-xs text-xs font-medium text-iris-700 hover:underline">
+        {label}
       </button>
       {open && (
-        <div role="dialog" aria-label="How it’s decided" data-testid="how-decided-pop" className="absolute top-full right-0 z-30 mt-1.5 w-80 rounded-sm border border-mist bg-surface p-3 text-left text-xs font-normal text-ink shadow-overlay">
-          <ol className="flex flex-col gap-1.5">
-            {DELIVERY_RULE_LINES.map((l, i) => (
-              <li key={i} data-testid="how-decided-line" className="flex gap-2">
-                <span aria-hidden="true" className="text-graphite tabular-nums">{i + 1}.</span>
-                <span>{l}</span>
-              </li>
-            ))}
-          </ol>
+        <div role="dialog" aria-label={title} data-testid={`${testid}-pop`} className={cn('absolute top-full right-0 z-30 mt-1.5 rounded-sm border border-mist bg-surface p-3 text-left text-xs font-normal text-ink shadow-overlay', width)}>
+          {children}
         </div>
       )}
     </span>
+  )
+}
+
+/** The rule in five lines, behind a small link, so the table itself stays clear. */
+export function HowItsDecided() {
+  return (
+    <Popover label="How it’s decided" testid="how-decided" title="How it’s decided">
+      <ol className="flex flex-col gap-1.5">
+        {DELIVERY_RULE_LINES.map((l, i) => (
+          <li key={i} data-testid="how-decided-line" className="flex gap-2">
+            <span aria-hidden="true" className="text-graphite tabular-nums">{i + 1}.</span>
+            <span>{l}</span>
+          </li>
+        ))}
+      </ol>
+    </Popover>
+  )
+}
+
+/** What the colours mean: faces, tone and certainty, and how expressions are grouped. Behind a link, not on the page. */
+export function KeyPopover() {
+  return (
+    <Popover label="Key" testid="key" title="Key" width="w-[26rem]">
+      <div className="flex flex-col gap-2.5">
+        <div>
+          <p className="mb-1 font-medium text-graphite">Face</p>
+          <EmotionLegend />
+        </div>
+        <div>
+          <p className="mb-1 font-medium text-graphite">Speech · tone</p>
+          <ToneLegend />
+        </div>
+        <div>
+          <p className="mb-1 font-medium text-graphite">Speech · certainty</p>
+          <BandLegend />
+        </div>
+        <ValenceKey />
+      </div>
+    </Popover>
   )
 }
 
@@ -250,10 +282,10 @@ export function HowItsDecided() {
  * How delivery stood against the words, in three figures and what is left out, for the right panel. The people who only stated a fact
  * are listed here on request and never in a table.
  */
-export function DeliveryFigures({ b }: { b: Breakdown }) {
+export function DeliveryFigures({ b, children }: { b: Breakdown; children?: React.ReactNode }) {
   const [who, setWho] = useState(false)
   const claim = b.positive + b.negative
-  if (!claim && !b.factOnly.length) return null
+  if (!claim && !b.factOnly.length && !children) return null
   return (
     <div className="mb-2 rounded-sm border border-mist px-3 py-2.5" data-testid="delivery-breakdown">
       {claim > 0 && (
@@ -296,6 +328,7 @@ export function DeliveryFigures({ b }: { b: Breakdown }) {
           )}
         </p>
       )}
+      {children}
     </div>
   )
 }
@@ -305,7 +338,7 @@ export function HesitantNote({ points, doc, of }: { points: Point[]; doc: Codebo
   const h = hesitantDelivery(points, doc)
   if (!h) return null
   return (
-    <p className="border-b border-mist bg-iris-50 px-5 py-2 text-xs text-iris-700" data-testid="hesitant-note">
+    <p className="mt-1.5 text-xs text-iris-700" data-testid="hesitant-note">
       <span className="font-semibold">Positive words, hesitant delivery:</span> said by {h.said} of {of}; {h.hesitated} of {h.speakers} hesitated.
     </p>
   )
