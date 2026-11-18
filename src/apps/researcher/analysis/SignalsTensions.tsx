@@ -12,7 +12,7 @@ import { PageHeader } from '../../shared/PageHeader'
 import { ExploreControl } from './explore/ExploreControl'
 import { AnalysisStepper } from './AnalysisStepper'
 import { ContinueBar } from './ContinueBar'
-import { FACES_NOTE, SignalsTab, readingCounts, themeRows, type SignalFocus } from './SignalsTab'
+import { FACES_NOTE, SignalsTab, type SignalFocus } from './SignalsTab'
 import { TensionsTab, type TensionFilter } from './TensionsTab'
 import type { CodebookCtx } from './codebookCtx'
 import { useAnalysis } from './useAnalysis'
@@ -94,9 +94,7 @@ export function SignalsTensions() {
   const cov = coverage(accepted, excluded)
   const t = tensionCounts(doc)
   const codeRows = codeSignals(doc, basis)
-  const readingRows = themeRows(doc, basis, tensions, codeRows)
-  const rc = readingCounts(readingRows)
-  const firstSuggested = readingRows.find((r) => r.status === 'Suggested')
+  const used = codeRows.filter((s) => s.use).length
 
   const showTensions = (f: TensionFilter) => {
     setFilter(f)
@@ -162,7 +160,6 @@ export function SignalsTensions() {
               tensions={tensions}
               onOpenTensions={() => showTensions('Suggested')}
               onOpenTension={openTension}
-              expandAll={params.get('view') === 'code'}
             />
           )}
           {tab === 'tensions' && <TensionsTab ctx={ctx} filter={filter} setFilter={setFilter} focusId={focusTension} onSeeSignals={seeSignals} onContinue={() => navigate(toReportPath)} />}
@@ -175,17 +172,11 @@ export function SignalsTensions() {
         previous={{ screen: 'A1', label: 'Codebook' }}
         next={{ screen: 'A3', label: 'Continue to Report' }}
         stay="Keep working on tensions"
-        lead={rc.suggested > 0 && firstSuggested ? { label: `Review ${plural(rc.suggested, 'reading')}`, onClick: () => (setFocus({ theme: firstSuggested.t.id, show: 'all', review: true }), go('signals'), toPanel()) } : undefined}
+        lead={tab === 'signals' && t.toReview > 0 ? { label: `Review ${plural(t.toReview, 'tension')}`, onClick: () => showTensions('Suggested') } : undefined}
         message={
           <>
-            <span data-testid="report-footer-count">Goes to the report: {plural(rc.accepted, 'reading')} and {plural(t.themes, 'tension theme')}</span>
-            {rc.review + t.toReview > 0 ? (
-              <span className="ml-1.5 font-medium text-pending-fg" data-testid="report-footer-review">
-                · {plural(rc.review, 'reading')} and {plural(t.toReview, 'tension')} to review
-              </span>
-            ) : (
-              <span className="ml-1.5 text-positive-fg">· every reading and tension is decided</span>
-            )}
+            <span data-testid="report-footer-count">Goes to the report: {plural(used, 'code')} with signals and {plural(t.themes, 'tension theme')}.</span>
+            {t.toReview > 0 ? <span className="ml-1.5 font-medium text-pending-fg">{plural(t.toReview, 'tension')} still to review.</span> : <span className="ml-1.5 text-positive-fg">Every tension is decided.</span>}
           </>
         }
       />

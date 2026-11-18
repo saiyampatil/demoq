@@ -49,10 +49,6 @@ export type CodebookDoc = {
   signalPicks?: Record<string, boolean>
   /** Signal profiles the Researcher switched on or off for the report, by theme. Not listed means the default: on when the theme's pattern is notable. */
   themePicks?: Record<string, boolean>
-  /** A2's output: the Researcher's decision on each theme's reading, by theme id. Not set means Suggested. */
-  readings?: Record<string, ReadingDecision>
-  /** The Researcher's own note on a theme's reading. Kept apart from PulseAI's wording, never merged into it. */
-  readingNotes?: Record<string, { text: string; by: string; at: string }>
   /** The Researcher's corrections to face readings, by reading key. The original reading is kept beside it. */
   faceFixes?: Record<string, FaceFix>
   /** Quotes added from Explore, kept so a refresh finds them. They are put back into EXCERPTS when the codebook loads. */
@@ -61,24 +57,6 @@ export type CodebookDoc = {
 }
 
 /** A face reading the Researcher corrected. "No clear expression" takes the reading out of every count. */
-/** A theme reading as the Researcher left it. `text` is their wording (numbers locked), `label` a label they changed with `labelWhy`. */
-export type ReadingDecision = {
-  status: 'Accepted' | 'Left out'
-  by: string
-  at: string
-  why?: string
-  text?: string[]
-  label?: import('@/config/readings').ReadingLabel
-  labelWhy?: string
-  /** The data it was decided on: the counts' fingerprint and values, the sessions, and a version that moves on when the counts change. */
-  fingerprint: string
-  snap: { R: number; P: number; U: number; M: number; label: string }
-  sessions: number
-  version: number
-  /** PulseAI's lines at the time, so an edit can always be compared with what was suggested. */
-  aiLines: string[]
-}
-
 export type FaceFix = { to: Emotion | 'No clear expression'; from: Emotion; by: string; at: string; why: string }
 
 // ─── store ──────────────────────────────────────────────────────────────────
@@ -482,20 +460,6 @@ export function migrateThemePicks(d: CodebookDoc): CodebookDoc {
     entries.push(themeEntry('PulseAI', theme, 'Signals tick moved to its codes', `${picks[theme.id] ? 'On' : 'Off'} for ${codes.length} ${codes.length === 1 ? 'code' : 'codes'}`))
   }
   return entries.length ? log({ ...d, signalPicks: next }, ...entries) : d
-}
-
-/** Saves a decision on a theme's reading, or clears it, with one entry in the log. */
-export function setReading(d: CodebookDoc, theme: { id: string; name: string }, next: ReadingDecision | undefined, action: string, by: string, detail?: string, why?: string): CodebookDoc {
-  const { [theme.id]: _old, ...rest } = d.readings ?? {}
-  void _old
-  return log({ ...d, readings: next ? { ...rest, [theme.id]: next } : rest }, themeEntry(by, theme, action, detail, why))
-}
-/** The Researcher's note on a reading, separate from PulseAI's wording. An empty note removes it. */
-export function setReadingNote(d: CodebookDoc, theme: { id: string; name: string }, text: string, by: string): CodebookDoc {
-  const { [theme.id]: _old, ...rest } = d.readingNotes ?? {}
-  void _old
-  const t = text.trim()
-  return log({ ...d, readingNotes: t ? { ...rest, [theme.id]: { text: t, by, at: now() } } : rest }, themeEntry(by, theme, t ? 'Reading note saved' : 'Reading note removed'))
 }
 
 /** Several codes at once, from a theme's switch: one entry in the log for the whole group. */

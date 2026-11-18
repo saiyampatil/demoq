@@ -1,7 +1,6 @@
 // What the Report means, worked out from the codebook, the signals and Review every time: live numbers, what a citation points
 // at, where a sentence stands, how strong a finding is, and whether the report can be published. Nothing here is stored.
 // Counts are distinct people, "n of N", never percentages or quote counts, and they come from the same functions as A1 and A2.
-import { verdictWord } from '@/config/labels'
 import { REPORT_SECTIONS } from '@/mock/report'
 import {
   CODE_QUESTIONS,
@@ -222,7 +221,7 @@ function signalLines(s: Pick<Rollup, 'pattern' | 'marked' | 'people' | 'emotions
   const tone = TONES.reduce((best, t) => (tones.counts[t] > tones.counts[best] ? t : best), TONES[0])
   if (tones.n >= 3 && tone !== 'Even' && tones.counts[tone] * 2 >= tones.n) lines.push({ channel: 'Speech', text: `Tone mostly ${tone.toLowerCase()} for ${tones.counts[tone]} of ${tones.n}`, emotionVoice: true })
   if (headline) lines.push({ channel: 'Words vs delivery', text: headline, emotionVoice: true })
-  else if (s.fit.pattern === 'Mixed' || s.fit.pattern === 'Conflicting') lines.push({ channel: 'Words vs delivery', text: `${verdictWord(s.fit.pattern)}: delivery didn’t fit the words for ${s.fit.against} of ${s.fit.n} people${s.fit.uncertain ? `, ${s.fit.uncertain} uncertain` : ''}`, emotionVoice: true })
+  else if (s.fit.pattern === 'Mixed' || s.fit.pattern === 'Conflicting') lines.push({ channel: 'Words vs delivery', text: `${s.fit.pattern}: speech or face pulled against the words for ${s.fit.against} of ${s.fit.n} people${s.fit.uncertain ? `, ${s.fit.uncertain} uncertain` : ''}`, emotionVoice: true })
   return lines
 }
 

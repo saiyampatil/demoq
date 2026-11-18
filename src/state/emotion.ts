@@ -5,11 +5,11 @@
 // - A face reading counts only when there is video. No video is "no reading", never Neutral.
 // - A Researcher's correction replaces PulseAI's label everywhere. "No clear expression" takes it out of every count.
 // - Faces are grouped Positive (delight, interest), Neutral (neutral, surprise), Negative (doubt, frustration) and Unclear
-//   (confusion). Confusion is never negative, and it never counts for or against the words: it is shown as its own small count.
+//   (confusion). Confusion is not negative in the counts, but it does pull against a positive claim (see the rule below).
 // - Delivery has two groups. Speech = tone + certainty (hesitation), read for everyone. Face = expression, video only.
 // - Words vs delivery only applies where the words make a claim: speaking for something (positive) or complaining (negative).
-//   Against a positive claim, speech pulls against if the tone is Flat or Tense and the face if it shows Doubt or Frustration
-//   (at medium confidence or higher). Confusion never counts for or against the words. Against a complaint, Animated speech and a Delight or Interest face pull against;
+//   Against a positive claim, speech pulls against if the tone is Flat or Tense and the face if it shows Doubt, Frustration or
+//   Confusion (at medium confidence or higher). Against a complaint, Animated speech and a Delight or Interest face pull against;
 //   a tense voice matches a complaint. Hesitation is never used here. Speech and Face never add together: one person counts once.
 //   Neither against but marked hesitation: Uncertain, shown, never counted toward Conflicting. Otherwise Matches.
 //   Across the people with a claim (the rule and numbers are in src/config/delivery.ts): over half pull against is Conflicting,
@@ -102,13 +102,6 @@ export type FitSplit = { fits: number; uncertain: number; against: number; n: nu
 export const FIT_RULE = { min: DELIVERY.minPeople, majority: DELIVERY.majority }
 /** The rule above, in the five lines the screen shows behind "How it’s decided". */
 export const FIT_RULE_TEXT = DELIVERY_RULE_LINES.join(' ')
-
-/** The roll-up of person-level results (against, fit, unsure), by the one rule. `people` is everyone who said it, with or without a claim. */
-export function fitFromCounts(people: number, against: number, uncertain: number, matches: number): FitSplit {
-  const n = against + uncertain + matches
-  const pattern: FitPattern = people && !n ? 'No claim' : n < FIT_RULE.min ? 'Too few to read' : against / n > FIT_RULE.majority ? 'Conflicting' : matches / n > FIT_RULE.majority ? 'Consistent' : 'Mixed'
-  return { fits: matches, uncertain, against, n, pattern }
-}
 
 export function fitSplit(points: Point[], doc: CodebookDoc): FitSplit {
   const fits = points.map((p) => fitOf(p, faceOf(p, doc)).fit).filter((f): f is Fit => !!f)

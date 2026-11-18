@@ -1,5 +1,4 @@
 // How delivery is read against the words (Results Analysis, A2 Signals). One rule, stated once, used by every screen.
-// Confusion never counts for or against the words: it is shown only as its own small count.
 // Delivery has two groups. Speech is tone plus certainty (hesitation), read for everyone. Face is expression, video only.
 // Thresholds are mock values awaiting founder approval (docs/OPEN_QUESTIONS.md).
 
@@ -11,7 +10,7 @@ export const DELIVERY = {
   /** A face counts against the words only at this confidence or higher (the Medium band starts at 0.6). */
   faceMinConfidence: 0.6,
   /** Against a positive claim (they argued for it): these tones and expressions pull against the words. */
-  positive: { tones: ['Tense', 'Flat'] as const, faces: ['Doubt', 'Frustration'] as const },
+  positive: { tones: ['Tense', 'Flat'] as const, faces: ['Doubt', 'Frustration', 'Confusion'] as const },
   /** Against a complaint: sounding or looking pleased pulls against the words. Tense matches a complaint. */
   negative: { tones: ['Animated'] as const, faces: ['Delight', 'Interest'] as const },
   /** "Positive words, hesitant delivery": shown for a positive claim when at least this share of the people who argued for it hesitated. */
@@ -23,9 +22,9 @@ const lower = (xs: readonly string[]) => xs.map((x) => x.toLowerCase())
 
 /** The rule in the five lines the "How it’s decided" popover shows. Built from the numbers above, so the text and the code cannot drift. */
 export const DELIVERY_RULE_LINES: string[] = [
-  'We look at people who took a position and compare how they said it with what they said.',
+  'We look at people who argued for the idea and compare how they said it with what they said.',
   `It didn’t fit if the voice was ${list(lower(DELIVERY.positive.tones))}, or the face showed ${list(lower(DELIVERY.positive.faces))}. For a complaint, it didn’t fit if they sounded or looked pleased.`,
-  `Most didn’t fit: Doesn’t fit. Most fit: Fits. Otherwise Partly fits. Under ${DELIVERY.minPeople} people: too few to read.`,
-  'Long pauses alone never count as not fitting. They show as unsure.',
-  'Each person counts once, by most of their moments. A tie is unsure. Confusion is never counted either way.',
+  `Most didn’t fit: Conflicting. Most fit: Consistent. Otherwise Mixed. Under ${DELIVERY.minPeople} people: too few to read.`,
+  'Long pauses alone never count as not fitting. They show as Uncertain.',
+  'Each person counts once. Speech and face are never added together.',
 ]

@@ -12,15 +12,10 @@ import { screenById, studyPath } from '@/routes/screens'
 import { band as confidenceBand, correctFace } from '@/state/codebook'
 import { EMOTION_HINT, EMOTIONS, STANCE_LABEL, TONE_HINT, TONES, VALENCE, VALENCE_WORD, VALENCES, faceOf, fitOf, noReading, type Emotion, type EmotionSplit, type Face, type Fit, type FitPattern, type Tone, type ToneSplit } from '@/state/emotion'
 import { DELIVERY_RULE_LINES } from '@/config/delivery'
-import { verdictWord } from '@/config/labels'
-import { DOT, TEXT, toneOfVerdict } from './verdictStyle'
-import { hesitantDelivery, signsOf, type Band, type Pattern, type Point, type Split } from '@/state/signals'
+import { breakdownLine, hesitantDelivery, signsOf, type Band, type Breakdown, type Pattern, type Point, type Split } from '@/state/signals'
 import { BANDS } from '@/state/signals'
 import { mmss } from '../review/reviewUi'
 import type { CodebookCtx } from './codebookCtx'
-
-/** How faces are read, in one place: described first, then an interpretation PulseAI offers and the Researcher can correct. */
-export const FACES_NOTE = 'Each face is described first, by what was visible. The label (“reads as Doubt”) is PulseAI’s interpretation, made against that person’s resting face. It is a lead, not a verdict: correct it with “Not right?” and every count follows.'
 
 // ─── hesitation ─────────────────────────────────────────────────────────────
 
@@ -114,39 +109,8 @@ export function EmotionChip({ emotion, intensity, corrected, reads, className }:
 }
 
 /** Every emotion among the faces read, warm to cold. Who had no video is written beside it, never drawn as neutral. */
-/** A stacked bar of small segments: 64 by 8 px, 1 px gaps, and no segment thinner than 3 px, so a single person still shows. */
-function MiniBar({ parts, base, label, title, testid }: { parts: { n: number; className: string; style?: React.CSSProperties }[]; base: number; label: string; title: string; testid: string }) {
-  return (
-    <span role="img" aria-label={label} title={title} data-testid={testid} data-base={base} className="flex h-2 w-16 shrink-0 gap-px overflow-hidden rounded-full bg-haze">
-      {parts.filter((p) => p.n > 0).map((p, i) => (
-        <span key={i} data-n={p.n} className={cn('h-full', p.className)} style={{ flex: `${p.n} 1 0`, minWidth: 3, ...p.style }} />
-      ))}
-    </span>
-  )
-}
-const HATCH = { backgroundImage: 'repeating-linear-gradient(45deg, rgba(255,255,255,.65) 0 2px, transparent 2px 4px)' }
-
-export function EmotionBar({ split, tall, mini }: { split: EmotionSplit; tall?: boolean; mini?: boolean }) {
+export function EmotionBar({ split, tall }: { split: EmotionSplit; tall?: boolean }) {
   const label = EMOTIONS.filter((e) => split.counts[e]).map((e) => `${split.counts[e]} ${e.toLowerCase()}`).join(', ')
-  if (mini) {
-    const v = split.valence
-    const text = `${v.Positive} positive, ${v.Neutral} neutral, ${v.Negative} negative, ${v.Unclear} unclear, of ${split.read} faces read`
-    if (!split.read) return <span role="img" aria-label="No faces read" title="No faces read" data-testid="mini-bar" data-base={0} className="h-2 w-16 shrink-0 rounded-full border border-dashed border-mist-strong" />
-    return (
-      <MiniBar
-        testid="mini-bar"
-        base={split.read}
-        label={text}
-        title={text}
-        parts={[
-          { n: v.Positive, className: 'bg-emo-delight' },
-          { n: v.Neutral, className: 'bg-emo-neutral' },
-          { n: v.Negative, className: 'bg-emo-doubt' },
-          { n: v.Unclear, className: 'bg-emo-confusion', style: HATCH },
-        ]}
-      />
-    )
-  }
   if (!split.read) return <div className={cn('rounded-full border border-dashed border-mist-strong', tall ? 'h-3.5' : 'h-2')} role="img" aria-label="No faces read" />
   return (
     <div className={cn('flex overflow-hidden rounded-full bg-haze', tall ? 'h-3.5' : 'h-2')} role="img" aria-label={`${label}, of ${split.read} faces read`}>
@@ -199,25 +163,9 @@ export function ToneChip({ tone }: { tone: Tone }) {
   )
 }
 
-export function ToneBar({ split, tall, mini }: { split: ToneSplit; tall?: boolean; mini?: boolean }) {
-  const label = `${TONES.map((t) => `${split.counts[t]} ${t.toLowerCase()}`).join(', ')}, of ${split.n}`
-  if (mini)
-    return (
-      <MiniBar
-        testid="mini-bar"
-        base={split.n}
-        label={label}
-        title={label}
-        parts={[
-          { n: split.counts.Animated, className: 'bg-emo-delight' },
-          { n: split.counts.Even, className: 'bg-emo-neutral' },
-          { n: split.counts.Flat, className: 'bg-tone-flat' },
-          { n: split.counts.Tense, className: 'bg-emo-doubt' },
-        ]}
-      />
-    )
+export function ToneBar({ split, tall }: { split: ToneSplit; tall?: boolean }) {
   return (
-    <div className={cn('flex overflow-hidden rounded-full bg-haze', tall ? 'h-3.5' : 'h-2')} role="img" aria-label={label}>
+    <div className={cn('flex overflow-hidden rounded-full bg-haze', tall ? 'h-3.5' : 'h-2')} role="img" aria-label={`${TONES.map((t) => `${split.counts[t]} ${t.toLowerCase()}`).join(', ')}, of ${split.n}`}>
       {TONES.map((t) => (split.counts[t] ? <span key={t} className={cn('h-full', TONE_FILL[t])} style={{ width: `${(split.counts[t] / split.n) * 100}%` }} title={`${split.counts[t]} ${t.toLowerCase()}`} /> : null))}
     </div>
   )
@@ -229,37 +177,41 @@ export function ToneLegend() {
 
 // ─── words vs delivery ──────────────────────────────────────────────────────
 
+const FIT_CHIP: Record<FitPattern, string> = {
+  Consistent: 'border-mist-strong bg-haze text-graphite',
+  Mixed: 'border-pending-line bg-pending-bg text-pending-fg',
+  Conflicting: 'border-pending-fg bg-pending-fg text-white',
+  'Too few to read': 'border-dashed border-mist-strong bg-surface text-muted',
+  'No claim': 'border-dashed border-mist-strong bg-surface text-muted',
+}
 const FIT_HINT: Record<FitPattern, string> = {
-  Consistent: 'For more than half of the people who took a position, delivery fit the words',
-  Mixed: 'Neither more than half fit nor more than half didn’t. Includes people who were unsure',
-  Conflicting: 'For more than half of the people who took a position, delivery didn’t fit the words',
-  'Too few to read': 'Fewer than three people took a position, too few to read a pattern',
+  Consistent: 'For more than half of the people, neither speech nor face pulled against what the words claim',
+  Mixed: 'Neither more than half pulled against the words nor more than half matched. Includes people who were uncertain',
+  Conflicting: 'For more than half of the people, speech or face pulled against what they said',
+  'Too few to read': 'Fewer than three people, too few to read a pattern',
   'No claim': 'These words state a fact or a preference, so there is nothing for the speech or face to disagree with',
 }
 
-/** A code's verdict: a dot and its words, never a chip (a theme's reading is the filled chip). */
 export function FitChip({ pattern }: { pattern: FitPattern }) {
-  const tone = toneOfVerdict(pattern)
   return (
-    <span className={cn('inline-flex items-center gap-1.5 text-xs font-medium whitespace-nowrap', TEXT[tone])} title={FIT_HINT[pattern]} data-testid="verdict" data-key={pattern}>
-      <span aria-hidden="true" className={cn('size-2 shrink-0 rounded-full', DOT[tone])} />
-      {verdictWord(pattern)}
+    <span className={cn(chipBase, FIT_CHIP[pattern])} title={FIT_HINT[pattern]}>
+      {pattern === 'No claim' ? 'No claim' : pattern}
     </span>
   )
 }
+
+const ONE_FIT: Record<Fit, string> = { Matches: 'border-mist-strong bg-haze text-graphite', Uncertain: 'border-dashed border-pending-line bg-surface text-pending-fg', 'Pulls against': 'border-pending-fg bg-pending-fg text-white' }
 
 export function OneFitChip({ fit, against }: { fit: Fit; against: string[] }) {
-  const tone = fit === 'Matches' ? 'fits' : fit === 'Uncertain' ? 'unsure' : 'doesnt'
   return (
-    <span className={cn('inline-flex items-center gap-1.5 text-xs font-medium whitespace-nowrap', TEXT[tone])} title={against.length ? `Against the words: ${against.join(', ').toLowerCase()}` : fit === 'Uncertain' ? 'Neither speech nor face pulls against the words, but there were long pauses' : 'Fits the words'}>
-      <span aria-hidden="true" className={cn('size-2 shrink-0 rounded-full', DOT[tone])} />
-      {fit === 'Matches' ? 'Fits' : fit === 'Uncertain' ? 'Unsure' : 'Didn’t fit'}
+    <span className={cn(chipBase, ONE_FIT[fit])} title={against.length ? `Against the words: ${against.join(', ').toLowerCase()}` : fit === 'Uncertain' ? 'Neither speech nor face pulls against the words, but certainty is marked hesitation' : 'Matches the words'}>
+      {fit === 'Matches' ? 'Matches the words' : fit === 'Uncertain' ? 'Uncertain' : 'Pulls against the words'}
     </span>
   )
 }
 
-/** A small link that opens a box beside it. Closes on Escape or a click elsewhere. */
-export function Popover({ label, testid, title, children, width = 'w-80' }: { label: string; testid: string; title: string; children: React.ReactNode; width?: string }) {
+/** The rule in five lines, behind a small link, so the table itself stays clear. Closes on Escape or a click elsewhere. */
+export function HowItsDecided() {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLSpanElement>(null)
   useEffect(() => {
@@ -275,60 +227,76 @@ export function Popover({ label, testid, title, children, width = 'w-80' }: { la
   }, [open])
   return (
     <span ref={ref} className="relative inline-block">
-      <button type="button" aria-expanded={open} aria-haspopup="dialog" onClick={() => setOpen((o) => !o)} data-testid={testid} className="rounded-xs text-xs font-medium text-iris-700 hover:underline">
-        {label}
+      <button type="button" aria-expanded={open} aria-haspopup="dialog" onClick={() => setOpen((o) => !o)} data-testid="how-decided" className="rounded-xs text-xs font-medium text-iris-700 hover:underline">
+        How it’s decided
       </button>
       {open && (
-        <div role="dialog" aria-label={title} data-testid={`${testid}-pop`} className={cn('absolute top-full right-0 z-30 mt-1.5 rounded-sm border border-mist bg-surface p-3 text-left text-xs font-normal text-ink shadow-overlay', width)}>
-          {children}
+        <div role="dialog" aria-label="How it’s decided" data-testid="how-decided-pop" className="absolute top-full right-0 z-30 mt-1.5 w-80 rounded-sm border border-mist bg-surface p-3 text-left text-xs font-normal text-ink shadow-overlay">
+          <ol className="flex flex-col gap-1.5">
+            {DELIVERY_RULE_LINES.map((l, i) => (
+              <li key={i} data-testid="how-decided-line" className="flex gap-2">
+                <span aria-hidden="true" className="text-graphite tabular-nums">{i + 1}.</span>
+                <span>{l}</span>
+              </li>
+            ))}
+          </ol>
         </div>
       )}
     </span>
   )
 }
 
-/** The rule in five lines, behind a small link, so the table itself stays clear. */
-export function HowItsDecided() {
+/**
+ * How delivery stood against the words, in three figures and what is left out, for the right panel. The people who only stated a fact
+ * are listed here on request and never in a table.
+ */
+export function DeliveryFigures({ b }: { b: Breakdown }) {
+  const [who, setWho] = useState(false)
+  const claim = b.positive + b.negative
+  if (!claim && !b.factOnly.length) return null
   return (
-    <Popover label="How it’s decided" testid="how-decided" title="How it’s decided">
-      <ol className="flex flex-col gap-1.5">
-        {DELIVERY_RULE_LINES.map((l, i) => (
-          <li key={i} data-testid="how-decided-line" className="flex gap-2">
-            <span aria-hidden="true" className="text-graphite tabular-nums">{i + 1}.</span>
-            <span>{l}</span>
-          </li>
-        ))}
-      </ol>
-    </Popover>
-  )
-}
-
-/** What the colours mean: faces, tone and certainty, and how expressions are grouped. Behind a link, not on the page. */
-export function KeyPopover() {
-  return (
-    <Popover label="Key" testid="key" title="Key" width="w-[26rem]">
-      <div className="flex flex-col gap-2.5">
-        <p className="text-graphite" data-testid="faces-note">
-          {FACES_NOTE} Nothing here changes a Review decision.
+    <div className="mb-2 rounded-sm border border-mist px-3 py-2.5" data-testid="delivery-breakdown">
+      {claim > 0 && (
+        <>
+          <p className="text-xs text-graphite" data-testid="breakdown-line">
+            {breakdownLine(b).replace(/ [^.]*\.$/, '')}
+          </p>
+          <dl className="mt-1.5 grid grid-cols-3 gap-2 text-center">
+            {(
+              [
+                ['against', b.against, 'pulled against', 'text-pending-fg'],
+                ['uncertain', b.uncertain, 'uncertain', 'text-iris-700'],
+                ['matched', b.matched, 'matched', 'text-ink'],
+              ] as const
+            ).map(([k, n, label, tone]) => (
+              <div key={k} data-testid={`fig-${k}`} data-n={n}>
+                <dt className="sr-only">{label}</dt>
+                <dd className={cn('text-lg leading-none font-semibold tabular-nums', tone)}>{n}</dd>
+                <dd className="mt-0.5 text-xs text-graphite">{label}</dd>
+              </div>
+            ))}
+          </dl>
+        </>
+      )}
+      {b.audioOnly > 0 && (
+        <p className="mt-1.5 text-xs text-graphite" data-testid="audio-only-note">
+          {b.audioOnly} of {claim} audio-only, read on speech.
         </p>
-        <p className="text-graphite" data-testid="key-claim">
-          A negative face fits a complaint.
+      )}
+      {b.factOnly.length > 0 && (
+        <p className="mt-1.5 text-xs text-graphite" data-testid="fact-only">
+          {b.factOnly.length} of {b.people} only stated a fact or preference, so there is nothing to check.{' '}
+          <button type="button" aria-expanded={who} onClick={() => setWho((w) => !w)} data-testid="see-who" className="font-medium text-iris-700 hover:underline">
+            {who ? 'Hide' : 'See who'}
+          </button>
+          {who && (
+            <span className="mt-0.5 block tabular-nums text-ink" data-testid="fact-only-ids">
+              {b.factOnly.map((p) => p.participantId).join(', ')}
+            </span>
+          )}
         </p>
-        <div>
-          <p className="mb-1 font-medium text-graphite">Face</p>
-          <EmotionLegend />
-        </div>
-        <div>
-          <p className="mb-1 font-medium text-graphite">Speech · tone</p>
-          <ToneLegend />
-        </div>
-        <div>
-          <p className="mb-1 font-medium text-graphite">Speech · certainty</p>
-          <BandLegend />
-        </div>
-        <ValenceKey />
-      </div>
-    </Popover>
+      )}
+    </div>
   )
 }
 
@@ -337,7 +305,7 @@ export function HesitantNote({ points, doc, of }: { points: Point[]; doc: Codebo
   const h = hesitantDelivery(points, doc)
   if (!h) return null
   return (
-    <p className="mt-1.5 text-xs text-iris-700" data-testid="hesitant-note">
+    <p className="border-b border-mist bg-iris-50 px-5 py-2 text-xs text-iris-700" data-testid="hesitant-note">
       <span className="font-semibold">Positive words, hesitant delivery:</span> said by {h.said} of {of}; {h.hesitated} of {h.speakers} hesitated.
     </p>
   )
@@ -374,7 +342,7 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
  * One person at one moment, on every channel: the quote, the face (with what was visible, and a way to correct it),
  * the voice against their usual, and the hesitation measurements. Play opens the recording there.
  */
-export function PointCard({ point: p, ctx, context, reasons, hideFit }: { point: Point; ctx: CodebookCtx; context: string; reasons?: boolean; hideFit?: boolean }) {
+export function PointCard({ point: p, ctx, context, reasons }: { point: Point; ctx: CodebookCtx; context: string; reasons?: boolean }) {
   const [fixing, setFixing] = useState(false)
   const signs = signsOf(p.facts, p.usual)
   const face = faceOf(p, ctx.doc)
@@ -387,7 +355,7 @@ export function PointCard({ point: p, ctx, context, reasons, hideFit }: { point:
         <span>{petOf(p.participantId)} owner</span>
         <span className="tabular-nums">{mmss(p.atSec)}</span>
         <span className="flex-1" />
-        {fit.fit && !hideFit && <OneFitChip fit={fit.fit} against={fit.against} />}
+        {fit.fit && <OneFitChip fit={fit.fit} against={fit.against} />}
       </div>
       {p.excerpt && <p className="mt-1.5 font-serif text-quote leading-snug text-ink">“{p.excerpt.text}”</p>}
       <dl className="mt-1.5">

@@ -34,7 +34,7 @@ try {
   ok('step is named Emotion & behaviour', /Emotion & behaviour/.test(page ?? ''))
   ok('the old step name is gone from the header', !/Signals & tensions/.test(page ?? ''))
   ok('the coverage line says who has no face reading', /audio-only, so no face reading/.test((await text('[data-testid=coverage]')) ?? ''), await text('[data-testid=coverage]'))
-  ok('the codes show Face and Speech side by side, with no channel switch', /Name Said by Face Speech Words vs delivery/.test((await text('[data-testid=signal-head]')) ?? '') && (await b.evaluate(`document.querySelectorAll('[data-testid=lens-emotion]').length`)) === 0)
+  ok('By code shows Face and Speech side by side, with no channel switch', /Face Speech Words vs delivery/.test((await text('[data-testid=signal-head]')) ?? '') && (await b.evaluate(`document.querySelectorAll('[data-testid=lens-emotion]').length`)) === 0)
   await b.shot('emo-a2-overview')
 
   // The positive-claim theme only exists once the Researcher accepts PulseAI's suggestion for it.
@@ -48,21 +48,20 @@ try {
   const rows = await b.evaluate(`[...document.querySelectorAll('[data-testid=signal-row]')].map(r=>r.innerText.replace(/\\s+/g,' '))`)
   const nothing = rows.find((r) => /Nothing would have kept them/.test(r))
   ok('a code with two people reads "Too few to read"', /Too few to read/.test(nothing ?? ''), nothing)
-  ok('and it has no toggle or inline tag', !(await b.evaluate(`[...document.querySelectorAll('[data-testid=signal-row]')].find(r=>/Nothing would have kept them/.test(r.innerText)).querySelector('[role=switch],[data-testid=row-state]')`)))
-  ok('every theme is a row with its reading', (await b.evaluate(`document.querySelectorAll('[data-testid=theme-row] [data-testid=reading-chip]').length`)) >= 1)
+  ok('and it says “Nothing to show” instead of a toggle', await b.evaluate(`[...document.querySelectorAll('[data-testid=signal-row]')].find(r=>/Nothing would have kept them/.test(r.innerText)).querySelector('[data-testid=row-state]').innerText==='Nothing to show'`))
+  ok('every group is a plain label with its number of codes', (await b.evaluate(`[...document.querySelectorAll('[data-testid=group-count]')].every(e=>/^\\d+ codes?$/.test(e.innerText))`)))
   // ── The code panel: every channel, and the pause story ──
   await selectCode('Pause would have kept them')
   const panel = await text('[data-testid=signal-panel]')
   ok('the panel shows words, face and speech', ['Words', 'Face', 'Speech'].every((w) => new RegExp(`\\b${w}\\b`).test(panel ?? '')), panel?.slice(0, 300))
-  ok('the panel says how many didn’t fit, were unsure and fit', (await b.evaluate(`['against','unsure','fit'].every(k=>document.querySelector('[data-testid=signal-panel] [data-testid=tile-'+k+']'))`)), panel?.slice(0, 400))
+  ok('the panel says how many pulled against, were uncertain and matched', (await b.evaluate(`['against','uncertain','matched'].every(k=>document.querySelector('[data-testid=signal-panel] [data-testid=fig-'+k+']'))`)), panel?.slice(0, 400))
   ok('audio-only people say so instead of showing a face', (await b.evaluate(`document.querySelectorAll('[data-testid=no-face]').length`)) >= 1)
   ok('a face reading shows what was seen, then what it reads as', /Seen at \d+:\d\d \([\d.]+ s in\)/.test(panel ?? '') && /reads as/.test(panel ?? ''))
   ok('every person shows their delay, pause and fillers', (await b.evaluate(`document.querySelectorAll('[data-testid=signal-point]').length`)) === 6)
   await b.shot('emo-a2-code-panel')
 
   // ── Correct a face reading: reason required, counts move, original stays, logged ──
-  const faceText = () => b.evaluate(`document.querySelector('[data-testid=channel-face]').textContent.replace(/\\s+/g,' ')`)
-  const before = await faceText()
+  const before = await text('[data-testid=channel-face]')
   const firstKey = await b.evaluate(`(()=>{const li=[...document.querySelectorAll('[data-testid=signal-point]')].find(l=>l.querySelector('[data-testid=face-reading]')&&l.querySelector('[data-testid=face-reading]').dataset.emotion!=='Neutral');return li?li.dataset.key:null})()`)
   ok('a corrigible reading exists', !!firstKey)
   const was = await b.evaluate(`document.querySelector('[data-key=${JSON.stringify(firstKey)}] [data-testid=face-reading]').dataset.emotion`.replace(JSON.stringify(firstKey), `"${firstKey}"`))
@@ -76,7 +75,7 @@ try {
   await click('[data-testid=fix-confirm]')
   const card = await text(`[data-key="${firstKey}"]`)
   ok('the original reading stays visible beside the correction', /PulseAI read/.test(card ?? '') && /squinting/.test(card ?? '') && /No clear expression/.test(card ?? ''), card)
-  const after = await faceText()
+  const after = await text('[data-testid=channel-face]')
   ok('the face counts move', after !== before && /marked no clear expression/.test(after ?? ''), `${before} -> ${after}`)
   await b.goto(`${root}/codebook?tab=log`); await b.waitFor('Change log'); await b.sleep(500)
   const log = await text('main')

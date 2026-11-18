@@ -20,7 +20,7 @@ import {
 } from '@/mock/signals'
 import { askedOf, codeThemes, denominator, peopleOf, tensionDecisions, themeCodes, unthemed, type Basis, type Code, type CodebookDoc, type TensionDecision, type Theme } from './codebook'
 import { DELIVERY } from '@/config/delivery'
-import { emotionSplit, faceOf, fitFromCounts, fitOf, hasVideo, noReading, toneSplit, FIT_RULE_TEXT, STANCE_LABEL, VALENCE, type Emotion, type EmotionSplit, type FitPattern, type FitSplit, type Stance, type ToneSplit } from './emotion'
+import { emotionSplit, faceOf, fitOf, fitSplit, hasVideo, noReading, toneSplit, FIT_RULE_TEXT, STANCE_LABEL, VALENCE, type Emotion, type EmotionSplit, type FitPattern, type FitSplit, type Stance, type ToneSplit } from './emotion'
 
 export { BANDS, MOMENTS, TENSION_KINDS, type Band, type Moment, type Point, type TensionKind } from '@/mock/signals'
 export { SIGNAL_RULES, signsOf } from '@/mock/signals'
@@ -63,8 +63,6 @@ export type CodeSignal = {
   use: boolean
   /** One point per person, the most hesitant first. A person with several quotes counts once, at the moment their delivery pulled against their words most. */
   points: Point[]
-  /** Every moment of the code, with the code it sits under: what the person-level rule reads. */
-  moments: Held[]
 }
 
 const worse = (a: Point, b: Point) => (bandRank(b.band) > bandRank(a.band) ? b : a)
@@ -80,7 +78,7 @@ export function codeSignals(doc: CodebookDoc, basis: Basis): CodeSignal[] {
       const marked = points.filter((p) => p.band === 'Marked hesitation').length
       const some = points.filter((p) => p.band === 'Some hesitation').length
       const pattern = patternOf(marked, points.length)
-      const fit = fitOfPeople(raw, doc)
+      const fit = fitSplit(points, doc)
       const readable = points.length >= MIN_PEOPLE
       const showable = readable && fit.pattern !== 'No claim'
       const notable = readable && (pattern === 'Mixed' || pattern === 'Often hesitant' || fit.pattern === 'Mixed' || fit.pattern === 'Conflicting')
@@ -100,7 +98,6 @@ export function codeSignals(doc: CodebookDoc, basis: Basis): CodeSignal[] {
         showable,
         use: showable && (doc.signalPicks?.[code.id] ?? notable),
         points,
-        moments: raw.map((p) => ({ ...p, codeId: code.id, codeName: code.name })),
       }
     })
 }
@@ -387,142 +384,44 @@ export function tensionHeadline(doc: CodebookDoc, basis: Basis, tensionId: strin
 
 // ─── a theme, rolled up ─────────────────────────────────────────────────────
 
-/** A moment, with the code it was coded under. */
-export type Held = Point & { codeId?: string; codeName?: string }
-
-export type Bucket = 'against' | 'unsure' | 'fit'
-/**
- * One person's result in a code or a theme, by the one person-level rule: of their moments that carry a claim, more than half pull against
- * is "against", more than half fit is "fit", otherwise (a tie, or only hesitation) "unsure". Each person is in exactly one bucket.
- */
-export type PersonRead = {
-  participantId: string
-  bucket: Bucket
-  /** One plain reason: "flat voice", "face read as doubt", "long pauses only". */
-  reason: string
-  /** A fit person whose delivery backed the words (animated or interest or delight for a positive claim), against "nothing contradicted". */
-  positive: boolean
-  /** The moment that shows it, and the code it was coded under. */
-  point: Held
-  claims: number
-  against: number
-  fit: number
-  unsure: number
-  /** A face read as Confusion at one of their claim moments. Never counted for or against. */
-  confused: boolean
-}
-
-const lowerTone = (p: Point) => `${p.voice.tone.toLowerCase()} voice`
-function againstReason(p: Point, doc: CodebookDoc): string {
-  const f = faceOf(p, doc)
-  const r = fitOf(p, f)
-  return [r.against.includes('Speech') ? lowerTone(p) : '', r.against.includes('Face') && f?.emotion ? `face read as ${f.emotion.toLowerCase()}` : ''].filter(Boolean).join(' and ')
-}
-/** Delivery that backs the words: an animated voice or a face of interest or delight for a positive claim; a tense voice or a face of doubt or frustration for a complaint. */
-function backs(p: Point, doc: CodebookDoc): string | undefined {
-  const f = faceOf(p, doc)
-  const sure = !!f && f.reading.confidence >= DELIVERY.faceMinConfidence
-  if (p.stance === 'Positive') return p.voice.tone === 'Animated' ? 'animated voice' : sure && f?.emotion && (f.emotion === 'Interest' || f.emotion === 'Delight') ? `face read as ${f.emotion.toLowerCase()}` : undefined
-  if (p.stance === 'Negative') return p.voice.tone === 'Tense' ? 'tense voice' : sure && f?.emotion && (f.emotion === 'Doubt' || f.emotion === 'Frustration') ? `face read as ${f.emotion.toLowerCase()}` : undefined
-  return undefined
-}
-
-/** Everyone in a set of moments who took a position, each in one bucket. People who only stated a fact are not here. */
-export function personReads(all: Held[], doc: CodebookDoc): PersonRead[] {
-  const seen = new Set<string>()
-  const byPerson = new Map<string, Held[]>()
-  all.forEach((p) => {
-    if (seen.has(p.key)) return
-    seen.add(p.key)
-    byPerson.set(p.participantId, [...(byPerson.get(p.participantId) ?? []), p])
-  })
-  const reads: PersonRead[] = []
-  for (const [participantId, moments] of byPerson) {
-    const judged = moments.map((p) => ({ p, fit: fitOf(p, faceOf(p, doc)).fit })).filter((x): x is { p: Held; fit: NonNullable<typeof x.fit> } => !!x.fit)
-    if (!judged.length) continue
-    const against = judged.filter((x) => x.fit === 'Pulls against')
-    const fit = judged.filter((x) => x.fit === 'Matches')
-    const unsure = judged.filter((x) => x.fit === 'Uncertain')
-    const t = judged.length
-    const bucket: Bucket = against.length * 2 > t ? 'against' : fit.length * 2 > t ? 'fit' : 'unsure'
-    const of = t > 1 ? ` (${bucket === 'against' ? against.length : bucket === 'fit' ? fit.length : Math.max(unsure.length, 0)} of ${t} moments)` : ''
-    const sorted = (xs: typeof judged) => [...xs].sort((a, b) => bandRank(b.p.band) - bandRank(a.p.band) || a.p.atSec - b.p.atSec)
-    let point: Held
-    let reason: string
-    let positive = false
-    if (bucket === 'against') {
-      point = sorted(against)[0].p
-      reason = `${againstReason(point, doc)}${of}`
-    } else if (bucket === 'fit') {
-      const backing = fit.map((x) => ({ x, why: backs(x.p, doc) })).find((y) => y.why)
-      point = (backing?.x ?? sorted(fit)[0]).p
-      positive = !!backing
-      reason = `${backing ? backing.why : 'nothing contradicted'}${of}`
-    } else {
-      point = sorted(unsure.length ? unsure : judged)[0].p
-      reason = against.length ? `${against.length} of ${t} moments against, ${fit.length} fit` : 'long pauses only'
-    }
-    reads.push({ participantId, bucket, reason, positive, point, claims: t, against: against.length, fit: fit.length, unsure: unsure.length, confused: judged.some((x) => faceOf(x.p, doc)?.emotion === 'Confusion') })
-  }
-  return reads.sort((a, b) => ({ against: 0, unsure: 1, fit: 2 })[a.bucket] - ({ against: 0, unsure: 1, fit: 2 })[b.bucket] || a.participantId.localeCompare(b.participantId))
-}
-
-/** How many people said it, and how they stood against their words: the fit counts every screen uses, from the person-level rule. */
-export function fitOfPeople(all: Held[], doc: CodebookDoc): FitSplit {
-  const reads = personReads(all, doc)
-  const people = new Set(all.map((p) => p.participantId)).size
-  return fitFromCounts(people, reads.filter((r) => r.bucket === 'against').length, reads.filter((r) => r.bucket === 'unsure').length, reads.filter((r) => r.bucket === 'fit').length)
-}
-
-/** One person-by-person tally of how delivery stood against the words, for the people who took a position. The one place the figures come from. */
+/** One person-by-person tally of how delivery stood against the words, for the people with a claim. The one place the figures come from. */
 export type Breakdown = {
   /** Everyone who said it. */
   people: number
-  /** People who took a position: argued for it or complained. Both are a claim; the rest only stated a fact or preference. */
+  /** People who argued for it, and people who complained. Both make a claim; the rest only stated a fact or preference. */
   positive: number
   negative: number
-  /** Didn't fit, unsure, fit. Each person is in exactly one, and the three add up to the people who took a position. */
   against: number
   uncertain: number
   matched: number
-  /** Of those who fit, how many had delivery that backed the words (animated, interest, delight), against "nothing contradicted". */
-  backed: number
-  /** The people behind each figure, with one plain reason each. */
-  reads: PersonRead[]
   /** Those who only stated a fact or preference, so there is nothing to check. */
   factOnly: Point[]
-  /** People who took a position whose session had no video, so were read on speech. */
+  /** People with a claim whose session had no video, so were read on speech. */
   audioOnly: number
-  /** People with a face read as Confusion at one of their moments. Never counted for or against. */
-  confused: number
 }
 
-/** The tally for a set of moments, by the person-level rule. */
-export function breakdownOf(all: Held[], doc: CodebookDoc): Breakdown {
-  const reads = personReads(all, doc)
-  const byId = new Map(onePerPerson(all, doc).map((p) => [p.participantId, p]))
-  const said = new Set(all.map((p) => p.participantId))
-  const claimed = new Set(reads.map((r) => r.participantId))
+/** The tally for a set of points (one per person is taken here, by the verdict's own choice of moment). */
+export function breakdownOf(all: Point[], doc: CodebookDoc): Breakdown {
+  const points = onePerPerson(all, doc)
+  const fits = points.map((p) => ({ p, fit: fitOf(p, faceOf(p, doc)).fit }))
+  const claim = fits.filter((x) => x.fit)
   return {
-    people: said.size,
-    positive: reads.filter((r) => r.point.stance === 'Positive').length,
-    negative: reads.filter((r) => r.point.stance === 'Negative').length,
-    against: reads.filter((r) => r.bucket === 'against').length,
-    uncertain: reads.filter((r) => r.bucket === 'unsure').length,
-    matched: reads.filter((r) => r.bucket === 'fit').length,
-    backed: reads.filter((r) => r.bucket === 'fit' && r.positive).length,
-    reads,
-    factOnly: [...said].filter((id) => !claimed.has(id)).map((id) => byId.get(id)!).filter(Boolean).sort((a, b) => a.participantId.localeCompare(b.participantId)),
-    audioOnly: reads.filter((r) => !faceOf(r.point, doc)).length,
-    confused: reads.filter((r) => r.confused).length,
+    people: points.length,
+    positive: points.filter((p) => p.stance === 'Positive').length,
+    negative: points.filter((p) => p.stance === 'Negative').length,
+    against: claim.filter((x) => x.fit === 'Pulls against').length,
+    uncertain: claim.filter((x) => x.fit === 'Uncertain').length,
+    matched: claim.filter((x) => x.fit === 'Matches').length,
+    factOnly: fits.filter((x) => !x.fit).map((x) => x.p).sort((a, b) => a.participantId.localeCompare(b.participantId)),
+    audioOnly: claim.filter((x) => !faceOf(x.p, doc)).length,
   }
 }
 
-/** The one-line summary for a table: "8 of 14 took a position. 3 didn't fit, 2 unsure." Empty when nobody took one. */
+/** The one-line summary for a table: "8 of 14 argued for it. 3 pulled against, 2 uncertain." Empty when nobody made a claim. */
 export function breakdownLine(b: Breakdown): string {
-  const claim = b.against + b.uncertain + b.matched
-  if (!claim) return ''
-  return `${claim} of ${b.people} took a position. ${b.against} didn’t fit${b.uncertain ? `, ${b.uncertain} unsure` : ''}.`
+  if (b.positive + b.negative === 0) return ''
+  const who = b.positive && b.negative ? `${b.positive} of ${b.people} argued for it and ${b.negative} complained` : b.positive ? `${b.positive} of ${b.people} argued for it` : `${b.negative} of ${b.people} complained`
+  return `${who}. ${b.against} pulled against${b.uncertain ? `, ${b.uncertain} uncertain` : ''}.`
 }
 
 /**
@@ -547,10 +446,10 @@ export function themeRollup(doc: CodebookDoc, rows: CodeSignal[]): ThemeRollup |
   const points = [...byPerson.values()]
   const emotions = emotionSplit(points, doc)
   const marked = points.filter((p) => p.band === 'Marked hesitation').length
-  const fit = fitOfPeople(rows.flatMap((r) => r.moments), doc)
+  const fit = fitSplit(onePerPerson(rows.flatMap((r) => r.points), doc), doc)
   const n = points.length
   const text = `${plural(n, 'person', 'people')} · faces read for ${emotions.read} · marked hesitation in ${marked}`
-  return { people: n, emotions, marked, fit, text, summary: breakdownLine(breakdownOf(rows.flatMap((r) => r.moments), doc)) }
+  return { people: n, emotions, marked, fit, text, summary: breakdownLine(breakdownOf(rows.flatMap((r) => r.points), doc)) }
 }
 
 // ─── by theme: the profile of a theme ───────────────────────────────────────
@@ -573,10 +472,8 @@ export type Rollup = {
   some: number
   steady: number
   pattern: Pattern
-  /** The words-vs-delivery split over the people who took a position, by the person-level rule. */
+  /** The words-vs-delivery split over the people with a claim, by the one rule (FIT_RULE). */
   fit: FitSplit
-  /** Every moment the roll-up was made from. */
-  moments: Held[]
   /** The verdict: the fit pattern, or "Too few to read" under MIN_PEOPLE people. */
   verdict: FitPattern
   /** People by what their words claim: speaks for it, complains, or states a fact. */
@@ -626,11 +523,11 @@ export function onePerPerson(points: Point[], doc: CodebookDoc): Point[] {
 }
 
 /** The roll-up of a set of people's points. Pure: the same points and corrections always give the same profile. */
-export function rollupPoints(all: Held[], doc: CodebookDoc): Rollup {
+export function rollupPoints(all: Point[], doc: CodebookDoc): Rollup {
   const points = onePerPerson(all, doc)
   const marked = points.filter((p) => p.band === 'Marked hesitation').length
   const some = points.filter((p) => p.band === 'Some hesitation').length
-  const fit = fitOfPeople(all, doc)
+  const fit = fitSplit(points, doc)
   const stances: Record<Stance, number> = { Positive: 0, Negative: 0, Neutral: 0 }
   const positive = emptyGap()
   const negative = emptyGap()
@@ -656,7 +553,6 @@ export function rollupPoints(all: Held[], doc: CodebookDoc): Rollup {
     steady: points.length - marked - some,
     pattern: patternOf(marked, points.length),
     fit,
-    moments: all,
     verdict: points.length < MIN_PEOPLE ? 'Too few to read' : fit.pattern,
     stances,
     positive,
@@ -679,7 +575,7 @@ export function stanceSummary(r: Pick<Rollup, 'stances'>): { short: string; long
 
 /** What the people did against their words, as a phrase that follows "people argued for it, but" or "also". */
 const AGAINST: Record<'positive' | 'negative', Partial<Record<'Speech' | 'Face', string>>> = {
-  positive: { Speech: 'sounded flat or tense', Face: 'had faces that read as doubt or frustration' },
+  positive: { Speech: 'sounded flat or tense', Face: 'had faces that read as doubt, frustration or confusion' },
   negative: { Speech: 'sounded animated', Face: 'had faces that read as delight or interest as they said it' },
 }
 
@@ -737,7 +633,7 @@ export type ThemeSignal = Rollup & {
 }
 
 function profile(base: { id: string; name: string; definition?: string; kind: ThemeSignal['kind']; theme?: Theme }, rows: CodeSignal[], doc: CodebookDoc, basis: Basis): ThemeSignal {
-  const r = rollupPoints(rows.flatMap((x) => x.moments), doc)
+  const r = rollupPoints(rows.flatMap((x) => x.points), doc)
   const asked = new Set(rows.flatMap((x) => [...askedOf(x.code, basis)]))
   const of = asked.size
   const readable = r.people >= MIN_PEOPLE
