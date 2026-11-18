@@ -55,36 +55,41 @@ try {
     const team = (n, f) => Array.from({ length: n }, (_, i) => mk('P-' + (i + 1), f(i)))
     // Consistent: six people speak for it and look and sound steady.
     const consistent = sg.rollupPoints(team(6, () => ({})), doc)
-    // Mixed: ten people, three with marked hesitation (one channel against) is exactly 3 in 10 at least partly.
-    const mixed = sg.rollupPoints(team(10, (i) => (i < 3 ? { band: 'Marked hesitation' } : {})), doc)
-    // Conflicting: ten people, four with marked hesitation and a tense voice (two channels against) is exactly 4 in 10 clearly.
-    const conflicting = sg.rollupPoints(team(10, (i) => (i < 4 ? { band: 'Marked hesitation', tone: 'Tense' } : {})), doc)
-    // Just under each line: two clearly in ten is not Conflicting, two partly in ten is not Mixed.
-    const underConflict = sg.rollupPoints(team(10, (i) => (i < 3 ? { band: 'Marked hesitation', tone: 'Tense' } : {})), doc)
-    const underMixed = sg.rollupPoints(team(10, (i) => (i < 2 ? { band: 'Marked hesitation' } : {})), doc)
+    // Mixed: ten people, five with a tense voice (pulls against) and five who match: neither is more than half.
+    const mixed = sg.rollupPoints(team(10, (i) => (i < 5 ? { tone: 'Tense' } : {})), doc)
+    // Conflicting: six of ten pulled against is more than half.
+    const conflicting = sg.rollupPoints(team(10, (i) => (i < 6 ? { tone: 'Tense' } : {})), doc)
+    // Hesitation alone never pulls against the words: ten people, all marked hesitation, normal tone, interested face.
+    const hesAlone = sg.rollupPoints(team(10, () => ({ band: 'Marked hesitation' })), doc)
+    // Marked hesitation with a normal tone is Uncertain, and is not counted toward Conflicting: 6 uncertain + 4 against is not Conflicting.
+    const uncertain = sg.rollupPoints(team(10, (i) => (i < 4 ? { tone: 'Tense' } : { band: 'Marked hesitation' })), doc)
+    // Speech and Face at the same moment count once: a tense voice and a doubtful face on the same person.
+    const once = sg.rollupPoints(team(4, () => ({ tone: 'Tense', face: ['Doubt', 'High'] })), doc)
     const few = sg.rollupPoints(team(2, () => ({ band: 'Marked hesitation', tone: 'Tense' })), doc)
     // Someone who complains, and smiles while doing it, is the one thing that pulls against a complaint.
     const complaint = sg.rollupPoints(team(5, (i) => ({ stance: 'Negative', face: i < 3 ? ['Delight', 'High'] : ['Frustration', 'Medium'] })), doc)
-    // Audio-only: no face at all. Two of five.
-    const audio = sg.rollupPoints(team(5, (i) => ({ face: i < 2 ? null : ['Interest', 'Medium'] })), doc)
-    const pick = (r) => ({ verdict: r.verdict, people: r.people, fits: r.fit.fits, partly: r.fit.partly, doesnt: r.fit.doesnt, n: r.fit.n, headline: sg.headlineOf(r) })
-    return { rule: em.FIT_RULE, consistent: pick(consistent), mixed: pick(mixed), conflicting: pick(conflicting), underConflict: pick(underConflict), underMixed: pick(underMixed), few: pick(few), complaint: pick(complaint), audio: { read: audio.emotions.read, noVideo: audio.emotions.noVideo, neutral: audio.emotions.counts.Neutral, validNeutral: audio.emotions.valence.Neutral, unclear: audio.emotions.unclear, people: audio.people, headline: sg.headlineOf(audio), verdict: audio.verdict } }
+    // Audio-only: no face at all, but speech is still read. Two of five.
+    const audio = sg.rollupPoints(team(5, (i) => ({ face: i < 2 ? null : ['Interest', 'Medium'], tone: i < 2 ? 'Tense' : 'Even' })), doc)
+    const pick = (r) => ({ verdict: r.verdict, people: r.people, fits: r.fit.fits, uncertain: r.fit.uncertain, against: r.fit.against, n: r.fit.n, headline: sg.headlineOf(r) })
+    return { rule: em.FIT_RULE, consistent: pick(consistent), mixed: pick(mixed), conflicting: pick(conflicting), hesAlone: pick(hesAlone), uncertain: pick(uncertain), once: pick(once), few: pick(few), complaint: pick(complaint), audio: { read: audio.emotions.read, noVideo: audio.emotions.noVideo, neutral: audio.emotions.counts.Neutral, against: audio.fit.against, validNeutral: audio.emotions.valence.Neutral, unclear: audio.emotions.unclear, people: audio.people, headline: sg.headlineOf(audio), verdict: audio.verdict } }
   })()`)
   ok('a consistent theme: delivery fit the words for everyone', unit.consistent.verdict === 'Consistent' && unit.consistent.fits === 6 && unit.consistent.n === 6, JSON.stringify(unit.consistent))
   ok('its headline says delivery matched, in n of N', /^Delivery matched the words for 6 of 6 people\.$/.test(unit.consistent.headline), unit.consistent.headline)
-  ok('a mixed theme: 3 in 10 at least partly against', unit.mixed.verdict === 'Mixed' && unit.mixed.partly === 3 && unit.mixed.doesnt === 0 && unit.mixed.n === 10, JSON.stringify(unit.mixed))
-  ok('a conflicting theme: 4 in 10 clearly against', unit.conflicting.verdict === 'Conflicting' && unit.conflicting.doesnt === 4 && unit.conflicting.n === 10, JSON.stringify(unit.conflicting))
-  ok('the headline names the gap in plain words with counts', /^4 of 10 people argued for it, but (hesitated as they said it|sounded flat or tense); 4 of 10 also (hesitated as they said it|sounded flat or tense)\.$/.test(unit.conflicting.headline), unit.conflicting.headline)
-  ok('one step under each line is not that verdict', unit.underConflict.verdict === 'Mixed' && unit.underMixed.verdict === 'Consistent', `${unit.underConflict.verdict} / ${unit.underMixed.verdict}`)
-  ok('the thresholds are the repo’s own (4 in 10, 3 in 10, 3 people)', unit.rule.conflicting === 0.4 && unit.rule.mixed === 0.3 && unit.rule.min === 3, JSON.stringify(unit.rule))
+  ok('a mixed theme: 5 of 10 against and 5 matching is Mixed, since neither is over half', unit.mixed.verdict === 'Mixed' && unit.mixed.against === 5 && unit.mixed.fits === 5 && unit.mixed.n === 10, JSON.stringify(unit.mixed))
+  ok('a conflicting theme: 6 of 10 against is over half', unit.conflicting.verdict === 'Conflicting' && unit.conflicting.against === 6 && unit.conflicting.n === 10, JSON.stringify(unit.conflicting))
+  ok('the headline names the gap in plain words with counts', /^6 of 10 people argued for it, but sounded flat or tense\.$/.test(unit.conflicting.headline), unit.conflicting.headline)
+  ok('hesitation alone never produces Conflicting: ten people with marked hesitation and a normal tone are all Uncertain, none against', unit.hesAlone.against === 0 && unit.hesAlone.uncertain === 10 && unit.hesAlone.verdict === 'Mixed', JSON.stringify(unit.hesAlone))
+  ok('Marked hesitation with a normal tone is Uncertain and is not counted toward Conflicting (4 against, 6 uncertain: not Conflicting)', unit.uncertain.uncertain === 6 && unit.uncertain.against === 4 && unit.uncertain.verdict !== 'Conflicting' && unit.uncertain.n === 10, JSON.stringify(unit.uncertain))
+  ok('Speech and Face at the same moment count once: a tense voice and a doubtful face is one person against, not two', unit.once.against === 4 && unit.once.n === 4, JSON.stringify(unit.once))
+  ok('the rule is the repo’s own: over half, 3 people', unit.rule.majority === 0.5 && unit.rule.min === 3, JSON.stringify(unit.rule))
   ok('under 3 people is too few to read, said in people', unit.few.verdict === 'Too few to read' && /^Only 2 people said this, too few to read a pattern\.$/.test(unit.few.headline), `${unit.few.verdict}: ${unit.few.headline}`)
-  ok('a complaint said with a smile is what pulls against a complaint', unit.complaint.n === 5 && unit.complaint.doesnt + unit.complaint.partly === 3 && /^3 of 5 people complained about it, but had faces that read as delight or interest/.test(unit.complaint.headline), `${JSON.stringify(unit.complaint)}`)
-  ok('audio-only people are never counted as neutral', unit.audio.noVideo === 2 && unit.audio.read === 3 && unit.audio.neutral === 0 && unit.audio.validNeutral === 0 && unit.audio.unclear === 0, JSON.stringify(unit.audio))
+  ok('a complaint said with a smile is what pulls against a complaint', unit.complaint.n === 5 && unit.complaint.against === 3 && /^3 of 5 people complained about it, but had faces that read as delight or interest/.test(unit.complaint.headline), `${JSON.stringify(unit.complaint)}`)
+  ok('audio-only people are never counted as neutral, and their speech is still read (a tense voice counts against)', unit.audio.against === 2 && unit.audio.noVideo === 2 && unit.audio.read === 3 && unit.audio.neutral === 0 && unit.audio.validNeutral === 0 && unit.audio.unclear === 0, JSON.stringify(unit.audio))
 
   // ── By theme is the default view, and the channel switch is gone ──
   await acceptAllThemes()
   ok('By theme is first in the switch and the default', await b.evaluate(`(()=>{const bs=[...document.querySelectorAll('[role=group][aria-label="Read signals by"] button')];return bs[0].innerText==='By theme'&&bs[0].getAttribute('aria-pressed')==='true'})()`))
-  ok('the Emotion | Voice | Hesitation switch is hidden', (await b.evaluate(`document.querySelectorAll('[data-testid=lens-emotion],[data-testid=lens-voice],[data-testid=lens-hesitation]').length`)) === 0)
+  ok('the Face | Speech switch is hidden', (await b.evaluate(`document.querySelectorAll('[data-testid=lens-emotion],[data-testid=lens-speech]').length`)) === 0)
   const rows = await all('[data-testid=theme-signal-row]')
   ok('every accepted theme is a row', ['Price creep', 'The pet decides', 'Wanting control over deliveries', 'Why they joined'].every((n) => rows.some((r) => r.startsWith(n))), rows.map((r) => r.slice(0, 30)).join(' | '))
   ok('each row is light: the name, said by n of N, a verdict and one sentence (the detail is in the panel)', rows.every((r) => /Said by \d+ of \d+/.test(r) && /(Consistent|Mixed|Conflicting|Too few to read|No claim)/.test(r) && !/Words |Face |Voice \d|Hesitation \d/.test(r) && r.length < 230), rows.map((r) => r.length).join(','))
@@ -92,7 +97,7 @@ try {
   ok('every theme has a headline', (await all('[data-testid=theme-headline]')).length === rows.length && (await all('[data-testid=theme-headline]')).every((h) => h.length > 30))
   ok('the rule is one click away, not on the page by default', (await b.evaluate(`document.querySelector('[data-testid=theme-rule-box]').open`)) === false)
   await b.evaluate(`document.querySelector('[data-testid=theme-rule-box] summary').click(); true`); await b.sleep(250)
-  ok('and when opened it states the rule', /Conflicting: 4 in 10 or more/.test((await text('[data-testid=theme-rule]')) ?? '') && /Each person counts once/.test((await text('[data-testid=theme-rule]')) ?? ''))
+  ok('and when opened it states the rule', /Conflicting: more than half/.test((await text('[data-testid=theme-rule]')) ?? '') && /Each person counts once/.test((await text('[data-testid=theme-rule]')) ?? ''))
   await b.evaluate(`document.querySelector('[data-testid=theme-rule-box] summary').click(); true`)
 
   // Each row: the verdict is the rule applied to its panel's numbers; the lines add up.
@@ -104,16 +109,16 @@ try {
     await clickText('[data-testid=theme-signal-row]', name); await b.sleep(150)
     const chip = (await b.evaluate(`document.querySelector('[data-testid=theme-panel] header span')?.innerText.trim()`)) ?? ''
     const v = (await text('[data-testid=theme-fit-verdict]')) ?? ''
-    const m = v.match(/For (\d+) of (\d+),.*?(?:\((\d+) clearly\))?\./)
-    const clean = v.match(/fits the words for all (\d+)/)
+    const m = v.match(/For (\d+) of (\d+),/)
+    const clean = v.match(/fits the words for all (\d+)/) ?? v.match(/Neither speech nor face pulled against the words\. \d+ of (\d+) uncertain/)
     const tr = (await text('[data-testid=theme-trace]')) ?? ''
     const hm = ((await text('[data-testid=theme-panel]')) ?? '').match(/Marked in (\d+) of (\d+)/)
     panels[name] = { chip, v, tr, headline: await text('[data-testid=theme-headline-text]'), hes: hm ? +hm[1] / +hm[2] : 0 }
     if (m || clean) {
       const n = m ? +m[2] : +clean[1]
       const against = m ? +m[1] : 0
-      const doesnt = m && m[3] ? +m[3] : 0
-      const want = n < rl.min ? 'Too few to read' : doesnt / n >= rl.conflicting ? 'Conflicting' : against / n >= rl.mixed ? 'Mixed' : 'Consistent'
+      const unc = Number(v.match(/(\d+) of \d+ uncertain/)?.[1] ?? 0)
+      const want = n < rl.min ? 'Too few to read' : against / n > rl.majority ? 'Conflicting' : (n - against - unc) / n > rl.majority ? 'Consistent' : 'Mixed'
       if (chip !== want) bad.push(`${name}: ${chip} should be ${want}`)
     }
     const f = tr.match(/faces read for (\d+) of (\d+)(?: \(([^)]*)\))?/i)
@@ -131,7 +136,7 @@ try {
   await clickText('[data-testid=theme-signal-row]', 'Wanting control over deliveries'); await b.sleep(250)
   const panel = await text('[data-testid=theme-panel]')
   ok('the panel has the AI-generated tag, the headline and a Play link at a time', !!(await b.evaluate(`document.querySelector('[data-testid=theme-headline-block]')?.innerText.includes('AI-generated')`)) && (await b.evaluate(`!!document.querySelector('[data-testid=theme-play]')`)) && /Play the clearest moment · P-\d+ at \d+:\d\d/.test(panel ?? ''), panel?.slice(0, 400))
-  ok('the panel shows face, voice and hesitation evidence', ['Words', 'Face', 'Voice', 'Hesitation'].every((w) => new RegExp(`\\b${w}\\b`).test(panel ?? '')) && /positive · \d+ neutral · \d+ negative/.test(panel ?? ''))
+  ok('the panel shows words, face and speech (tone and certainty) evidence', ['Words', 'Face', 'Speech', 'Certainty'].every((w) => new RegExp(`\\b${w}\\b`).test(panel ?? '')) && /positive · \d+ neutral · \d+ negative/.test(panel ?? ''))
   ok('and its codes, each with its own verdict', (await all('[data-testid=theme-panel-codes] li')).length >= 3 && (await all('[data-testid=theme-panel-codes] li')).every((l) => /(Consistent|Mixed|Conflicting|Too few to read|No claim)/.test(l)))
   const points = await all('[data-testid=theme-panel] [data-testid=signal-point]')
   ok('every moment shows what was seen, the quote’s time and the model’s reason', points.length >= 5 && points.every((p) => /Seen at \d+:\d\d|audio-only/.test(p) && /Play at \d+:\d\d/.test(p) && /Why these readings/.test(p)), points[0])
@@ -212,7 +217,7 @@ try {
   const tRows = await all('[data-testid=tension-theme-list] [data-testid=theme-signal-row]')
   ok('a tension theme sits in its own group below, tagged From a tension', tRows.length === 1 && /From a tension/.test(tRows[0]) && /Tension themes/.test((await text('main')) ?? ''), tRows.join(' | '))
   await clickText('[data-testid=tension-theme-list] [data-testid=theme-signal-row]', 'Pause'); await b.sleep(250)
-  ok('and is read with the same profile as any theme', /Said by \d+ of \d+/.test(tRows[0]) && /Flat or tense for \d+ of \d+/.test((await text('[data-testid=theme-panel]')) ?? '') && /Marked in \d+ of \d+/.test((await text('[data-testid=theme-panel]')) ?? ''))
+  ok('and is read with the same profile as any theme', /Said by \d+ of \d+/.test(tRows[0]) && /flat or tense for \d+ of \d+/.test((await text('[data-testid=theme-panel]')) ?? '') && /marked hesitation in \d+ of \d+/.test((await text('[data-testid=theme-panel]')) ?? ''))
   await b.goto(`${root}/codebook?tab=themes`); await b.waitFor('New theme'); await b.sleep(400)
   ok('the Themes tab calls it a tension theme', await b.evaluate(`[...document.querySelectorAll('[data-testid=theme-card][data-from-tension=true]')].every(c=>/Tension theme/.test(c.innerText))&&document.querySelectorAll('[data-testid=theme-card][data-from-tension=true]').length===1`))
   await b.goto(`${root}/signals?tab=tensions`); await b.waitFor('Tensions'); await b.sleep(500)

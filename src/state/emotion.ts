@@ -6,13 +6,15 @@
 // - A Researcher's correction replaces PulseAI's label everywhere. "No clear expression" takes it out of every count.
 // - Faces are grouped Positive (delight, interest), Neutral (neutral, surprise), Negative (doubt, frustration) and Unclear
 //   (confusion). Confusion is never negative, and it is never counted for or against the words.
+// - Delivery has two groups. Speech = tone + certainty (hesitation), read for everyone. Face = expression, video only.
 // - Words vs delivery only applies where the words make a claim: speaking for something (positive) or complaining (negative).
-//   Against a positive claim: a negative face at medium or high intensity, a flat or tense voice, or marked hesitation.
-//   Against a complaint: a positive face at medium or high intensity (a laugh while complaining is worth a look).
-//   One channel against is "Partly". Two or more, or a high-intensity face against, is "Doesn't fit".
-//   Across the people with a claim: Conflicting when FIT_RULE.conflicting or more clearly don't fit, Mixed when
-//   FIT_RULE.mixed or more at least partly don't, otherwise Consistent. FIT_RULE_TEXT writes that rule for the screen.
+//   Speech pulls against the words if the tone is Tense, or Flat against a positive claim; hesitation is ignored here.
+//   Face pulls against if the expression opposes the claim at medium confidence or higher. Speech and Face never add together.
+//   Neither against but marked hesitation: Uncertain, counted and shown, never counted toward Conflicting. Otherwise Matches.
+//   Across the people with a claim (the rule and numbers are in src/config/delivery.ts): over half pull against is Conflicting,
+//   over half match is Consistent, otherwise Mixed, and under the minimum, too few to read.
 
+import { DELIVERY, DELIVERY_RULE } from '@/config/delivery'
 import { EMOTIONS, TONES, VALENCE, VALENCES, type Emotion, type FaceReading, type Intensity, type Tone, type Valence } from '@/mock/emotion'
 import type { Point } from '@/mock/signals'
 import type { CodebookDoc, FaceFix } from './codebook'
@@ -32,20 +34,24 @@ export function faceOf(p: Point, doc: CodebookDoc): Face | undefined {
   return { reading: p.face, emotion: fix.to === 'No clear expression' ? null : fix.to, fix }
 }
 
-export type Channel = 'Face' | 'Voice' | 'Hesitation'
-export type Fit = 'Fits' | 'Partly' | 'Doesn’t fit'
+/** The two groups of delivery. Speech is tone plus certainty (hesitation); Face is expression, video only. */
+export type Channel = 'Speech' | 'Face'
+/** One person against their words, once: neither group pulls against (Matches, or Uncertain when certainty is marked), or Speech or Face does. */
+export type Fit = 'Matches' | 'Uncertain' | 'Pulls against'
 export type FitResult = { fit?: Fit; against: Channel[] }
+
+/** Speech pulls against the words: a tense tone, or a flat one against a positive claim. Hesitation is never used here. */
+export const speechAgainst = (p: Point) => (DELIVERY.toneAgainst as readonly string[]).includes(p.voice.tone) || (p.stance === 'Positive' && (DELIVERY.toneAgainstPositive as readonly string[]).includes(p.voice.tone))
 
 export function fitOf(p: Point, face: Face | undefined): FitResult {
   if (!p.stance || p.stance === 'Neutral') return { against: [] }
   const against: Channel[] = []
   const felt = face?.emotion ? VALENCE[face.emotion] : undefined
-  const strong = face?.reading.intensity !== 'Low'
-  if (felt && strong && ((p.stance === 'Positive' && felt === 'Negative') || (p.stance === 'Negative' && felt === 'Positive'))) against.push('Face')
-  if (p.stance === 'Positive' && (p.voice.tone === 'Flat' || p.voice.tone === 'Tense')) against.push('Voice')
-  if (p.stance === 'Positive' && p.band === 'Marked hesitation') against.push('Hesitation')
-  const highFace = against.includes('Face') && face?.reading.intensity === 'High'
-  return { fit: against.length >= 2 || highFace ? 'Doesn’t fit' : against.length === 1 ? 'Partly' : 'Fits', against }
+  const sure = !!face && face.reading.confidence >= DELIVERY.faceMinConfidence
+  if (speechAgainst(p)) against.push('Speech')
+  if (felt && sure && ((p.stance === 'Positive' && felt === 'Negative') || (p.stance === 'Negative' && felt === 'Positive'))) against.push('Face')
+  // Speech and Face never add together: pulling against is one state, however many groups cause it.
+  return { fit: against.length ? 'Pulls against' : p.band === 'Marked hesitation' ? 'Uncertain' : 'Matches', against }
 }
 
 // ─── many moments ───────────────────────────────────────────────────────────
@@ -88,20 +94,20 @@ export function toneSplit(points: Point[]): ToneSplit {
 }
 
 export type FitPattern = 'Consistent' | 'Mixed' | 'Conflicting' | 'Too few to read' | 'No claim'
-export type FitSplit = { fits: number; partly: number; doesnt: number; n: number; pattern: FitPattern }
-/** The rule for the Words vs delivery column. Fewer people than `min` with a claim, and no pattern is read. */
-export const FIT_RULE = { min: 3, conflicting: 0.4, mixed: 0.3 }
-const inTen = (x: number) => `${Math.round(x * 10)} in 10`
+export type FitSplit = { fits: number; uncertain: number; against: number; n: number; pattern: FitPattern }
+/** The rule for the Words vs delivery column, from config. */
+export const FIT_RULE = { min: DELIVERY.minPeople, majority: DELIVERY.majority }
 /** The rule above, in the words the screen shows beside the Words vs delivery column. Built from the same numbers the code uses. */
-export const FIT_RULE_TEXT = `Conflicting: ${inTen(FIT_RULE.conflicting)} or more of the people with a claim clearly don’t fit (two or more of face, voice and hesitation against the words, or a strong face). Mixed: ${inTen(FIT_RULE.mixed)} or more at least partly. Under ${FIT_RULE.min} people: too few to read.`
+export const FIT_RULE_TEXT = [DELIVERY_RULE.verdict, DELIVERY_RULE.speech, DELIVERY_RULE.face, DELIVERY_RULE.once, DELIVERY_RULE.uncertain].join(' ')
 
 export function fitSplit(points: Point[], doc: CodebookDoc): FitSplit {
   const fits = points.map((p) => fitOf(p, faceOf(p, doc)).fit).filter((f): f is Fit => !!f)
   const n = fits.length
-  const doesnt = fits.filter((f) => f === 'Doesn’t fit').length
-  const partly = fits.filter((f) => f === 'Partly').length
-  const pattern: FitPattern = points.length && !n ? 'No claim' : n < FIT_RULE.min ? 'Too few to read' : doesnt / n >= FIT_RULE.conflicting ? 'Conflicting' : (doesnt + partly) / n >= FIT_RULE.mixed ? 'Mixed' : 'Consistent'
-  return { fits: n - doesnt - partly, partly, doesnt, n, pattern }
+  const against = fits.filter((f) => f === 'Pulls against').length
+  const uncertain = fits.filter((f) => f === 'Uncertain').length
+  const matches = n - against - uncertain
+  const pattern: FitPattern = points.length && !n ? 'No claim' : n < FIT_RULE.min ? 'Too few to read' : against / n > FIT_RULE.majority ? 'Conflicting' : matches / n > FIT_RULE.majority ? 'Consistent' : 'Mixed'
+  return { fits: matches, uncertain, against, n, pattern }
 }
 
 /** "Doubt", "Delight (high)": a label with its strength, for clips and notes. */

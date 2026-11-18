@@ -37,7 +37,7 @@ try {
   ok('Emotion is the default channel', await b.evaluate(`document.querySelector('[data-testid=lens-emotion]').getAttribute('aria-pressed')==='true'`))
   const stand = await b.evaluate(`[...document.querySelectorAll('[data-testid=standout]')].map(e=>e.innerText.replace(/\\s+/g,' '))`)
   ok('What stands out leads with the most positive concept (C)', /Concept C/.test(stand[0] ?? '') && /most positive/.test(stand[0] ?? ''), stand[0])
-  ok('What stands out has a words-vs-delivery line', stand.some((s) => /didn’t match the words/.test(s)), stand.join(' | '))
+  ok('What stands out has a words-vs-delivery line', stand.some((s) => /pulled against the words/.test(s)), stand.join(' | '))
   ok('What stands out still has hesitation and tensions', stand.some((s) => /marked hesitation/.test(s)) && stand.some((s) => /tensions? to review/.test(s)), stand.join(' | '))
   await b.shot('emo-a2-overview')
 
@@ -60,7 +60,7 @@ try {
   // ── The code panel: every channel, and the pause story ──
   await selectCode('Pause would have kept them')
   const panel = await text('[data-testid=signal-panel]')
-  ok('the panel shows words, face, voice and hesitation', ['Words', 'Face', 'Voice', 'Hesitation'].every((w) => new RegExp(`\\b${w}\\b`).test(panel ?? '')), panel?.slice(0, 300))
+  ok('the panel shows words, face and speech', ['Words', 'Face', 'Speech'].every((w) => new RegExp(`\\b${w}\\b`).test(panel ?? '')), panel?.slice(0, 300))
   ok('the panel says the delivery pulled against the words', /pulled against the words/.test(panel ?? ''), panel?.slice(0, 400))
   ok('audio-only people say so instead of showing a face', (await b.evaluate(`document.querySelectorAll('[data-testid=no-face]').length`)) >= 1)
   ok('a face reading shows what was seen, then what it reads as', /Seen at \d+:\d\d \([\d.]+ s in\)/.test(panel ?? '') && /reads as/.test(panel ?? ''))
@@ -102,10 +102,9 @@ try {
   await b.shot('emo-a2-moment-c')
   await click('[data-testid=compare-pets]')
   ok('comparing owners shows dog and cat rows', /Dog owners/.test((await text('[data-testid=moment-row]')) ?? '') || (await b.evaluate(`document.body.innerText.includes('Cat owners')`)))
-  await click('[data-testid=lens-voice]')
-  ok('the voice channel reads flat or tense per moment', /flat or tense/.test((await text('[data-testid=moment-row]')) ?? ''))
-  await click('[data-testid=lens-hesitation]')
-  ok('the hesitation channel still counts marked, some and steady', /marked · \d+ some · \d+ steady/.test((await text('[data-testid=moment-row]')) ?? ''))
+  await click('[data-testid=lens-speech]')
+  ok('the Speech group shows certainty per moment and says the tone in the panel', /Tone: \d+ tense/.test((await text('[data-testid=moment-panel]')) ?? ''))
+  ok('the Speech group still counts marked, some and steady', /marked · \d+ some · \d+ steady/.test((await text('[data-testid=moment-row]')) ?? ''))
 
   // ── Tensions: the new kind, faces on clips, the right numbers ──
   await b.goto(`${root}/signals?tab=tensions`); await b.waitFor('Tensions'); await b.sleep(500)

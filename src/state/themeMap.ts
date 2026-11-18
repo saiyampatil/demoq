@@ -69,9 +69,9 @@ export function bubblesOf(doc: CodebookDoc, basis: Basis, seg: Segment): Bubble[
     const people = new Set([...d.people].filter((p) => inSegment(seg, p)))
     if (!d.sig) return []
     // Everyone: A2's profile as it is. A segment: A2's roll-up over that segment's people.
-    const rollup: Rollup = seg === 'all' ? d.sig : rollupPoints(d.sig.points.filter((p) => segmentOf(p.participantId) === seg), doc)
-    const read = rollup.points.length
-    const strong = rollup.points.filter((p) => isStrong(p, doc)).length
+    const rollup: Rollup = seg === 'all' ? d.sig : { ...rollupPoints(d.sig.points.filter((p) => segmentOf(p.participantId) === seg), doc), strengthPoints: d.sig.strengthPoints.filter((p) => segmentOf(p.participantId) === seg) }
+    const read = rollup.strengthPoints.length
+    const strong = rollup.strengthPoints.filter((p) => isStrong(p, doc)).length
     const notEnough = read < THEME_MAP.minRead
     const share = notEnough ? undefined : strong / read
     const n = seg === 'all' && d.kind === 'theme' ? numbersOf(d.key, { doc, basis })!.n : people.size
@@ -129,7 +129,7 @@ export function summaryOf(bubbles: Bubble[]): string {
 /** What a step of the tour says about a bubble: its name, its people, and A2's fit, using only the bubble's own numbers. */
 export function tourCaption(b: Bubble, seg: Segment): string {
   const fit: FitSplit = b.rollup.fit
-  const tail = b.verdict === 'Consistent' ? 'Delivery matched the words.' : b.verdict === 'Conflicting' ? `Words and delivery pulled apart in ${fit.partly + fit.doesnt} of ${fit.n} read.` : b.verdict === 'Mixed' ? `Words and delivery partly pulled apart in ${fit.partly + fit.doesnt} of ${fit.n} read.` : 'Too few read to say.'
+  const tail = b.verdict === 'Consistent' ? 'Delivery matched the words.' : b.verdict === 'Conflicting' ? `Words and delivery pulled apart in ${fit.against} of ${fit.n} read${fit.uncertain ? `, ${fit.uncertain} uncertain` : ''}.` : b.verdict === 'Mixed' ? `Words and delivery partly pulled apart in ${fit.against} of ${fit.n} read${fit.uncertain ? `, ${fit.uncertain} uncertain` : ''}.` : 'Too few read to say.'
   return `${b.name}. ${b.n} of ${b.of} ${segmentNoun(seg)}. ${tail}`
 }
 export const TOUR_END = 'That is every approved theme.'
@@ -159,7 +159,7 @@ export const headlineShort = (v: FitPattern) => (v === 'Consistent' ? 'Delivery 
 export const headline = (b: Bubble) => headlineOf(b.rollup)
 
 export type Quote = { excerpt: Excerpt; code: Code; reading: string }
-const TONE_WORDS: Record<string, string> = { Animated: 'Voice animated', Even: 'Voice even', Flat: 'Voice flat', Tense: 'Voice tense' }
+const TONE_WORDS: Record<string, string> = { Animated: 'Speech animated', Even: 'Speech even', Flat: 'Speech flat', Tense: 'Speech tense' }
 const HESITATION_WORDS: Record<string, string> = { 'Marked hesitation': 'Marked hesitation', 'Some hesitation': 'Some hesitation', Steady: 'No hesitation' }
 
 /** The supporting quotes of a bubble in a segment, most confident first, each with its delivery reading in plain words. */

@@ -202,13 +202,13 @@ export function strengthFor(people: number, someNotAsked: boolean): Strength {
 }
 
 /** One A2 signal ticked for a finding, per channel. */
-export type SignalLine = { channel: 'Hesitation' | 'Face' | 'Voice' | 'Words vs delivery'; text: string; /** Emotion and voice are off in the client version until cleared. */ emotionVoice: boolean }
+export type SignalLine = { channel: 'Speech' | 'Face' | 'Words vs delivery'; text: string; /** Emotion and voice are off in the client version until cleared. */ emotionVoice: boolean }
 /** What "How people sounded" shows for a finding: a theme's profile from A2, or a code's signals ticked at code level (older data). */
 export type FindingSignal = { id: string; name: string; kind: 'theme' | 'code'; lines: SignalLine[] }
 
 /** The channel lines for a theme or a code. The words-vs-delivery line is the theme's headline sentence when there is one. */
 function signalLines(s: Pick<Rollup, 'pattern' | 'marked' | 'people' | 'emotions' | 'points' | 'fit'>, headline?: string): SignalLine[] {
-  const lines: SignalLine[] = [{ channel: 'Hesitation', text: `${s.pattern}: marked hesitation in ${s.marked} of ${s.people} people`, emotionVoice: false }]
+  const lines: SignalLine[] = [{ channel: 'Speech', text: `Certainty, ${s.pattern.toLowerCase()}: marked hesitation in ${s.marked} of ${s.people} people`, emotionVoice: false }]
   const tops = topEmotions(s.emotions)
   if (tops.length && s.emotions.read >= 3) {
     const n = s.emotions.counts[tops[0]]
@@ -218,9 +218,9 @@ function signalLines(s: Pick<Rollup, 'pattern' | 'marked' | 'people' | 'emotions
   }
   const tones = toneSplit(s.points)
   const tone = TONES.reduce((best, t) => (tones.counts[t] > tones.counts[best] ? t : best), TONES[0])
-  if (tones.n >= 3 && tone !== 'Even' && tones.counts[tone] * 2 >= tones.n) lines.push({ channel: 'Voice', text: `Voice mostly ${tone.toLowerCase()} for ${tones.counts[tone]} of ${tones.n}`, emotionVoice: true })
+  if (tones.n >= 3 && tone !== 'Even' && tones.counts[tone] * 2 >= tones.n) lines.push({ channel: 'Speech', text: `Tone mostly ${tone.toLowerCase()} for ${tones.counts[tone]} of ${tones.n}`, emotionVoice: true })
   if (headline) lines.push({ channel: 'Words vs delivery', text: headline, emotionVoice: true })
-  else if (s.fit.pattern === 'Mixed' || s.fit.pattern === 'Conflicting') lines.push({ channel: 'Words vs delivery', text: `${s.fit.pattern}: delivery did not fit the words for ${s.fit.doesnt + s.fit.partly} of ${s.fit.n} people`, emotionVoice: true })
+  else if (s.fit.pattern === 'Mixed' || s.fit.pattern === 'Conflicting') lines.push({ channel: 'Words vs delivery', text: `${s.fit.pattern}: speech or face pulled against the words for ${s.fit.against} of ${s.fit.n} people${s.fit.uncertain ? `, ${s.fit.uncertain} uncertain` : ''}`, emotionVoice: true })
   return lines
 }
 

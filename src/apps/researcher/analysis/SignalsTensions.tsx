@@ -23,7 +23,7 @@ const TABS = [
 ] as const
 type Tab = (typeof TABS)[number]['key']
 
-/** A2: how they reacted (face, voice, hesitation), and where that doesn't match what they said. Read on the codes accepted in the codebook. */
+/** A2: how they reacted (speech and face), and where that doesn't match what they said. Read on the codes accepted in the codebook. */
 export function SignalsTensions() {
   const { studyId, study, review, me, accepted, doc, basis, stale, ready } = useAnalysis()
   const navigate = useNavigate()
@@ -51,7 +51,7 @@ export function SignalsTensions() {
 
   const header = (
     <>
-      <PageHeader id="A2" title="Emotion & behaviour" description="How people reacted, and where that doesn’t match what they said. Faces, voices and hesitation are described, never used to exclude a session, and a reading you think is wrong can be corrected." actions={ready && doc && loaded && !failed ? <ExploreControl doc={doc} basis={basis} me={me} studyId={studyId} /> : undefined} />
+      <PageHeader id="A2" title="Emotion & behaviour" description="How people reacted, and where that doesn’t match what they said. Speech and faces are described, never used to exclude a session, and a reading you think is wrong can be corrected." actions={ready && doc && loaded && !failed ? <ExploreControl doc={doc} basis={basis} me={me} studyId={studyId} /> : undefined} />
       <AnalysisStepper studyId={studyId} current="signals" />
     </>
   )
@@ -191,7 +191,7 @@ function CoverageLine({ cov }: { cov: ReturnType<typeof coverage> }) {
     <div className="px-1 text-sm text-graphite" data-testid="coverage">
       <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
         <span>
-          Voice and hesitation measured on <span className="font-medium text-ink tabular-nums">{cov.sessions}</span> accepted sessions. Faces read for <span className="font-medium text-ink tabular-nums">{cov.video}</span>
+          Speech (tone and certainty) measured on <span className="font-medium text-ink tabular-nums">{cov.sessions}</span> accepted sessions. Faces read for <span className="font-medium text-ink tabular-nums">{cov.video}</span>
           {cov.audioOnly > 0 && ` (${cov.audioOnly} audio-only, so no face reading, never counted as neutral)`}. {cov.excluded > 0 && `${cov.excluded} excluded in Review are left out.`}
         </span>
         <button type="button" aria-expanded={open} onClick={() => setOpen((x) => !x)} data-testid="how-faces" className="inline-flex h-5 items-center rounded-xs border border-dashed border-mist-strong px-1.5 text-xs font-medium hover:bg-haze">

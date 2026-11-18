@@ -112,7 +112,7 @@ try {
   ok('on every row the four groups add up to the faces read', sums.length === rowsNow.length && sums.every((m) => +m[1] + +m[2] + +m[3] + +m[4] === +m[5]), sums.map((m) => m[0]).join(' | '))
 
   // ── 2. Ties: a tie is said as a tie ──
-  await click('[data-testid=lens-hesitation]')
+  await click('[data-testid=lens-speech]')
   const hesRows = await all('[data-testid=moment-row]')
   const marked = hesRows.map((r) => ({ n: Number(r.match(/(\d+) marked/)?.[1]), of: Number(r.match(/steady of (\d+)/)?.[1]), tagged: /Most hesitation/.test(r), label: r.slice(0, 40) }))
   const top = Math.max(...marked.filter((m) => m.of >= 10).map((m) => m.n))
@@ -129,7 +129,8 @@ try {
   // ── 4. Words vs delivery: the rule is on screen, and it is the rule the code uses ──
   const rule = await text('[data-testid=fit-rule]')
   const rl = await withMod(`(async()=>{const e=await window.__mod('/src/state/emotion');return e.FIT_RULE})()`)
-  ok('the Conflicting rule is stated beside the Words vs delivery column', /Conflicting: 4 in 10 or more/.test(rule ?? '') && /Mixed: 3 in 10 or more/.test(rule ?? '') && rl.conflicting === 0.4 && rl.mixed === 0.3, rule)
+  const cfg = await withMod(`(async()=>{const c=await window.__mod('/src/config/delivery');return {rule:c.DELIVERY_RULE,min:c.DELIVERY.minPeople,majority:c.DELIVERY.majority}})()`)
+  ok('the rule under the table is the rule in config: over half, speech, face, counted once, uncertain', Object.values(cfg.rule).every((t) => (rule ?? '').includes(t)) && rl.min === cfg.min && rl.majority === 0.5 && /more than half/.test(rule ?? '') && /Uncertain/.test(rule ?? ''), rule)
   await click('[data-testid=lens-emotion]')
   const rowCount = (await all('[data-testid=signal-row]')).length
   let verdicts = 0
@@ -139,15 +140,16 @@ try {
     await b.sleep(120)
     const chip = (await b.evaluate(`document.querySelectorAll('[data-testid=fit-cell]')[${i}].innerText.trim()`)) ?? ''
     const verdict = (await text('[data-testid=fit-verdict]')) ?? ''
-    const m = verdict.match(/For (\d+) of (\d+),.*?(?:\((\d+) clearly\))?\./)
+    const m = verdict.match(/For (\d+) of (\d+),/)
     const clean = verdict.match(/fits the words for all (\d+)/)
-    if (!m && !clean) continue
+    const unOnly = verdict.match(/Neither speech nor face pulled against the words\. (\d+) of (\d+) uncertain/)
+    if (!m && !clean && !unOnly) continue
     verdicts++
-    const n = m ? +m[2] : +clean[1]
+    const n = m ? +m[2] : unOnly ? +unOnly[2] : +clean[1]
     const against = m ? +m[1] : 0
-    const doesnt = m && m[3] ? +m[3] : 0
-    const want = n < rl.min ? 'Too few to read' : doesnt / n >= rl.conflicting ? 'Conflicting' : against / n >= rl.mixed ? 'Mixed' : 'Consistent'
-    if (chip !== want) wrong.push(`${chip} should be ${want} (${against} of ${n}, ${doesnt} clearly)`)
+    const unc = Number(verdict.match(/(\d+) of \d+ uncertain/)?.[1] ?? 0)
+    const want = n < rl.min ? 'Too few to read' : against / n > rl.majority ? 'Conflicting' : (n - against - unc) / n > rl.majority ? 'Consistent' : 'Mixed'
+    if (chip !== want) wrong.push(`${chip} should be ${want} (${against} against, ${unc} uncertain, of ${n})`)
   }
   ok('every code’s Words vs delivery label follows the stated rule', verdicts >= 8 && wrong.length === 0, `${verdicts} checked: ${wrong.join('; ')}`)
 

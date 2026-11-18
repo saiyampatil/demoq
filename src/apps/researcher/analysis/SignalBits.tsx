@@ -184,11 +184,11 @@ const FIT_CHIP: Record<FitPattern, string> = {
   'No claim': 'border-dashed border-mist-strong bg-surface text-muted',
 }
 const FIT_HINT: Record<FitPattern, string> = {
-  Consistent: 'Face, voice and hesitation mostly match what the words claim',
-  Mixed: 'For some people, one channel or more pulled against the words',
-  Conflicting: 'For many people, how they said it clearly pulled against what they said',
+  Consistent: 'For more than half of the people, neither speech nor face pulled against what the words claim',
+  Mixed: 'Neither more than half pulled against the words nor more than half matched. Includes people who were uncertain',
+  Conflicting: 'For more than half of the people, speech or face pulled against what they said',
   'Too few to read': 'Fewer than three people, too few to read a pattern',
-  'No claim': 'These words state a fact or a preference, so there is nothing for the face or voice to disagree with',
+  'No claim': 'These words state a fact or a preference, so there is nothing for the speech or face to disagree with',
 }
 
 export function FitChip({ pattern }: { pattern: FitPattern }) {
@@ -199,12 +199,12 @@ export function FitChip({ pattern }: { pattern: FitPattern }) {
   )
 }
 
-const ONE_FIT: Record<Fit, string> = { Fits: 'border-mist-strong bg-haze text-graphite', Partly: 'border-pending-line bg-pending-bg text-pending-fg', 'Doesn’t fit': 'border-pending-fg bg-pending-fg text-white' }
+const ONE_FIT: Record<Fit, string> = { Matches: 'border-mist-strong bg-haze text-graphite', Uncertain: 'border-dashed border-pending-line bg-surface text-pending-fg', 'Pulls against': 'border-pending-fg bg-pending-fg text-white' }
 
 export function OneFitChip({ fit, against }: { fit: Fit; against: string[] }) {
   return (
-    <span className={cn(chipBase, ONE_FIT[fit])} title={against.length ? `Against the words: ${against.join(', ').toLowerCase()}` : 'Matches the words'}>
-      {fit === 'Fits' ? 'Fits the words' : fit === 'Partly' ? 'Partly fits' : 'Doesn’t fit the words'}
+    <span className={cn(chipBase, ONE_FIT[fit])} title={against.length ? `Against the words: ${against.join(', ').toLowerCase()}` : fit === 'Uncertain' ? 'Neither speech nor face pulls against the words, but certainty is marked hesitation' : 'Matches the words'}>
+      {fit === 'Matches' ? 'Matches the words' : fit === 'Uncertain' ? 'Uncertain' : 'Pulls against the words'}
     </span>
   )
 }
@@ -282,19 +282,16 @@ export function PointCard({ point: p, ctx, context, reasons }: { point: Point; c
             </span>
           )}
         </Row>
-        <Row label="Voice">
-          <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <Row label="Speech">
+          <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs tabular-nums" data-testid="speech-reading" data-tone={p.voice.tone} data-band={p.band}>
             <ToneChip tone={p.voice.tone} />
+            <BandChip band={p.band} />
+            <span className="text-graphite" data-testid="speech-cell">{p.voice.tone} · {p.band === 'Marked hesitation' ? 'hesitated' : p.band === 'Some hesitation' ? 'some hesitation' : 'steady'}</span>
             <Tooltip content={p.voice.reason} focusable align="left">
-              <span className="text-xs text-graphite tabular-nums">
+              <span className="text-graphite">
                 {p.voice.pace} wpm <span className="text-muted">(usual {p.voice.usualPace})</span> · pitch {p.voice.pitch} st <span className="text-muted">(usual {p.voice.usualPitch})</span>
               </span>
             </Tooltip>
-          </span>
-        </Row>
-        <Row label="Hesitation">
-          <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs tabular-nums">
-            <BandChip band={p.band} />
             <span className="inline-flex items-center gap-1.5">
               {fact(signs.includes('delay'), `Delay ${p.facts.delaySec} s`)}
               <DelayBar delay={p.facts.delaySec} usual={p.usual} hot={signs.includes('delay')} />
@@ -308,7 +305,7 @@ export function PointCard({ point: p, ctx, context, reasons }: { point: Point; c
       {reasons && (
         <p className="mt-1 text-xs text-graphite" data-testid="point-reason">
           <span className="font-medium">Why these readings: </span>
-          {p.reason} Voice: {p.voice.reason}
+          {p.reason} Tone: {p.voice.reason}
         </p>
       )}
       {p.stance && (

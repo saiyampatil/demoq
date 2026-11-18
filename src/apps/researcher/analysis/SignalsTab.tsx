@@ -12,15 +12,14 @@ import type { CodebookCtx } from './codebookCtx'
 import { ByTheme } from './ThemeSignals'
 
 export type View = 'theme' | 'code' | 'moment'
-/** Which channel the table reads. Words vs delivery is always shown, because it is the one that needs all three. */
-export type Lens = 'hesitation' | 'emotion' | 'voice'
+/** Which group the table reads: Face (expression, video only) or Speech (tone and certainty, everyone). Words vs delivery is always shown. */
+export type Lens = 'emotion' | 'speech'
 /** What the Signals tab is showing: kept by the page, so other places (a tension, a "what stands out" line) can open a code or a moment. */
 export type SignalFocus = { view: View; lens?: Lens; code?: string; moment?: string; theme?: string }
 
 const LENSES: { key: Lens; label: string; hint: string }[] = [
-  { key: 'emotion', label: 'Emotion', hint: 'What showed on the face, among people with video' },
-  { key: 'voice', label: 'Voice', hint: 'Pace, pitch and loudness against each person’s usual' },
-  { key: 'hesitation', label: 'Hesitation', hint: 'Answer delay, pauses and fillers' },
+  { key: 'emotion', label: 'Face', hint: 'What showed on the face, among people with video' },
+  { key: 'speech', label: 'Speech', hint: 'Tone, and how sure they sounded: pace, pitch, delay, pauses and fillers, for everyone' },
 ]
 
 /** How faces are read, in one place: described first, then an interpretation PulseAI offers and the Researcher can correct. */
@@ -71,12 +70,12 @@ export function SignalsTab({ ctx, focus, setFocus, tensions, onOpenTensions, onO
                   onClick={() =>
                     it.kind === 'tensions'
                       ? onOpenTensions()
-                      : setFocus(it.kind === 'code' ? { view: 'code', lens: it.lens === 'hesitation' ? 'hesitation' : 'emotion', code: it.target } : { view: 'moment', lens: it.lens === 'hesitation' ? 'hesitation' : 'emotion', moment: it.target })
+                      : setFocus(it.kind === 'code' ? { view: 'code', lens: it.lens === 'speech' ? 'speech' : 'emotion', code: it.target } : { view: 'moment', lens: it.lens === 'speech' ? 'speech' : 'emotion', moment: it.target })
                   }
                   className="group flex w-full items-center gap-3 px-5 py-2 text-left text-sm hover:bg-haze"
                 >
                   <span aria-hidden="true" className={cn('size-2 shrink-0 rounded-full', it.kind === 'tensions' ? 'bg-pending-fg' : it.lens === 'emotion' ? 'bg-emo-delight' : it.lens === 'fit' ? 'bg-emo-doubt' : 'bg-iris-600')} />
-                  <span className="w-20 shrink-0 text-xs text-graphite">{it.kind === 'tensions' ? 'Tensions' : it.lens === 'emotion' ? 'Emotion' : it.lens === 'fit' ? 'Words vs delivery' : 'Hesitation'}</span>
+                  <span className="w-32 shrink-0 text-xs text-graphite">{it.kind === 'tensions' ? 'Tensions' : it.lens === 'emotion' ? 'Emotion' : it.lens === 'fit' ? 'Words vs delivery' : it.kind === 'moment' ? 'Speech · certainty' : 'Speech'}</span>
                   <span className="min-w-0 flex-1">
                     <span className="font-medium">{it.lead}.</span> <span className="text-graphite">{it.detail}</span>
                   </span>
@@ -114,10 +113,10 @@ export function SignalsTab({ ctx, focus, setFocus, tensions, onOpenTensions, onO
               ))}
             </div>
             <p className="min-w-0 flex-1 text-sm text-graphite">{LENSES.find((l) => l.key === lens)!.hint}.</p>
-            {lens === 'emotion' ? <EmotionLegend /> : lens === 'voice' ? <ToneLegend /> : <BandLegend />}
+            {lens === 'emotion' ? <EmotionLegend /> : <><ToneLegend /><BandLegend /></>}
           </>
         ) : (
-          <p className="min-w-0 flex-1 text-sm text-graphite">Each theme with its face, voice and hesitation together, and whether delivery fit the words.</p>
+          <p className="min-w-0 flex-1 text-sm text-graphite">Each theme with its speech and face together, and whether delivery fit the words.</p>
         )}
       </div>
       {view !== 'theme' && lens === 'emotion' && <ValenceKey />}
@@ -150,17 +149,6 @@ export function useArrows(ids: string[], current: string | undefined, pick: (id:
 /** The channel column of a code row. */
 function LensCell({ r, lens }: { r: CodeSignal; lens: Lens }) {
   if (!r.readable) return <PatternChip pattern="Too few to read" />
-  if (lens === 'hesitation')
-    return (
-      <>
-        <span className="w-12 shrink-0">
-          <BandBar split={{ counts: { Steady: r.steady, 'Some hesitation': r.some, 'Marked hesitation': r.marked }, n: r.people }} />
-        </span>
-        <span className="w-[10.5rem] shrink-0 text-xs text-graphite tabular-nums" title="Marked hesitation, of the people who said it">
-          <span className="font-semibold text-ink">{r.marked}</span> of {r.people} marked
-        </span>
-      </>
-    )
   if (lens === 'emotion')
     return (
       <>
@@ -175,11 +163,12 @@ function LensCell({ r, lens }: { r: CodeSignal; lens: Lens }) {
   const off = r.tones.counts.Flat + r.tones.counts.Tense
   return (
     <>
-      <span className="w-12 shrink-0">
+      <span className="w-12 shrink-0" data-testid="speech-bars">
         <ToneBar split={r.tones} />
+        <BandBar split={{ counts: { Steady: r.steady, 'Some hesitation': r.some, 'Marked hesitation': r.marked }, n: r.people }} />
       </span>
-      <span className="w-[10.5rem] shrink-0 text-xs text-graphite tabular-nums" title="Flat or tense, of the people who said it">
-        <span className="font-semibold text-ink">{off}</span> of {r.tones.n} flat or tense
+      <span className="w-[10.5rem] shrink-0 text-xs text-graphite tabular-nums" title="Tone: flat or tense. Certainty: marked hesitation. Both of the people who said it">
+        <span className="font-semibold text-ink">{off}</span> flat or tense · <span className="font-semibold text-ink">{r.marked}</span> hesitated <span className="text-muted">of {r.people}</span>
       </span>
     </>
   )
@@ -193,7 +182,7 @@ function ByCode({ ctx, lens, signals, focus, setFocus, tensions, onOpenTension }
   const groups = useMemo(() => signalGroups(doc, notableOnly ? signals.filter((s) => s.notable) : signals), [doc, signals, notableOnly])
   const flat = groups.flatMap((g) => g.rows)
   // Opens on the code where words and delivery disagree most, then the most hesitant, so the first thing seen is worth seeing.
-  const strongest = [...flat].filter((r) => r.notable).sort((a, b) => (b.fit.doesnt + b.fit.partly) / (b.fit.n || 1) - (a.fit.doesnt + a.fit.partly) / (a.fit.n || 1) || b.marked / b.people - a.marked / a.people)[0]
+  const strongest = [...flat].filter((r) => r.notable).sort((a, b) => (b.fit.against) / (b.fit.n || 1) - (a.fit.against) / (a.fit.n || 1) || b.marked / b.people - a.marked / a.people)[0]
   const selected = flat.find((r) => r.code.id === focus.code) ?? strongest ?? flat[0]
   const arrows = useArrows(flat.map((r) => r.code.id), selected?.code.id, (id) => setFocus({ ...focus, code: id }), 'data-code')
 
@@ -230,13 +219,13 @@ function ByCode({ ctx, lens, signals, focus, setFocus, tensions, onOpenTension }
               <span className="flex-1">Code</span>
               <span className="w-12">Said by</span>
               <span className="w-[14.25rem]">{LENSES.find((l) => l.key === lens)!.label}</span>
-              <span className="w-[5.75rem]" title={`Do the face, voice and hesitation match what the words claim? ${FIT_RULE_TEXT}`}>
+              <span className="w-[5.75rem]" title={`Do speech and face match what the words claim? ${FIT_RULE_TEXT}`}>
                 Words vs delivery
               </span>
               <span className="w-14 text-center">Report</span>
             </div>
             <p className="border-b border-mist px-4 py-1.5 text-xs text-graphite" data-testid="fit-rule">
-              <span className="font-medium text-ink">Words vs delivery.</span> {FIT_RULE_TEXT}
+              <span className="font-medium text-ink">How it’s decided.</span> {FIT_RULE_TEXT}
             </p>
             {groups.map((g) => {
               const roll = g.theme ? themeRollup(doc, allGroups.find((x) => x.id === g.id)?.rows ?? g.rows) : undefined
@@ -306,10 +295,10 @@ export function ChannelRow({ label, bar, children, testid }: { label: string; ba
 
 /** People in the panel, ordered for the channel being read: the strongest reading first. */
 function orderFor(points: Point[], lens: Lens, ctx: CodebookCtx) {
-  if (lens === 'hesitation') return points
-  if (lens === 'voice') {
+  if (lens === 'speech') {
     const rank = { Tense: 0, Flat: 1, Animated: 2, Even: 3 } as const
-    return [...points].sort((a, b) => rank[a.voice.tone] - rank[b.voice.tone])
+    const cert = { 'Marked hesitation': 0, 'Some hesitation': 1, Steady: 2 } as const
+    return [...points].sort((a, b) => rank[a.voice.tone] - rank[b.voice.tone] || cert[a.band] - cert[b.band])
   }
   return [...points].sort((a, b) => faceWeight(faceOf(b, ctx.doc)) - faceWeight(faceOf(a, ctx.doc)))
 }
@@ -320,7 +309,7 @@ function CodePanel({ s, ctx, lens, tensions, onUse, onOpenTension }: { s: CodeSi
   const e = s.emotions
   const off = s.tones.counts.Flat + s.tones.counts.Tense
   const stance = s.points[0]?.stance
-  const against = s.fit.doesnt + s.fit.partly
+  const against = s.fit.against
   const tops = topEmotions(e)
   return (
     <section aria-label={`Signals for ${s.code.name}`} data-testid="signal-panel" className="flex max-h-[calc(100vh-8rem)] flex-col rounded-md border border-mist bg-surface">
@@ -345,11 +334,11 @@ function CodePanel({ s, ctx, lens, tensions, onUse, onOpenTension }: { s: CodeSi
                 <p className={cn('mb-2 rounded-sm px-3 py-2 text-sm', against ? 'bg-pending-bg text-pending-fg' : 'bg-haze text-graphite')} data-testid="fit-verdict">
                   {against ? (
                     <>
-                      <span className="font-semibold">For {against} of {s.fit.n},</span> the face, voice or hesitation pulled against the words
-                      {s.fit.doesnt > 0 && <> ({s.fit.doesnt} clearly)</>}.
+                      <span className="font-semibold">For {against} of {s.fit.n},</span> the speech or face pulled against the words.
+                      {s.fit.uncertain > 0 && <> {s.fit.uncertain} of {s.fit.n} uncertain.</>}
                     </>
                   ) : (
-                    <>How they said it fits the words for all {s.fit.n}.</>
+                    s.fit.uncertain > 0 ? <>Neither speech nor face pulled against the words. {s.fit.uncertain} of {s.fit.n} uncertain.</> : <>How they said it fits the words for all {s.fit.n}.</>
                   )}
                 </p>
               )}
@@ -382,19 +371,22 @@ function CodePanel({ s, ctx, lens, tensions, onUse, onOpenTension }: { s: CodeSi
                     </span>
                   )}
                 </ChannelRow>
-                <ChannelRow label="Voice" bar={<ToneBar split={s.tones} tall />}>
-                  <span className="font-semibold tabular-nums">
-                    Flat or tense for {off} of {s.tones.n}.
-                  </span>{' '}
-                  <span className="text-graphite">Animated {s.tones.counts.Animated}, even {s.tones.counts.Even}.</span>
+                <ChannelRow
+                  label="Speech"
+                  testid="channel-speech"
+                  bar={
+                    <span className="flex flex-col gap-1.5">
+                      <ToneBar split={s.tones} tall />
+                      <BandBar split={{ counts: { Steady: s.steady, 'Some hesitation': s.some, 'Marked hesitation': s.marked }, n: s.people }} tall />
+                    </span>
+                  }
+                >
+                  <span className="font-semibold tabular-nums">Tone: flat or tense for {off} of {s.tones.n}.</span> <span className="text-graphite">Animated {s.tones.counts.Animated}, even {s.tones.counts.Even}.</span>
+                  <span className="mt-1 block">
+                    <span className="font-semibold tabular-nums">Certainty: marked hesitation in {s.marked} of {s.people},</span> some in {s.some}. <span className="text-graphite tabular-nums">Median delay {delay} s, against a usual {usual} s.</span>
+                  </span>
                 </ChannelRow>
-                <ChannelRow label="Hesitation" bar={<BandBar split={{ counts: { Steady: s.steady, 'Some hesitation': s.some, 'Marked hesitation': s.marked }, n: s.people }} tall />}>
-                  <span className="font-semibold tabular-nums">
-                    Marked in {s.marked} of {s.people},
-                  </span>{' '}
-                  some in {s.some}. <span className="text-graphite tabular-nums">Median delay {delay} s, against a usual {usual} s.</span>
-                </ChannelRow>
-              </dl>
+</dl>
             </>
           ) : (
             <p className="py-1 text-sm">Only {plural(s.people, 'person')} said this, which is too few to read a pattern or put in the report. Their moments are below.</p>
@@ -428,7 +420,7 @@ function CodePanel({ s, ctx, lens, tensions, onUse, onOpenTension }: { s: CodeSi
         <section aria-label="People" className="px-5 py-4">
           <h3 className="text-sm font-semibold">
             Moments <span className="font-normal text-graphite tabular-nums">{s.points.length}</span>
-            <span className="ml-2 text-xs font-normal text-graphite">{lens === 'emotion' ? 'Strongest face first' : lens === 'voice' ? 'Tense and flat first' : 'Most hesitant first'}</span>
+            <span className="ml-2 text-xs font-normal text-graphite">{lens === 'emotion' ? 'Strongest face first' : 'Tense, flat and most hesitant first'}</span>
           </h3>
           <ul className="mt-2 divide-y divide-mist">
             {orderFor(s.points, lens, ctx).map((p) => (
@@ -461,22 +453,20 @@ function ByMoment({ ctx, lens, moments, focus, setFocus }: { ctx: CodebookCtx; l
   const arrows = useArrows(moments.map((m) => m.moment.id), selected.moment.id, (id) => setFocus({ ...focus, moment: id }), 'data-moment')
 
   const rowBar = (m: MomentSignal, which: 'all' | 'dog' | 'cat', tall?: boolean) =>
-    lens === 'emotion' ? <EmotionBar split={m.emotions[which]} tall={tall} /> : lens === 'voice' ? <ToneBar split={which === 'all' ? m.tones : m.tones} tall={tall} /> : <BandBar split={m[which]} tall={tall} />
+    lens === 'emotion' ? <EmotionBar split={m.emotions[which]} tall={tall} /> : <BandBar split={m[which]} tall={tall} />
 
   return (
     <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] xl:grid-cols-[minmax(0,1fr)_minmax(0,28rem)]">
       <section aria-label="Signals by moment" className="min-w-0 rounded-md border border-mist bg-surface">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-mist px-4 py-2.5">
-          <p className="text-sm text-graphite">{lens === 'emotion' ? 'Concepts are read in the first five seconds, before any explanation.' : 'Pick a moment to see each person.'}</p>
+          <p className="text-sm text-graphite">{lens === 'emotion' ? 'Concepts are read in the first five seconds, before any explanation.' : 'Speech · certainty: how sure each person sounded at each moment. Pick a moment to see each person.'}</p>
           <span className="flex-1" />
-          {lens !== 'voice' && (
-            <label className="flex h-8 items-center gap-2 rounded-sm border border-mist-strong px-2.5 text-sm text-graphite">
-              <input type="checkbox" checked={compare} onChange={(e) => setCompare(e.target.checked)} data-testid="compare-pets" className="accent-[var(--color-iris-600)]" />
-              Compare dog and cat owners
-            </label>
-          )}
+          <label className="flex h-8 items-center gap-2 rounded-sm border border-mist-strong px-2.5 text-sm text-graphite">
+            <input type="checkbox" checked={compare} onChange={(e) => setCompare(e.target.checked)} data-testid="compare-pets" className="accent-[var(--color-iris-600)]" />
+            Compare dog and cat owners
+          </label>
         </div>
-        {lens === 'hesitation' && mostIds.size > 1 && (
+        {lens === 'speech' && mostIds.size > 1 && (
           <p className="border-b border-mist px-4 py-2 text-sm" data-testid="tie-note">
             <span className="font-medium">Tied for the most hesitation:</span> <span className="text-graphite tabular-nums">{mostIds.size} moments, marked hesitation in {mostCount} people at each.</span>
           </p>
@@ -486,7 +476,7 @@ function ByMoment({ ctx, lens, moments, focus, setFocus }: { ctx: CodebookCtx; l
             <span className="font-medium">Tied for the most positive first reaction:</span> <span className="text-graphite">{positiveIds.size} concepts, the same share of faces read as delight or interest.</span>
           </p>
         )}
-        {compare && lens !== 'voice' && allSmall && (
+        {compare && allSmall && (
           <p className="border-b border-mist bg-pending-bg px-4 py-2 text-sm text-pending-fg" data-testid="compare-small">
             Too small to read: at every moment, one group has fewer than {SMALL_GROUP} people{lens === 'emotion' ? ' on video' : ''}. The counts are shown for reference only.
           </p>
@@ -494,9 +484,9 @@ function ByMoment({ ctx, lens, moments, focus, setFocus }: { ctx: CodebookCtx; l
         <div ref={arrows.ref} onKeyDown={arrows.onKeyDown}>
           <ul>
             {moments.map((m) => {
-              const isMost = lens === 'hesitation' && mostIds.has(m.moment.id)
+              const isMost = lens === 'speech' && mostIds.has(m.moment.id)
               const isWarmest = lens === 'emotion' && positiveIds.has(m.moment.id)
-              const showCompare = compare && lens !== 'voice'
+              const showCompare = compare
               return (
                 <li key={m.moment.id} className={cn('border-b border-mist border-l-2 last:border-b-0', m.moment.id === selected.moment.id ? 'border-l-iris-600 bg-iris-50' : 'border-l-transparent hover:bg-haze')}>
                   <button type="button" data-moment={m.moment.id} onClick={() => setFocus({ ...focus, moment: m.moment.id })} aria-current={m.moment.id === selected.moment.id ? 'true' : undefined} data-testid="moment-row" className="block w-full px-4 py-3 text-left">
@@ -554,12 +544,6 @@ function MomentCounts({ m, lens, which }: { m: MomentSignal; lens: Lens; which: 
       </span>
     )
   }
-  if (lens === 'voice')
-    return (
-      <span className={cls}>
-        <span className="font-semibold text-ink">{m.tones.counts.Tense + m.tones.counts.Flat}</span> flat or tense · {m.tones.counts.Animated} animated <span className="text-muted">of {m.tones.n}</span>
-      </span>
-    )
   const s = m[which]
   return (
     <span className={cls}>
@@ -582,15 +566,10 @@ function MomentPanel({ m, ctx, lens }: { m: MomentSignal; ctx: CodebookCtx; lens
     tail = m.points.filter((p) => !read.includes(p))
     leadTitle = 'Faces read'
     tailLabel = `${tail.length} with no face reading`
-  } else if (lens === 'voice') {
-    lead = m.points.filter((p) => p.voice.tone === 'Tense' || p.voice.tone === 'Flat')
-    tail = m.points.filter((p) => !lead.includes(p))
-    leadTitle = 'Flat or tense'
-    tailLabel = `${tail.length} animated or even`
   } else {
     lead = m.points.filter((p) => p.band !== 'Steady')
     tail = m.points.filter((p) => p.band === 'Steady')
-    leadTitle = 'Showed hesitation'
+    leadTitle = 'Speech · showed hesitation'
     tailLabel = `${tail.length} steady`
   }
   const e = m.emotions.all
@@ -626,18 +605,14 @@ function MomentPanel({ m, ctx, lens }: { m: MomentSignal; ctx: CodebookCtx; lens
                   </p>
                 )}
               </>
-            ) : lens === 'voice' ? (
-              <>
-                <ToneBar split={m.tones} tall />
-                <p className="mt-1.5 text-sm tabular-nums">
-                  <span className="font-semibold">{m.tones.counts.Tense}</span> tense, {m.tones.counts.Flat} flat, {m.tones.counts.Animated} animated, {m.tones.counts.Even} even, of {m.tones.n}
-                </p>
-              </>
             ) : (
               <>
                 <BandBar split={m.all} tall />
                 <p className="mt-1.5 text-sm tabular-nums">
                   <span className="font-semibold">{m.all.counts['Marked hesitation']}</span> marked, {m.all.counts['Some hesitation']} some, {m.all.counts.Steady} steady, of {m.all.n} people asked
+                </p>
+                <p className="mt-1 text-xs text-graphite tabular-nums" data-testid="moment-tone">
+                  Tone: {m.tones.counts.Tense} tense, {m.tones.counts.Flat} flat, {m.tones.counts.Animated} animated, {m.tones.counts.Even} even.
                 </p>
               </>
             )}

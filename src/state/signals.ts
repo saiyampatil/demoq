@@ -431,7 +431,7 @@ export function themeRollup(doc: CodebookDoc, rows: CodeSignal[]): ThemeRollup |
 // ─── by theme: the profile of a theme ───────────────────────────────────────
 
 /** How many of the people with a claim had each channel against the words, for one side of the words. */
-export type StanceGap = { n: number; Hesitation: number; Face: number; Voice: number; noVideo: number }
+export type StanceGap = { n: number; Speech: number; Face: number; noVideo: number }
 
 /**
  * One theme's people, rolled up with the same rules as a code. Each person counts once, at the quote where their
@@ -440,6 +440,8 @@ export type StanceGap = { n: number; Hesitation: number; Face: number; Voice: nu
 export type Rollup = {
   people: number
   points: Point[]
+  /** One point per person chosen for reaction strength (Theme map colour), independent of the verdict rule. */
+  strengthPoints: Point[]
   emotions: EmotionSplit
   tones: ToneSplit
   marked: number
@@ -456,10 +458,33 @@ export type Rollup = {
   negative: StanceGap
 }
 
-const FIT_RANK = { Fits: 1, Partly: 2, 'Doesn’t fit': 3 } as const
-const emptyGap = (): StanceGap => ({ n: 0, Hesitation: 0, Face: 0, Voice: 0, noVideo: 0 })
+const FIT_RANK = { Matches: 1, Uncertain: 2, 'Pulls against': 3 } as const
+const emptyGap = (): StanceGap => ({ n: 0, Speech: 0, Face: 0, noVideo: 0 })
 
-/** One point per person: where their delivery fit their words least, then where they hesitated most. */
+/**
+ * The moment that stands for a person's reaction strength in the Theme map. This is the selection used before delivery was grouped into Speech
+ * and Face, kept as it was so the strength colours do not move: where the most of face (clear), voice and hesitation went against a positive
+ * or negative claim, then where they hesitated most. It plays no part in the verdict.
+ */
+function strengthRank(p: Point, doc: CodebookDoc): number {
+  if (!p.stance || p.stance === 'Neutral') return bandRank(p.band)
+  const face = faceOf(p, doc)
+  const felt = face?.emotion ? VALENCE[face.emotion] : undefined
+  const faceAgainst = !!felt && face!.reading.intensity !== 'Low' && ((p.stance === 'Positive' && felt === 'Negative') || (p.stance === 'Negative' && felt === 'Positive'))
+  const n = (faceAgainst ? 1 : 0) + (p.stance === 'Positive' && (p.voice.tone === 'Flat' || p.voice.tone === 'Tense') ? 1 : 0) + (p.stance === 'Positive' && p.band === 'Marked hesitation' ? 1 : 0)
+  const rank = n >= 2 || (faceAgainst && face!.reading.intensity === 'High') ? 3 : n === 1 ? 2 : 1
+  return rank * 10 + bandRank(p.band)
+}
+export function onePerPersonForStrength(points: Point[], doc: CodebookDoc): Point[] {
+  const byPerson = new Map<string, Point>()
+  points.forEach((p) => {
+    const cur = byPerson.get(p.participantId)
+    if (!cur || strengthRank(p, doc) > strengthRank(cur, doc)) byPerson.set(p.participantId, p)
+  })
+  return [...byPerson.values()]
+}
+
+/** One point per person, for the verdict: where their delivery pulled against their words, then where they were uncertain, then where they hesitated most. */
 export function onePerPerson(points: Point[], doc: CodebookDoc): Point[] {
   const score = (p: Point) => {
     const f = fitOf(p, faceOf(p, doc)).fit
@@ -496,6 +521,7 @@ export function rollupPoints(all: Point[], doc: CodebookDoc): Rollup {
   return {
     people: points.length,
     points,
+    strengthPoints: onePerPersonForStrength(all, doc),
     emotions: emotionSplit(points, doc),
     tones: toneSplit(points),
     marked,
@@ -524,17 +550,17 @@ export function stanceSummary(r: Pick<Rollup, 'stances'>): { short: string; long
 }
 
 /** What the people did against their words, as a phrase that follows "people argued for it, but" or "also". */
-const AGAINST: Record<'positive' | 'negative', Partial<Record<'Hesitation' | 'Face' | 'Voice', string>>> = {
-  positive: { Hesitation: 'hesitated as they said it', Face: 'had faces that read as doubt or frustration', Voice: 'sounded flat or tense' },
-  negative: { Face: 'had faces that read as delight or interest as they said it' },
+const AGAINST: Record<'positive' | 'negative', Partial<Record<'Speech' | 'Face', string>>> = {
+  positive: { Speech: 'sounded flat or tense', Face: 'had faces that read as doubt or frustration' },
+  negative: { Speech: 'sounded tense', Face: 'had faces that read as delight or interest as they said it' },
 }
 
 /** The gap, named in plain words and counted in people: "4 of 7 people argued for it, but hesitated as they said it." */
 function gapSentence(g: StanceGap, kind: 'positive' | 'negative', lead: 'but' | 'still', short = false): string {
   if (!g.n) return ''
-  const clauses = (['Hesitation', 'Face', 'Voice'] as const)
+  const clauses = (['Speech', 'Face'] as const)
     .map((c) => ({ k: g[c], c, text: AGAINST[kind][c] }))
-    .filter((x): x is { k: number; c: 'Hesitation' | 'Face' | 'Voice'; text: string } => x.k > 0 && !!x.text)
+    .filter((x): x is { k: number; c: 'Speech' | 'Face'; text: string } => x.k > 0 && !!x.text)
     .sort((a, b) => b.k - a.k)
   if (!clauses.length) return ''
   const verb = kind === 'positive' ? 'argued for it' : 'complained about it'
@@ -550,10 +576,10 @@ function gapSentence(g: StanceGap, kind: 'positive' | 'negative', lead: 'but' | 
 /** `short` keeps only the lead: what a row shows. The full sentence, with every channel and who was left out, is the panel's. */
 export function headlineOf(r: Rollup, short = false): string {
   if (r.verdict === 'Too few to read') return `Only ${plural(r.people, 'person', 'people')} said this, too few to read a pattern.`
-  if (r.fit.n === 0) return 'These words state a fact or a preference, so there is no claim for the face, voice or hesitation to disagree with.'
+  if (r.fit.n === 0) return 'These words state a fact or a preference, so there is no claim for the speech or face to disagree with.'
   const gaps = [gapSentence(r.positive, 'positive', r.verdict === 'Consistent' ? 'still' : 'but', short), gapSentence(r.negative, 'negative', r.verdict === 'Consistent' ? 'still' : 'but', short)].filter(Boolean)
   if (r.verdict === 'Consistent' || r.verdict === 'No claim') return [`Delivery matched the words for ${r.fit.fits} of ${r.fit.n} people.`, ...(short ? [] : gaps)].join(' ')
-  return gaps.length ? gaps.join(' ') : `Delivery pulled against the words for ${r.fit.partly + r.fit.doesnt} of ${r.fit.n} people.`
+  return gaps.length ? gaps.join(' ') : `Delivery pulled against the words for ${r.fit.against} of ${r.fit.n} people.`
 }
 
 export type ThemeSignal = Rollup & {
@@ -635,7 +661,7 @@ export function themeSignals(doc: CodebookDoc, basis: Basis, signals: CodeSignal
 // ─── what stands out ────────────────────────────────────────────────────────
 
 /** A pattern written as a sentence, with where to see it. The first thing the Researcher reads. */
-export type Standout = { id: string; kind: 'code' | 'moment' | 'tensions'; lens: 'hesitation' | 'emotion' | 'fit'; target?: string; lead: string; detail: string }
+export type Standout = { id: string; kind: 'code' | 'moment' | 'tensions'; lens: 'speech' | 'emotion' | 'fit'; target?: string; lead: string; detail: string }
 
 /** A moment's name without the "First reaction:" lead, for lists. */
 export const shortMoment = (m: Moment) => m.label.replace(/^First reaction: /, '')
@@ -676,22 +702,22 @@ export function standouts(signals: CodeSignal[], moments: MomentSignal[], toRevi
     }
   }
   // Where the words and the delivery disagree most.
-  const conflict = signals.filter((s) => s.fit.pattern === 'Conflicting' || s.fit.pattern === 'Mixed').sort((a, b) => (b.fit.doesnt + b.fit.partly) / b.fit.n - (a.fit.doesnt + a.fit.partly) / a.fit.n)[0]
+  const conflict = signals.filter((s) => s.fit.pattern === 'Conflicting' || s.fit.pattern === 'Mixed').sort((a, b) => (b.fit.against) / b.fit.n - (a.fit.against) / a.fit.n)[0]
   if (conflict)
-    out.push({ id: `fit-${conflict.code.id}`, kind: 'code', lens: 'fit', target: conflict.code.id, lead: conflict.code.name, detail: `Said by ${conflict.people} of ${conflict.of}. For ${conflict.fit.doesnt + conflict.fit.partly} of ${conflict.fit.n}, the face, voice or hesitation didn’t match the words.` })
+    out.push({ id: `fit-${conflict.code.id}`, kind: 'code', lens: 'fit', target: conflict.code.id, lead: conflict.code.name, detail: `Said by ${conflict.people} of ${conflict.of}. For ${conflict.fit.against} of ${conflict.fit.n}, the speech or face pulled against the words${conflict.fit.uncertain ? `, and ${conflict.fit.uncertain} were uncertain` : ''}.` })
   // The most hesitant code that isn't already there.
   const hes = signals.filter((s) => s.readable && (s.pattern === 'Mixed' || s.pattern === 'Often hesitant') && s.code.id !== conflict?.code.id).sort((a, b) => b.marked / b.people - a.marked / a.people)[0]
-  if (hes) out.push({ id: `code-${hes.code.id}`, kind: 'code', lens: 'hesitation', target: hes.code.id, lead: hes.code.name, detail: `Said by ${hes.people} of ${hes.of}, with marked hesitation in ${hes.marked} of ${hes.people}.` })
+  if (hes) out.push({ id: `code-${hes.code.id}`, kind: 'code', lens: 'speech', target: hes.code.id, lead: hes.code.name, detail: `Said by ${hes.people} of ${hes.of}, with marked hesitation in ${hes.marked} of ${hes.people}.` })
   // The most hesitant moment. When several share the top count, none of them is "the" most: say they tie.
   const tops = mostHesitation(moments)
   if (tops.length === 1) {
     const t = tops[0]
-    out.push({ id: `moment-${t.moment.id}`, kind: 'moment', lens: 'hesitation', target: t.moment.id, lead: t.moment.label, detail: `${t.all.counts['Marked hesitation']} of ${t.all.n} showed marked hesitation, the most of any moment.` })
+    out.push({ id: `moment-${t.moment.id}`, kind: 'moment', lens: 'speech', target: t.moment.id, lead: t.moment.label, detail: `${t.all.counts['Marked hesitation']} of ${t.all.n} showed marked hesitation, the most of any moment.` })
   } else if (tops.length > 1) {
     const count = tops[0].all.counts['Marked hesitation']
-    out.push({ id: `moment-${tops[0].moment.id}`, kind: 'moment', lens: 'hesitation', target: tops[0].moment.id, lead: `${numberWord(tops.length)} moments tie for the most hesitation`, detail: `Marked hesitation in ${count} people at each: ${tops.map((m) => `${shortMoment(m.moment)} (${count} of ${m.all.n})`).join('; ')}.` })
+    out.push({ id: `moment-${tops[0].moment.id}`, kind: 'moment', lens: 'speech', target: tops[0].moment.id, lead: `${numberWord(tops.length)} moments tie for the most hesitation`, detail: `Marked hesitation in ${count} people at each: ${tops.map((m) => `${shortMoment(m.moment)} (${count} of ${m.all.n})`).join('; ')}.` })
   }
-  if (toReview > 0) out.push({ id: 'tensions', kind: 'tensions', lens: 'hesitation', lead: `${plural(toReview, 'tension')} to review`, detail: 'Where what people said doesn’t add up.' })
+  if (toReview > 0) out.push({ id: 'tensions', kind: 'tensions', lens: 'speech', lead: `${plural(toReview, 'tension')} to review`, detail: 'Where what people said doesn’t add up.' })
   return out
 }
 

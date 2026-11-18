@@ -20,7 +20,7 @@ export function ByTheme({ ctx, themes, tensions, focus, setFocus, onOpenTension 
   const own = themes.filter((t) => t.kind !== 'tension')
   const fromTension = themes.filter((t) => t.kind === 'tension')
   const flat = [...own, ...fromTension]
-  const strongest = [...flat].filter((t) => t.notable).sort((a, b) => (b.fit.doesnt + b.fit.partly) / (b.fit.n || 1) - (a.fit.doesnt + a.fit.partly) / (a.fit.n || 1) || b.marked / (b.people || 1) - a.marked / (a.people || 1))[0]
+  const strongest = [...flat].filter((t) => t.notable).sort((a, b) => (b.fit.against) / (b.fit.n || 1) - (a.fit.against) / (a.fit.n || 1) || b.marked / (b.people || 1) - a.marked / (a.people || 1))[0]
   const selected = flat.find((t) => t.id === focus.theme) ?? strongest ?? flat[0]
   const arrows = useArrows(flat.map((t) => t.id), selected?.id, (id) => setFocus({ ...focus, theme: id }), 'data-theme')
   const inReport = themes.filter((t) => t.use).length
@@ -149,7 +149,7 @@ function ThemePanel({ t, ctx, tensions, onTick, onOpenTension }: { t: ThemeSigna
   const e = t.emotions
   const tops = topEmotions(e)
   const off = t.tones.counts.Flat + t.tones.counts.Tense
-  const against = t.fit.doesnt + t.fit.partly
+  const against = t.fit.against
   const stance = stanceSummary(t)
   const related = useMemo(() => {
     const seen = new Map<string, Tension>()
@@ -200,10 +200,10 @@ function ThemePanel({ t, ctx, tensions, onTick, onOpenTension }: { t: ThemeSigna
                     <span className="font-semibold">
                       For {against} of {t.fit.n},
                     </span>{' '}
-                    the face, voice or hesitation pulled against the words{t.fit.doesnt > 0 && <> ({t.fit.doesnt} clearly)</>}.
+                    the speech or face pulled against the words.{t.fit.uncertain > 0 && <> {t.fit.uncertain} of {t.fit.n} uncertain.</>}
                   </>
                 ) : (
-                  <>How they said it fits the words for all {t.fit.n}.</>
+                  t.fit.uncertain > 0 ? <>Neither speech nor face pulled against the words. {t.fit.uncertain} of {t.fit.n} uncertain.</> : <>How they said it fits the words for all {t.fit.n}.</>
                 )}
               </p>
             )}
@@ -237,16 +237,22 @@ function ThemePanel({ t, ctx, tensions, onTick, onOpenTension }: { t: ThemeSigna
                   </span>
                 )}
               </ChannelRow>
-              <ChannelRow label="Voice" bar={<ToneBar split={t.tones} tall />}>
-                <span className="font-semibold tabular-nums">
-                  Flat or tense for {off} of {t.tones.n}.
-                </span>{' '}
-                <span className="text-graphite">Animated {t.tones.counts.Animated}, even {t.tones.counts.Even}.</span>
+              <ChannelRow
+                label="Speech"
+                testid="channel-speech"
+                bar={
+                  <span className="flex flex-col gap-1.5">
+                    <ToneBar split={t.tones} tall />
+                    <BandBar split={{ counts: { Steady: t.steady, 'Some hesitation': t.some, 'Marked hesitation': t.marked }, n: t.people }} tall />
+                  </span>
+                }
+              >
+                <span className="font-semibold tabular-nums">Tone: flat or tense for {off} of {t.tones.n}.</span> <span className="text-graphite">Animated {t.tones.counts.Animated}, even {t.tones.counts.Even}.</span>
+                <span className="mt-1 block">
+                  <span className="font-semibold tabular-nums">Certainty: marked hesitation in {t.marked} of {t.people},</span> some in {t.some}.
+                </span>
               </ChannelRow>
-              <ChannelRow label="Hesitation" bar={<BandBar split={{ counts: { Steady: t.steady, 'Some hesitation': t.some, 'Marked hesitation': t.marked }, n: t.people }} tall />}>
-                <span className="font-semibold tabular-nums">Marked in {t.marked} of {t.people},</span> some in {t.some}.
-              </ChannelRow>
-            </dl>
+</dl>
           </div>
         ) : (
           <p className="border-b border-mist px-5 py-3 text-sm">Only {t.people} {t.people === 1 ? 'person' : 'people'} said this, which is too few to read a pattern or put in the report. Their moments are below.</p>
