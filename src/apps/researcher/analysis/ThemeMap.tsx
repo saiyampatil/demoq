@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { PageHeader } from '../../shared/PageHeader'
 import { AIGeneratedTag } from '@/components/AIGenerated'
+import { verdictWord } from '@/config/labels'
 import { Button } from '@/components/Button'
 import { cn } from '@/components/cn'
 import { controlBase } from '@/components/Field'
@@ -388,10 +389,10 @@ export function ThemeMapPage() {
         </li>
         {mode === 'strength'
           ? [sw(THEME_MAP.strengthFill.Low.fill, 'Low'), sw(THEME_MAP.strengthFill.Medium.fill, 'Medium'), sw(THEME_MAP.strengthFill.High.fill, 'High'), sw('', 'Not enough read', true)]
-          : [sw(THEME_MAP.verdictFill.Consistent.fill, 'Consistent'), sw(THEME_MAP.verdictFill.Mixed.fill, 'Mixed'), sw(THEME_MAP.verdictFill.Conflicting.fill, 'Conflicting'), sw('', 'Too few', true)]}
-        {ringSw('solid', 'Matched')}
-        {ringSw('dotted', 'Partly')}
-        {ringSw('dashed', 'Pulled apart')}
+          : [sw(THEME_MAP.verdictFill.Consistent.fill, verdictWord('Consistent')), sw(THEME_MAP.verdictFill.Mixed.fill, verdictWord('Mixed')), sw(THEME_MAP.verdictFill.Conflicting.fill, verdictWord('Conflicting')), sw('', 'Too few', true)]}
+        {ringSw('solid', verdictWord('Consistent'))}
+        {ringSw('dotted', verdictWord('Mixed'))}
+        {ringSw('dashed', verdictWord('Conflicting'))}
         <li data-testid="map-note">{plural(bubbles.filter((b) => b.kind === 'theme').length, 'theme')} shown</li>
       </ul>
       <p data-testid="closeness-legend">Closer means more of the same people said both.</p>

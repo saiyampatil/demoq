@@ -8,21 +8,18 @@
 import { READINGS, type ReadingLabel } from '@/config/readings'
 import { hash } from './audioScript'
 import type { CodebookDoc, ReadingDecision } from './codebook'
-import { faceOf, fitOf, type FitPattern } from './emotion'
+import { faceOf, type FitPattern } from './emotion'
 import { checkNarration } from './narration'
-import type { CodeSignal, Tension, ThemeSignal } from './signals'
+import { personReads, type CodeSignal, type Tension, type ThemeSignal } from './signals'
 
-export type Nums = { n: number; R: number; P: number; U: number; M: number; positive: number; negative: number; facts: number; audio: number; faces: number }
-export type CodeNums = { id: string; name: string; verdict: FitPattern; R: number; P: number; U: number; M: number; positive: number; negative: number }
+export type Nums = { n: number; R: number; P: number; U: number; M: number; positive: number; negative: number; facts: number; audio: number; faces: number; /** People whose delivery was long pauses only. */ hesitated: number; /** Of those who fit, how many had delivery that backed the words. */ backed: number; confused: number }
+export type CodeNums = { id: string; name: string; verdict: FitPattern; R: number; P: number; U: number; M: number }
 export type ReadingInput = { nums: Nums; codes: CodeNums[]; tensions: { id: string; title: string }[] }
 export type Snap = { R: number; P: number; U: number; M: number; label: ReadingLabel }
 export type Reading = { label: ReadingLabel; lines: string[]; coverage: string; nums: Nums; codes: CodeNums[]; tensions: { id: string; title: string }[]; fingerprint: string; snap: Snap; problems: string[] }
 
 const more = (x: number, of: number) => x > of * READINGS.majority
 const list = (xs: string[]) => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`)
-
-/** "argued for it", "complained" or "argued for it or complained", from who made a claim. */
-export const claimWord = (positive: number, negative: number) => (positive && negative ? 'argued for it or complained' : positive ? 'argued for it' : 'complained')
 
 /** The label: the first rule that matches wins. */
 export function labelOf({ nums: x, codes }: Pick<ReadingInput, 'nums' | 'codes'>): ReadingLabel {
@@ -35,27 +32,32 @@ export function labelOf({ nums: x, codes }: Pick<ReadingInput, 'nums' | 'codes'>
   return x.P >= x.U ? 'Partly backed' : 'Said, but unsure'
 }
 
-function firstLine(label: ReadingLabel, x: Nums, codes: CodeNums[]): string {
-  const claim = claimWord(x.positive, x.negative)
+/** Line 1 always accounts for everyone: fit, didn't fit and unsure, leaving out only zeros, so the row total is R. */
+function accounting(x: Nums): string {
+  const parts = [x.M ? `${x.M} had delivery that fit the words` : '', x.P ? `${x.P} didn’t fit` : '', x.U ? `${x.U} ${x.U === 1 ? 'was' : 'were'} unsure` : ''].filter(Boolean)
+  if (parts.length === 1) {
+    const only = x.M ? 'had delivery that fit the words' : x.P ? 'didn’t fit the words' : 'were unsure'
+    return `${x.R === 1 ? 'The 1' : `All ${x.R}`} who took a position ${only}.`
+  }
+  return `Of the ${x.R} who took a position, ${list(parts)}.`
+}
+
+function firstLine(label: ReadingLabel, x: Nums): string {
   switch (label) {
     case 'Stated, not argued':
-      return `All ${x.n} described what happened. Nobody argued for or against it, so there is no delivery to test.`
+      return `All ${x.n} described what happened. Nobody took a position, so there is no delivery to test.`
     case 'Too few to read':
-      return `Only ${x.R} of ${x.n} had a claim with a readable delivery.`
-    case 'Said and meant':
-      return `${x.M} of ${x.R} who ${claim} sounded and looked like they meant it.`
-    case 'Said, not backed':
-      return `${x.P} of ${x.R} who ${claim} didn’t sound or look like they meant it.`
-    case 'Partly backed':
-      return `Of the ${x.R} who ${claim}, ${list([x.M ? `${x.M} sounded and looked like they meant it` : '', x.P ? `${x.P} ${x.M ? 'didn’t' : 'didn’t sound or look like they meant it'}` : '', x.U ? `${x.U} ${x.U === 1 ? 'was' : 'were'} unsure` : ''].filter(Boolean))}.`
-    case 'Said, but unsure':
-      return `Of the ${x.R} who ${claim}, ${list([x.U ? `${x.U} sounded unsure` : '', x.P ? `${x.P} didn’t sound like they meant it` : '', x.M ? `${x.M} ${x.P ? 'did' : 'sounded like they meant it'}` : ''].filter(Boolean))}.`
-    case 'Split inside the theme': {
-      const a = codes.filter((c) => c.verdict === 'Consistent' && c.R >= READINGS.splitMinPeople).sort((p, q) => q.M / q.R - p.M / p.R)[0]
-      const b = codes.filter((c) => c.verdict === 'Conflicting' && c.R >= READINGS.splitMinPeople).sort((p, q) => q.P / q.R - p.P / p.R)[0]
-      return `“${a.name}” reads as meant (${a.M} of ${a.R}); “${b.name}” doesn’t (${b.P} of ${b.R}).`
-    }
+      return `Only ${x.R} of ${x.n} took a position with a readable delivery.`
+    default:
+      return accounting(x)
   }
+}
+
+/** The split inside a theme, in one line: the code that fits and the code that doesn't. */
+function splitLine(codes: CodeNums[]): string {
+  const a = codes.filter((c) => c.verdict === 'Consistent' && c.R >= READINGS.splitMinPeople).sort((p, q) => q.M / q.R - p.M / p.R)[0]
+  const b = codes.filter((c) => c.verdict === 'Conflicting' && c.R >= READINGS.splitMinPeople).sort((p, q) => q.P / q.R - p.P / p.R)[0]
+  return `“${a.name}” fits (${a.M} of ${a.R}); “${b.name}” doesn’t fit (${b.P} of ${b.R}).`
 }
 
 /** Where the gap sits: the codes whose people pulled against their words (or, with none, were unsure), at most two. */
@@ -64,10 +66,10 @@ function gapLine(x: Nums, codes: CodeNums[]): string | undefined {
   const by = x.P ? 'P' : 'U'
   const top = codes.filter((c) => c[by] > 0).sort((a, b) => b[by] / b.R - a[by] / a.R || b[by] - a[by]).slice(0, READINGS.gapCodes)
   if (!top.length) return undefined
-  const what = by === 'P' ? 'pulled against their words' : 'were unsure'
+  const what = by === 'P' ? 'didn’t fit their words' : 'were unsure'
   if (top.length === 1) {
     const c = top[0]
-    return `The gap sits in “${c.name}”: ${c[by]} of the ${c.R} who ${claimWord(c.positive, c.negative)} ${what}.`
+    return `The gap sits in “${c.name}”: ${c[by]} of the ${c.R} who took a position ${what}.`
   }
   return `The gap sits in “${top[0].name}” (${top[0][by]} of ${top[0].R}) and “${top[1].name}” (${top[1][by]} of ${top[1].R}), who ${what}.`
 }
@@ -76,13 +78,13 @@ function gapLine(x: Nums, codes: CodeNums[]): string | undefined {
 export function readingFrom(input: ReadingInput): Reading {
   const { nums: x, codes, tensions } = input
   const label = labelOf(input)
-  const lines = [firstLine(label, x, codes)]
+  const lines = [firstLine(label, x)]
   if (label !== 'Stated, not argued' && label !== 'Too few to read') {
-    const gap = gapLine(x, codes)
+    const gap = label === 'Split inside the theme' ? splitLine(codes) : gapLine(x, codes)
     if (gap) lines.push(gap)
     const third = [
       ...tensions.map((t) => `Related tension: ${t.title.replace(/\.$/, '')}.`),
-      x.U >= x.R * READINGS.hesitationShare && x.U > 0 && label !== 'Said, but unsure' ? `${x.U} of ${x.R} hesitated while saying it.` : '',
+      x.hesitated >= x.R * READINGS.hesitationShare && x.hesitated > 0 && label !== 'Said, but unsure' ? `${x.hesitated} of ${x.R} hesitated while saying it.` : '',
     ].filter(Boolean)
     if (third.length) lines.push(third.join(' '))
   }
@@ -103,8 +105,6 @@ export function codeNums(c: CodeSignal): CodeNums {
     P: c.fit.against,
     U: c.fit.uncertain,
     M: c.fit.fits,
-    positive: c.points.filter((p) => p.stance === 'Positive').length,
-    negative: c.points.filter((p) => p.stance === 'Negative').length,
   }
 }
 
@@ -116,18 +116,21 @@ export const tensionsOfTheme = (t: Pick<ThemeSignal, 'codes'>, tensions: Tension
 
 /** The reading for a theme in the app: its counts from A2's theme profile, its codes' verdicts, and the accepted tensions on it. */
 export function readingOf(t: ThemeSignal, doc: CodebookDoc, tensions: Tension[]): Reading {
-  const claimants = t.points.filter((p) => fitOf(p, faceOf(p, doc)).fit)
+  const reads = personReads(t.moments, doc)
   const nums: Nums = {
     n: t.people,
     R: t.fit.n,
     P: t.fit.against,
     U: t.fit.uncertain,
     M: t.fit.fits,
-    positive: t.stances.Positive,
-    negative: t.stances.Negative,
-    facts: t.stances.Neutral,
-    audio: claimants.filter((p) => !faceOf(p, doc)).length,
-    faces: claimants.filter((p) => faceOf(p, doc)?.emotion).length,
+    positive: reads.filter((r) => r.point.stance === 'Positive').length,
+    negative: reads.filter((r) => r.point.stance === 'Negative').length,
+    facts: Math.max(0, t.people - reads.length),
+    audio: reads.filter((r) => !faceOf(r.point, doc)).length,
+    faces: reads.filter((r) => faceOf(r.point, doc)?.emotion).length,
+    hesitated: reads.filter((r) => r.bucket === 'unsure' && r.reason === 'long pauses only').length,
+    backed: reads.filter((r) => r.bucket === 'fit' && r.positive).length,
+    confused: reads.filter((r) => r.confused).length,
   }
   const accepted = tensionsOfTheme(t, tensions).filter((x) => x.status === 'Added as a tension theme').map((x) => ({ id: x.id, title: x.title }))
   return readingFrom({ nums, codes: t.codes.map(codeNums), tensions: accepted })

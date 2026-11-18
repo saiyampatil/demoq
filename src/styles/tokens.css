@@ -55,6 +55,10 @@
   --color-held-fg: #1f5f60;
   --color-held-line: #b5d9d8;
 
+  /* Verdict "Split" (a theme where one code fits and another does not). */
+  --color-split-fg: #6a35b0;
+  --color-split-bg: #f1eafb;
+
   /* Emotion and voice readings: data, never a status. Cool = warm feeling, terracotta = cold, sand = in between. */
   --color-emo-delight: #13796b;
   --color-emo-interest: #5fb0a3;

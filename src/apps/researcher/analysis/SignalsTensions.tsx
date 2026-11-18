@@ -94,7 +94,9 @@ export function SignalsTensions() {
   const cov = coverage(accepted, excluded)
   const t = tensionCounts(doc)
   const codeRows = codeSignals(doc, basis)
-  const rc = readingCounts(themeRows(doc, basis, tensions, codeRows))
+  const readingRows = themeRows(doc, basis, tensions, codeRows)
+  const rc = readingCounts(readingRows)
+  const firstSuggested = readingRows.find((r) => r.status === 'Suggested')
 
   const showTensions = (f: TensionFilter) => {
     setFilter(f)
@@ -173,16 +175,16 @@ export function SignalsTensions() {
         previous={{ screen: 'A1', label: 'Codebook' }}
         next={{ screen: 'A3', label: 'Continue to Report' }}
         stay="Keep working on tensions"
-        lead={rc.suggested > 0 ? { label: `Review ${plural(rc.suggested, 'reading')}`, onClick: () => (setFocus({ show: 'review' }), go('signals'), toPanel()) } : undefined}
+        lead={rc.suggested > 0 && firstSuggested ? { label: `Review ${plural(rc.suggested, 'reading')}`, onClick: () => (setFocus({ theme: firstSuggested.t.id, show: 'all', review: true }), go('signals'), toPanel()) } : undefined}
         message={
           <>
-            <span data-testid="report-footer-count">Goes to the report: {plural(rc.accepted, 'theme reading')} and {plural(t.themes, 'tension theme')}.</span>
+            <span data-testid="report-footer-count">Goes to the report: {plural(rc.accepted, 'reading')} and {plural(t.themes, 'tension theme')}</span>
             {rc.review + t.toReview > 0 ? (
               <span className="ml-1.5 font-medium text-pending-fg" data-testid="report-footer-review">
-                {plural(rc.review, 'reading')} and {plural(t.toReview, 'tension')} still to review.
+                · {plural(rc.review, 'reading')} and {plural(t.toReview, 'tension')} to review
               </span>
             ) : (
-              <span className="ml-1.5 text-positive-fg">Every reading and tension is decided.</span>
+              <span className="ml-1.5 text-positive-fg">· every reading and tension is decided</span>
             )}
           </>
         }

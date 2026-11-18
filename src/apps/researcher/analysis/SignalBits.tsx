@@ -12,10 +12,15 @@ import { screenById, studyPath } from '@/routes/screens'
 import { band as confidenceBand, correctFace } from '@/state/codebook'
 import { EMOTION_HINT, EMOTIONS, STANCE_LABEL, TONE_HINT, TONES, VALENCE, VALENCE_WORD, VALENCES, faceOf, fitOf, noReading, type Emotion, type EmotionSplit, type Face, type Fit, type FitPattern, type Tone, type ToneSplit } from '@/state/emotion'
 import { DELIVERY_RULE_LINES } from '@/config/delivery'
-import { breakdownLine, hesitantDelivery, signsOf, type Band, type Breakdown, type Pattern, type Point, type Split } from '@/state/signals'
+import { verdictWord } from '@/config/labels'
+import { DOT, TEXT, toneOfVerdict } from './verdictStyle'
+import { hesitantDelivery, signsOf, type Band, type Pattern, type Point, type Split } from '@/state/signals'
 import { BANDS } from '@/state/signals'
 import { mmss } from '../review/reviewUi'
 import type { CodebookCtx } from './codebookCtx'
+
+/** How faces are read, in one place: described first, then an interpretation PulseAI offers and the Researcher can correct. */
+export const FACES_NOTE = 'Each face is described first, by what was visible. The label (“reads as Doubt”) is PulseAI’s interpretation, made against that person’s resting face. It is a lead, not a verdict: correct it with “Not right?” and every count follows.'
 
 // ─── hesitation ─────────────────────────────────────────────────────────────
 
@@ -177,35 +182,31 @@ export function ToneLegend() {
 
 // ─── words vs delivery ──────────────────────────────────────────────────────
 
-const FIT_CHIP: Record<FitPattern, string> = {
-  Consistent: 'border-mist-strong bg-haze text-graphite',
-  Mixed: 'border-pending-line bg-pending-bg text-pending-fg',
-  Conflicting: 'border-pending-fg bg-pending-fg text-white',
-  'Too few to read': 'border-dashed border-mist-strong bg-surface text-muted',
-  'No claim': 'border-dashed border-mist-strong bg-surface text-muted',
-}
 const FIT_HINT: Record<FitPattern, string> = {
-  Consistent: 'For more than half of the people, neither speech nor face pulled against what the words claim',
-  Mixed: 'Neither more than half pulled against the words nor more than half matched. Includes people who were uncertain',
-  Conflicting: 'For more than half of the people, speech or face pulled against what they said',
-  'Too few to read': 'Fewer than three people, too few to read a pattern',
+  Consistent: 'For more than half of the people who took a position, delivery fit the words',
+  Mixed: 'Neither more than half fit nor more than half didn’t. Includes people who were unsure',
+  Conflicting: 'For more than half of the people who took a position, delivery didn’t fit the words',
+  'Too few to read': 'Fewer than three people took a position, too few to read a pattern',
   'No claim': 'These words state a fact or a preference, so there is nothing for the speech or face to disagree with',
 }
 
+/** A code's verdict: a dot and its words, never a chip (a theme's reading is the filled chip). */
 export function FitChip({ pattern }: { pattern: FitPattern }) {
+  const tone = toneOfVerdict(pattern)
   return (
-    <span className={cn(chipBase, FIT_CHIP[pattern])} title={FIT_HINT[pattern]}>
-      {pattern === 'No claim' ? 'No claim' : pattern}
+    <span className={cn('inline-flex items-center gap-1.5 text-xs font-medium whitespace-nowrap', TEXT[tone])} title={FIT_HINT[pattern]} data-testid="verdict" data-key={pattern}>
+      <span aria-hidden="true" className={cn('size-2 shrink-0 rounded-full', DOT[tone])} />
+      {verdictWord(pattern)}
     </span>
   )
 }
 
-const ONE_FIT: Record<Fit, string> = { Matches: 'border-mist-strong bg-haze text-graphite', Uncertain: 'border-dashed border-pending-line bg-surface text-pending-fg', 'Pulls against': 'border-pending-fg bg-pending-fg text-white' }
-
 export function OneFitChip({ fit, against }: { fit: Fit; against: string[] }) {
+  const tone = fit === 'Matches' ? 'fits' : fit === 'Uncertain' ? 'unsure' : 'doesnt'
   return (
-    <span className={cn(chipBase, ONE_FIT[fit])} title={against.length ? `Against the words: ${against.join(', ').toLowerCase()}` : fit === 'Uncertain' ? 'Neither speech nor face pulls against the words, but certainty is marked hesitation' : 'Matches the words'}>
-      {fit === 'Matches' ? 'Matches the words' : fit === 'Uncertain' ? 'Uncertain' : 'Pulls against the words'}
+    <span className={cn('inline-flex items-center gap-1.5 text-xs font-medium whitespace-nowrap', TEXT[tone])} title={against.length ? `Against the words: ${against.join(', ').toLowerCase()}` : fit === 'Uncertain' ? 'Neither speech nor face pulls against the words, but there were long pauses' : 'Fits the words'}>
+      <span aria-hidden="true" className={cn('size-2 shrink-0 rounded-full', DOT[tone])} />
+      {fit === 'Matches' ? 'Fits' : fit === 'Uncertain' ? 'Unsure' : 'Didn’t fit'}
     </span>
   )
 }
@@ -260,6 +261,9 @@ export function KeyPopover() {
   return (
     <Popover label="Key" testid="key" title="Key" width="w-[26rem]">
       <div className="flex flex-col gap-2.5">
+        <p className="text-graphite" data-testid="faces-note">
+          {FACES_NOTE} Nothing here changes a Review decision.
+        </p>
         <div>
           <p className="mb-1 font-medium text-graphite">Face</p>
           <EmotionLegend />
@@ -275,61 +279,6 @@ export function KeyPopover() {
         <ValenceKey />
       </div>
     </Popover>
-  )
-}
-
-/**
- * How delivery stood against the words, in three figures and what is left out, for the right panel. The people who only stated a fact
- * are listed here on request and never in a table.
- */
-export function DeliveryFigures({ b, children }: { b: Breakdown; children?: React.ReactNode }) {
-  const [who, setWho] = useState(false)
-  const claim = b.positive + b.negative
-  if (!claim && !b.factOnly.length && !children) return null
-  return (
-    <div className="mb-2 rounded-sm border border-mist px-3 py-2.5" data-testid="delivery-breakdown">
-      {claim > 0 && (
-        <>
-          <p className="text-xs text-graphite" data-testid="breakdown-line">
-            {breakdownLine(b).replace(/ [^.]*\.$/, '')}
-          </p>
-          <dl className="mt-1.5 grid grid-cols-3 gap-2 text-center">
-            {(
-              [
-                ['against', b.against, 'pulled against', 'text-pending-fg'],
-                ['uncertain', b.uncertain, 'uncertain', 'text-iris-700'],
-                ['matched', b.matched, 'matched', 'text-ink'],
-              ] as const
-            ).map(([k, n, label, tone]) => (
-              <div key={k} data-testid={`fig-${k}`} data-n={n}>
-                <dt className="sr-only">{label}</dt>
-                <dd className={cn('text-lg leading-none font-semibold tabular-nums', tone)}>{n}</dd>
-                <dd className="mt-0.5 text-xs text-graphite">{label}</dd>
-              </div>
-            ))}
-          </dl>
-        </>
-      )}
-      {b.audioOnly > 0 && (
-        <p className="mt-1.5 text-xs text-graphite" data-testid="audio-only-note">
-          {b.audioOnly} of {claim} audio-only, read on speech.
-        </p>
-      )}
-      {b.factOnly.length > 0 && (
-        <p className="mt-1.5 text-xs text-graphite" data-testid="fact-only">
-          {b.factOnly.length} of {b.people} only stated a fact or preference, so there is nothing to check.{' '}
-          <button type="button" aria-expanded={who} onClick={() => setWho((w) => !w)} data-testid="see-who" className="font-medium text-iris-700 hover:underline">
-            {who ? 'Hide' : 'See who'}
-          </button>
-          {who && (
-            <span className="mt-0.5 block tabular-nums text-ink" data-testid="fact-only-ids">
-              {b.factOnly.map((p) => p.participantId).join(', ')}
-            </span>
-          )}
-        </p>
-      )}
-      {children}
-    </div>
   )
 }
 
@@ -375,7 +324,7 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
  * One person at one moment, on every channel: the quote, the face (with what was visible, and a way to correct it),
  * the voice against their usual, and the hesitation measurements. Play opens the recording there.
  */
-export function PointCard({ point: p, ctx, context, reasons }: { point: Point; ctx: CodebookCtx; context: string; reasons?: boolean }) {
+export function PointCard({ point: p, ctx, context, reasons, hideFit }: { point: Point; ctx: CodebookCtx; context: string; reasons?: boolean; hideFit?: boolean }) {
   const [fixing, setFixing] = useState(false)
   const signs = signsOf(p.facts, p.usual)
   const face = faceOf(p, ctx.doc)
@@ -388,7 +337,7 @@ export function PointCard({ point: p, ctx, context, reasons }: { point: Point; c
         <span>{petOf(p.participantId)} owner</span>
         <span className="tabular-nums">{mmss(p.atSec)}</span>
         <span className="flex-1" />
-        {fit.fit && <OneFitChip fit={fit.fit} against={fit.against} />}
+        {fit.fit && !hideFit && <OneFitChip fit={fit.fit} against={fit.against} />}
       </div>
       {p.excerpt && <p className="mt-1.5 font-serif text-quote leading-snug text-ink">“{p.excerpt.text}”</p>}
       <dl className="mt-1.5">

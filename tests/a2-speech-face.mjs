@@ -21,13 +21,13 @@ const click = async (sel) => {
 const MOD = `window.__mod = (path) => import(performance.getEntriesByType('resource').map((r) => r.name).filter((n) => n.includes(path + '.ts')).pop() ?? path + '.ts')`
 const withMod = (expr) => b.evaluate(MOD + '; ' + expr)
 const LINES = [
-  'We look at people who argued for the idea and compare how they said it with what they said.',
-  'It didn’t fit if the voice was tense or flat, or the face showed doubt, frustration or confusion. For a complaint, it didn’t fit if they sounded or looked pleased.',
-  'Most didn’t fit: Conflicting. Most fit: Consistent. Otherwise Mixed. Under 3 people: too few to read.',
-  'Long pauses alone never count as not fitting. They show as Uncertain.',
-  'Each person counts once. Speech and face are never added together.',
+  'We look at people who took a position and compare how they said it with what they said.',
+  'It didn’t fit if the voice was tense or flat, or the face showed doubt or frustration. For a complaint, it didn’t fit if they sounded or looked pleased.',
+  'Most didn’t fit: Doesn’t fit. Most fit: Fits. Otherwise Partly fits. Under 3 people: too few to read.',
+  'Long pauses alone never count as not fitting. They show as unsure.',
+  'Each person counts once, by most of their moments. A tie is unsure. Confusion is never counted either way.',
 ]
-const ruleOf = (against, unc, nn, min) => (nn < min ? 'Too few to read' : against / nn > 0.5 ? 'Conflicting' : (nn - against - unc) / nn > 0.5 ? 'Consistent' : 'Mixed')
+const ruleOf = (against, unc, nn, min) => (nn < min ? 'Too few to read' : against / nn > 0.5 ? 'Doesn’t fit' : (nn - against - unc) / nn > 0.5 ? 'Fits' : 'Partly fits')
 try {
   await b.goto('/researcher')
   await b.evaluate('localStorage.clear(); sessionStorage.clear(); true')
@@ -76,7 +76,7 @@ try {
   ok('ten people who all hesitated, with calm voices and a pleased face, are Uncertain, none against: never Conflicting', u.hesAll.against === 0 && u.hesAll.uncertain === 10 && u.hesAll.verdict === 'Mixed', u.hesAll)
   ok('against a positive claim, tense and flat pull against; animated and even match', u.posTense === 'Pulls against' && u.posFlat === 'Pulls against' && u.posAnimated === 'Matches' && u.posEven === 'Matches', [u.posTense, u.posFlat, u.posAnimated, u.posEven])
   ok('against a complaint, tense matches and animated pulls against', u.negTense === 'Matches' && u.negAnimated === 'Pulls against' && u.negFlat === 'Matches' && u.negEven === 'Matches', [u.negTense, u.negAnimated, u.negFlat, u.negEven])
-  ok('against a positive claim, doubt, frustration and confusion pull against; interest, delight, surprise and neutral match', ['Doubt', 'Frustration', 'Confusion'].every((f) => u['posF' + f] === 'Pulls against') && ['Interest', 'Delight', 'Surprise', 'Neutral'].every((f) => u['posF' + f] === 'Matches'))
+  ok('against a positive claim, doubt and frustration pull against; confusion, interest, delight, surprise and neutral do not', ['Doubt', 'Frustration'].every((f) => u['posF' + f] === 'Pulls against') && ['Confusion', 'Interest', 'Delight', 'Surprise', 'Neutral'].every((f) => u['posF' + f] === 'Matches'))
   ok('against a complaint, delight and interest pull against; doubt, frustration and confusion match', ['Delight', 'Interest'].every((f) => u['negF' + f] === 'Pulls against') && ['Doubt', 'Frustration', 'Confusion', 'Surprise', 'Neutral'].every((f) => u['negF' + f] === 'Matches'))
   ok('a face below medium confidence never pulls against', u.faceLow === 'Matches')
   ok('Speech and Face at the same moment count once', u.both.fit === 'Pulls against' && u.both.against.length === 2)
@@ -84,7 +84,7 @@ try {
   ok('someone who only stated a fact is not checked', u.fact.fit === undefined && u.fact.against.length === 0)
   ok('five against and five matching is Mixed: most is more than half', u.mixed === 'Mixed')
   ok('the breakdown counts each person once (a tense complaint matches), with the fact-only and audio-only counts right', u.bd.people === 6 && u.bd.positive === 4 && u.bd.negative === 1 && u.bd.against === 2 && u.bd.uncertain === 1 && u.bd.matched === 2 && u.bd.fact.join() === 'P-5' && u.bd.audioOnly === 2, u.bd)
-  ok('the table line reads “4 of 6 argued for it and 1 complained. 2 pulled against, 1 uncertain.”', u.line === '4 of 6 argued for it and 1 complained. 2 pulled against, 1 uncertain.', u.line)
+  ok('the table line reads “5 of 6 took a position. 2 didn’t fit, 1 unsure.”', u.line === '5 of 6 took a position. 2 didn’t fit, 1 unsure.', u.line)
   ok('the hesitant-delivery observation needs a positive claim and at least half hesitating', u.hesitantPos?.hesitated === 4 && u.hesitantPos.speakers === 6 && u.hesitantNeg === null && u.hesitantFew === null, [u.hesitantPos, u.hesitantNeg, u.hesitantFew])
   ok('the rule lines in config are the five lines, word for word', JSON.stringify(u.lines) === JSON.stringify(LINES), u.lines)
 
@@ -97,7 +97,8 @@ try {
   await b.evaluate(`[...document.querySelectorAll('[data-testid=signal-row]')].find(r=>/Wanted to stop running out/.test(r.innerText)).click(); true`); await b.sleep(250)
   ok('clicking a row opens its panel', /Wanted to stop running out/.test((await text('[data-testid=signal-panel] h2')) ?? ''))
   ok('the panel has “Play the clearest moment”, evidence quotes with times and reasons, and “Not right?”', /Play the clearest moment · P-\d{4} at \d+:\d\d/.test((await text('[data-testid=code-play]')) ?? '') && (await b.evaluate(`document.querySelectorAll('[data-testid=signal-point]').length`)) >= 3 && (await all('[data-testid=signal-point]')).every((p) => /Play at \d+:\d\d/.test(p)) && (await b.evaluate(`!!document.querySelector('[data-testid=fix-face]')`)))
-  ok('and the three figures, the two labelled speech bars', (await b.evaluate(`document.querySelectorAll('[data-testid=signal-panel] [data-testid=fig-against]').length`)) === 1 && /Tone/.test((await text('[data-testid=signal-panel]')) ?? '') && /Certainty/.test((await text('[data-testid=signal-panel]')) ?? ''))
+  await b.evaluate(`document.querySelectorAll('[data-testid=code-details]').forEach(d=>d.open=true); true`); await b.sleep(120)
+  ok('and the three tiles, with the two labelled speech bars under Details', (await b.evaluate(`['against','unsure','fit'].every(k=>document.querySelector('[data-testid=signal-panel] [data-testid=tile-'+k+']'))`)) && /Tone/.test((await text('[data-testid=signal-panel]')) ?? '') && /Certainty/.test((await text('[data-testid=signal-panel]')) ?? ''))
 
   // ── The hesitant-delivery line: only for a positive claim, n of N, at the top ──
   const notes = await b.evaluate(`(async()=>{const out=[];const rows=[...document.querySelectorAll('[data-testid=signal-row]')];for(const r of rows){r.click();await new Promise(x=>setTimeout(x,90));const p=document.querySelector('[data-testid=signal-panel]');const n=p.querySelector('[data-testid=hesitant-note]');out.push({name:r.querySelector('.font-medium').innerText.trim(),note:n?n.innerText.replace(/\\s+/g,' '):null,top:n?!!n.closest('[data-testid=delivery-breakdown]'):null})};return out})()`)

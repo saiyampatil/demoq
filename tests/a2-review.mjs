@@ -82,24 +82,25 @@ try {
   const faceTexts = await all('[data-testid=face-reading]')
   ok('every face reading leads with Seen at <time> and then says reads as', faceTexts.length >= 3 && faceTexts.every((t) => /^Seen at \d+:\d\d \([\d.]+ s in\): .+ reads as [A-Z]/.test(t)), faceTexts[0])
   ok('the old wording is gone from the panel', !/Seen: /.test((await text('[data-testid=signal-panel]')) ?? ''))
-  ok('the code panel says how many faces read as the top emotion, never "Doubt in"', /\d+ of \d+ faces read as \w+|tie: \d+ of \d+ faces each/.test((await text('[data-testid=channel-face]')) ?? ''), await text('[data-testid=channel-face]'))
+  await b.evaluate(`document.querySelectorAll('[data-testid=code-details]').forEach(d=>d.open=true); true`); await b.sleep(120)
+  ok('the code panel (under Details) says how many faces were read and how they read', /\d+ faces read/.test((await text('[data-testid=channel-face]')) ?? ''), await text('[data-testid=channel-face]'))
   await click('[data-testid=how-faces]')
   ok('"How faces are read" says a reading is an interpretation that can be corrected', /interpretation/.test((await text('[data-testid=how-faces-note]')) ?? '') && /correct/.test((await text('[data-testid=how-faces-note]')) ?? ''))
   const summaries = await all('[data-testid=face-cell]')
-  ok('rows say the leading reading with its count (“Doubt 2 of 3”) or “No clear lead”, never “Mixed” or “Tied at”', summaries.some((r) => /^[A-Z][a-z]+ \d+ of \d+$/.test(r)) && summaries.every((r) => /^([A-Z][a-z]+ \d+ of \d+|No clear lead|No faces read|—)$/.test(r)), summaries.slice(0, 4).join(' | '))
+  ok('rows say a polarity with its count (“2 of 3 positive”), “All neutral” or nothing read, never “Mixed” or a lead of Neutral', summaries.some((r) => /^\d+ of \d+ (positive|negative)/.test(r)) && summaries.every((r) => /^(\d+ of \d+ (positive|negative|confused)|All neutral|Even split|No faces read|—)$/.test(r)), summaries.slice(0, 4).join(' | '))
 
   // ── 3. One vocabulary: positive, neutral, negative, unclear; confusion is its own group ──
   await click('[data-testid=key]')
   const key = await text('[data-testid=key-pop] [data-testid=valence-key]')
   ok('a legend says how each emotion is grouped, with confusion on its own', /positive: Delight, Interest/.test(key ?? '') && /negative: Doubt, Frustration/.test(key ?? '') && /unclear: Confusion/.test(key ?? '') && /neutral: Surprise, Neutral/.test(key ?? ''), key)
   const emoCounts = await all('[data-testid=valence-counts]')
-  ok('the code panel counts positive, neutral, negative and unclear', emoCounts.length >= 1 && emoCounts.every((t) => /\d+ positive · \d+ neutral · \d+ negative · \d+ unclear/.test(t)), emoCounts.join(' | '))
+  ok('the code panel (under Details) counts positive, neutral, negative and unclear', emoCounts.length >= 1 && emoCounts.every((t) => /\d+ positive · \d+ neutral · \d+ negative · \d+ unclear/.test(t)), emoCounts.join(' | '))
   // ── 4. Words vs delivery: the rule is behind “How it’s decided”, and it is the rule the code uses ──
   const rl = await withMod(`(async()=>{const e=await window.__mod('/src/state/emotion');return e.FIT_RULE})()`)
   const cfg = await withMod(`(async()=>{const c=await window.__mod('/src/config/delivery');return {lines:c.DELIVERY_RULE_LINES,min:c.DELIVERY.minPeople,majority:c.DELIVERY.majority}})()`)
   await click('[data-testid=how-decided]')
   const popLines = (await all('[data-testid=how-decided-line]')).map((l) => l.replace(/^\d\. /, ''))
-  ok('the rule behind “How it’s decided” is the rule in config: most, speech, face, counted once, uncertain', JSON.stringify(popLines) === JSON.stringify(cfg.lines) && rl.min === cfg.min && rl.majority === 0.5 && /Most didn’t fit: Conflicting/.test(popLines[2]) && /Uncertain/.test(popLines[3]), popLines)
+  ok('the rule behind “How it’s decided” is the rule in config: most, speech, face, counted once, uncertain', JSON.stringify(popLines) === JSON.stringify(cfg.lines) && rl.min === cfg.min && rl.majority === 0.5 && /Most didn’t fit: Doesn’t fit/.test(popLines[2]) && /unsure/.test(popLines[3]), popLines)
   await b.evaluate(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})); true`); await b.sleep(200)
   const rowCount = (await all('[data-testid=signal-row]')).length
   let verdicts = 0
@@ -108,13 +109,13 @@ try {
     await b.evaluate(`document.querySelectorAll('[data-testid=signal-row]')[${i}].click(); true`)
     await b.sleep(120)
     const chip = (await b.evaluate(`document.querySelectorAll('[data-testid=fit-cell]')[${i}].innerText.trim()`)) ?? ''
-    const fg = await b.evaluate(`(()=>{const g=(k)=>{const e=document.querySelector('[data-testid=signal-panel] [data-testid=fig-'+k+']');return e?+e.dataset.n:null};return {a:g('against'),u:g('uncertain'),m:g('matched')}})()`)
-    if (fg.a === null) continue
+    const fg = await b.evaluate(`(()=>{const g=(k)=>{const e=document.querySelector('[data-testid=signal-panel] [data-testid=tile-'+k+']');return e?+e.dataset.n:null};return {a:g('against'),u:g('unsure'),m:g('fit')}})()`)
+    if (fg.a === null || fg.a + fg.u + fg.m === 0) continue
     verdicts++
     const n = fg.a + fg.u + fg.m
     const against = fg.a
     const unc = fg.u
-    const want = n < rl.min ? 'Too few to read' : against / n > rl.majority ? 'Conflicting' : (n - against - unc) / n > rl.majority ? 'Consistent' : 'Mixed'
+    const want = n < rl.min ? 'Too few to read' : against / n > rl.majority ? 'Doesn’t fit' : (n - against - unc) / n > rl.majority ? 'Fits' : 'Partly fits'
     if (chip !== want) wrong.push(`${chip} should be ${want} (${against} against, ${unc} uncertain, of ${n})`)
   }
   ok('every code’s Words vs delivery label follows the stated rule', verdicts >= 8 && wrong.length === 0, `${verdicts} checked: ${wrong.join('; ')}`)
