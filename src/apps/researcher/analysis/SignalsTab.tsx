@@ -6,7 +6,7 @@ import { EmptyState } from '@/components/States'
 import { Button } from '@/components/Button'
 import { Switch } from '@/components/Switch'
 import { useToast } from '@/components/Toast'
-import { setSignalPick } from '@/state/codebook'
+import { setSignalPick, setSignalPicks } from '@/state/codebook'
 import { EMOTIONS, STANCE_LABEL, faceOf, faceWeight, fitOf, topEmotions, type EmotionSplit } from '@/state/emotion'
 import { breakdownOf, codeSignals, plural, signalGroups, tensionsFor, type CodeSignal, type Point, type Tension } from '@/state/signals'
 import { mmss } from '../review/reviewUi'
@@ -71,7 +71,7 @@ function FaceCell({ r }: { r: CodeSignal }) {
   if (!r.readable) return <span className="text-xs whitespace-nowrap text-muted" data-testid="face-cell">Not read</span>
   return (
     <>
-      <span className="w-10 shrink-0">
+      <span className="w-8 shrink-0">
         <EmotionBar split={r.emotions} />
       </span>
       <span className="text-xs whitespace-nowrap text-graphite tabular-nums" title={emotionSummaryTitle(r.emotions)} data-testid="face-cell">
@@ -95,7 +95,7 @@ function SpeechCell({ r }: { r: CodeSignal }) {
   const c = r.tones.counts
   return (
     <>
-      <span className="w-10 shrink-0" data-testid="speech-bars">
+      <span className="w-8 shrink-0" data-testid="speech-bars">
         <ToneBar split={r.tones} />
       </span>
       <span className="text-xs whitespace-nowrap text-graphite tabular-nums" title={`Tone: ${c.Tense} tense, ${c.Flat} flat, ${c.Animated} animated, ${c.Even} even, of ${r.tones.n}. Certainty: marked hesitation in ${r.marked}, some in ${r.some}.`} data-testid="speech-label">
@@ -109,6 +109,7 @@ function ByCode({ ctx, signals, focus, setFocus, tensions, onOpenTension }: { ct
   const { doc } = ctx
   const toast = useToast()
   const [notableOnly, setNotableOnly] = useState(false)
+  const allGroups = useMemo(() => signalGroups(doc, signals), [doc, signals])
   const groups = useMemo(() => signalGroups(doc, notableOnly ? signals.filter((s) => s.notable) : signals), [doc, signals, notableOnly])
   const flat = groups.flatMap((g) => g.rows)
   // Opens on the code where words and delivery disagree most, then the most hesitant, so the first thing seen is worth seeing.
@@ -126,6 +127,13 @@ function ByCode({ ctx, signals, focus, setFocus, tensions, onOpenTension }: { ct
   const setUse = (s: CodeSignal, on: boolean) => {
     ctx.act((d) => setSignalPick(d, s.code, on, { by: ctx.me }))
     toast(on ? `“${s.code.name}” signals will go in the report` : `“${s.code.name}” signals left out of the report`)
+  }
+
+  /** A theme's switch sets all the codes it has that can be shown. Half-on (some in, some out) turns them all on. */
+  const setGroup = (gid: string, name: string, on: boolean) => {
+    const codes = (allGroups.find((g) => g.id === gid)?.rows ?? []).filter((r) => r.showable).map((r) => r.code)
+    ctx.act((d) => setSignalPicks(d, codes, on, name, { by: ctx.me }))
+    toast(on ? `“${name}” signals will go in the report` : `“${name}” signals left out of the report`)
   }
 
   return (
@@ -148,40 +156,64 @@ function ByCode({ ctx, signals, focus, setFocus, tensions, onOpenTension }: { ct
             <TableHead testid="signal-head">
               <span className="flex-1">Code</span>
               <span className="w-14">Said by</span>
-              <span className="w-[11rem]">Face</span>
-              <span className="w-[10.5rem]">Speech</span>
+              <span className="w-[10rem]">Face</span>
+              <span className="w-[9rem]">Speech</span>
               <span className="flex w-[7.5rem] flex-col gap-0.5" title="Do speech and face match what the words claim?">
                 <span>Words vs delivery</span>
                 <HowItsDecided />
               </span>
-              <span className="w-14 text-center">In report</span>
             </TableHead>
-            {groups.map((g) => (
-              <GroupSection key={g.id} id={g.id} label={g.name} aside={<span className="text-xs text-muted tabular-nums" data-testid="group-count">{plural(g.rows.length, 'code')}</span>}>
+            {groups.map((g) => {
+              // The switch counts every code the theme has that can be shown, even those the filter hides.
+              const shown = (allGroups.find((x) => x.id === g.id)?.rows ?? g.rows).filter((r) => r.showable)
+              const inReport = shown.filter((r) => r.use).length
+              const mixed = inReport > 0 && inReport < shown.length
+              return (
+              <GroupSection
+                key={g.id}
+                id={g.id}
+                label={g.name}
+                aside={
+                  <>
+                    <span className="text-xs text-muted tabular-nums" data-testid="group-count">
+                      {plural(g.rows.length, 'code')}
+                    </span>
+                    <span className="ml-auto flex items-center gap-2 self-center" data-testid="group-switch-box">
+                      <span className={cn('text-xs tabular-nums', shown.length ? 'text-graphite' : 'text-muted')} data-testid="group-switch-label">
+                        {!shown.length ? 'Nothing to show' : mixed ? `${inReport} of ${shown.length} in report` : 'In report'}
+                      </span>
+                      <Switch checked={shown.length > 0 && inReport === shown.length} mixed={mixed} disabled={!shown.length} onChange={(on) => setGroup(g.id, g.name, on)} label={`Put ${g.name} signals in the report`} testid="use-group" />
+                    </span>
+                  </>
+                }
+              >
                 {g.rows.map((r) => (
                   <li key={r.code.id} className="relative">
-                    <button type="button" data-code={r.code.id} data-testid="signal-row" aria-current={r.code.id === selected?.code.id ? 'true' : undefined} onClick={() => setFocus({ code: r.code.id })} className={cn(rowButtonClass(r.code.id === selected?.code.id), 'pr-[4.5rem]')}>
-                      <span className={cn('min-w-0 flex-1', r.notable ? 'font-semibold' : 'font-medium')}>{r.code.name}</span>
+                    <button type="button" data-code={r.code.id} data-testid="signal-row" aria-current={r.code.id === selected?.code.id ? 'true' : undefined} onClick={() => setFocus({ code: r.code.id })} className={rowButtonClass(r.code.id === selected?.code.id)}>
+                      <span className="min-w-0 flex-1">
+                        <span className={r.notable ? 'font-semibold' : 'font-medium'}>{r.code.name}</span>
+                        <span className={cn('ml-2 text-xs whitespace-nowrap', r.showable ? 'font-medium text-iris-700' : 'text-muted')} data-testid="row-state">
+                          {!r.showable ? 'Nothing to show' : r.use ? 'In report' : ''}
+                        </span>
+                      </span>
                       <span className="w-14 shrink-0 text-xs text-graphite tabular-nums">
                         {r.people} of {r.of}
                       </span>
-                      <span className="flex w-[11rem] shrink-0 items-center gap-2">
+                      <span className="flex w-[10rem] shrink-0 items-center gap-2">
                         <FaceCell r={r} />
                       </span>
-                      <span className="flex w-[10.5rem] shrink-0 items-center gap-2">
+                      <span className="flex w-[9rem] shrink-0 items-center gap-2">
                         <SpeechCell r={r} />
                       </span>
                       <span className="w-[7.5rem] shrink-0" data-testid="fit-cell">
                         <FitChip pattern={r.readable ? r.fit.pattern : 'Too few to read'} />
                       </span>
                     </button>
-                    <span className="absolute top-1/2 right-4 -translate-y-1/2" title={r.readable ? undefined : 'Too few people to put in the report'}>
-                      <Switch checked={r.use} disabled={!r.readable} onChange={(on) => setUse(r, on)} label={`Put ${r.code.name} signals in the report`} testid="use-signal" />
-                    </span>
                   </li>
                 ))}
               </GroupSection>
-            ))}
+              )
+            })}
           </div>
         )}
       </section>
@@ -309,11 +341,11 @@ function CodePanel({ s, ctx, tensions, onUse, onOpenTension }: { s: CodeSignal; 
             <p className="py-1 text-sm">Only {plural(s.people, 'person')} said this, which is too few to read a pattern or put in the report. Their moments are below.</p>
           )}
           <div className="mt-3 flex items-start gap-3 rounded-sm border border-mist px-3 py-2.5" data-testid="code-tick-box">
-            <Switch checked={s.use} disabled={!s.readable} onChange={onUse} label="Put these signals in the report" testid="use-signal-panel" />
+            <Switch checked={s.use} disabled={!s.showable} onChange={onUse} label="Put these signals in the report" testid="use-signal-panel" />
             <span>
               <span className="block text-sm font-medium">Put these signals in the report</span>
               <span className="block text-xs text-graphite" data-testid="tick-hint">
-                {!s.readable ? 'Needs at least three people.' : s.fit.pattern === 'Mixed' || s.fit.pattern === 'Conflicting' ? 'Suggested on: words and delivery don’t fit.' : s.notable ? 'Suggested on: hesitation shows.' : 'Suggested off: nothing stands out.'}
+                {!s.readable ? 'Needs at least three people.' : !s.showable ? 'Nothing to show: no one made a claim for the delivery to disagree with.' : s.fit.pattern === 'Mixed' || s.fit.pattern === 'Conflicting' ? 'Suggested on: words and delivery don’t fit.' : s.notable ? 'Suggested on: hesitation shows.' : 'Suggested off: nothing stands out.'}
               </span>
             </span>
           </div>

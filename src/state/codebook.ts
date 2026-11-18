@@ -462,6 +462,15 @@ export function migrateThemePicks(d: CodebookDoc): CodebookDoc {
   return entries.length ? log({ ...d, signalPicks: next }, ...entries) : d
 }
 
+/** Several codes at once, from a theme's switch: one entry in the log for the whole group. */
+export function setSignalPicks(d: CodebookDoc, codes: { id: string }[], on: boolean, group: string, { by }: Who): CodebookDoc {
+  if (!codes.length) return d
+  const picks = { ...(d.signalPicks ?? {}) }
+  codes.forEach((c) => (picks[c.id] = on))
+  const detail = `${group}: ${codes.length} ${codes.length === 1 ? 'code' : 'codes'}`
+  return log({ ...d, signalPicks: picks }, { id: uid('cl'), at: now(), by, target: { kind: 'codebook', id: 'codebook', name: 'Codebook' }, action: on ? 'Signals added to the report' : 'Signals left out of the report', detail })
+}
+
 /** Whether a code's signals go into the report. Not set means on when the pattern is notable. */
 export function setSignalPick(d: CodebookDoc, code: { id: string; name: string }, on: boolean, { by }: Who): CodebookDoc {
   return log({ ...d, signalPicks: { ...(d.signalPicks ?? {}), [code.id]: on } }, entry(by, code, on ? 'Signals added to the report' : 'Signals left out of the report'))

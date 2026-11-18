@@ -48,7 +48,7 @@ try {
   const rows = await b.evaluate(`[...document.querySelectorAll('[data-testid=signal-row]')].map(r=>r.innerText.replace(/\\s+/g,' '))`)
   const nothing = rows.find((r) => /Nothing would have kept them/.test(r))
   ok('a code with two people reads "Too few to read"', /Too few to read/.test(nothing ?? ''), nothing)
-  ok('and its report switch is off, because there is too little to read', await b.evaluate(`[...document.querySelectorAll('[data-testid=signal-row]')].find(r=>/Nothing would have kept them/.test(r.innerText)).closest('li').querySelector('[data-testid=use-signal]').disabled`))
+  ok('and it says “Nothing to show” instead of a toggle', await b.evaluate(`[...document.querySelectorAll('[data-testid=signal-row]')].find(r=>/Nothing would have kept them/.test(r.innerText)).querySelector('[data-testid=row-state]').innerText==='Nothing to show'`))
   ok('every group is a plain label with its number of codes', (await b.evaluate(`[...document.querySelectorAll('[data-testid=group-count]')].every(e=>/^\\d+ codes?$/.test(e.innerText))`)))
   // ── The code panel: every channel, and the pause story ──
   await selectCode('Pause would have kept them')

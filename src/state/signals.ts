@@ -58,6 +58,8 @@ export type CodeSignal = {
   notable: boolean
   /** Enough people to read a pattern. Below that, nothing about this code can go into the report. */
   readable: boolean
+  /** Readable and the words make a claim to check. "No claim" and "Too few to read" have nothing to show, so they are never ticked. */
+  showable: boolean
   use: boolean
   /** One point per person, the most hesitant first. A person with several quotes counts once, at the moment their delivery pulled against their words most. */
   points: Point[]
@@ -78,6 +80,7 @@ export function codeSignals(doc: CodebookDoc, basis: Basis): CodeSignal[] {
       const pattern = patternOf(marked, points.length)
       const fit = fitSplit(points, doc)
       const readable = points.length >= MIN_PEOPLE
+      const showable = readable && fit.pattern !== 'No claim'
       const notable = readable && (pattern === 'Mixed' || pattern === 'Often hesitant' || fit.pattern === 'Mixed' || fit.pattern === 'Conflicting')
       return {
         code,
@@ -92,7 +95,8 @@ export function codeSignals(doc: CodebookDoc, basis: Basis): CodeSignal[] {
         fit,
         notable,
         readable,
-        use: readable && (doc.signalPicks?.[code.id] ?? notable),
+        showable,
+        use: showable && (doc.signalPicks?.[code.id] ?? notable),
         points,
       }
     })
