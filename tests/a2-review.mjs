@@ -87,7 +87,7 @@ try {
   await click('[data-testid=how-faces]')
   ok('"How faces are read" says a reading is an interpretation that can be corrected', /interpretation/.test((await text('[data-testid=how-faces-note]')) ?? '') && /correct/.test((await text('[data-testid=how-faces-note]')) ?? ''))
   const summaries = await all('[data-testid=face-cell]')
-  ok('rows say a polarity with its count (“2 of 3 positive”), “All neutral” or nothing read, never “Mixed” or a lead of Neutral', summaries.some((r) => /^\d+ of \d+ (positive|negative)/.test(r)) && summaries.every((r) => /^(\d+ of \d+ (positive|negative|confused)|All neutral|Even split|No faces read|—)$/.test(r)), summaries.slice(0, 4).join(' | '))
+  ok('rows say a polarity with its count (“2 of 3 positive”), “All neutral” or nothing read, never “Mixed” or a lead of Neutral', summaries.some((r) => /^\d+ of \d+ (positive|negative)/.test(r)) && summaries.every((r) => /^(\d+ of \d+ (positive|negative|confused)|All neutral|No clear lead|No faces read|—)$/.test(r)), summaries.slice(0, 4).join(' | '))
 
   // ── 3. One vocabulary: positive, neutral, negative, unclear; confusion is its own group ──
   await click('[data-testid=key]')
@@ -108,7 +108,7 @@ try {
   for (let i = 0; i < rowCount; i++) {
     await b.evaluate(`document.querySelectorAll('[data-testid=signal-row]')[${i}].click(); true`)
     await b.sleep(120)
-    const chip = (await b.evaluate(`document.querySelectorAll('[data-testid=fit-cell]')[${i}].innerText.trim()`)) ?? ''
+    const chip = (await b.evaluate(`document.querySelectorAll('[data-testid=signal-row]')[${i}].querySelector('[data-testid=fit-cell]').innerText.trim()`)) ?? ''
     const fg = await b.evaluate(`(()=>{const g=(k)=>{const e=document.querySelector('[data-testid=signal-panel] [data-testid=tile-'+k+']');return e?+e.dataset.n:null};return {a:g('against'),u:g('unsure'),m:g('fit')}})()`)
     if (fg.a === null || fg.a + fg.u + fg.m === 0) continue
     verdicts++

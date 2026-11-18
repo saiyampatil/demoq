@@ -114,8 +114,39 @@ export function EmotionChip({ emotion, intensity, corrected, reads, className }:
 }
 
 /** Every emotion among the faces read, warm to cold. Who had no video is written beside it, never drawn as neutral. */
-export function EmotionBar({ split, tall }: { split: EmotionSplit; tall?: boolean }) {
+/** A stacked bar of small segments: 64 by 8 px, 1 px gaps, and no segment thinner than 3 px, so a single person still shows. */
+function MiniBar({ parts, base, label, title, testid }: { parts: { n: number; className: string; style?: React.CSSProperties }[]; base: number; label: string; title: string; testid: string }) {
+  return (
+    <span role="img" aria-label={label} title={title} data-testid={testid} data-base={base} className="flex h-2 w-16 shrink-0 gap-px overflow-hidden rounded-full bg-haze">
+      {parts.filter((p) => p.n > 0).map((p, i) => (
+        <span key={i} data-n={p.n} className={cn('h-full', p.className)} style={{ flex: `${p.n} 1 0`, minWidth: 3, ...p.style }} />
+      ))}
+    </span>
+  )
+}
+const HATCH = { backgroundImage: 'repeating-linear-gradient(45deg, rgba(255,255,255,.65) 0 2px, transparent 2px 4px)' }
+
+export function EmotionBar({ split, tall, mini }: { split: EmotionSplit; tall?: boolean; mini?: boolean }) {
   const label = EMOTIONS.filter((e) => split.counts[e]).map((e) => `${split.counts[e]} ${e.toLowerCase()}`).join(', ')
+  if (mini) {
+    const v = split.valence
+    const text = `${v.Positive} positive, ${v.Neutral} neutral, ${v.Negative} negative, ${v.Unclear} unclear, of ${split.read} faces read`
+    if (!split.read) return <span role="img" aria-label="No faces read" title="No faces read" data-testid="mini-bar" data-base={0} className="h-2 w-16 shrink-0 rounded-full border border-dashed border-mist-strong" />
+    return (
+      <MiniBar
+        testid="mini-bar"
+        base={split.read}
+        label={text}
+        title={text}
+        parts={[
+          { n: v.Positive, className: 'bg-emo-delight' },
+          { n: v.Neutral, className: 'bg-emo-neutral' },
+          { n: v.Negative, className: 'bg-emo-doubt' },
+          { n: v.Unclear, className: 'bg-emo-confusion', style: HATCH },
+        ]}
+      />
+    )
+  }
   if (!split.read) return <div className={cn('rounded-full border border-dashed border-mist-strong', tall ? 'h-3.5' : 'h-2')} role="img" aria-label="No faces read" />
   return (
     <div className={cn('flex overflow-hidden rounded-full bg-haze', tall ? 'h-3.5' : 'h-2')} role="img" aria-label={`${label}, of ${split.read} faces read`}>
@@ -168,9 +199,25 @@ export function ToneChip({ tone }: { tone: Tone }) {
   )
 }
 
-export function ToneBar({ split, tall }: { split: ToneSplit; tall?: boolean }) {
+export function ToneBar({ split, tall, mini }: { split: ToneSplit; tall?: boolean; mini?: boolean }) {
+  const label = `${TONES.map((t) => `${split.counts[t]} ${t.toLowerCase()}`).join(', ')}, of ${split.n}`
+  if (mini)
+    return (
+      <MiniBar
+        testid="mini-bar"
+        base={split.n}
+        label={label}
+        title={label}
+        parts={[
+          { n: split.counts.Animated, className: 'bg-emo-delight' },
+          { n: split.counts.Even, className: 'bg-emo-neutral' },
+          { n: split.counts.Flat, className: 'bg-tone-flat' },
+          { n: split.counts.Tense, className: 'bg-emo-doubt' },
+        ]}
+      />
+    )
   return (
-    <div className={cn('flex overflow-hidden rounded-full bg-haze', tall ? 'h-3.5' : 'h-2')} role="img" aria-label={`${TONES.map((t) => `${split.counts[t]} ${t.toLowerCase()}`).join(', ')}, of ${split.n}`}>
+    <div className={cn('flex overflow-hidden rounded-full bg-haze', tall ? 'h-3.5' : 'h-2')} role="img" aria-label={label}>
       {TONES.map((t) => (split.counts[t] ? <span key={t} className={cn('h-full', TONE_FILL[t])} style={{ width: `${(split.counts[t] / split.n) * 100}%` }} title={`${split.counts[t]} ${t.toLowerCase()}`} /> : null))}
     </div>
   )
@@ -263,6 +310,9 @@ export function KeyPopover() {
       <div className="flex flex-col gap-2.5">
         <p className="text-graphite" data-testid="faces-note">
           {FACES_NOTE} Nothing here changes a Review decision.
+        </p>
+        <p className="text-graphite" data-testid="key-claim">
+          A negative face fits a complaint.
         </p>
         <div>
           <p className="mb-1 font-medium text-graphite">Face</p>

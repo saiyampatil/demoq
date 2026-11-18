@@ -25,7 +25,7 @@ export function emotionSummary(e: EmotionSplit) {
   if (neu === e.read) return 'All neutral'
   if (pos > neg) return `${pos} of ${e.read} positive`
   if (neg > pos) return `${neg} of ${e.read} negative`
-  if (pos > 0) return 'Even split'
+  if (pos > 0) return 'No clear lead'
   return `${unc} of ${e.read} confused`
 }
 /** The detail behind the label, for a tooltip: how many faces were read, and how many of each expression. */
@@ -50,25 +50,33 @@ export function ReadingChip({ label }: { label: ReadingLabel }) {
     </span>
   )
 }
-/** Didn't fit, unsure, fit as one thin bar with its three counts. */
+/** Didn't fit (rust), unsure (indigo) and fits (teal) as a 56 by 8 px bar. The three counts are in the tooltip, not on the page. */
 export function ReadingBar({ p, u, m }: { p: number; u: number; m: number }) {
-  const total = p + u + m
+  const text = `${p} didn’t fit · ${u} unsure · ${m} fit`
   return (
-    <span className="flex flex-col gap-0.5" data-testid="reading-bar" title={`${p} didn’t fit, ${u} unsure, ${m} fit`}>
-      <span className="flex h-1.5 overflow-hidden rounded-full bg-haze" aria-hidden="true">
-        {[
-          [p, DOT.doesnt],
-          [u, DOT.unsure],
-          [m, DOT.fits],
-        ].map(([n, c], i) => (
-          <span key={i} className={cn('h-full', c as string)} style={{ width: `${total ? ((n as number) / total) * 100 : 0}%` }} />
+    <span role="img" aria-label={text} title={text} data-testid="reading-bar" data-base={p + u + m} className="flex h-2 w-14 shrink-0 gap-px overflow-hidden rounded-full bg-haze">
+      {[
+        [p, DOT.doesnt],
+        [u, DOT.unsure],
+        [m, DOT.fits],
+      ]
+        .filter(([n]) => (n as number) > 0)
+        .map(([n, c], i) => (
+          <span key={i} data-n={n as number} className={cn('h-full', c as string)} style={{ flex: `${n} 1 0`, minWidth: 3 }} />
         ))}
-      </span>
-      <span className="text-[11px] leading-none text-muted tabular-nums">
-        {p} · {u} · {m}
-      </span>
     </span>
   )
+}
+
+/** Who the words are for: "complaint", "for it" or "facts" for a code; "mostly complaint", "mostly for it", "mixed" or "facts" for a theme. So a negative face reads as fitting a complaint. */
+export function claimCue(stances: (string | undefined)[], theme = false): string {
+  const n = stances.length
+  const pos = stances.filter((s) => s === 'Positive').length
+  const neg = stances.filter((s) => s === 'Negative').length
+  const facts = n - pos - neg
+  if (!n) return ''
+  if (theme) return pos * 2 > n ? 'mostly for it' : neg * 2 > n ? 'mostly complaint' : facts === n ? 'facts' : 'mixed'
+  return pos >= neg && pos >= facts ? 'for it' : neg >= facts ? 'complaint' : 'facts'
 }
 
 export const STATUS_TEXT: Record<ReadingStatus, string> = { Suggested: 'text-graphite', 'Out of date': 'text-pending-fg', Accepted: 'text-positive-fg', Edited: 'text-positive-fg', 'Label changed': 'text-positive-fg', 'Left out': 'text-muted' }

@@ -7,10 +7,10 @@ import { useToast } from '@/components/Toast'
 import { codeSignals, plural, signalGroups, tensionsFor, type CodeSignal, type Tension } from '@/state/signals'
 import { labelShown, needsReview } from '@/state/themeReadings'
 import { CodePanel } from './CodePanel'
-import { FACES_NOTE, FitChip, HowItsDecided, KeyPopover } from './SignalBits'
+import { EmotionBar, FACES_NOTE, FitChip, HowItsDecided, KeyPopover, ToneBar } from './SignalBits'
 import { ThemePanel, type Intent } from './ThemePanel'
 import type { CodebookCtx } from './codebookCtx'
-import { ReadingBar, ReadingChip, StatusChip, acceptRow, emotionSummary, emotionSummaryTitle, readingCounts, themeRows, toneLabel, toneTitle, useExpanded, type ThemeRow } from './signalsShared'
+import { ReadingBar, ReadingChip, StatusChip, acceptRow, claimCue, emotionSummary, emotionSummaryTitle, readingCounts, themeRows, toneLabel, toneTitle, useExpanded, type ThemeRow } from './signalsShared'
 
 export { FACES_NOTE, readingCounts, themeRows }
 
@@ -18,7 +18,9 @@ export { FACES_NOTE, readingCounts, themeRows }
 export type SignalFocus = { theme?: string; code?: string; show?: 'all' | 'review'; review?: boolean }
 
 /** One grid for the header, the theme rows and the code rows, so every number sits at the same x. */
-const GRID = 'grid grid-cols-[minmax(8rem,1fr)_3.75rem_6.5rem_7.5rem_7.5rem_5rem_5.5rem] items-center gap-x-2 px-3'
+const GRID = 'grid grid-cols-[minmax(160px,1fr)_84px_200px_210px_170px_100px] items-center gap-x-3 px-3'
+/** The grid never gets narrower than this: when the panel leaves less room, the Name column shrinks first and then the table scrolls sideways. */
+const TABLE_MIN = 'min-w-[1010px]'
 
 /** Arrow keys move through a list of rows, as in the codebook. */
 export function useArrows(ids: string[], current: string | undefined, pick: (id: string) => void, attr: string) {
@@ -38,15 +40,38 @@ export function useArrows(ids: string[], current: string | undefined, pick: (id:
   }
 }
 
-/** "1 tension" or "4 tensions", with an amber dot when any are waiting for review. */
-function TensionsCell({ row }: { row: ThemeRow }) {
+/** "⚑ 4 tensions", with an amber dot when any are waiting for review. Sits beside the theme name. */
+function TensionsChip({ row }: { row: ThemeRow }) {
   const n = row.tensions.length
   const toReview = row.tensions.filter((x) => x.status === 'Suggested' && !x.unavailable).length
-  if (!n) return <span />
+  if (!n) return null
   return (
-    <span className="inline-flex items-center gap-1.5 text-xs whitespace-nowrap text-graphite" data-testid="tension-chip">
+    <span className="inline-flex items-center gap-1 whitespace-nowrap" data-testid="tension-chip">
+      <span aria-hidden="true">⚑</span>
       {plural(n, 'tension')}
       {toReview > 0 && <span aria-label={`${toReview} to review`} title={`${toReview} to review`} className="size-2 rounded-full bg-emo-surprise" data-testid="tension-dot" />}
+    </span>
+  )
+}
+
+/** The Face or Speech cell: the mini bar, then the label with its base. The same at theme and code level. */
+function BarCell({ bar, label, title, testid }: { bar: React.ReactNode; label: string; title?: string; testid: string }) {
+  return (
+    <span className="flex items-center gap-2" title={title}>
+      {bar}
+      <span className="text-[13px] whitespace-nowrap text-graphite tabular-nums" data-testid={testid}>
+        {label}
+      </span>
+    </span>
+  )
+}
+
+/** The Words vs delivery cell: the verdict, then the same three-part bar at both levels. */
+function WordsCell({ verdict, p, u, m, chip }: { verdict: React.ReactNode; p: number; u: number; m: number; chip?: boolean }) {
+  return (
+    <span className="flex items-center gap-2" data-testid="fit-cell" data-chip={chip ? 'true' : undefined}>
+      {verdict}
+      {p + u + m > 0 && <ReadingBar p={p} u={u} m={m} />}
     </span>
   )
 }
@@ -131,27 +156,24 @@ export function SignalsTab({ ctx, focus, setFocus, tensions, onOpenTension, expa
     const others = (homes.get(c.code.id) ?? []).filter((n) => n !== themeName)
     const on = selCode?.code.id === c.code.id
     return (
-      <li key={`${themeName ?? 'none'}-${c.code.id}`}>
-        <button type="button" data-code={c.code.id} data-testid="signal-row" aria-current={on ? 'true' : undefined} onClick={() => setFocus({ ...focus, code: c.code.id })} className={cn(GRID, 'h-10 w-full border-l-2 py-0 text-left text-[13px] transition-colors', on ? 'border-iris-600 bg-iris-50' : 'border-transparent hover:bg-haze')}>
-          <span className="flex min-w-0 items-center pl-6">
+      <li key={`${themeName ?? 'none'}-${c.code.id}`} className="relative">
+        <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-[22px] z-10 w-0.5 bg-mist" />
+        <button type="button" data-code={c.code.id} data-testid="signal-row" aria-current={on ? 'true' : undefined} onClick={() => setFocus({ ...focus, code: c.code.id })} className={cn(GRID, 'h-11 w-full border-l-2 text-left text-[13px] transition-colors', on ? 'border-iris-600 bg-iris-50' : 'border-transparent hover:bg-haze')}>
+          <span className="flex min-w-0 items-center overflow-hidden pl-7">
             <span className="truncate font-medium" title={c.code.name}>
               {c.code.name}
             </span>
             <AlsoIn names={others} />
+            <span className="ml-1.5 text-xs whitespace-nowrap text-muted" data-testid="claim-cue">
+              · {claimCue(c.points.map((p) => p.stance))}
+            </span>
           </span>
-          <span className="text-right text-xs text-graphite tabular-nums">
+          <span className="pr-6 text-right text-xs text-graphite tabular-nums">
             {c.people} of {c.of}
           </span>
-          <span className="truncate text-xs text-graphite tabular-nums" title={c.readable ? emotionSummaryTitle(c.emotions) : undefined} data-testid="face-cell">
-            {c.readable ? emotionSummary(c.emotions) : '—'}
-          </span>
-          <span className="truncate text-xs text-graphite tabular-nums" title={c.readable ? toneTitle(c) : undefined} data-testid="speech-label">
-            {c.readable ? toneLabel(c) : '—'}
-          </span>
-          <span data-testid="fit-cell">
-            <FitChip pattern={c.readable ? c.fit.pattern : 'Too few to read'} />
-          </span>
-          <span />
+          {c.readable ? <BarCell bar={<EmotionBar mini split={c.emotions} />} label={emotionSummary(c.emotions)} title={emotionSummaryTitle(c.emotions)} testid="face-cell" /> : <span className="text-[13px] text-muted" data-testid="face-cell">—</span>}
+          {c.readable ? <BarCell bar={<ToneBar mini split={c.tones} />} label={toneLabel(c)} title={toneTitle(c)} testid="speech-label" /> : <span className="text-[13px] text-muted" data-testid="speech-label">—</span>}
+          <WordsCell verdict={<FitChip pattern={c.readable ? c.fit.pattern : 'Too few to read'} />} p={c.showable ? c.fit.against : 0} u={c.showable ? c.fit.uncertain : 0} m={c.showable ? c.fit.fits : 0} />
           <span />
         </button>
       </li>
@@ -186,79 +208,83 @@ export function SignalsTab({ ctx, focus, setFocus, tensions, onOpenTension, expa
         {shown.length === 0 && show === 'review' ? (
           <EmptyState title="Every reading has a decision" description="Nothing is waiting for review. Continue to the report when you’re ready." action={<Button onClick={() => setFocus({ ...focus, show: 'all' })}>Show all</Button>} />
         ) : (
-          <div ref={arrows.ref} onKeyDown={keys} className="flex flex-col">
-            <div className={cn(GRID, 'sticky top-0 z-10 h-8 border-b border-mist bg-haze text-xs font-medium text-graphite')} data-testid="signal-head">
-              <span className="pl-6">Name</span>
-              <span className="text-right" title={partial ? 'N is the people who were asked this question.' : undefined} data-testid="said-by-head">
-                Said by
-              </span>
-              <span>Face</span>
-              <span>Speech</span>
-              <span className="whitespace-nowrap">Words vs delivery</span>
-              <span>Tensions</span>
-              <span>Status</span>
-            </div>
-            <ul data-testid="theme-list">
-              {shown.map((r) => {
-                const isOpen = open.has(r.t.id)
-                const label = labelShown(r.decision, r.reading)
-                const on = selTheme?.t.id === r.t.id
-                return (
-                  <li key={r.t.id} className="group relative border-b border-mist last:border-0" data-testid="theme-item">
-                    <button type="button" onClick={() => toggle(r.t.id)} aria-expanded={isOpen} aria-label={`${isOpen ? 'Hide' : 'Show'} the codes in ${r.t.name}`} data-testid="theme-expand" className="absolute top-4 left-3 z-10 rounded-xs p-1 text-graphite hover:bg-mist hover:text-ink">
-                      <span className={cn('block transition-transform', isOpen && 'rotate-90')}>
-                        <ChevronRightIcon size={12} />
-                      </span>
-                    </button>
-                    <button type="button" data-theme={r.t.id} data-status={r.status} data-label={label} data-testid="theme-row" aria-current={on ? 'true' : undefined} onClick={() => setFocus({ ...focus, theme: r.t.id, code: undefined, review: false })} className={cn(GRID, 'min-h-14 w-full border-l-2 py-2 text-left transition-colors', on ? 'border-iris-600 bg-iris-50' : 'border-transparent bg-haze/60 hover:bg-haze')}>
-                      <span className="min-w-0 pl-6 leading-snug">
-                        <span className="text-[15px] font-semibold">{r.t.name}</span>
-                        <span className="ml-2 text-xs whitespace-nowrap text-muted">{plural(r.t.codes.length, 'code')}</span>
-                      </span>
-                      <span className="text-right text-xs text-graphite tabular-nums">
-                        {r.t.people} of {r.t.of}
-                      </span>
-                      <span className="truncate text-xs text-graphite tabular-nums" title={emotionSummaryTitle(r.t.emotions)}>
-                        {emotionSummary(r.t.emotions)}
-                      </span>
-                      <span className="truncate text-xs text-graphite tabular-nums" title={toneTitle(r.t)}>
-                        {toneLabel(r.t)}
-                      </span>
-                      <span className="flex flex-col items-start gap-1">
-                        <ReadingChip label={label} />
-                        {r.reading.nums.R > 0 && <ReadingBar p={r.reading.nums.P} u={r.reading.nums.U} m={r.reading.nums.M} />}
-                      </span>
-                      <TensionsCell row={r} />
-                      <span className={cn(r.status === 'Suggested' && 'group-hover:invisible')} data-testid="theme-status">
-                        <StatusChip status={r.status} />
-                      </span>
-                    </button>
-                    {r.status === 'Suggested' && (
-                      <button type="button" onClick={() => acceptRow(ctx, r, toast)} className="absolute top-1/2 right-3 hidden h-6 -translate-y-1/2 items-center rounded-xs bg-iris-600 px-2 text-xs font-medium text-white group-hover:inline-flex hover:bg-iris-700 focus-visible:inline-flex" data-testid="row-accept" aria-label={`Accept the reading for ${r.t.name}`}>
-                        Accept
-                      </button>
-                    )}
-                    {isOpen && (
-                      <ul data-testid="theme-codes" className="border-t border-mist/70">
-                        {r.t.codes.map((c) => codeRow(c, r.t.name))}
-                      </ul>
-                    )}
-                  </li>
-                )
-              })}
-            </ul>
-            {show === 'all' && loose.length > 0 && (
-              <div className="border-t border-mist">
-                <div className="flex items-baseline gap-2 px-3 pt-3.5 pb-1.5">
-                  <h3 className="pl-6 text-[15px] font-semibold">Not in a theme</h3>
-                  <span className="text-xs text-muted">{plural(loose.length, 'code')} · no reading until they are in a theme</span>
-                  <button type="button" onClick={() => toggle('none')} className="ml-auto text-xs font-medium text-iris-700 hover:underline" data-testid="none-toggle">
-                    {open.has('none') ? 'Hide' : 'Show'}
-                  </button>
-                </div>
-                {open.has('none') && <ul data-testid="none-codes">{loose.map((c) => codeRow(c))}</ul>}
+          <div ref={arrows.ref} onKeyDown={keys} className="overflow-x-auto">
+            <div className={cn('flex flex-col', TABLE_MIN)}>
+              <div className={cn(GRID, 'h-9 border-b border-mist bg-haze text-xs font-medium text-graphite')} data-testid="signal-head">
+                <span className="pl-6">Name</span>
+                <span className="pr-6 text-right" title={partial ? 'N is the people who were asked this question.' : undefined} data-testid="said-by-head">
+                  Said by
+                </span>
+                <span title="A negative face fits a complaint." data-testid="face-head">
+                  Face
+                </span>
+                <span>Speech</span>
+                <span className="whitespace-nowrap">Words vs delivery</span>
+                <span>Status</span>
               </div>
-            )}
+              <ul data-testid="theme-list">
+                {shown.map((r) => {
+                  const isOpen = open.has(r.t.id)
+                  const label = labelShown(r.decision, r.reading)
+                  const on = selTheme?.t.id === r.t.id
+                  const n = r.reading.nums
+                  return (
+                    <li key={r.t.id} className="border-b border-mist last:border-0" data-testid="theme-item">
+                      <div className="group relative">
+                        <button type="button" onClick={() => toggle(r.t.id)} aria-expanded={isOpen} aria-label={`${isOpen ? 'Hide' : 'Show'} the codes in ${r.t.name}`} data-testid="theme-expand" className="absolute top-1/2 left-3 z-10 -translate-y-1/2 rounded-xs p-1 text-graphite hover:bg-mist hover:text-ink">
+                          <span className={cn('block transition-transform', isOpen && 'rotate-90')}>
+                            <ChevronRightIcon size={12} />
+                          </span>
+                        </button>
+                        <button type="button" data-theme={r.t.id} data-status={r.status} data-label={label} data-testid="theme-row" aria-current={on ? 'true' : undefined} onClick={() => setFocus({ ...focus, theme: r.t.id, code: undefined, review: false })} className={cn(GRID, 'h-14 w-full border-l-2 text-left transition-colors', on ? 'border-iris-600 bg-iris-50' : 'border-transparent bg-haze/60 group-hover:bg-haze')}>
+                          <span className="min-w-0 overflow-hidden pl-6">
+                            <span className="block truncate text-[15px] leading-5 font-semibold" title={r.t.name}>
+                              {r.t.name}
+                            </span>
+                            <span className="mt-0.5 flex min-w-0 items-center gap-1.5 overflow-hidden text-xs leading-4 whitespace-nowrap text-muted" data-testid="theme-meta">
+                              <span className="shrink-0">{plural(r.t.codes.length, 'code')}</span>
+                              <TensionsChip row={r} />
+                              <span className="truncate" data-testid="claim-cue">· {claimCue(r.t.points.map((p) => p.stance), true)}</span>
+                            </span>
+                          </span>
+                          <span className="pr-6 text-right text-xs text-graphite tabular-nums">
+                            {r.t.people} of {r.t.of}
+                          </span>
+                          <BarCell bar={<EmotionBar mini split={r.t.emotions} />} label={emotionSummary(r.t.emotions)} title={emotionSummaryTitle(r.t.emotions)} testid="face-cell" />
+                          <BarCell bar={<ToneBar mini split={r.t.tones} />} label={toneLabel(r.t)} title={toneTitle(r.t)} testid="speech-label" />
+                          <WordsCell chip verdict={<ReadingChip label={label} />} p={n.P} u={n.U} m={n.M} />
+                          <span className={cn(r.status === 'Suggested' && 'group-hover:invisible group-focus-within:invisible')} data-testid="theme-status">
+                            <StatusChip status={r.status} />
+                          </span>
+                        </button>
+                        {r.status === 'Suggested' && (
+                          <button type="button" onClick={() => acceptRow(ctx, r, toast)} className="absolute top-1/2 right-3 hidden h-6 -translate-y-1/2 items-center rounded-xs bg-iris-600 px-2 text-xs font-medium text-white group-focus-within:inline-flex group-hover:inline-flex hover:bg-iris-700" data-testid="row-accept" aria-label={`Accept the reading for ${r.t.name}`}>
+                            Accept
+                          </button>
+                        )}
+                      </div>
+                      {isOpen && (
+                        <ul data-testid="theme-codes" className="border-t border-mist/70">
+                          {r.t.codes.map((c) => codeRow(c, r.t.name))}
+                        </ul>
+                      )}
+                    </li>
+                  )
+                })}
+              </ul>
+              {show === 'all' && loose.length > 0 && (
+                <div className="border-t border-mist">
+                  <div className="flex items-baseline gap-2 px-3 pt-3.5 pb-1.5">
+                    <h3 className="pl-6 text-[15px] font-semibold">Not in a theme</h3>
+                    <span className="text-xs text-muted">{plural(loose.length, 'code')} · no reading until they are in a theme</span>
+                    <button type="button" onClick={() => toggle('none')} className="ml-auto text-xs font-medium text-iris-700 hover:underline" data-testid="none-toggle">
+                      {open.has('none') ? 'Hide' : 'Show'}
+                    </button>
+                  </div>
+                  {open.has('none') && <ul data-testid="none-codes">{loose.map((c) => codeRow(c))}</ul>}
+                </div>
+              )}
+            </div>
           </div>
         )}
       </section>
