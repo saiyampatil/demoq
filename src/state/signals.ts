@@ -67,9 +67,6 @@ const worse = (a: Point, b: Point) => (bandRank(b.band) > bandRank(a.band) ? b :
 
 /** The signals on every accepted code. Only quotes from sessions accepted right now count. */
 export function codeSignals(doc: CodebookDoc, basis: Basis): CodeSignal[] {
-  // A code inside a theme goes into the report through its theme's tick. Its own tick only counts when the Researcher set one
-  // (older data), so the same signal is never in the report twice.
-  const themed = new Set(codeThemes(doc).flatMap((t) => themeCodes(doc, t).map((c) => c.id)))
   return doc.codes
     .filter((c) => c.status === 'Accepted')
     .map((code) => {
@@ -95,7 +92,7 @@ export function codeSignals(doc: CodebookDoc, basis: Basis): CodeSignal[] {
         fit,
         notable,
         readable,
-        use: readable && (doc.signalPicks?.[code.id] ?? (themed.has(code.id) ? false : notable)),
+        use: readable && (doc.signalPicks?.[code.id] ?? notable),
         points,
       }
     })

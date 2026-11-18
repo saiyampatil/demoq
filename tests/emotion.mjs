@@ -23,7 +23,7 @@ const clickText = async (sel, label) => {
 }
 const fresh = async () => {
   await b.goto('/researcher'); await b.evaluate('localStorage.clear(); sessionStorage.clear(); true'); await b.goto(`${root}/signals?view=code`)
-  await b.waitFor('Emotion & behaviour'); await b.waitFor('What stands out'); await b.sleep(500)
+  await b.waitFor('Emotion & behaviour'); await b.waitFor('Words vs delivery'); await b.sleep(500)
 }
 const setText = (sel, v) => `(() => { const t=document.querySelector(${JSON.stringify(sel)}); Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(t,${JSON.stringify(v)}); t.dispatchEvent(new Event('input',{bubbles:true})); return true })()`
 const selectCode = async (name) => { await clickText('[data-testid=signal-row]', name); await b.sleep(300) }
@@ -35,10 +35,6 @@ try {
   ok('the old step name is gone from the header', !/Signals & tensions/.test(page ?? ''))
   ok('the coverage line says who has no face reading', /audio-only, so no face reading/.test((await text('[data-testid=coverage]')) ?? ''), await text('[data-testid=coverage]'))
   ok('By code shows Face and Speech side by side, with no channel switch', /Face Speech Words vs delivery/.test((await text('[data-testid=signal-head]')) ?? '') && (await b.evaluate(`document.querySelectorAll('[data-testid=lens-emotion]').length`)) === 0)
-  const stand = await b.evaluate(`[...document.querySelectorAll('[data-testid=standout]')].map(e=>e.innerText.replace(/\\s+/g,' '))`)
-  ok('What stands out has the most positive concept (C), after the hesitant-delivery observations', /^Positive words, hesitant delivery/.test(stand[0] ?? '') && stand.some((x) => /Concept C/.test(x) && /most positive/.test(x)), stand.join(' | '))
-  ok('What stands out has a words-vs-delivery line', stand.some((s) => /pulled against the words/.test(s)), stand.join(' | '))
-  ok('What stands out still has hesitation and tensions', stand.some((s) => /marked hesitation/.test(s)) && stand.some((s) => /tensions? to review/.test(s)), stand.join(' | '))
   await b.shot('emo-a2-overview')
 
   // The positive-claim theme only exists once the Researcher accepts PulseAI's suggestion for it.
@@ -46,17 +42,14 @@ try {
   const accepted = await b.evaluate(`(()=>{const s=[...document.querySelectorAll('[data-testid=theme-suggestion]')].find(x=>/Wanting control/.test(x.innerText));if(!s)return false;s.querySelector('[data-testid=accept-theme]').click();return true})()`)
   ok('PulseAI suggests a theme for the control codes', accepted)
   await b.sleep(500)
-  await b.goto(`${root}/signals?view=code`); await b.waitFor('What stands out'); await b.sleep(500)
+  await b.goto(`${root}/signals?view=code`); await b.waitFor('Words vs delivery'); await b.sleep(500)
 
   // ── By code: the table, the roll-up, the report switch ──
   const rows = await b.evaluate(`[...document.querySelectorAll('[data-testid=signal-row]')].map(r=>r.innerText.replace(/\\s+/g,' '))`)
   const nothing = rows.find((r) => /Nothing would have kept them/.test(r))
   ok('a code with two people reads "Too few to read"', /Too few to read/.test(nothing ?? ''), nothing)
-  ok('and no code has a report tick on this screen', (await b.evaluate(`document.querySelectorAll('[data-testid=use-signal]').length`)) === 0)
-  const rolls = await b.evaluate(`[...document.querySelectorAll('[data-testid=theme-rollup]')].map(e=>e.innerText.replace(/\\s+/g,' '))`)
-  ok('every theme has a roll-up line with people, faces and hesitation', rolls.length >= 3 && rolls.every((r) => /^\d+ (people|person) · faces read for \d+ · marked hesitation in \d+/.test(r)), rolls.join(' | '))
-  ok('a theme with a positive claim says how many argued for it and how many pulled against', await b.evaluate(`[...document.querySelectorAll('[data-testid=theme-summary]')].some(e=>/pulled against/.test(e.innerText))`), rolls.join(' | '))
-
+  ok('and its report switch is off, because there is too little to read', await b.evaluate(`[...document.querySelectorAll('[data-testid=signal-row]')].find(r=>/Nothing would have kept them/.test(r.innerText)).closest('li').querySelector('[data-testid=use-signal]').disabled`))
+  ok('every group is a plain label with its number of codes', (await b.evaluate(`[...document.querySelectorAll('[data-testid=group-count]')].every(e=>/^\\d+ codes?$/.test(e.innerText))`)))
   // ── The code panel: every channel, and the pause story ──
   await selectCode('Pause would have kept them')
   const panel = await text('[data-testid=signal-panel]')
@@ -89,23 +82,6 @@ try {
   ok('the correction is in the change log with the reason', /Face reading corrected/.test(log ?? '') && /squinting/.test(log ?? ''))
   ok('the log can be filtered to face readings', await b.evaluate(`!![...document.querySelectorAll('option')].find(o=>o.textContent==='Face readings only')`))
 
-  // ── By moment: the concept story, split by owner, never neutral for no video ──
-  await b.goto(`${root}/signals?view=code`); await b.waitFor('What stands out'); await b.sleep(400)
-  await click('[data-testid=view-moment]')
-  const moments = await b.evaluate(`[...document.querySelectorAll('[data-testid=moment-row]')].map(r=>r.innerText.replace(/\\s+/g,' '))`)
-  const rowC = moments.find((r) => /Concept C/.test(r))
-  ok('Concept C is marked the most positive reaction', /Most positive/.test(rowC ?? ''), rowC)
-  ok('concept rows count positive, neutral, negative and unclear of faces read', /\d+ positive · \d+ neutral · \d+ negative · \d+ unclear of \d+/.test(rowC ?? ''), rowC)
-  await clickText('[data-testid=moment-row]', 'First reaction: Concept C')
-  const mp = await text('[data-testid=moment-panel]')
-  ok('the concept panel says how many faces were read and how many were audio-only', /faces read\./.test(mp ?? '') && /audio-only/.test(mp ?? ''), mp?.slice(0, 300))
-  await b.shot('emo-a2-moment-c')
-  await click('[data-testid=compare-pets]')
-  ok('comparing owners shows dog and cat rows', /Dog owners/.test((await text('[data-testid=moment-row]')) ?? '') || (await b.evaluate(`document.body.innerText.includes('Cat owners')`)))
-  await click('[data-testid=lens-speech]')
-  ok('the Speech group shows certainty per moment and says the tone in the panel', /Tone: \d+ tense/.test((await text('[data-testid=moment-panel]')) ?? ''))
-  ok('the Speech group still counts marked, some and steady', /marked · \d+ some · \d+ steady/.test((await text('[data-testid=moment-row]')) ?? ''))
-
   // ── Tensions: the new kind, faces on clips, the right numbers ──
   await b.goto(`${root}/signals?tab=tensions`); await b.waitFor('Tensions'); await b.sleep(500)
   await clickText('[data-testid=tf-All]', 'All'); await b.sleep(300)
@@ -131,7 +107,7 @@ try {
   }
 
   // ── The way on ──
-  await b.goto(`${root}/signals?view=code`); await b.waitFor('What stands out'); await b.sleep(400)
+  await b.goto(`${root}/signals?view=code`); await b.waitFor('Words vs delivery'); await b.sleep(400)
   const foot = await text('main')
   ok('the stepper names the step', /Emotion & behaviour/.test(foot ?? ''))
   ok('invariants hold', !(await b.evaluate('window.__invariants'))?.length)

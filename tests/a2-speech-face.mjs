@@ -63,6 +63,13 @@ try {
     const hes = (stance, k) => sg.hesitantDelivery(team(6, (i) => ({ stance, band: i < k ? 'Marked hesitation' : 'Steady', face: null })), doc)
     out.hesitantPos = hes('Positive', 4); out.hesitantNeg = hes('Negative', 4); out.hesitantFew = hes('Positive', 2)
     out.lines = cfg.DELIVERY_RULE_LINES
+    {
+      const cb = await window.__mod('/src/state/codebook'); const ms = await window.__mod('/src/mock/signals'); const sess = await window.__mod('/src/mock/sessions')
+      const d = Object.values(JSON.parse(localStorage.getItem(Object.keys(localStorage).find((k) => /codebook/.test(k)))))[0]
+      const sid = (p) => sess.sessionIdOf(sess.PET_SEED_SESSIONS.find((x) => x.participant === p && x.variant === 'done'))
+      const basis = cb.basisOf(ms.ACCEPTED_PARTICIPANTS.map((p) => ({ id: sid(p), participantId: p })))
+      out.hesitantNames = sg.codeSignals(d, basis).filter((s) => s.readable && sg.hesitantDelivery(s.points, d)).map((s) => s.code.name)
+    }
     return out
   })()`)
   ok('hesitation alone never pulls against the words: marked hesitation with normal tone and no face is Uncertain', u.hes.fit === 'Uncertain' && u.hes.against.length === 0 && u.some === 'Matches', JSON.stringify(u.hes))
@@ -81,109 +88,104 @@ try {
   ok('the hesitant-delivery observation needs a positive claim and at least half hesitating', u.hesitantPos?.hesitated === 4 && u.hesitantPos.speakers === 6 && u.hesitantNeg === null && u.hesitantFew === null, [u.hesitantPos, u.hesitantNeg, u.hesitantFew])
   ok('the rule lines in config are the five lines, word for word', JSON.stringify(u.lines) === JSON.stringify(LINES), u.lines)
 
-  // ── The table ──
-  await b.goto(`${root}/signals?view=code`); await b.waitFor('What stands out'); await b.sleep(700)
-  ok('no rule paragraph is on the page', (await b.evaluate(`document.querySelectorAll('[data-testid=fit-rule]').length`)) === 0 && !/How it’s decided\. /.test((await text('[aria-label="Signals by code"]')) ?? ''))
+  // ── One table, no views ──
+  await b.goto(`${root}/signals`); await b.waitFor('Words vs delivery'); await b.sleep(900)
+  ok('there is no By theme | By code | By moment switch and no theme or moment view', (await b.evaluate(`document.querySelectorAll('[aria-label="Read signals by"],[data-testid=view-theme],[data-testid=view-code],[data-testid=view-moment],[data-testid=theme-signal-row],[data-testid=moment-row]').length`)) === 0)
+  ok('there is no What stands out card', (await b.evaluate(`document.querySelectorAll('[data-testid=standouts],[data-testid=standout]').length`)) === 0 && !/What stands out/.test((await text('main')) ?? ''))
+  ok('there is no Tension themes group and no theme verdict badge, sub-line or switch', !(await b.evaluate(`[...document.querySelectorAll('h3')].some(h=>/Tension themes/.test(h.innerText))`)) && (await b.evaluate(`document.querySelectorAll('[data-testid=theme-rollup],[data-testid=theme-summary],[data-testid=use-theme],[data-testid=group-in-report],[data-testid=tension-theme-list]').length`)) === 0)
+  ok('the Signals and Tensions tabs and the tension count badge are still there', JSON.stringify(await b.evaluate(`[...document.querySelectorAll('[role=tab]')].map(t=>t.innerText.replace(/\\s+/g,' ').trim().replace(/ \\d+$/,''))`)) === JSON.stringify(['Signals', 'Tensions']) && /\d/.test((await text('[role=tab]:nth-child(2)')) ?? ''))
   const head = await text('[data-testid=signal-head]')
-  ok('the columns are Code, Said by, Face, Speech, Words vs delivery, and there is no Report column', /^Code Said by Face Speech Words vs delivery/.test(head ?? '') && !/Report/.test(head ?? ''), head)
-  ok('no code has a report tick, and the channel switch is gone from By code', (await b.evaluate(`document.querySelectorAll('[data-testid=use-signal]').length`)) === 0 && (await b.evaluate(`document.querySelectorAll('[data-testid=lens-emotion],[data-testid=lens-speech],[data-testid=lens-voice],[data-testid=lens-hesitation]').length`)) === 0)
+  ok('the columns are Code, Said by, Face, Speech, Words vs delivery and In report', /^Code Said by Face Speech Words vs delivery How it’s decided In report$/.test(head ?? ''), head)
   await click('[data-testid=how-decided]')
   const pop = await all('[data-testid=how-decided-line]')
   ok('“How it’s decided” opens a popover with exactly the five lines', pop.length === 5 && pop.every((l, i) => l.replace(/^\d\. /, '') === LINES[i]), pop)
   await b.evaluate(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})); true`); await b.sleep(250)
   ok('Escape closes it', (await b.evaluate(`document.querySelectorAll('[data-testid=how-decided-pop]').length`)) === 0)
+  ok('no rule paragraph is on the page', (await b.evaluate(`document.querySelectorAll('[data-testid=fit-rule]').length`)) === 0)
+  const groups = await b.evaluate(`[...document.querySelectorAll('[aria-label="Signals by code"] section[aria-labelledby^=grp-]')].map(s=>({head:s.querySelector('header').innerText.replace(/\\s+/g,' ').trim(),chips:s.querySelector('header').querySelectorAll('[class*=border-mist-strong],[class*=pending],button,input,[role=switch]').length}))`)
+  ok('codes sit under their theme as a plain label with “n codes”: no verdict, badge or toggle', groups.length >= 2 && groups.every((g) => /^.+ \d+ codes?$/.test(g.head) && g.chips === 0), groups)
+  ok('“Not in a theme” is the last group', groups.length === 0 || !groups.some((g, i) => /^Not in a theme/.test(g.head) && i !== groups.length - 1))
+  ok('and the group names are the themes, so all four accepted themes are there', ['Price creep', 'The pet decides', 'Wanting control over deliveries', 'Why they joined'].every((t) => groups.some((g) => g.head.startsWith(t))), groups.map((g) => g.head))
+
+  // ── It looks like the codebook ──
+  const look = (sel) => b.evaluate(`(()=>{const e=document.querySelector(${JSON.stringify(sel)});const c=getComputedStyle(e);return {pl:c.paddingLeft,pt:c.paddingTop,gap:c.columnGap,bl:c.borderLeftWidth,fs:c.fontSize,h:Math.round(e.getBoundingClientRect().height)}})()`)
+  const a2row = await look('[data-testid=signal-row]')
+  const a2head = await b.evaluate(`(()=>{const e=document.querySelector('[data-testid=signal-head]');const c=getComputedStyle(e);return {pl:c.paddingLeft,pt:c.paddingTop,bg:c.backgroundColor,fs:c.fontSize}})()`)
+  const a2grp = await b.evaluate(`(()=>{const e=document.querySelector('[aria-labelledby^=grp-] > header');const c=getComputedStyle(e);return {pl:c.paddingLeft,pt:c.paddingTop,pb:c.paddingBottom}})()`)
+  await b.goto(`${root}/codebook?tab=codes`); await b.waitFor('Accepted'); await b.sleep(600)
+  await b.evaluate(`[...document.querySelectorAll('button,[role=tab]')].find(x=>/^Accepted/.test(x.innerText.trim()))?.click(); true`); await b.sleep(400)
+  const a1row = await look('[data-testid=code-row]')
+  const a1head = await b.evaluate(`(()=>{const e=[...document.querySelectorAll('div')].find(d=>/^Code\\b/.test(d.innerText||'')&&getComputedStyle(d).backgroundColor!=='rgba(0, 0, 0, 0)'&&d.className.includes('bg-haze'));const c=getComputedStyle(e);return {pl:c.paddingLeft,pt:c.paddingTop,bg:c.backgroundColor,fs:c.fontSize}})()`)
+  const a1grp = await b.evaluate(`(()=>{const e=document.querySelector('[aria-labelledby^=grp-] > header');const c=getComputedStyle(e);return {pl:c.paddingLeft,pt:c.paddingTop,pb:c.paddingBottom}})()`)
+  ok('a signal row has the codebook row’s padding, gap, left border, type size and height', a1row.pl === a2row.pl && a1row.pt === a2row.pt && a1row.gap === a2row.gap && a1row.bl === a2row.bl && a1row.fs === a2row.fs && Math.abs(a1row.h - a2row.h) <= 4, { a1row, a2row })
+  ok('the header row and the group headers are the codebook’s', JSON.stringify(a1head) === JSON.stringify(a2head) && JSON.stringify(a1grp) === JSON.stringify(a2grp), { a1head, a2head, a1grp, a2grp })
+  await b.goto(`${root}/signals`); await b.sleep(900)
+
+  // ── The cells ──
   const faces = await all('[data-testid=face-cell]')
   const speech = await all('[data-testid=speech-label]')
-  ok('Face is a short label: “4 of 10 interest” or “Mixed reactions”, never “Tied at”', faces.length > 8 && faces.every((f) => /^(\d+ of \d+ [a-z]+|Mixed reactions|No video|No clear reading)$/.test(f)) && faces.some((f) => /^\d+ of \d+ [a-z]+$/.test(f)), faces)
-  ok('Speech is a short label: “3 flat or tense”, “Mostly even”', speech.length > 8 && speech.every((f) => /^(\d+ flat or tense|Mostly even|Mostly animated|Mixed tone)$/.test(f)), speech)
-  ok('Mixed reactions keeps its detail in a tooltip', await b.evaluate(`[...document.querySelectorAll('[data-testid=face-cell]')].filter(e=>e.innerText==='Mixed reactions').every(e=>/Tied at \\d+ each: /.test(e.title))`))
-  const heads = await all('[data-testid=theme-rollup]')
-  ok('a theme’s sub-header is one line: “16 people · faces read for 12 · marked hesitation in 6”', heads.length >= 3 && heads.every((h) => /^\d+ (people|person) · faces read for \d+ · marked hesitation in \d+/.test(h)) && !(await b.evaluate(`document.querySelectorAll('[data-testid=theme-highlight]').length`)), heads)
-  const sums = await all('[data-testid=theme-summary]')
-  ok('under it, one summary line: “8 of 14 argued for it. 3 pulled against, 2 uncertain.”', sums.length >= 2 && sums.every((t) => /^\d+ of \d+ (argued for it|complained)( and \d+ complained)?\. \d+ pulled against(, \d+ uncertain)?\.$/.test(t)), sums)
-  const tableText = (await text('[aria-label="Signals by code"]')) ?? ''
-  ok('participant IDs never appear in the table', !/P-\d{4}/.test(tableText))
-  const reportWords = await all('[data-testid=group-in-report]')
-  ok('each theme group header says In report or Not in report, read only', reportWords.length >= 2 && reportWords.every((w) => /^(In report|Not in report)$/.test(w)) && (await b.evaluate(`document.querySelectorAll('[aria-label="Signals by code"] input[type=checkbox], [aria-label="Signals by code"] [role=switch]').length`)) === 1, reportWords)
+  ok('Face is a short label: “Mostly interest”, “Mixed” or “Not read”', faces.length > 8 && faces.every((f) => /^(Mostly [a-z]+|Mixed|Not read)$/.test(f)) && faces.some((f) => /^Mostly [a-z]+$/.test(f)), faces)
+  ok('Speech is a short label: “Mostly animated”, “Mostly even”, “Flat or tense: 6”', speech.length > 8 && speech.every((f) => /^(Flat or tense: \d+|Mostly even|Mostly animated|Mixed|Not read)$/.test(f)), speech)
+  ok('no label is truncated or clipped', await b.evaluate(`[...document.querySelectorAll('[data-testid=face-cell],[data-testid=speech-label],[data-testid=fit-cell]')].every(e=>{const c=getComputedStyle(e);return c.textOverflow!=='ellipsis'&&e.scrollWidth<=e.clientWidth+1})`))
+  ok('the detail is in the tooltip', await b.evaluate(`[...document.querySelectorAll('[data-testid=face-cell][title]')].every(e=>/faces read/.test(e.title)) && [...document.querySelectorAll('[data-testid=speech-label][title]')].every(e=>/Tone: .*Certainty: /.test(e.title))`))
+  ok('participant IDs never appear in the table', !/P-\d{4}/.test((await text('[aria-label="Signals by code"]')) ?? ''))
+  ok('Said by reads n of N', (await all('[data-testid=signal-row]')).every((r) => /\d+ of \d+/.test(r)))
 
-  // ── The panel, for every code: the three figures follow the badge ──
-  const total = await b.evaluate(`document.querySelectorAll('[data-testid=signal-row]').length`)
-  const bad = []
-  let withClaim = 0
-  let sawAudio = false
-  let sawWho = false
-  for (let i = 0; i < total; i++) {
-    await b.evaluate(`document.querySelectorAll('[data-testid=signal-row]')[${i}].click(); true`); await b.sleep(120)
-    const chip = await b.evaluate(`document.querySelectorAll('[data-testid=fit-cell]')[${i}].innerText.trim()`)
-    const fig = await b.evaluate(`(()=>{const f=(k)=>{const e=document.querySelector('[data-testid=fig-'+k+']');return e?+e.dataset.n:null};return {a:f('against'),u:f('uncertain'),m:f('matched'),tone:!!document.querySelector('[data-testid=channel-speech]')}})()`)
-    if (fig.a === null) continue
-    withClaim++
-    const nn = fig.a + fig.u + fig.m
-    const want = ruleOf(fig.a, fig.u, nn, 3)
-    if (chip !== want) bad.push(`${i}: ${chip} should be ${want} (${fig.a}/${fig.u}/${fig.m})`)
-    if (await b.evaluate(`!!document.querySelector('[data-testid=audio-only-note]')`)) sawAudio = true
-    if (await b.evaluate(`!!document.querySelector('[data-testid=see-who]')`)) sawWho = true
-  }
-  ok('the badge and the three figures agree for every code with a claim', withClaim >= 8 && bad.length === 0, bad.join(' | ') || withClaim)
-  ok('the panel says how many were audio-only and read on speech', sawAudio && /^\d+ of \d+ audio-only, read on speech\.$/.test((await b.evaluate(`(()=>{for(const r of document.querySelectorAll('[data-testid=signal-row]')){r.click()};return ''})()`)) || '3 of 8 audio-only, read on speech.'))
-  await b.evaluate(`[...document.querySelectorAll('[data-testid=signal-row]')].find(r=>/Price matters more/.test(r.innerText)).click(); true`); await b.sleep(250)
-  if (await b.evaluate(`!!document.querySelector('[data-testid=see-who]')`)) {
-    ok('IDs of people who only stated a fact are behind “See who”, in the panel', !(await b.evaluate(`!!document.querySelector('[data-testid=fact-only-ids]')`)))
-    await click('[data-testid=see-who]')
-    ok('and they list after the click', /^P-\d{4}(, P-\d{4})*$/.test((await text('[data-testid=fact-only-ids]')) ?? ''))
-  } else ok('some code has people who only stated a fact, with a See who link', sawWho)
-  const panel = await text('[data-testid=signal-panel]')
-  ok('the two speech bars are labelled Tone and Certainty', /Tone/.test(panel ?? '') && /Certainty/.test(panel ?? ''), panel?.slice(0, 300))
-  ok('the panel has no report switch for a code', (await b.evaluate(`document.querySelectorAll('[data-testid=signal-panel] input[type=checkbox], [data-testid=signal-panel] [role=switch]').length`)) === 0)
-  ok('“Reads as” shows no number when only one expression was read', await b.evaluate(`(()=>{for(const r of document.querySelectorAll('[data-testid=signal-row]')){r.click();const p=document.querySelector('[data-testid=signal-panel]');const el=[...p.querySelectorAll('span')].find(s=>s.innerText.trim()==='Reads as');if(!el)continue;const chips=[...el.parentElement.children].slice(1);if(chips.length===1&&/\\d/.test(chips[0].innerText))return false};return true})()`))
+  // ── Rows select; the panel keeps what it had ──
+  ok('the selected row has the indigo left border', await b.evaluate(`(()=>{const r=document.querySelector('[data-testid=signal-row][aria-current=true]');return !!r&&getComputedStyle(r).borderLeftColor!==getComputedStyle(document.querySelector('[data-testid=signal-row]:not([aria-current=true])')).borderLeftColor})()`))
+  await b.evaluate(`[...document.querySelectorAll('[data-testid=signal-row]')].find(r=>/Wanted to stop running out/.test(r.innerText)).click(); true`); await b.sleep(250)
+  ok('clicking a row opens its panel', /Wanted to stop running out/.test((await text('[data-testid=signal-panel] h2')) ?? ''))
+  ok('the panel has “Play the clearest moment”, evidence quotes with times and reasons, and “Not right?”', /Play the clearest moment · P-\d{4} at \d+:\d\d/.test((await text('[data-testid=code-play]')) ?? '') && (await b.evaluate(`document.querySelectorAll('[data-testid=signal-point]').length`)) >= 3 && (await all('[data-testid=signal-point]')).every((p) => /Play at \d+:\d\d/.test(p)) && (await b.evaluate(`!!document.querySelector('[data-testid=fix-face]')`)))
+  ok('and the three figures, the two labelled speech bars', (await b.evaluate(`document.querySelectorAll('[data-testid=signal-panel] [data-testid=fig-against]').length`)) === 1 && /Tone/.test((await text('[data-testid=signal-panel]')) ?? '') && /Certainty/.test((await text('[data-testid=signal-panel]')) ?? ''))
 
-  // ── What stands out ──
-  const stand = await all('[data-testid=standout]')
-  const first = stand[0] ?? ''
-  ok('“Positive words, hesitant delivery” comes first, in n of N, with no percentages', /^Positive words, hesitant delivery .+\. Said by \d+ of \d+; \d+ of \d+ hesitated\.( |$)/.test(first) && !/%/.test(first), stand.join(' | '))
-  await b.evaluate(`[...document.querySelectorAll('[data-testid=standout]')][0].click(); true`); await b.sleep(300)
-  ok('opening it shows the same observation in the panel', /^Positive words, hesitant delivery\. \d+ of \d+ who argued for it hesitated\.$/.test((await text('[data-testid=hesitant-note]')) ?? ''), await text('[data-testid=hesitant-note]'))
+  // ── The hesitant-delivery line: only for a positive claim, n of N, at the top ──
+  const notes = await b.evaluate(`(async()=>{const out=[];const rows=[...document.querySelectorAll('[data-testid=signal-row]')];for(const r of rows){r.click();await new Promise(x=>setTimeout(x,90));const p=document.querySelector('[data-testid=signal-panel]');const n=p.querySelector('[data-testid=hesitant-note]');out.push({name:r.innerText.split('\\n')[0].trim(),note:n?n.innerText.replace(/\\s+/g,' '):null,top:n?n===p.querySelector('.overflow-y-auto').firstElementChild:null})};return out})()`)
+  const withNote = notes.filter((x) => x.note)
+  ok('the line appears for codes with a positive claim and hesitating speakers, at the top, in n of N with no percentage', withNote.length >= 1 && withNote.every((x) => /^Positive words, hesitant delivery: said by \d+ of \d+; \d+ of \d+ hesitated\.$/.test(x.note) && x.top && !/%/.test(x.note)), withNote)
+  ok('and not for codes that only complain or state a fact: it matches the observation’s own rule', JSON.stringify(withNote.map((x) => x.name).sort()) === JSON.stringify(u.hesitantNames.sort()), { got: withNote.map((x) => x.name), want: u.hesitantNames })
 
-  // ── By theme: the one report switch ──
-  await b.goto(`${root}/signals`); await b.waitFor('What stands out'); await b.sleep(700)
-  const themeRows = await b.evaluate(`document.querySelectorAll('[data-testid=theme-signal-item]').length`)
-  ok('By theme has no rule box and no rule paragraph; the rule is behind “How it’s decided”', (await b.evaluate(`document.querySelectorAll('[data-testid=theme-rule-box],[data-testid=theme-rule]').length`)) === 0 && (await b.evaluate(`!!document.querySelector('[data-testid=how-decided]')`)))
-  await click('[data-testid=how-decided]')
-  ok('and it opens the same five lines', (await all('[data-testid=how-decided-line]')).length === 5)
-  await b.evaluate(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})); true`); await b.sleep(200)
-  ok('each theme has exactly one switch, in its row', (await b.evaluate(`document.querySelectorAll('[data-testid=use-theme]').length`)) === themeRows - (await b.evaluate(`[...document.querySelectorAll('[data-testid=theme-signal-item]')].filter(li=>!li.querySelector('[data-testid=use-theme]')).length`)))
-  const sw0 = await b.evaluate(`document.querySelector('[data-testid=use-theme]').getAttribute('aria-checked')`)
-  await click('[data-testid=use-theme]')
-  const sw1 = await b.evaluate(`document.querySelector('[data-testid=use-theme]').getAttribute('aria-checked')`)
-  ok('flipping it changes the theme’s report state', sw0 !== sw1)
-  await b.evaluate(`document.querySelector('[data-testid=theme-signal-row]').click(); true`); await b.sleep(250)
-  ok('the panel switch is labelled “Put these signals in the report” with a suggestion line', /^Put these signals in the report (Suggested on: words and delivery don’t fit\.|Suggested on: hesitation shows\.|Suggested off: nothing stands out\.|Needs at least three people\.)$/.test((await text('[data-testid=theme-tick-box]')) ?? ''), await text('[data-testid=theme-tick-box]'))
-  ok('and it is the same switch state as the row', (await b.evaluate(`document.querySelector('[data-testid=use-theme-panel]').getAttribute('aria-checked')`)) === (await b.evaluate(`document.querySelector('[data-testid=use-theme]').getAttribute('aria-checked')`)))
-  const foot = await b.evaluate(`document.body.innerText.match(/Goes to the report: (\\d+) signal profile/)?.[1]`)
-  const onNow = await b.evaluate(`[...document.querySelectorAll('[data-testid=use-theme]')].filter(e=>e.getAttribute('aria-checked')==='true').length`)
-  ok('the footer count is the number of themes switched on', Number(foot) === onNow, `${foot} vs ${onNow}`)
-  const themePanel = await text('[data-testid=theme-panel]')
-  ok('the theme panel has the three figures and labelled Tone and Certainty bars', (await b.evaluate(`document.querySelectorAll('[data-testid=theme-panel] [data-testid=fig-against]').length`)) === 1 && /Tone/.test(themePanel ?? '') && /Certainty/.test(themePanel ?? ''))
-  const tbad = []
-  const names = await b.evaluate(`[...document.querySelectorAll('[data-testid=theme-signal-row]')].map(r=>r.innerText.split('\\n')[0])`)
-  for (let i = 0; i < names.length; i++) {
-    await b.evaluate(`document.querySelectorAll('[data-testid=theme-signal-row]')[${i}].click(); true`); await b.sleep(120)
-    const chip = await b.evaluate(`document.querySelectorAll('[data-testid=theme-signal-row]')[${i}].dataset.verdict`)
-    const f = await b.evaluate(`(()=>{const g=(k)=>{const e=document.querySelector('[data-testid=theme-panel] [data-testid=fig-'+k+']');return e?+e.dataset.n:null};return {a:g('against'),u:g('uncertain'),m:g('matched')}})()`)
-    if (f.a === null) continue
-    const want = ruleOf(f.a, f.u, f.a + f.u + f.m, 3)
-    if (chip !== want) tbad.push(`${names[i]}: ${chip} should be ${want} (${f.a}/${f.u}/${f.m})`)
-  }
-  ok('for every theme the badge and the three figures agree', tbad.length === 0, tbad.join(' | '))
-  const rowLines = await all('[data-testid=theme-headline]')
-  ok('a theme row’s line is the same one-line summary', rowLines.some((t) => /^\d+ of \d+ argued for it/.test(t)) && rowLines.every((t) => !/%/.test(t)))
+  // ── The report switch: per code, and the same state in the row and the panel ──
+  const rowsN = await b.evaluate(`document.querySelectorAll('[data-testid=signal-row]').length`)
+  ok('every code has one switch in its row', (await b.evaluate(`document.querySelectorAll('[data-testid=use-signal]').length`)) === rowsN)
+  ok('the footer counts the ticked codes and tension themes, and what is still to review', /^Goes to the report: \d+ codes? with signals and \d+ tension themes?\. \d+ tensions? still to review\.$/.test((await text('[data-testid=report-footer-count]'))?.concat(' ', (await b.evaluate(`document.querySelector('[data-testid=report-footer-count]').nextElementSibling?.innerText ?? ''`)) ?? '') ?? ''), await text('[data-testid=report-footer-count]'))
+  const footN = async () => Number((await text('[data-testid=report-footer-count]'))?.match(/report: (\d+)/)?.[1])
+  const onNow = () => b.evaluate(`[...document.querySelectorAll('[data-testid=use-signal]')].filter(e=>e.getAttribute('aria-checked')==='true').length`)
+  ok('the footer count equals the codes switched on', (await footN()) === (await onNow()), `${await footN()} vs ${await onNow()}`)
+  const defaults = await withMod(`(async()=>{const cb=await window.__mod('/src/state/codebook');const ms=await window.__mod('/src/mock/signals');const sess=await window.__mod('/src/mock/sessions');const sg=await window.__mod('/src/state/signals');const doc=Object.values(JSON.parse(localStorage.getItem(Object.keys(localStorage).find(k=>/codebook/.test(k)))))[0];const sid=(p)=>sess.sessionIdOf(sess.PET_SEED_SESSIONS.find(x=>x.participant===p&&x.variant==='done'));const basis=cb.basisOf(ms.ACCEPTED_PARTICIPANTS.map(p=>({id:sid(p),participantId:p})));return sg.codeSignals(doc,basis).map(s=>({use:s.use,rule:s.readable&&s.notable,picked:doc.signalPicks?.[s.code.id]}))})()`)
+  ok('by default a code is on when the code rule says so: words and delivery don’t fit, or marked hesitation shows', defaults.length >= 10 && defaults.every((d) => d.picked !== undefined || d.use === d.rule) && defaults.some((d) => d.use) && defaults.some((d) => !d.use), defaults)
+  await b.evaluate(`[...document.querySelectorAll('[data-testid=signal-row]')].find(r=>/Wanted to stop running out/.test(r.innerText)).click(); true`); await b.sleep(200)
+  const rowSw = () => b.evaluate(`document.querySelector('[data-testid=signal-row][aria-current=true]').closest('li').querySelector('[data-testid=use-signal]').getAttribute('aria-checked')`)
+  const panSw = () => b.evaluate(`document.querySelector('[data-testid=use-signal-panel]').getAttribute('aria-checked')`)
+  ok('the panel has the same switch, with a suggestion line', (await rowSw()) === (await panSw()) && /^(Suggested on: words and delivery don’t fit\.|Suggested on: hesitation shows\.|Suggested off: nothing stands out\.)$/.test((await text('[data-testid=tick-hint]')) ?? ''), await text('[data-testid=tick-hint]'))
+  const before = await footN()
+  const was = await panSw()
+  await click('[data-testid=use-signal-panel]')
+  ok('flipping it in the panel flips the row, and the footer moves by one', (await rowSw()) !== was && (await panSw()) === (await rowSw()) && Math.abs((await footN()) - before) === 1)
+  await click('[data-testid=signal-row][aria-current=true] + span [data-testid=use-signal]')
+  ok('and flipping it in the row flips the panel back', (await panSw()) === was && (await footN()) === before)
 
-  // ── By moment keeps its certainty view inside Speech ──
-  await click('[data-testid=view-moment]')
-  ok('By moment has the Face | Speech switch', JSON.stringify(await all('[role=group][aria-label=Channel] button')) === JSON.stringify(['Face', 'Speech']))
-  await click('[data-testid=lens-speech]')
-  ok('and Speech shows certainty per moment', /marked · \d+ some · \d+ steady/.test((await text('[data-testid=moment-row]')) ?? ''))
-  ok('no screen says “face, voice or hesitation”', !/face, voice or hesitation|voice and hesitation/i.test((await text('body')) ?? ''))
+  // ── An older theme-level tick becomes code ticks, once ──
+  const ids = await b.evaluate(`(()=>{const k=Object.keys(localStorage).find(k=>/codebook/.test(k));const o=JSON.parse(localStorage[k]);const id=Object.keys(o)[0];const d=o[id];const th=(n)=>d.themes.find(t=>t.name===n);const ctl=th('Wanting control over deliveries'), joined=th('Why they joined'), price=th('Price creep');return {ctl:ctl.codeIds,joined:joined.codeIds,price:price.codeIds,pickedNow:d.signalPicks}})()`)
+  await b.evaluate(`(()=>{const k=Object.keys(localStorage).find(k=>/codebook/.test(k));const o=JSON.parse(localStorage[k]);const id=Object.keys(o)[0];const d=o[id];const th=(n)=>d.themes.find(t=>t.name===n);d.signalPicks={};d.themePicks={[th('Why they joined').id]:true,[th('Wanting control over deliveries').id]:false};localStorage[k]=JSON.stringify(o);return true})()`)
+  await b.goto(`${root}/signals`); await b.sleep(1000)
+  const mig = await b.evaluate(`(()=>{const k=Object.keys(localStorage).find(k=>/codebook/.test(k));const d=Object.values(JSON.parse(localStorage[k]))[0];return {picks:d.signalPicks,log:d.log.filter(l=>l.action==='Signals tick moved to its codes').length,themePicks:d.themePicks}})()`)
+  const accepted = (await withMod(`(async()=>{const k=Object.keys(localStorage).find(k=>/codebook/.test(k));const d=Object.values(JSON.parse(localStorage[k]))[0];const acc=(ids)=>ids.filter(i=>d.codes.find(c=>c.id===i)?.status==='Accepted');return {joined:acc(${JSON.stringify(ids.joined)}),ctl:acc(${JSON.stringify(ids.ctl)}),price:acc(${JSON.stringify(ids.price)})}})()`))
+  ok('a theme ticked on carries its tick to each of its accepted codes, saved', accepted.joined.length >= 2 && accepted.joined.every((c) => mig.picks[c] === true), mig)
+  ok('a theme ticked off carries that too, so nothing switches on by itself', accepted.ctl.length >= 2 && accepted.ctl.every((c) => mig.picks[c] === false), mig)
+  ok('a theme with no tick adds nothing: its codes keep the code rule', accepted.price.every((c) => mig.picks[c] === undefined))
+  ok('the old theme-level ticks stay stored, unread, and the move is logged once per theme', mig.themePicks && Object.keys(mig.themePicks).length === 2 && mig.log === 2, mig)
+  await b.goto(`${root}/signals`); await b.sleep(700)
+  const mig2 = await b.evaluate(`(()=>{const k=Object.keys(localStorage).find(k=>/codebook/.test(k));const d=Object.values(JSON.parse(localStorage[k]))[0];return d.log.filter(l=>l.action==='Signals tick moved to its codes').length})()`)
+  ok('reloading does not move them again, and a code switched off by hand stays off', mig2 === 2)
+
+  // ── The report groups ticked codes under their theme ──
+  await b.evaluate(`(()=>{const k=Object.keys(localStorage).find(k=>/codebook/.test(k));const o=JSON.parse(localStorage[k]);const id=Object.keys(o)[0];const d=o[id];const c=d.codes.find(c=>c.name==='Flexibility matters more than price');d.signalPicks={...d.signalPicks,[c.id]:true};localStorage[k]=JSON.stringify(o);return true})()`)
+  await b.goto(`${root}/report`); await b.waitFor('EXECUTIVE SUMMARY'); await b.sleep(700)
+  await b.evaluate(`document.querySelector('[data-testid=toggle-all-sections]')?.click(); true`); await b.sleep(300)
+  await b.evaluate(`[...document.querySelectorAll('[data-testid=finding-more]')].forEach(x=>x.getAttribute('aria-expanded')==='false'&&x.click()); true`); await b.sleep(300)
+  const rep = await b.evaluate(`[...document.querySelectorAll('[data-testid=signal-group]')].map(g=>({group:g.dataset.group,items:[...g.querySelectorAll('li[data-kind]')].map(li=>({kind:li.dataset.kind,name:li.querySelector('p').innerText}))}))`)
+  ok('A3 findings group ticked codes under their theme, as codes, never as a theme profile', rep.length >= 1 && rep.every((g) => g.items.length && g.items.every((i) => i.kind === 'code')) && rep.some((g) => g.group === 'Why they joined') && (await b.evaluate(`document.querySelectorAll('[data-testid=signals] li[data-kind=theme]').length`)) === 0, rep)
+  ok('a code ticked on its own sits under its theme (Flexibility… under Wanting control over deliveries)', rep.some((g) => g.group === 'Wanting control over deliveries' && g.items.some((i) => /Flexibility matters more than price/.test(i.name))), rep)
 } catch (e) {
   failures.push(`stopped: ${e.message}`)
 }

@@ -9,6 +9,7 @@ import { statusFamily } from '@/components/status'
 import { band, CODE_QUESTIONS, denominator, excerpt, peopleOf, type Code, type CodeStatus } from '@/state/codebook'
 import { BulkAcceptDialog } from './CodeDialogs'
 import { CodeDetail } from './CodeDetail'
+import { GroupSection, TableHead, rowButtonClass } from './codeTable'
 import type { CodebookCtx } from './codebookCtx'
 
 export type StatusFilter = CodeStatus | 'All'
@@ -150,30 +151,31 @@ export function CodesTab({ ctx, status, setStatus, picked, setPicked }: { ctx: C
           />
         ) : (
           <div ref={listRef} onKeyDown={onKey} className="flex flex-col">
-            <div className="hidden items-center gap-3 border-b border-mist bg-haze px-4 py-1.5 text-xs font-medium text-graphite sm:flex">
+            <TableHead>
               <span className="flex-1">Code</span>
               <span className="w-36">People who said it</span>
               <span className="w-16">Confidence</span>
-            </div>
+            </TableHead>
             {groups.map((g) => (
-              <section key={g.id} aria-labelledby={`grp-${g.id}`} className="border-b border-mist last:border-0">
-                <header className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 px-4 pt-3.5 pb-1.5">
-                  <h3 id={`grp-${g.id}`} className="text-sm font-semibold">
-                    {g.label}
-                  </h3>
-                  {g.asked && (
-                    <span className={cn('text-xs tabular-nums', g.asked.n < g.asked.of ? 'text-pending-fg' : 'text-muted')} title={g.asked.skipped.length ? `Not asked: ${g.asked.skipped.join(', ')}` : undefined}>
-                      {g.asked.n < g.asked.of ? `Asked ${g.asked.n} of ${g.asked.of}` : `Asked all ${g.asked.of}`}
-                    </span>
-                  )}
-                  {g.text && <p className="w-full truncate text-xs text-graphite">“{g.text}”</p>}
-                </header>
-                <ul className="pb-2">
-                  {g.codes.map((c) => (
-                    <CodeRow key={c.id} code={c} n={people.get(c.id) ?? 0} of={denominator(c, basis)} on={c.id === selected?.id} onPick={() => setPicked(c.id)} />
-                  ))}
-                </ul>
-              </section>
+              <GroupSection
+                key={g.id}
+                id={g.id}
+                label={g.label}
+                aside={
+                  <>
+                    {g.asked && (
+                      <span className={cn('text-xs tabular-nums', g.asked.n < g.asked.of ? 'text-pending-fg' : 'text-muted')} title={g.asked.skipped.length ? `Not asked: ${g.asked.skipped.join(', ')}` : undefined}>
+                        {g.asked.n < g.asked.of ? `Asked ${g.asked.n} of ${g.asked.of}` : `Asked all ${g.asked.of}`}
+                      </span>
+                    )}
+                    {g.text && <p className="w-full truncate text-xs text-graphite">“{g.text}”</p>}
+                  </>
+                }
+              >
+                {g.codes.map((c) => (
+                  <CodeRow key={c.id} code={c} n={people.get(c.id) ?? 0} of={denominator(c, basis)} on={c.id === selected?.id} onPick={() => setPicked(c.id)} />
+                ))}
+              </GroupSection>
             ))}
           </div>
         )}
@@ -207,10 +209,7 @@ function CodeRow({ code: c, n, of, on, onPick }: { code: Code; n: number; of: nu
         data-testid="code-row"
         aria-current={on ? 'true' : undefined}
         onClick={onPick}
-        className={cn(
-          'group flex w-full items-center gap-3 border-l-2 px-4 py-2 text-left text-sm transition-colors',
-          on ? 'border-iris-600 bg-iris-50' : 'border-transparent hover:bg-haze',
-        )}
+        className={rowButtonClass(on)}
       >
         <span className={cn('shrink-0', FAMILY_TEXT[fam])} title={c.status}>
           <StatusGlyph family={fam} />

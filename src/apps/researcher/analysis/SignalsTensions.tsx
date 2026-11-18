@@ -7,7 +7,7 @@ import { EmptyState, ErrorState, LoadingState } from '@/components/States'
 import { screenById, studyPath } from '@/routes/screens'
 import { signalsReadiness } from '@/state/analysisProgress'
 import { CODEBOOK_STUDY, updateCodebook } from '@/state/codebook'
-import { codeSignals, coverage, plural, tensionCounts, tensionsOf, themeSignals } from '@/state/signals'
+import { codeSignals, coverage, plural, tensionCounts, tensionsOf } from '@/state/signals'
 import { PageHeader } from '../../shared/PageHeader'
 import { ExploreControl } from './explore/ExploreControl'
 import { AnalysisStepper } from './AnalysisStepper'
@@ -32,7 +32,7 @@ export function SignalsTensions() {
   const [loaded, setLoaded] = useState(false)
   const [failed, setFailed] = useState(params.get('demo') === 'error')
   const [filter, setFilter] = useState<TensionFilter>('Suggested')
-  const [focus, setFocus] = useState<SignalFocus>({ view: (['theme', 'code', 'moment'] as const).find((v) => v === params.get('view')) ?? 'theme' })
+  const [focus, setFocus] = useState<SignalFocus>({})
   const [focusTension, setFocusTension] = useState<string>()
 
   useEffect(() => {
@@ -94,7 +94,7 @@ export function SignalsTensions() {
   const cov = coverage(accepted, excluded)
   const t = tensionCounts(doc)
   const codeRows = codeSignals(doc, basis)
-  const used = codeRows.filter((s) => s.use).length + themeSignals(doc, basis, codeRows).filter((t) => t.use).length
+  const used = codeRows.filter((s) => s.use).length
 
   const showTensions = (f: TensionFilter) => {
     setFilter(f)
@@ -107,8 +107,8 @@ export function SignalsTensions() {
     go('tensions')
     toPanel()
   }
-  const seeSignals = (codeId?: string, momentId?: string) => {
-    setFocus(momentId ? { view: 'moment', moment: momentId } : { view: 'code', code: codeId })
+  const seeSignals = (codeId?: string) => {
+    setFocus({ code: codeId })
     go('signals')
     toPanel()
   }
@@ -175,7 +175,7 @@ export function SignalsTensions() {
         lead={tab === 'signals' && t.toReview > 0 ? { label: `Review ${plural(t.toReview, 'tension')}`, onClick: () => showTensions('Suggested') } : undefined}
         message={
           <>
-            Goes to the report: {plural(used, 'signal profile')} and {plural(t.themes, 'tension theme')}.
+            <span data-testid="report-footer-count">Goes to the report: {plural(used, 'code')} with signals and {plural(t.themes, 'tension theme')}.</span>
             {t.toReview > 0 ? <span className="ml-1.5 font-medium text-pending-fg">{plural(t.toReview, 'tension')} still to review.</span> : <span className="ml-1.5 text-positive-fg">Every tension is decided.</span>}
           </>
         }

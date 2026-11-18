@@ -11,7 +11,6 @@ import { EmotionChip } from './SignalBits'
 import { StatusChip } from '@/components/StatusChip'
 import { useToast } from '@/components/Toast'
 import { formatStamp } from '@/lib/format'
-import { MOMENTS } from '@/mock/signals'
 import { screenById, studyPath } from '@/routes/screens'
 import { dismissTension, restoreTension, turnTensionIntoTheme } from '@/state/codebook'
 import { TENSION_KINDS, tensionsOf, type Side, type Tension, type TensionKind, type TensionStatus } from '@/state/signals'
@@ -36,7 +35,7 @@ const KIND_HINT: Record<TensionKind, string> = {
 }
 
 /** Where what people said doesn't add up. PulseAI suggests each one; you add it as a tension theme or dismiss it, and say why. */
-export function TensionsTab({ ctx, filter, setFilter, focusId, onSeeSignals, onContinue }: { ctx: CodebookCtx; filter: TensionFilter; setFilter: (f: TensionFilter) => void; focusId?: string; onSeeSignals: (codeId?: string, momentId?: string) => void; onContinue: () => void }) {
+export function TensionsTab({ ctx, filter, setFilter, focusId, onSeeSignals, onContinue }: { ctx: CodebookCtx; filter: TensionFilter; setFilter: (f: TensionFilter) => void; focusId?: string; onSeeSignals: (codeId?: string) => void; onContinue: () => void }) {
   const [kind, setKind] = useState<TensionKind | 'all'>('all')
   const [turning, setTurning] = useState<Tension>()
   const [dismissing, setDismissing] = useState<Tension>()
@@ -140,7 +139,7 @@ export function TensionsTab({ ctx, filter, setFilter, focusId, onSeeSignals, onC
   )
 }
 
-function TensionCard({ t, ctx, focused, onSeeSignals, onTurn, onDismiss, onRestore }: { t: Tension; ctx: CodebookCtx; focused: boolean; onSeeSignals: (codeId?: string, momentId?: string) => void; onTurn: () => void; onDismiss: () => void; onRestore: () => void }) {
+function TensionCard({ t, ctx, focused, onSeeSignals, onTurn, onDismiss, onRestore }: { t: Tension; ctx: CodebookCtx; focused: boolean; onSeeSignals: (codeId?: string) => void; onTurn: () => void; onDismiss: () => void; onRestore: () => void }) {
   const dim = t.status === 'Dismissed' || !!t.unavailable
   const theme = t.decision?.themeId ? ctx.doc.themes.find((x) => x.id === t.decision?.themeId) : undefined
   const ref = useRef<HTMLLIElement>(null)
@@ -154,7 +153,6 @@ function TensionCard({ t, ctx, focused, onSeeSignals, onTurn, onDismiss, onResto
     return () => clearTimeout(id)
   }, [focused])
   const codes = t.codeIds.map((id) => ctx.doc.codes.find((c) => c.id === id)).filter(Boolean)
-  const moment = MOMENTS.find((m) => m.id === t.momentId)
   return (
     <li ref={ref} id={`tension-${t.id}`} data-testid="tension-card" data-status={t.status} className={cn('rounded-md border bg-surface transition-shadow', dim ? 'border-mist bg-paper' : 'border-mist', ring && 'border-iris-600 shadow-[0_0_0_3px_var(--color-iris-100)]')}>
       <header className="flex flex-wrap items-center gap-2 px-5 pt-4">
@@ -173,7 +171,6 @@ function TensionCard({ t, ctx, focused, onSeeSignals, onTurn, onDismiss, onResto
             See the signals:
             {[
               ...codes.map((c) => ({ key: c!.id, label: c!.name, test: 'see-signals', onClick: () => onSeeSignals(c!.id) })),
-              ...(moment ? [{ key: moment.id, label: moment.label, test: 'see-moment', onClick: () => onSeeSignals(undefined, moment.id) }] : []),
             ].map((l, i) => (
               <span key={l.key} className="inline-flex items-center gap-2">
                 {i > 0 && <span aria-hidden="true">·</span>}

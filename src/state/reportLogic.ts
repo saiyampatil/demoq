@@ -8,6 +8,7 @@ import {
   excerpt,
   liveExcerpts,
   peopleOf,
+  codeThemes,
   themeCodes,
   themePeople,
   tensionDecisions,
@@ -204,7 +205,7 @@ export function strengthFor(people: number, someNotAsked: boolean): Strength {
 /** One A2 signal ticked for a finding, per channel. */
 export type SignalLine = { channel: 'Speech' | 'Face' | 'Words vs delivery'; text: string; /** Emotion and voice are off in the client version until cleared. */ emotionVoice: boolean }
 /** What "How people sounded" shows for a finding: a theme's profile from A2, or a code's signals ticked at code level (older data). */
-export type FindingSignal = { id: string; name: string; kind: 'theme' | 'code'; lines: SignalLine[] }
+export type FindingSignal = { id: string; name: string; kind: 'theme' | 'code'; /** The theme the code sits under, or "Not in a theme". Ticked codes are grouped by it. */ group: string; lines: SignalLine[] }
 
 /** The channel lines for a theme or a code. The words-vs-delivery line is the theme's headline sentence when there is one. */
 function signalLines(s: Pick<Rollup, 'pattern' | 'marked' | 'people' | 'emotions' | 'points' | 'fit'>, headline?: string): SignalLine[] {
@@ -273,7 +274,11 @@ export function reportModel(report: ReportDoc, doc: CodebookDoc, basis: Basis): 
     return list.map((i) => ({ ...i, edited: !ai.has(i.sentence.text) && !ai.has(i.sentence.template ?? i.sentence.text) }))
   }
   const signals = codeSignals(doc, basis)
+  // A theme's note in the report still reads its A2 headline; only the report tick is per code now.
   const profiles = themeSignals(doc, basis, signals)
+  // Where each code sits, for grouping ticked codes under their theme.
+  const groupOf = new Map(codeThemes(doc).flatMap((t) => themeCodes(doc, t).map((c) => [c.id, t.name] as const)))
+  const groupRank = (g: string) => (g === 'Not in a theme' ? 1 : 0)
   const tensions = tensionsOf(doc, basis)
   const decisions = tensionDecisions(doc)
 
@@ -283,8 +288,7 @@ export function reportModel(report: ReportDoc, doc: CodebookDoc, basis: Basis): 
     const people = new Set(codes.flatMap((c) => [...peopleOf(c, basis)])).size
     const notAsked = q.skipped.filter((s) => basis.participants.has(s.participantId)).length
     const codeIds = new Set(codes.map((c) => c.id))
-    // The themes ticked in A2 that this question's codes belong to, then any code ticked on its own (older data).
-    const tickedThemes = profiles.filter((t) => t.use && t.codes.some((c) => codeIds.has(c.code.id)))
+    // The codes ticked in A2 that this question's codes include, grouped under their themes. Theme-level profiles are no longer a report option.
     const ticked = signals.filter((s) => codeIds.has(s.code.id) && s.use)
     const related = new Map<string, Tension>()
     codes.forEach((c) => tensionsFor(tensions, c.id).forEach((t) => related.set(t.id, t)))
@@ -300,8 +304,7 @@ export function reportModel(report: ReportDoc, doc: CodebookDoc, basis: Basis): 
       codes,
       quotes: representativeQuotes(codes, basis),
       signals: [
-        ...tickedThemes.map((t): FindingSignal => ({ id: t.id, name: t.name, kind: 'theme', lines: signalLines(t, t.headline) })),
-        ...ticked.map((s): FindingSignal => ({ id: s.code.id, name: s.code.name, kind: 'code', lines: signalLines(s) })),
+        ...ticked.map((s): FindingSignal => ({ id: s.code.id, name: s.code.name, kind: 'code', group: groupOf.get(s.code.id) ?? 'Not in a theme', lines: signalLines(s) })).sort((a, b) => groupRank(a.group) - groupRank(b.group) || a.group.localeCompare(b.group)),
       ],
       tensions: [...related.values()].filter((t) => decisions[t.id]?.status !== 'Dismissed'),
       active: f.active,

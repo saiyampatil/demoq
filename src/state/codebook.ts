@@ -119,7 +119,15 @@ export function updateCodebook(studyId: string, fn: (d: CodebookDoc) => Codebook
 
 /** Puts the seed in place the first time a study's codebook is opened. */
 export function ensureCodebook(studyId: string, acceptedSessions: string[]) {
-  if (store[studyId]) return
+  if (store[studyId]) {
+    // An older theme-level tick becomes code-level ticks, once. Nothing else is touched.
+    const moved = migrateThemePicks(store[studyId])
+    if (moved !== store[studyId]) {
+      store = { ...store, [studyId]: moved }
+      save()
+    }
+    return
+  }
   const seed = seedCodebook(studyId, acceptedSessions)
   if (!seed) return
   store = { ...store, [studyId]: seed }
@@ -433,6 +441,25 @@ export function restoreTension(d: CodebookDoc, tension: { id: string; title: str
 /** Whether a theme's signal profile goes into the report. Not set means on when the pattern is notable. */
 export function setThemePick(d: CodebookDoc, theme: { id: string; name: string }, on: boolean, { by }: Who): CodebookDoc {
   return log({ ...d, themePicks: { ...(d.themePicks ?? {}), [theme.id]: on } }, themeEntry(by, theme, on ? 'Signals added to the report' : 'Signals left out of the report'))
+}
+
+/**
+ * Signals go into the report per code. An older theme-level tick (on or off) is carried to the accepted codes of that theme that have no
+ * code-level tick of their own, once. The theme-level value stays in the doc, unread. Returns the same doc when there is nothing to carry.
+ */
+export function migrateThemePicks(d: CodebookDoc): CodebookDoc {
+  const picks = d.themePicks ?? {}
+  const own = d.signalPicks ?? {}
+  const next = { ...own }
+  const entries: LogEntry[] = []
+  for (const theme of codeThemes(d)) {
+    if (picks[theme.id] === undefined) continue
+    const codes = themeCodes(d, theme).filter((c) => c.status === 'Accepted' && own[c.id] === undefined)
+    if (!codes.length) continue
+    codes.forEach((c) => (next[c.id] = picks[theme.id]))
+    entries.push(themeEntry('PulseAI', theme, 'Signals tick moved to its codes', `${picks[theme.id] ? 'On' : 'Off'} for ${codes.length} ${codes.length === 1 ? 'code' : 'codes'}`))
+  }
+  return entries.length ? log({ ...d, signalPicks: next }, ...entries) : d
 }
 
 /** Whether a code's signals go into the report. Not set means on when the pattern is notable. */

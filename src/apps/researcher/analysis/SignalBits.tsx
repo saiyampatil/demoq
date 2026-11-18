@@ -300,13 +300,13 @@ export function DeliveryFigures({ b }: { b: Breakdown }) {
   )
 }
 
-/** "Positive words, hesitant delivery": an observation, never a verdict. Shown only for a claim that is positive. */
-export function HesitantNote({ points, doc }: { points: Point[]; doc: CodebookCtx['doc'] }) {
+/** "Positive words, hesitant delivery": an observation, never a verdict, at the top of a code's panel. Only for a claim that is positive. */
+export function HesitantNote({ points, doc, of }: { points: Point[]; doc: CodebookCtx['doc']; of: number }) {
   const h = hesitantDelivery(points, doc)
   if (!h) return null
   return (
-    <p className="mb-2 rounded-sm bg-iris-50 px-3 py-2 text-xs text-iris-700" data-testid="hesitant-note">
-      <span className="font-semibold">Positive words, hesitant delivery.</span> {h.hesitated} of {h.speakers} who argued for it hesitated.
+    <p className="border-b border-mist bg-iris-50 px-5 py-2 text-xs text-iris-700" data-testid="hesitant-note">
+      <span className="font-semibold">Positive words, hesitant delivery:</span> said by {h.said} of {of}; {h.hesitated} of {h.speakers} hesitated.
     </p>
   )
 }

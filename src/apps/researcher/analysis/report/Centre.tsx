@@ -457,23 +457,30 @@ function FindingCard({ f }: { f: FindingModel }) {
               {f.signals.length > 0 && (
                 <div data-testid="signals">
                   <p className={LABEL}>How people sounded, from Emotion &amp; behaviour</p>
-                  <ul className="mt-1.5 flex flex-col gap-1.5">
-                    {f.signals.map((s) => (
-                      <li key={s.id} className="rounded-sm border border-mist bg-surface px-3 py-2 text-sm" data-kind={s.kind}>
-                        <p className="font-medium text-ink">
-                          {s.name} <span className="font-normal text-graphite">· {s.kind === 'theme' ? 'theme' : 'code'}</span>
-                        </p>
-                        <ul className="mt-0.5 flex flex-col gap-0.5 text-xs text-graphite">
-                          {s.lines.map((l) => (
-                            <li key={l.channel}>
-                              <span className="font-medium text-ink">{l.channel}.</span> {l.text}
-                              {l.emotionVoice && <span className="ml-1 text-muted">(off in the client version until cleared)</span>}
-                            </li>
-                          ))}
+                  <div className="mt-1.5 flex flex-col gap-2">
+                    {[...new Set(f.signals.map((s) => s.group))].map((g) => (
+                      <section key={g} aria-label={g} data-testid="signal-group" data-group={g}>
+                        <p className="text-xs font-semibold text-graphite">{g}</p>
+                        <ul className="mt-1 flex flex-col gap-1.5">
+                          {f.signals
+                            .filter((s) => s.group === g)
+                            .map((s) => (
+                              <li key={s.id} className="rounded-sm border border-mist bg-surface px-3 py-2 text-sm" data-kind={s.kind}>
+                                <p className="font-medium text-ink">{s.name}</p>
+                                <ul className="mt-0.5 flex flex-col gap-0.5 text-xs text-graphite">
+                                  {s.lines.map((l, i) => (
+                                    <li key={`${l.channel}-${i}`}>
+                                      <span className="font-medium text-ink">{l.channel}.</span> {l.text}
+                                      {l.emotionVoice && <span className="ml-1 text-muted">(off in the client version until cleared)</span>}
+                                    </li>
+                                  ))}
+                                </ul>
+                              </li>
+                            ))}
                         </ul>
-                      </li>
+                      </section>
                     ))}
-                  </ul>
+                  </div>
                 </div>
               )}
 
