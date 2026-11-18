@@ -4,12 +4,13 @@ import { AIGeneratedTag } from '@/components/AIGenerated'
 import { cn } from '@/components/cn'
 import { ChevronRightIcon, PlayIcon } from '@/components/icons'
 import { EmptyState } from '@/components/States'
+import { Switch } from '@/components/Switch'
 import { useToast } from '@/components/Toast'
 import { setSignalPick, setThemePick } from '@/state/codebook'
 import { EMOTIONS, noReading, topEmotions } from '@/state/emotion'
-import { THEME_RULE_TEXT, stanceSummary, tensionsFor, type Tension, type ThemeSignal } from '@/state/signals'
+import { breakdownOf, stanceSummary, tensionsFor, type Tension, type ThemeSignal } from '@/state/signals'
 import { mmss } from '../review/reviewUi'
-import { BandBar, EmotionBar, EmotionChip, FitChip, PointCard, ToneBar, ValenceCounts, playHref } from './SignalBits'
+import { BandBar, DeliveryFigures, EmotionBar, EmotionChip, FitChip, HesitantNote, HowItsDecided, PointCard, ToneBar, ValenceCounts, playHref } from './SignalBits'
 import { ChannelRow, useArrows, type SignalFocus } from './SignalsTab'
 import type { CodebookCtx } from './codebookCtx'
 
@@ -72,15 +73,15 @@ export function ByTheme({ ctx, themes, tensions, focus, setFocus, onOpenTension 
               {t.summary}
             </span>
           </button>
-          <label className="flex w-14 shrink-0 justify-center py-3" title={t.tickable ? (t.readable ? undefined : 'Too few people to put in the report') : t.kind === 'tension' ? 'A tension theme goes in the report as a tension' : 'Tick the codes below, one at a time'}>
+          <span className="flex w-14 shrink-0 justify-center py-2.5" title={t.tickable ? (t.readable ? undefined : 'Too few people to put in the report') : t.kind === 'tension' ? 'A tension theme goes in the report as a tension' : 'Tick the codes below, one at a time'}>
             {t.tickable ? (
-              <input type="checkbox" checked={t.use} disabled={!t.readable} onChange={(e) => tick(t, e.target.checked)} aria-label={`Put the ${t.name} profile in the report`} className="accent-[var(--color-iris-600)] disabled:opacity-40" data-testid="use-theme" />
+              <Switch checked={t.use} disabled={!t.readable} onChange={(on) => tick(t, on)} label={`Put the ${t.name} signals in the report`} testid="use-theme" />
             ) : (
               <span className="text-xs text-muted" aria-hidden="true">
                 —
               </span>
             )}
-          </label>
+          </span>
         </div>
         {isOpen && (
           <ul className="mb-2 ml-9 mr-3 divide-y divide-mist rounded-sm border border-mist bg-surface" aria-label={`Codes in ${t.name}`} data-testid="theme-codes">
@@ -108,14 +109,9 @@ export function ByTheme({ ctx, themes, tensions, focus, setFocus, onOpenTension 
     <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] xl:grid-cols-[minmax(0,1fr)_minmax(0,28rem)]">
       <section aria-label="Signals by theme" className="min-w-0 rounded-md border border-mist bg-surface">
         <div className="flex items-center gap-3 border-b border-mist px-4 py-2">
-          <details className="min-w-0 flex-1 text-xs text-graphite" data-testid="theme-rule-box">
-            <summary className="cursor-pointer select-none">
-              <span className="font-medium text-ink">Consistent, Mixed or Conflicting</span> says whether how people said it matched what they said. <span className="font-medium text-iris-700">How it’s decided</span>
-            </summary>
-            <p className="mt-1.5 rounded-sm bg-haze px-3 py-2" data-testid="theme-rule">
-              {THEME_RULE_TEXT}
-            </p>
-          </details>
+          <p className="min-w-0 flex-1 text-xs text-graphite">
+            <span className="font-medium text-ink">Consistent, Mixed or Conflicting</span> says whether how people said it matched what they said. <HowItsDecided />
+          </p>
           <span className="w-14 shrink-0 text-center text-xs text-graphite" title={`${inReport} of ${tickable} themes are in the report`}>
             In report
           </span>
@@ -149,7 +145,6 @@ function ThemePanel({ t, ctx, tensions, onTick, onOpenTension }: { t: ThemeSigna
   const e = t.emotions
   const tops = topEmotions(e)
   const off = t.tones.counts.Flat + t.tones.counts.Tense
-  const against = t.fit.against
   const stance = stanceSummary(t)
   const related = useMemo(() => {
     const seen = new Map<string, Tension>()
@@ -193,20 +188,8 @@ function ThemePanel({ t, ctx, tensions, onTick, onOpenTension }: { t: ThemeSigna
 
         {t.readable ? (
           <div className="border-b border-mist px-5 py-3" data-testid="theme-channels">
-            {t.fit.n > 0 && (
-              <p className={cn('mb-2 rounded-sm px-3 py-2 text-sm', against ? 'bg-pending-bg text-pending-fg' : 'bg-haze text-graphite')} data-testid="theme-fit-verdict">
-                {against ? (
-                  <>
-                    <span className="font-semibold">
-                      For {against} of {t.fit.n},
-                    </span>{' '}
-                    the speech or face pulled against the words.{t.fit.uncertain > 0 && <> {t.fit.uncertain} of {t.fit.n} uncertain.</>}
-                  </>
-                ) : (
-                  t.fit.uncertain > 0 ? <>Neither speech nor face pulled against the words. {t.fit.uncertain} of {t.fit.n} uncertain.</> : <>How they said it fits the words for all {t.fit.n}.</>
-                )}
-              </p>
-            )}
+            <DeliveryFigures b={breakdownOf(t.points, ctx.doc)} />
+            <HesitantNote points={t.points} doc={ctx.doc} />
             <dl className="divide-y divide-mist">
               <ChannelRow label="Words">{stance.long}</ChannelRow>
               <ChannelRow label="Face" bar={<EmotionBar split={e} tall />} testid="theme-face">
@@ -229,9 +212,10 @@ function ThemePanel({ t, ctx, tensions, onTick, onOpenTension }: { t: ThemeSigna
                 {e.read > 0 && (
                   <span className="mt-1 flex flex-wrap items-center gap-1">
                     <span className="text-xs text-graphite">Reads as</span>
-                    {EMOTIONS.filter((x) => e.counts[x]).map((x) => (
+                    {EMOTIONS.filter((x) => e.counts[x]).map((x, _i, xs) => (
                       <span key={x} className="inline-flex items-center gap-1 text-xs text-graphite tabular-nums">
-                        <EmotionChip emotion={x} /> {e.counts[x]}
+                        <EmotionChip emotion={x} />
+                        {xs.length > 1 && <> {e.counts[x]}</>}
                       </span>
                     ))}
                   </span>
@@ -242,8 +226,14 @@ function ThemePanel({ t, ctx, tensions, onTick, onOpenTension }: { t: ThemeSigna
                 testid="channel-speech"
                 bar={
                   <span className="flex flex-col gap-1.5">
-                    <ToneBar split={t.tones} tall />
-                    <BandBar split={{ counts: { Steady: t.steady, 'Some hesitation': t.some, 'Marked hesitation': t.marked }, n: t.people }} tall />
+                    <span>
+                      <span className="mb-0.5 block text-[11px] font-medium text-graphite">Tone</span>
+                      <ToneBar split={t.tones} tall />
+                    </span>
+                    <span>
+                      <span className="mb-0.5 block text-[11px] font-medium text-graphite">Certainty</span>
+                      <BandBar split={{ counts: { Steady: t.steady, 'Some hesitation': t.some, 'Marked hesitation': t.marked }, n: t.people }} tall />
+                    </span>
                   </span>
                 }
               >
@@ -259,13 +249,15 @@ function ThemePanel({ t, ctx, tensions, onTick, onOpenTension }: { t: ThemeSigna
         )}
 
         {t.tickable && (
-          <label className={cn('mx-5 my-3 flex items-start gap-2.5 rounded-sm border border-mist px-3 py-2.5', t.readable ? 'cursor-pointer' : 'opacity-60')}>
-            <input type="checkbox" checked={t.use} disabled={!t.readable} onChange={(ev) => onTick(ev.target.checked)} className="mt-0.5 accent-[var(--color-iris-600)]" data-testid="use-theme-panel" />
+          <div className="mx-5 my-3 flex items-start gap-3 rounded-sm border border-mist px-3 py-2.5" data-testid="theme-tick-box">
+            <Switch checked={t.use} disabled={!t.readable} onChange={onTick} label="Put these signals in the report" testid="use-theme-panel" />
             <span>
-              <span className="block text-sm font-medium">Put this theme’s profile in the report</span>
-              <span className="block text-xs text-graphite">{t.readable ? 'On by default when hesitation shows, or words and delivery don’t fit.' : 'Needs at least three people.'}</span>
+              <span className="block text-sm font-medium">Put these signals in the report</span>
+              <span className="block text-xs text-graphite" data-testid="tick-hint">
+                {!t.readable ? 'Needs at least three people.' : t.verdict === 'Mixed' || t.verdict === 'Conflicting' ? 'Suggested on: words and delivery don’t fit.' : t.notable ? 'Suggested on: hesitation shows.' : 'Suggested off: nothing stands out.'}
+              </span>
             </span>
-          </label>
+          </div>
         )}
 
         <section aria-label="Codes in this theme" className="border-b border-mist px-5 py-3.5">

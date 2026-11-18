@@ -87,9 +87,8 @@ try {
   ok('"How faces are read" says a reading is an interpretation that can be corrected', /interpretation/.test((await text('[data-testid=how-faces-note]')) ?? '') && /correct/.test((await text('[data-testid=how-faces-note]')) ?? ''))
   const stands = await all('[data-testid=standout]')
   ok('What stands out words faces as "read as"', stands.some((s) => /faces read as delight or interest/.test(s)) || stands.some((s) => /tie for the most positive/.test(s)), stands.join(' | '))
-  await click('[data-testid=lens-emotion]')
-  const summaries = await all('[data-testid=signal-row]')
-  ok('by-code rows say "read as" or "Tied", not a bare emotion name', summaries.some((r) => /\d+ of \d+ read as \w+/.test(r)), summaries.slice(0, 3).join(' | '))
+  const summaries = await all('[data-testid=face-cell]')
+  ok('by-code rows say “n of N emotion” or “Mixed reactions”, never a bare emotion name or “Tied at”', summaries.some((r) => /^\d+ of \d+ [a-z]+$/.test(r)) && summaries.every((r) => !/Tied at/.test(r)), summaries.slice(0, 3).join(' | '))
 
   // ── 3. One vocabulary: positive, neutral, negative, unclear; confusion is its own group ──
   const key = await text('[data-testid=valence-key]')
@@ -127,11 +126,12 @@ try {
   ok('What stands out says the moments tie and lists each with n of N', !!tie && expected.every((m) => tie.includes(`${m.n} of ${m.of}`)) && !/the most of any moment/.test(stand2.join(' ')), stand2.join(' | '))
 
   // ── 4. Words vs delivery: the rule is on screen, and it is the rule the code uses ──
-  const rule = await text('[data-testid=fit-rule]')
   const rl = await withMod(`(async()=>{const e=await window.__mod('/src/state/emotion');return e.FIT_RULE})()`)
-  const cfg = await withMod(`(async()=>{const c=await window.__mod('/src/config/delivery');return {rule:c.DELIVERY_RULE,min:c.DELIVERY.minPeople,majority:c.DELIVERY.majority}})()`)
-  ok('the rule under the table is the rule in config: over half, speech, face, counted once, uncertain', Object.values(cfg.rule).every((t) => (rule ?? '').includes(t)) && rl.min === cfg.min && rl.majority === 0.5 && /more than half/.test(rule ?? '') && /Uncertain/.test(rule ?? ''), rule)
-  await click('[data-testid=lens-emotion]')
+  const cfg = await withMod(`(async()=>{const c=await window.__mod('/src/config/delivery');return {lines:c.DELIVERY_RULE_LINES,min:c.DELIVERY.minPeople,majority:c.DELIVERY.majority}})()`)
+  await click('[data-testid=how-decided]')
+  const popLines = (await all('[data-testid=how-decided-line]')).map((l) => l.replace(/^\d\. /, ''))
+  ok('the rule behind “How it’s decided” is the rule in config: most, speech, face, counted once, uncertain', JSON.stringify(popLines) === JSON.stringify(cfg.lines) && rl.min === cfg.min && rl.majority === 0.5 && /Most didn’t fit: Conflicting/.test(popLines[2]) && /Uncertain/.test(popLines[3]), popLines)
+  await b.evaluate(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})); true`); await b.sleep(200)
   const rowCount = (await all('[data-testid=signal-row]')).length
   let verdicts = 0
   const wrong = []
@@ -139,15 +139,12 @@ try {
     await b.evaluate(`document.querySelectorAll('[data-testid=signal-row]')[${i}].click(); true`)
     await b.sleep(120)
     const chip = (await b.evaluate(`document.querySelectorAll('[data-testid=fit-cell]')[${i}].innerText.trim()`)) ?? ''
-    const verdict = (await text('[data-testid=fit-verdict]')) ?? ''
-    const m = verdict.match(/For (\d+) of (\d+),/)
-    const clean = verdict.match(/fits the words for all (\d+)/)
-    const unOnly = verdict.match(/Neither speech nor face pulled against the words\. (\d+) of (\d+) uncertain/)
-    if (!m && !clean && !unOnly) continue
+    const fg = await b.evaluate(`(()=>{const g=(k)=>{const e=document.querySelector('[data-testid=signal-panel] [data-testid=fig-'+k+']');return e?+e.dataset.n:null};return {a:g('against'),u:g('uncertain'),m:g('matched')}})()`)
+    if (fg.a === null) continue
     verdicts++
-    const n = m ? +m[2] : unOnly ? +unOnly[2] : +clean[1]
-    const against = m ? +m[1] : 0
-    const unc = Number(verdict.match(/(\d+) of \d+ uncertain/)?.[1] ?? 0)
+    const n = fg.a + fg.u + fg.m
+    const against = fg.a
+    const unc = fg.u
     const want = n < rl.min ? 'Too few to read' : against / n > rl.majority ? 'Conflicting' : (n - against - unc) / n > rl.majority ? 'Consistent' : 'Mixed'
     if (chip !== want) wrong.push(`${chip} should be ${want} (${against} against, ${unc} uncertain, of ${n})`)
   }
@@ -159,15 +156,15 @@ try {
   await b.sleep(500)
   await b.goto(`${root}/signals?view=code`); await b.waitFor('What stands out'); await b.sleep(500)
   const rolls = await all('[data-testid=theme-rollup]')
-  ok('a roll-up counts faces as read of the people in the theme, and the groups add up', rolls.length >= 3 && rolls.every((r) => {
-    const m = r.match(/Faces read for (\d+) of (\d+).*?: (\d+) positive, (\d+) neutral, (\d+) negative, (\d+) unclear/)
-    return m && +m[3] + +m[4] + +m[5] + +m[6] === +m[1] && +m[1] <= +m[2]
+  ok('a roll-up is one line: people, faces read (never more than the people), marked hesitation', rolls.length >= 3 && rolls.every((r) => {
+    const m = r.match(/^(\d+) (?:people|person) · faces read for (\d+) · marked hesitation in (\d+)/)
+    return m && +m[2] <= +m[1] && +m[3] <= +m[1]
   }), rolls.join(' | '))
-  const hi = await text('[data-testid=theme-highlight]')
-  const hm = hi?.match(/Of the (\d+) who spoke for it, (\d+) showed doubt or frustration on their face \((\d+)\) or marked hesitation without it \((\d+)\)/)
-  const roll = (await all('[data-testid=theme-rollup]')).find((r) => /Of the \d+ who spoke for it/.test(r))
-  const people = Number(roll?.match(/^(\d+) people/)?.[1])
-  ok('the warning’s numbers add up, and anyone outside "who spoke for it" is named', !!hm && +hm[3] + +hm[4] === +hm[2] && (people === +hm[1] ? !/The other/.test(hi) : /The other .* in this theme \(P-\d+/.test(hi)), `${hi} | people ${people}`)
+  const summaries2 = await all('[data-testid=theme-summary]')
+  ok('the summary numbers add up: those who pulled against and were uncertain are among those with a claim, who are among the people', summaries2.length >= 2 && summaries2.every((t, i) => {
+    const m = t.match(/^(\d+) of (\d+) (?:argued for it(?: and (\d+) complained)?|complained)\. (\d+) pulled against(?:, (\d+) uncertain)?\.$/)
+    return m && +m[1] + +(m[3] ?? 0) <= +m[2] && +m[4] + +(m[5] ?? 0) <= +m[1] + +(m[3] ?? 0)
+  }), summaries2.join(' | '))
 
   // ── 5. Dog and cat: one note when every row is too small, and the box is off by default ──
   await b.goto(`${root}/signals?view=code`); await b.waitFor('What stands out'); await b.sleep(400)

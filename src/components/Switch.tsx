@@ -1,13 +1,14 @@
 import { cn } from './cn'
 
 /** An on/off control. The label is read aloud, and the state is shown as text by the caller where it matters. */
-export function Switch({ checked, onChange, label, disabled }: { checked: boolean; onChange: (on: boolean) => void; label: string; disabled?: boolean }) {
+export function Switch({ checked, onChange, label, disabled, testid }: { checked: boolean; onChange: (on: boolean) => void; label: string; disabled?: boolean; testid?: string }) {
   return (
     <button
       type="button"
       role="switch"
       aria-checked={checked}
       aria-label={label}
+      data-testid={testid}
       disabled={disabled}
       onClick={() => onChange(!checked)}
       className={cn(

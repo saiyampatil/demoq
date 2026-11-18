@@ -5,21 +5,26 @@
 export const DELIVERY = {
   /** Fewer people with a claim than this and no verdict is read. */
   minPeople: 3,
-  /** "Over half": a verdict needs strictly more than this share of the people with a claim. */
+  /** "Most": a verdict needs strictly more than this share of the people with a claim. */
   majority: 0.5,
   /** A face counts against the words only at this confidence or higher (the Medium band starts at 0.6). */
   faceMinConfidence: 0.6,
-  /** Speech pulls against the words in these tones, whatever the claim. */
-  toneAgainst: ['Tense'] as const,
-  /** And in these tones when the person spoke for the thing. */
-  toneAgainstPositive: ['Flat'] as const,
+  /** Against a positive claim (they argued for it): these tones and expressions pull against the words. */
+  positive: { tones: ['Tense', 'Flat'] as const, faces: ['Doubt', 'Frustration', 'Confusion'] as const },
+  /** Against a complaint: sounding or looking pleased pulls against the words. Tense matches a complaint. */
+  negative: { tones: ['Animated'] as const, faces: ['Delight', 'Interest'] as const },
+  /** "Positive words, hesitant delivery": shown for a positive claim when at least this share of the people who argued for it hesitated. */
+  hesitantInsight: { minShare: 0.5 },
 }
 
-/** The rule in the words shown under the table. Built from the numbers above, so the text and the code cannot drift. */
-export const DELIVERY_RULE = {
-  verdict: `Conflicting: more than ${Math.round(DELIVERY.majority * 100) / 100 === 0.5 ? 'half' : `${DELIVERY.majority * 100}%`} of the people with a claim have delivery that pulls against their words. Consistent: more than half match. Otherwise Mixed. Under ${DELIVERY.minPeople} people: too few to read.`,
-  speech: `Speech pulls against the words if the tone is ${DELIVERY.toneAgainst.map((t) => t.toLowerCase()).join(' or ')}, or ${DELIVERY.toneAgainstPositive.map((t) => t.toLowerCase()).join(' or ')} against a positive claim. Hesitation is not used here.`,
-  face: 'Face pulls against the words if the expression opposes the claim at medium confidence or higher.',
-  once: 'A person counts once: speech and face never add together.',
-  uncertain: 'Uncertain: neither pulls against, but certainty is marked hesitation. Counted and shown, never counted toward Conflicting.',
-}
+const list = (xs: readonly string[]) => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} or ${xs[xs.length - 1]}`)
+const lower = (xs: readonly string[]) => xs.map((x) => x.toLowerCase())
+
+/** The rule in the five lines the "How it’s decided" popover shows. Built from the numbers above, so the text and the code cannot drift. */
+export const DELIVERY_RULE_LINES: string[] = [
+  'We look at people who argued for the idea and compare how they said it with what they said.',
+  `It didn’t fit if the voice was ${list(lower(DELIVERY.positive.tones))}, or the face showed ${list(lower(DELIVERY.positive.faces))}. For a complaint, it didn’t fit if they sounded or looked pleased.`,
+  `Most didn’t fit: Conflicting. Most fit: Consistent. Otherwise Mixed. Under ${DELIVERY.minPeople} people: too few to read.`,
+  'Long pauses alone never count as not fitting. They show as Uncertain.',
+  'Each person counts once. Speech and face are never added together.',
+]

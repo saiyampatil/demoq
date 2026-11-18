@@ -5,16 +5,17 @@
 // - A face reading counts only when there is video. No video is "no reading", never Neutral.
 // - A Researcher's correction replaces PulseAI's label everywhere. "No clear expression" takes it out of every count.
 // - Faces are grouped Positive (delight, interest), Neutral (neutral, surprise), Negative (doubt, frustration) and Unclear
-//   (confusion). Confusion is never negative, and it is never counted for or against the words.
+//   (confusion). Confusion is not negative in the counts, but it does pull against a positive claim (see the rule below).
 // - Delivery has two groups. Speech = tone + certainty (hesitation), read for everyone. Face = expression, video only.
 // - Words vs delivery only applies where the words make a claim: speaking for something (positive) or complaining (negative).
-//   Speech pulls against the words if the tone is Tense, or Flat against a positive claim; hesitation is ignored here.
-//   Face pulls against if the expression opposes the claim at medium confidence or higher. Speech and Face never add together.
-//   Neither against but marked hesitation: Uncertain, counted and shown, never counted toward Conflicting. Otherwise Matches.
+//   Against a positive claim, speech pulls against if the tone is Flat or Tense and the face if it shows Doubt, Frustration or
+//   Confusion (at medium confidence or higher). Against a complaint, Animated speech and a Delight or Interest face pull against;
+//   a tense voice matches a complaint. Hesitation is never used here. Speech and Face never add together: one person counts once.
+//   Neither against but marked hesitation: Uncertain, shown, never counted toward Conflicting. Otherwise Matches.
 //   Across the people with a claim (the rule and numbers are in src/config/delivery.ts): over half pull against is Conflicting,
 //   over half match is Consistent, otherwise Mixed, and under the minimum, too few to read.
 
-import { DELIVERY, DELIVERY_RULE } from '@/config/delivery'
+import { DELIVERY, DELIVERY_RULE_LINES } from '@/config/delivery'
 import { EMOTIONS, TONES, VALENCE, VALENCES, type Emotion, type FaceReading, type Intensity, type Tone, type Valence } from '@/mock/emotion'
 import type { Point } from '@/mock/signals'
 import type { CodebookDoc, FaceFix } from './codebook'
@@ -40,16 +41,18 @@ export type Channel = 'Speech' | 'Face'
 export type Fit = 'Matches' | 'Uncertain' | 'Pulls against'
 export type FitResult = { fit?: Fit; against: Channel[] }
 
-/** Speech pulls against the words: a tense tone, or a flat one against a positive claim. Hesitation is never used here. */
-export const speechAgainst = (p: Point) => (DELIVERY.toneAgainst as readonly string[]).includes(p.voice.tone) || (p.stance === 'Positive' && (DELIVERY.toneAgainstPositive as readonly string[]).includes(p.voice.tone))
+/** The tones and expressions that pull against the words for a claim: a positive one (they argued for it) or a complaint. */
+const sideOf = (stance: 'Positive' | 'Negative') => (stance === 'Positive' ? DELIVERY.positive : DELIVERY.negative)
+
+/** Speech pulls against the words: by the tone alone, for the kind of claim. Hesitation is never used here. */
+export const speechAgainst = (p: Point) => (p.stance === 'Positive' || p.stance === 'Negative') && (sideOf(p.stance).tones as readonly string[]).includes(p.voice.tone)
 
 export function fitOf(p: Point, face: Face | undefined): FitResult {
   if (!p.stance || p.stance === 'Neutral') return { against: [] }
   const against: Channel[] = []
-  const felt = face?.emotion ? VALENCE[face.emotion] : undefined
   const sure = !!face && face.reading.confidence >= DELIVERY.faceMinConfidence
   if (speechAgainst(p)) against.push('Speech')
-  if (felt && sure && ((p.stance === 'Positive' && felt === 'Negative') || (p.stance === 'Negative' && felt === 'Positive'))) against.push('Face')
+  if (sure && face?.emotion && (sideOf(p.stance).faces as readonly string[]).includes(face.emotion)) against.push('Face')
   // Speech and Face never add together: pulling against is one state, however many groups cause it.
   return { fit: against.length ? 'Pulls against' : p.band === 'Marked hesitation' ? 'Uncertain' : 'Matches', against }
 }
@@ -97,8 +100,8 @@ export type FitPattern = 'Consistent' | 'Mixed' | 'Conflicting' | 'Too few to re
 export type FitSplit = { fits: number; uncertain: number; against: number; n: number; pattern: FitPattern }
 /** The rule for the Words vs delivery column, from config. */
 export const FIT_RULE = { min: DELIVERY.minPeople, majority: DELIVERY.majority }
-/** The rule above, in the words the screen shows beside the Words vs delivery column. Built from the same numbers the code uses. */
-export const FIT_RULE_TEXT = [DELIVERY_RULE.verdict, DELIVERY_RULE.speech, DELIVERY_RULE.face, DELIVERY_RULE.once, DELIVERY_RULE.uncertain].join(' ')
+/** The rule above, in the five lines the screen shows behind "How it’s decided". */
+export const FIT_RULE_TEXT = DELIVERY_RULE_LINES.join(' ')
 
 export function fitSplit(points: Point[], doc: CodebookDoc): FitSplit {
   const fits = points.map((p) => fitOf(p, faceOf(p, doc)).fit).filter((f): f is Fit => !!f)

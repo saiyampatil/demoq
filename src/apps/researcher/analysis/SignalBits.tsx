@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router'
 import { Button } from '@/components/Button'
 import { cn } from '@/components/cn'
@@ -11,7 +11,8 @@ import { petOf } from '@/mock/codebook'
 import { screenById, studyPath } from '@/routes/screens'
 import { band as confidenceBand, correctFace } from '@/state/codebook'
 import { EMOTION_HINT, EMOTIONS, STANCE_LABEL, TONE_HINT, TONES, VALENCE, VALENCE_WORD, VALENCES, faceOf, fitOf, noReading, type Emotion, type EmotionSplit, type Face, type Fit, type FitPattern, type Tone, type ToneSplit } from '@/state/emotion'
-import { signsOf, type Band, type Pattern, type Point, type Split } from '@/state/signals'
+import { DELIVERY_RULE_LINES } from '@/config/delivery'
+import { breakdownLine, hesitantDelivery, signsOf, type Band, type Breakdown, type Pattern, type Point, type Split } from '@/state/signals'
 import { BANDS } from '@/state/signals'
 import { mmss } from '../review/reviewUi'
 import type { CodebookCtx } from './codebookCtx'
@@ -206,6 +207,107 @@ export function OneFitChip({ fit, against }: { fit: Fit; against: string[] }) {
     <span className={cn(chipBase, ONE_FIT[fit])} title={against.length ? `Against the words: ${against.join(', ').toLowerCase()}` : fit === 'Uncertain' ? 'Neither speech nor face pulls against the words, but certainty is marked hesitation' : 'Matches the words'}>
       {fit === 'Matches' ? 'Matches the words' : fit === 'Uncertain' ? 'Uncertain' : 'Pulls against the words'}
     </span>
+  )
+}
+
+/** The rule in five lines, behind a small link, so the table itself stays clear. Closes on Escape or a click elsewhere. */
+export function HowItsDecided() {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLSpanElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const away = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setOpen(false)
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false)
+    document.addEventListener('mousedown', away)
+    document.addEventListener('keydown', esc)
+    return () => {
+      document.removeEventListener('mousedown', away)
+      document.removeEventListener('keydown', esc)
+    }
+  }, [open])
+  return (
+    <span ref={ref} className="relative inline-block">
+      <button type="button" aria-expanded={open} aria-haspopup="dialog" onClick={() => setOpen((o) => !o)} data-testid="how-decided" className="rounded-xs text-xs font-medium text-iris-700 hover:underline">
+        How it’s decided
+      </button>
+      {open && (
+        <div role="dialog" aria-label="How it’s decided" data-testid="how-decided-pop" className="absolute top-full right-0 z-30 mt-1.5 w-80 rounded-sm border border-mist bg-surface p-3 text-left text-xs font-normal text-ink shadow-overlay">
+          <ol className="flex flex-col gap-1.5">
+            {DELIVERY_RULE_LINES.map((l, i) => (
+              <li key={i} data-testid="how-decided-line" className="flex gap-2">
+                <span aria-hidden="true" className="text-graphite tabular-nums">{i + 1}.</span>
+                <span>{l}</span>
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
+    </span>
+  )
+}
+
+/**
+ * How delivery stood against the words, in three figures and what is left out, for the right panel. The people who only stated a fact
+ * are listed here on request and never in a table.
+ */
+export function DeliveryFigures({ b }: { b: Breakdown }) {
+  const [who, setWho] = useState(false)
+  const claim = b.positive + b.negative
+  if (!claim && !b.factOnly.length) return null
+  return (
+    <div className="mb-2 rounded-sm border border-mist px-3 py-2.5" data-testid="delivery-breakdown">
+      {claim > 0 && (
+        <>
+          <p className="text-xs text-graphite" data-testid="breakdown-line">
+            {breakdownLine(b).replace(/ [^.]*\.$/, '')}
+          </p>
+          <dl className="mt-1.5 grid grid-cols-3 gap-2 text-center">
+            {(
+              [
+                ['against', b.against, 'pulled against', 'text-pending-fg'],
+                ['uncertain', b.uncertain, 'uncertain', 'text-iris-700'],
+                ['matched', b.matched, 'matched', 'text-ink'],
+              ] as const
+            ).map(([k, n, label, tone]) => (
+              <div key={k} data-testid={`fig-${k}`} data-n={n}>
+                <dt className="sr-only">{label}</dt>
+                <dd className={cn('text-lg leading-none font-semibold tabular-nums', tone)}>{n}</dd>
+                <dd className="mt-0.5 text-xs text-graphite">{label}</dd>
+              </div>
+            ))}
+          </dl>
+        </>
+      )}
+      {b.audioOnly > 0 && (
+        <p className="mt-1.5 text-xs text-graphite" data-testid="audio-only-note">
+          {b.audioOnly} of {claim} audio-only, read on speech.
+        </p>
+      )}
+      {b.factOnly.length > 0 && (
+        <p className="mt-1.5 text-xs text-graphite" data-testid="fact-only">
+          {b.factOnly.length} of {b.people} only stated a fact or preference, so there is nothing to check.{' '}
+          <button type="button" aria-expanded={who} onClick={() => setWho((w) => !w)} data-testid="see-who" className="font-medium text-iris-700 hover:underline">
+            {who ? 'Hide' : 'See who'}
+          </button>
+          {who && (
+            <span className="mt-0.5 block tabular-nums text-ink" data-testid="fact-only-ids">
+              {b.factOnly.map((p) => p.participantId).join(', ')}
+            </span>
+          )}
+        </p>
+      )}
+    </div>
+  )
+}
+
+/** "Positive words, hesitant delivery": an observation, never a verdict. Shown only for a claim that is positive. */
+export function HesitantNote({ points, doc }: { points: Point[]; doc: CodebookCtx['doc'] }) {
+  const h = hesitantDelivery(points, doc)
+  if (!h) return null
+  return (
+    <p className="mb-2 rounded-sm bg-iris-50 px-3 py-2 text-xs text-iris-700" data-testid="hesitant-note">
+      <span className="font-semibold">Positive words, hesitant delivery.</span> {h.hesitated} of {h.speakers} who argued for it hesitated.
+    </p>
   )
 }
 

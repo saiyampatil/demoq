@@ -19,6 +19,7 @@ import {
   type TensionDef,
 } from '@/mock/signals'
 import { askedOf, codeThemes, denominator, peopleOf, tensionDecisions, themeCodes, unthemed, type Basis, type Code, type CodebookDoc, type TensionDecision, type Theme } from './codebook'
+import { DELIVERY } from '@/config/delivery'
 import { emotionSplit, faceOf, fitOf, fitSplit, hasVideo, noReading, toneSplit, FIT_RULE_TEXT, STANCE_LABEL, VALENCE, type Emotion, type EmotionSplit, type FitPattern, type FitSplit, type Stance, type ToneSplit } from './emotion'
 
 export { BANDS, MOMENTS, TENSION_KINDS, type Band, type Moment, type Point, type TensionKind } from '@/mock/signals'
@@ -58,7 +59,7 @@ export type CodeSignal = {
   /** Enough people to read a pattern. Below that, nothing about this code can go into the report. */
   readable: boolean
   use: boolean
-  /** One point per person, the most hesitant first. A person with several quotes counts once, at their most hesitant. */
+  /** One point per person, the most hesitant first. A person with several quotes counts once, at the moment their delivery pulled against their words most. */
   points: Point[]
 }
 
@@ -72,12 +73,9 @@ export function codeSignals(doc: CodebookDoc, basis: Basis): CodeSignal[] {
   return doc.codes
     .filter((c) => c.status === 'Accepted')
     .map((code) => {
-      const byPerson = new Map<string, Point>()
-      code.excerpts
-        .map((id) => excerptPoint(id))
-        .filter((p) => basis.sessions.has(p.sessionId))
-        .forEach((p) => byPerson.set(p.participantId, byPerson.has(p.participantId) ? worse(byPerson.get(p.participantId)!, p) : p))
-      const points = [...byPerson.values()].sort((a, b) => bandRank(b.band) - bandRank(a.band) || a.participantId.localeCompare(b.participantId))
+      const raw = code.excerpts.map((id) => excerptPoint(id)).filter((p) => basis.sessions.has(p.sessionId))
+      // Each person once, at the moment their delivery pulled against their words most (then their most hesitant), so every reading comes from the same moment.
+      const points = onePerPerson(raw, doc).sort((a, b) => bandRank(b.band) - bandRank(a.band) || a.participantId.localeCompare(b.participantId))
       const marked = points.filter((p) => p.band === 'Marked hesitation').length
       const some = points.filter((p) => p.band === 'Some hesitation').length
       const pattern = patternOf(marked, points.length)
@@ -385,47 +383,72 @@ export function tensionHeadline(doc: CodebookDoc, basis: Basis, tensionId: strin
 
 // ─── a theme, rolled up ─────────────────────────────────────────────────────
 
-/** One line per theme across its codes, each person once (at their most hesitant moment): the founder brief's "Theme is verbally positive but…". */
-export type ThemeRollup = { people: number; emotions: EmotionSplit; marked: number; fit: FitSplit; positiveClaim: boolean; unsettled: number; text: string; highlight?: string }
+/** One person-by-person tally of how delivery stood against the words, for the people with a claim. The one place the figures come from. */
+export type Breakdown = {
+  /** Everyone who said it. */
+  people: number
+  /** People who argued for it, and people who complained. Both make a claim; the rest only stated a fact or preference. */
+  positive: number
+  negative: number
+  against: number
+  uncertain: number
+  matched: number
+  /** Those who only stated a fact or preference, so there is nothing to check. */
+  factOnly: Point[]
+  /** People with a claim whose session had no video, so were read on speech. */
+  audioOnly: number
+}
+
+/** The tally for a set of points (one per person is taken here, by the verdict's own choice of moment). */
+export function breakdownOf(all: Point[], doc: CodebookDoc): Breakdown {
+  const points = onePerPerson(all, doc)
+  const fits = points.map((p) => ({ p, fit: fitOf(p, faceOf(p, doc)).fit }))
+  const claim = fits.filter((x) => x.fit)
+  return {
+    people: points.length,
+    positive: points.filter((p) => p.stance === 'Positive').length,
+    negative: points.filter((p) => p.stance === 'Negative').length,
+    against: claim.filter((x) => x.fit === 'Pulls against').length,
+    uncertain: claim.filter((x) => x.fit === 'Uncertain').length,
+    matched: claim.filter((x) => x.fit === 'Matches').length,
+    factOnly: fits.filter((x) => !x.fit).map((x) => x.p).sort((a, b) => a.participantId.localeCompare(b.participantId)),
+    audioOnly: claim.filter((x) => !faceOf(x.p, doc)).length,
+  }
+}
+
+/** The one-line summary for a table: "8 of 14 argued for it. 3 pulled against, 2 uncertain." Empty when nobody made a claim. */
+export function breakdownLine(b: Breakdown): string {
+  if (b.positive + b.negative === 0) return ''
+  const who = b.positive && b.negative ? `${b.positive} of ${b.people} argued for it and ${b.negative} complained` : b.positive ? `${b.positive} of ${b.people} argued for it` : `${b.negative} of ${b.people} complained`
+  return `${who}. ${b.against} pulled against${b.uncertain ? `, ${b.uncertain} uncertain` : ''}.`
+}
+
+/**
+ * "Positive words, hesitant delivery": among the people who argued for it, how many showed marked hesitation. An observation, never a verdict.
+ * Only for a claim that is positive: at least three people argued for it, and they are at least half of the people who said it.
+ */
+export function hesitantDelivery(all: Point[], doc: CodebookDoc): { said: number; speakers: number; hesitated: number } | null {
+  const points = onePerPerson(all, doc)
+  const speakers = points.filter((p) => p.stance === 'Positive')
+  if (speakers.length < MIN_PEOPLE || speakers.length * 2 < points.length) return null
+  const hesitated = speakers.filter((p) => p.band === 'Marked hesitation').length
+  return hesitated / speakers.length >= DELIVERY.hesitantInsight.minShare ? { said: points.length, speakers: speakers.length, hesitated } : null
+}
+
+/** One line per theme across its codes, each person once (at their most hesitant moment): faces, hesitation and how delivery stood against the words. */
+export type ThemeRollup = { people: number; emotions: EmotionSplit; marked: number; fit: FitSplit; /** "16 people · faces read for 12 · marked hesitation in 6". */ text: string; /** "8 of 14 argued for it. 3 pulled against, 2 uncertain." */ summary: string }
 
 export function themeRollup(doc: CodebookDoc, rows: CodeSignal[]): ThemeRollup | undefined {
   if (!rows.length) return undefined
-  const dedupe = (rs: CodeSignal[]) => {
-    const byPerson = new Map<string, Point>()
-    rs.flatMap((r) => r.points).forEach((p) => byPerson.set(p.participantId, byPerson.has(p.participantId) ? worse(byPerson.get(p.participantId)!, p) : p))
-    return [...byPerson.values()]
-  }
-  const points = dedupe(rows)
+  const byPerson = new Map<string, Point>()
+  rows.flatMap((r) => r.points).forEach((p) => byPerson.set(p.participantId, byPerson.has(p.participantId) ? worse(byPerson.get(p.participantId)!, p) : p))
+  const points = [...byPerson.values()]
   const emotions = emotionSplit(points, doc)
   const marked = points.filter((p) => p.band === 'Marked hesitation').length
-  const fit = fitSplit(points, doc)
-  // The warning only counts people who spoke positively: someone complaining with a frown is consistent, not a warning sign.
-  const speakers = dedupe(rows.filter((r) => r.points[0]?.stance === 'Positive'))
-  const positiveClaim = speakers.length >= MIN_PEOPLE && speakers.length * 2 >= points.length
-  const unsettled = speakers.filter((p) => {
-    const f = faceOf(p, doc)
-    return p.band === 'Marked hesitation' || (!!f?.emotion && VALENCE[f.emotion] === 'Negative')
-  }).length
-  const v = emotions.valence
+  const fit = fitSplit(onePerPerson(rows.flatMap((r) => r.points), doc), doc)
   const n = points.length
-  const gap = [emotions.noVideo ? `${emotions.noVideo} audio-only` : '', emotions.unclear ? `${emotions.unclear} marked no clear expression` : ''].filter(Boolean).join(', ')
-  const faces = emotions.read ? `Faces read for ${emotions.read} of ${n}${gap ? ` (${gap})` : ''}: ${v.Positive} positive, ${v.Neutral} neutral, ${v.Negative} negative, ${v.Unclear} unclear.` : `No faces read (${gap || 'no video'}).`
-  const text = `${n} ${n === 1 ? 'person' : 'people'}. ${faces} Marked hesitation in ${marked} of ${n}.`
-  // Every number in the warning traces back: who spoke for it, who in the theme did not, and how each of the unsettled was seen.
-  const onFace = speakers.filter((p) => {
-    const f = faceOf(p, doc)
-    return !!f?.emotion && VALENCE[f.emotion] === 'Negative'
-  }).length
-  const speakerIds = new Set(speakers.map((p) => p.participantId))
-  const others = points.filter((p) => !speakerIds.has(p.participantId))
-  const noVideoSpeakers = speakers.filter((p) => !faceOf(p, doc)).length
-  const highlight =
-    positiveClaim && unsettled / speakers.length >= 0.3
-      ? `Of the ${speakers.length} who spoke for it, ${unsettled} showed doubt or frustration on their face (${onFace}) or marked hesitation without it (${unsettled - onFace}).` +
-        (others.length ? ` The other ${others.length === 1 ? 'person' : `${others.length} people`} in this theme (${others.map((p) => p.participantId).join(', ')}) only stated a fact or complained, so there is no positive claim to check.` : '') +
-        (noVideoSpeakers ? ` ${noVideoSpeakers} of the ${speakers.length} ${noVideoSpeakers === 1 ? 'is' : 'are'} audio-only, so ${noVideoSpeakers === 1 ? 'is' : 'are'} read on hesitation alone.` : '')
-      : undefined
-  return { people: points.length, emotions, marked, fit, positiveClaim, unsettled, text, highlight }
+  const text = `${plural(n, 'person', 'people')} · faces read for ${emotions.read} · marked hesitation in ${marked}`
+  return { people: n, emotions, marked, fit, text, summary: breakdownLine(breakdownOf(rows.flatMap((r) => r.points), doc)) }
 }
 
 // ─── by theme: the profile of a theme ───────────────────────────────────────
@@ -551,8 +574,8 @@ export function stanceSummary(r: Pick<Rollup, 'stances'>): { short: string; long
 
 /** What the people did against their words, as a phrase that follows "people argued for it, but" or "also". */
 const AGAINST: Record<'positive' | 'negative', Partial<Record<'Speech' | 'Face', string>>> = {
-  positive: { Speech: 'sounded flat or tense', Face: 'had faces that read as doubt or frustration' },
-  negative: { Speech: 'sounded tense', Face: 'had faces that read as delight or interest as they said it' },
+  positive: { Speech: 'sounded flat or tense', Face: 'had faces that read as doubt, frustration or confusion' },
+  negative: { Speech: 'sounded animated', Face: 'had faces that read as delight or interest as they said it' },
 }
 
 /** The gap, named in plain words and counted in people: "4 of 7 people argued for it, but hesitated as they said it." */
@@ -628,7 +651,7 @@ function profile(base: { id: string; name: string; definition?: string; kind: Th
     of,
     notAsked: basis.participants.size - of,
     headline: headlineOf(r),
-    summary: headlineOf(r, true),
+    summary: readable && breakdownLine(breakdownOf(r.points, doc)) ? breakdownLine(breakdownOf(r.points, doc)) : headlineOf(r, true),
     trace: `${trace[0].toUpperCase()}${trace.slice(1)}.`,
     readable,
     notable,
@@ -661,7 +684,7 @@ export function themeSignals(doc: CodebookDoc, basis: Basis, signals: CodeSignal
 // ─── what stands out ────────────────────────────────────────────────────────
 
 /** A pattern written as a sentence, with where to see it. The first thing the Researcher reads. */
-export type Standout = { id: string; kind: 'code' | 'moment' | 'tensions'; lens: 'speech' | 'emotion' | 'fit'; target?: string; lead: string; detail: string }
+export type Standout = { id: string; kind: 'code' | 'moment' | 'tensions'; lens: 'speech' | 'emotion' | 'fit' | 'hesitant'; target?: string; lead: string; detail: string }
 
 /** A moment's name without the "First reaction:" lead, for lists. */
 export const shortMoment = (m: Moment) => m.label.replace(/^First reaction: /, '')
@@ -687,8 +710,16 @@ export function mostPositive(moments: MomentSignal[]): MomentSignal[] {
   return concepts.filter((m) => !beats(best, m))
 }
 
-export function standouts(signals: CodeSignal[], moments: MomentSignal[], toReview: number): Standout[] {
+export function standouts(signals: CodeSignal[], moments: MomentSignal[], toReview: number, doc: CodebookDoc): Standout[] {
   const out: Standout[] = []
+  // Positive words, hesitant delivery: an observation, never a verdict, and first when present. Only for a claim that is positive.
+  const insights = signals
+    .filter((s) => s.readable)
+    .map((s) => ({ s, h: hesitantDelivery(s.points, doc) }))
+    .filter((x): x is { s: CodeSignal; h: NonNullable<ReturnType<typeof hesitantDelivery>> } => !!x.h)
+    .sort((a, b) => b.h.hesitated / b.h.speakers - a.h.hesitated / a.h.speakers || b.h.hesitated - a.h.hesitated)
+    .slice(0, 2)
+  insights.forEach(({ s, h }) => out.push({ id: `hesitant-${s.code.id}`, kind: 'code', lens: 'hesitant', target: s.code.id, lead: s.code.name, detail: `Said by ${h.said} of ${s.of}; ${h.hesitated} of ${h.speakers} hesitated.` }))
   // The most positive first reaction to a concept, among the faces read. A tie is said as a tie.
   const lead = mostPositive(moments)
   if (lead.length) {
@@ -706,7 +737,7 @@ export function standouts(signals: CodeSignal[], moments: MomentSignal[], toRevi
   if (conflict)
     out.push({ id: `fit-${conflict.code.id}`, kind: 'code', lens: 'fit', target: conflict.code.id, lead: conflict.code.name, detail: `Said by ${conflict.people} of ${conflict.of}. For ${conflict.fit.against} of ${conflict.fit.n}, the speech or face pulled against the words${conflict.fit.uncertain ? `, and ${conflict.fit.uncertain} were uncertain` : ''}.` })
   // The most hesitant code that isn't already there.
-  const hes = signals.filter((s) => s.readable && (s.pattern === 'Mixed' || s.pattern === 'Often hesitant') && s.code.id !== conflict?.code.id).sort((a, b) => b.marked / b.people - a.marked / a.people)[0]
+  const hes = signals.filter((s) => s.readable && (s.pattern === 'Mixed' || s.pattern === 'Often hesitant') && s.code.id !== conflict?.code.id && !insights.some((i) => i.s.code.id === s.code.id)).sort((a, b) => b.marked / b.people - a.marked / a.people)[0]
   if (hes) out.push({ id: `code-${hes.code.id}`, kind: 'code', lens: 'speech', target: hes.code.id, lead: hes.code.name, detail: `Said by ${hes.people} of ${hes.of}, with marked hesitation in ${hes.marked} of ${hes.people}.` })
   // The most hesitant moment. When several share the top count, none of them is "the" most: say they tie.
   const tops = mostHesitation(moments)

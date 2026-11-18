@@ -3,11 +3,9 @@ import { Button } from '@/components/Button'
 import { cn } from '@/components/cn'
 import { ChevronRightIcon } from '@/components/icons'
 import { EmptyState } from '@/components/States'
-import { useToast } from '@/components/Toast'
-import { setSignalPick } from '@/state/codebook'
-import { EMOTIONS, FIT_RULE_TEXT, STANCE_LABEL, faceOf, faceWeight, topEmotions, type EmotionSplit } from '@/state/emotion'
-import { SMALL_GROUP, codeSignals, momentSignals, mostHesitation, mostPositive, plural, signalGroups, standouts, tensionsFor, themeRollup, themeSignals, type CodeSignal, type MomentSignal, type Point, type Tension } from '@/state/signals'
-import { BandBar, BandLegend, EmotionBar, EmotionChip, EmotionLegend, FitChip, PatternChip, PointCard, ToneBar, ToneLegend, ValenceCounts, ValenceKey, noReading } from './SignalBits'
+import { EMOTIONS, STANCE_LABEL, faceOf, faceWeight, fitOf, topEmotions, type EmotionSplit } from '@/state/emotion'
+import { SMALL_GROUP, breakdownOf, codeSignals, momentSignals, mostHesitation, mostPositive, plural, signalGroups, standouts, tensionsFor, themeRollup, themeSignals, type CodeSignal, type MomentSignal, type Point, type Tension, type ThemeSignal } from '@/state/signals'
+import { BandBar, BandLegend, DeliveryFigures, EmotionBar, EmotionChip, EmotionLegend, FitChip, HesitantNote, HowItsDecided, PatternChip, PointCard, ToneBar, ToneLegend, ValenceCounts, ValenceKey, noReading } from './SignalBits'
 import type { CodebookCtx } from './codebookCtx'
 import { ByTheme } from './ThemeSignals'
 
@@ -31,17 +29,17 @@ const median = (xs: number[]) => {
 }
 const r1 = (x: number) => Math.round(x * 10) / 10
 
-/** "2 of 3 read as doubt" for a split, "Tied at 2 of 6" when two or more share the top count, or why there is nothing. */
+/** "4 of 10 interest" for a split, "Mixed reactions" when two or more share the top count (the detail is in the tooltip), or why there is nothing. */
 export function emotionSummary(e: EmotionSplit) {
   const tops = topEmotions(e)
   if (!tops.length) return e.noVideo ? 'No video' : 'No clear reading'
   const n = e.counts[tops[0]]
-  return tops.length === 1 ? `${n} of ${e.read} read as ${tops[0].toLowerCase()}` : `Tied at ${n} of ${e.read}`
+  return tops.length === 1 ? `${n} of ${e.read} ${tops[0].toLowerCase()}` : 'Mixed reactions'
 }
 export const emotionSummaryTitle = (e: EmotionSplit) => {
   const tops = topEmotions(e)
   const gap = noReading(e)
-  return `${e.read} faces read${gap ? `, ${gap}` : ''}${tops.length > 1 ? `. Tied: ${tops.join(', ')}` : ''}`
+  return `${e.read} faces read${gap ? `, ${gap}` : ''}${tops.length > 1 ? `. Tied at ${e.counts[tops[0]]} each: ${tops.join(', ')}` : ''}`
 }
 
 /** How they reacted: what stands out first, then the accepted codes and key moments, read through one channel at a time. */
@@ -51,7 +49,7 @@ export function SignalsTab({ ctx, focus, setFocus, tensions, onOpenTensions, onO
   const moments = useMemo(() => momentSignals(basis, doc), [basis, doc])
   const themes = useMemo(() => themeSignals(doc, basis, signals), [doc, basis, signals])
   const toReview = tensions.filter((t) => t.status === 'Suggested' && !t.unavailable).length
-  const items = useMemo(() => standouts(signals, moments, toReview), [signals, moments, toReview])
+  const items = useMemo(() => standouts(signals, moments, toReview, doc), [signals, moments, toReview, doc])
   const view = focus.view
   const lens = focus.lens ?? 'emotion'
 
@@ -75,7 +73,7 @@ export function SignalsTab({ ctx, focus, setFocus, tensions, onOpenTensions, onO
                   className="group flex w-full items-center gap-3 px-5 py-2 text-left text-sm hover:bg-haze"
                 >
                   <span aria-hidden="true" className={cn('size-2 shrink-0 rounded-full', it.kind === 'tensions' ? 'bg-pending-fg' : it.lens === 'emotion' ? 'bg-emo-delight' : it.lens === 'fit' ? 'bg-emo-doubt' : 'bg-iris-600')} />
-                  <span className="w-32 shrink-0 text-xs text-graphite">{it.kind === 'tensions' ? 'Tensions' : it.lens === 'emotion' ? 'Emotion' : it.lens === 'fit' ? 'Words vs delivery' : it.kind === 'moment' ? 'Speech · certainty' : 'Speech'}</span>
+                  <span className="w-36 shrink-0 text-xs text-graphite">{it.kind === 'tensions' ? 'Tensions' : it.lens === 'emotion' ? 'Face' : it.lens === 'fit' ? 'Words vs delivery' : it.lens === 'hesitant' ? 'Positive words, hesitant delivery' : it.kind === 'moment' ? 'Speech · certainty' : 'Speech'}</span>
                   <span className="min-w-0 flex-1">
                     <span className="font-medium">{it.lead}.</span> <span className="text-graphite">{it.detail}</span>
                   </span>
@@ -103,11 +101,11 @@ export function SignalsTab({ ctx, focus, setFocus, tensions, onOpenTensions, onO
             </button>
           ))}
         </div>
-        {view !== 'theme' ? (
+        {view === 'moment' ? (
           <>
             <div role="group" aria-label="Channel" className="flex rounded-sm border border-mist-strong p-0.5">
               {LENSES.map((l) => (
-                <button key={l.key} type="button" title={l.hint} aria-pressed={lens === l.key} onClick={() => setFocus({ ...focus, lens: l.key })} data-testid={`lens-${l.key}`} className={cn('h-7 rounded-xs px-3 text-sm', lens === l.key ? 'bg-iris-50 font-medium text-iris-700 shadow-[inset_0_0_0_1px_var(--color-iris-100)]' : 'text-graphite hover:bg-haze hover:text-ink')}>
+                <button key={l.key} type="button" title={l.hint} aria-pressed={lens === l.key} onClick={() => setFocus({ ...focus, lens: l.key })} data-testid={`lens-${l.key}`} className={cn('h-7 rounded-xs px-3 text-sm', lens === l.key ? 'bg-iris-50 font-medium text-iris-700 shadow-raised' : 'text-graphite hover:bg-haze hover:text-ink')}>
                   {l.label}
                 </button>
               ))}
@@ -115,13 +113,19 @@ export function SignalsTab({ ctx, focus, setFocus, tensions, onOpenTensions, onO
             <p className="min-w-0 flex-1 text-sm text-graphite">{LENSES.find((l) => l.key === lens)!.hint}.</p>
             {lens === 'emotion' ? <EmotionLegend /> : <><ToneLegend /><BandLegend /></>}
           </>
+        ) : view === 'code' ? (
+          <>
+            <p className="min-w-0 flex-1 text-sm text-graphite">Each code with how people looked and sounded, and whether delivery fit the words.</p>
+            <EmotionLegend />
+            <ToneLegend />
+          </>
         ) : (
           <p className="min-w-0 flex-1 text-sm text-graphite">Each theme with its speech and face together, and whether delivery fit the words.</p>
         )}
       </div>
-      {view !== 'theme' && lens === 'emotion' && <ValenceKey />}
+      {(view === 'code' || (view === 'moment' && lens === 'emotion')) && <ValenceKey />}
 
-      {view === 'theme' ? <ByTheme ctx={ctx} themes={themes} tensions={tensions} focus={focus} setFocus={setFocus} onOpenTension={onOpenTension} /> : view === 'code' ? <ByCode ctx={ctx} lens={lens} signals={signals} focus={focus} setFocus={setFocus} tensions={tensions} onOpenTension={onOpenTension} /> : <ByMoment ctx={ctx} lens={lens} moments={moments} focus={focus} setFocus={setFocus} />}
+      {view === 'theme' ? <ByTheme ctx={ctx} themes={themes} tensions={tensions} focus={focus} setFocus={setFocus} onOpenTension={onOpenTension} /> : view === 'code' ? <ByCode ctx={ctx} themes={themes} signals={signals} focus={focus} setFocus={setFocus} tensions={tensions} onOpenTension={onOpenTension} /> : <ByMoment ctx={ctx} lens={lens} moments={moments} focus={focus} setFocus={setFocus} />}
     </div>
   )
 }
@@ -146,37 +150,47 @@ export function useArrows(ids: string[], current: string | undefined, pick: (id:
 
 // ─── by code ────────────────────────────────────────────────────────────────
 
-/** The channel column of a code row. */
-function LensCell({ r, lens }: { r: CodeSignal; lens: Lens }) {
-  if (!r.readable) return <PatternChip pattern="Too few to read" />
-  if (lens === 'emotion')
-    return (
-      <>
-        <span className="w-12 shrink-0">
-          <EmotionBar split={r.emotions} />
-        </span>
-        <span className="w-[10.5rem] shrink-0 truncate text-xs text-graphite tabular-nums" title={emotionSummaryTitle(r.emotions)}>
-          {emotionSummary(r.emotions)}
-        </span>
-      </>
-    )
-  const off = r.tones.counts.Flat + r.tones.counts.Tense
+/** Face: a small bar and one short label. The detail, if any, is in the tooltip. */
+function FaceCell({ r }: { r: CodeSignal }) {
+  if (!r.readable) return <span className="text-xs text-muted">Too few to read</span>
   return (
     <>
-      <span className="w-12 shrink-0" data-testid="speech-bars">
-        <ToneBar split={r.tones} />
-        <BandBar split={{ counts: { Steady: r.steady, 'Some hesitation': r.some, 'Marked hesitation': r.marked }, n: r.people }} />
+      <span className="w-10 shrink-0">
+        <EmotionBar split={r.emotions} />
       </span>
-      <span className="w-[10.5rem] shrink-0 text-xs text-graphite tabular-nums" title="Tone: flat or tense. Certainty: marked hesitation. Both of the people who said it">
-        <span className="font-semibold text-ink">{off}</span> flat or tense · <span className="font-semibold text-ink">{r.marked}</span> hesitated <span className="text-muted">of {r.people}</span>
+      <span className="min-w-0 flex-1 truncate text-xs text-graphite tabular-nums" title={emotionSummaryTitle(r.emotions)} data-testid="face-cell">
+        {emotionSummary(r.emotions)}
       </span>
     </>
   )
 }
 
-function ByCode({ ctx, lens, signals, focus, setFocus, tensions, onOpenTension }: { ctx: CodebookCtx; lens: Lens; signals: CodeSignal[]; focus: SignalFocus; setFocus: (f: SignalFocus) => void; tensions: Tension[]; onOpenTension: (id: string) => void }) {
-  const { doc, me } = ctx
-  const toast = useToast()
+/** The tone label: how many sounded flat or tense, or the tone most had. */
+export function toneLabel(r: Pick<CodeSignal, 'tones'>) {
+  const c = r.tones.counts
+  const off = c.Flat + c.Tense
+  if (off > 0) return `${off} flat or tense`
+  return c.Even * 2 >= r.tones.n ? 'Mostly even' : c.Animated * 2 >= r.tones.n ? 'Mostly animated' : 'Mixed tone'
+}
+
+/** Speech: a small tone bar and one short label. Certainty (hesitation) is in the tooltip and the panel. */
+function SpeechCell({ r }: { r: CodeSignal }) {
+  if (!r.readable) return <span className="text-xs text-muted">—</span>
+  const c = r.tones.counts
+  return (
+    <>
+      <span className="w-10 shrink-0" data-testid="speech-bars">
+        <ToneBar split={r.tones} />
+      </span>
+      <span className="min-w-0 flex-1 truncate text-xs text-graphite tabular-nums" title={`Tone: ${c.Tense} tense, ${c.Flat} flat, ${c.Animated} animated, ${c.Even} even, of ${r.tones.n}. Certainty: marked hesitation in ${r.marked}, some in ${r.some}.`} data-testid="speech-label">
+        {toneLabel(r)}
+      </span>
+    </>
+  )
+}
+
+function ByCode({ ctx, themes, signals, focus, setFocus, tensions, onOpenTension }: { ctx: CodebookCtx; themes: ThemeSignal[]; signals: CodeSignal[]; focus: SignalFocus; setFocus: (f: SignalFocus) => void; tensions: Tension[]; onOpenTension: (id: string) => void }) {
+  const { doc } = ctx
   const [notableOnly, setNotableOnly] = useState(false)
   const allGroups = useMemo(() => signalGroups(doc, signals), [doc, signals])
   const groups = useMemo(() => signalGroups(doc, notableOnly ? signals.filter((s) => s.notable) : signals), [doc, signals, notableOnly])
@@ -193,18 +207,12 @@ function ByCode({ ctx, lens, signals, focus, setFocus, tensions, onOpenTension }
       </div>
     )
 
-  const setUse = (s: CodeSignal, on: boolean) => {
-    ctx.act((d) => setSignalPick(d, s.code, on, { by: me }))
-    toast(on ? `“${s.code.name}” signals will go in the report` : `“${s.code.name}” signals left out of the report`)
-  }
+  const inReport = new Map(themes.map((t) => [t.id, t.use]))
 
   return (
     <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] xl:grid-cols-[minmax(0,1fr)_minmax(0,28rem)]">
       <section aria-label="Signals by code" className="min-w-0 rounded-md border border-mist bg-surface">
         <div className="flex flex-wrap items-center gap-3 border-b border-mist px-4 py-2.5">
-          <p className="text-sm text-graphite">
-            <span className="font-semibold text-ink tabular-nums">{signals.filter((s) => s.use).length}</span> of {signals.length} in the report
-          </p>
           <span className="flex-1" />
           <label className="flex h-8 items-center gap-2 rounded-sm border border-mist-strong px-2.5 text-sm text-graphite">
             <input type="checkbox" checked={notableOnly} onChange={(e) => setNotableOnly(e.target.checked)} className="accent-[var(--color-iris-600)]" />
@@ -215,33 +223,37 @@ function ByCode({ ctx, lens, signals, focus, setFocus, tensions, onOpenTension }
           <EmptyState title="Nothing stands out" description="No accepted code shows hesitation, or words and delivery that don’t fit." action={<Button onClick={() => setNotableOnly(false)}>Show all codes</Button>} />
         ) : (
           <div ref={arrows.ref} onKeyDown={arrows.onKeyDown}>
-            <div className="hidden items-center gap-3 border-b border-mist bg-haze px-4 py-1.5 text-xs font-medium text-graphite sm:flex">
+            <div className="hidden items-center gap-3 border-b border-mist bg-haze px-4 py-1.5 text-xs font-medium text-graphite sm:flex" data-testid="signal-head">
               <span className="flex-1">Code</span>
               <span className="w-12">Said by</span>
-              <span className="w-[14.25rem]">{LENSES.find((l) => l.key === lens)!.label}</span>
-              <span className="w-[5.75rem]" title={`Do speech and face match what the words claim? ${FIT_RULE_TEXT}`}>
-                Words vs delivery
+              <span className="w-[8.5rem]">Face</span>
+              <span className="w-[8.5rem]">Speech</span>
+              <span className="flex w-[7rem] flex-col gap-0.5" title="Do speech and face match what the words claim?">
+                <span>Words vs delivery</span>
+                <HowItsDecided />
               </span>
-              <span className="w-14 text-center">Report</span>
             </div>
-            <p className="border-b border-mist px-4 py-1.5 text-xs text-graphite" data-testid="fit-rule">
-              <span className="font-medium text-ink">How it’s decided.</span> {FIT_RULE_TEXT}
-            </p>
             {groups.map((g) => {
               const roll = g.theme ? themeRollup(doc, allGroups.find((x) => x.id === g.id)?.rows ?? g.rows) : undefined
               return (
                 <section key={g.id} aria-labelledby={`sg-${g.id}`} className="border-b border-mist last:border-0">
                   <header className="px-4 pt-3 pb-1">
-                    <h3 id={`sg-${g.id}`} className="text-sm font-semibold">
-                      {g.name}
-                    </h3>
+                    <div className="flex items-baseline gap-2">
+                      <h3 id={`sg-${g.id}`} className="text-sm font-semibold">
+                        {g.name}
+                      </h3>
+                      {g.theme && (
+                        <span className="ml-auto text-xs text-graphite" data-testid="group-in-report">
+                          {inReport.get(g.id) ? 'In report' : 'Not in report'}
+                        </span>
+                      )}
+                    </div>
                     {roll && (
                       <p className="mt-0.5 text-xs text-graphite" data-testid="theme-rollup">
                         {roll.text}
-                        {roll.highlight && (
-                          <span className="mt-1 flex items-start gap-1.5 font-medium text-emo-cold-fg" data-testid="theme-highlight">
-                            <span aria-hidden="true" className="mt-1 size-1.5 shrink-0 rounded-full bg-emo-doubt" />
-                            {roll.highlight}
+                        {roll.summary && (
+                          <span className="mt-0.5 block text-ink" data-testid="theme-summary">
+                            {roll.summary}
                           </span>
                         )}
                       </p>
@@ -255,16 +267,16 @@ function ByCode({ ctx, lens, signals, focus, setFocus, tensions, onOpenTension }
                           <span className="w-12 shrink-0 text-xs text-graphite tabular-nums">
                             {r.people} of {r.of}
                           </span>
-                          <span className="flex w-[14.25rem] shrink-0 items-center gap-2">
-                            <LensCell r={r} lens={lens} />
+                          <span className="flex w-[8.5rem] shrink-0 items-center gap-2">
+                            <FaceCell r={r} />
                           </span>
-                          <span className="w-[5.75rem] shrink-0" data-testid="fit-cell">
+                          <span className="flex w-[8.5rem] shrink-0 items-center gap-2">
+                            <SpeechCell r={r} />
+                          </span>
+                          <span className="w-[7rem] shrink-0" data-testid="fit-cell">
                             <FitChip pattern={r.readable ? r.fit.pattern : 'Too few to read'} />
                           </span>
                         </button>
-                        <label className="flex w-14 shrink-0 justify-center py-2" title={r.readable ? undefined : 'Too few people to put in the report'}>
-                          <input type="checkbox" checked={r.use} disabled={!r.readable} onChange={(e) => setUse(r, e.target.checked)} aria-label={`Put ${r.code.name} signals in the report`} className="accent-[var(--color-iris-600)] disabled:opacity-40" data-testid="use-signal" />
-                        </label>
                       </li>
                     ))}
                   </ul>
@@ -275,7 +287,7 @@ function ByCode({ ctx, lens, signals, focus, setFocus, tensions, onOpenTension }
         )}
       </section>
 
-      <div className="lg:sticky lg:top-4">{selected ? <CodePanel key={selected.code.id} s={selected} ctx={ctx} lens={lens} tensions={tensionsFor(tensions, selected.code.id)} onOpenTension={onOpenTension} onUse={(on) => setUse(selected, on)} /> : null}</div>
+      <div className="lg:sticky lg:top-4">{selected ? <CodePanel key={selected.code.id} s={selected} ctx={ctx} tensions={tensionsFor(tensions, selected.code.id)} onOpenTension={onOpenTension} /> : null}</div>
     </div>
   )
 }
@@ -293,24 +305,24 @@ export function ChannelRow({ label, bar, children, testid }: { label: string; ba
   )
 }
 
-/** People in the panel, ordered for the channel being read: the strongest reading first. */
-function orderFor(points: Point[], lens: Lens, ctx: CodebookCtx) {
-  if (lens === 'speech') {
-    const rank = { Tense: 0, Flat: 1, Animated: 2, Even: 3 } as const
-    const cert = { 'Marked hesitation': 0, 'Some hesitation': 1, Steady: 2 } as const
-    return [...points].sort((a, b) => rank[a.voice.tone] - rank[b.voice.tone] || cert[a.band] - cert[b.band])
+/** People in the code panel: those whose delivery pulled against their words first, then the uncertain, then the rest, the strongest face first within each. */
+function orderByFit(points: Point[], ctx: CodebookCtx) {
+  const rank = { 'Pulls against': 0, Uncertain: 1, Matches: 2 } as const
+  const of = (p: Point) => {
+    const f = fitOf(p, faceOf(p, ctx.doc)).fit
+    return f ? rank[f] : 3
   }
-  return [...points].sort((a, b) => faceWeight(faceOf(b, ctx.doc)) - faceWeight(faceOf(a, ctx.doc)))
+  return [...points].sort((a, b) => of(a) - of(b) || faceWeight(faceOf(b, ctx.doc)) - faceWeight(faceOf(a, ctx.doc)))
 }
 
-function CodePanel({ s, ctx, lens, tensions, onUse, onOpenTension }: { s: CodeSignal; ctx: CodebookCtx; lens: Lens; tensions: Tension[]; onUse: (on: boolean) => void; onOpenTension: (id: string) => void }) {
+function CodePanel({ s, ctx, tensions, onOpenTension }: { s: CodeSignal; ctx: CodebookCtx; tensions: Tension[]; onOpenTension: (id: string) => void }) {
   const delay = r1(median(s.points.map((p) => p.facts.delaySec)))
   const usual = r1(median(s.points.map((p) => p.usual)))
   const e = s.emotions
   const off = s.tones.counts.Flat + s.tones.counts.Tense
   const stance = s.points[0]?.stance
-  const against = s.fit.against
   const tops = topEmotions(e)
+  const breakdown = breakdownOf(s.points, ctx.doc)
   return (
     <section aria-label={`Signals for ${s.code.name}`} data-testid="signal-panel" className="flex max-h-[calc(100vh-8rem)] flex-col rounded-md border border-mist bg-surface">
       <div className="flex-1 overflow-y-auto">
@@ -330,18 +342,8 @@ function CodePanel({ s, ctx, lens, tensions, onUse, onOpenTension }: { s: CodeSi
         <div className="border-b border-mist px-5 py-3" data-testid="channels">
           {s.readable ? (
             <>
-              {stance && stance !== 'Neutral' && s.fit.n > 0 && (
-                <p className={cn('mb-2 rounded-sm px-3 py-2 text-sm', against ? 'bg-pending-bg text-pending-fg' : 'bg-haze text-graphite')} data-testid="fit-verdict">
-                  {against ? (
-                    <>
-                      <span className="font-semibold">For {against} of {s.fit.n},</span> the speech or face pulled against the words.
-                      {s.fit.uncertain > 0 && <> {s.fit.uncertain} of {s.fit.n} uncertain.</>}
-                    </>
-                  ) : (
-                    s.fit.uncertain > 0 ? <>Neither speech nor face pulled against the words. {s.fit.uncertain} of {s.fit.n} uncertain.</> : <>How they said it fits the words for all {s.fit.n}.</>
-                  )}
-                </p>
-              )}
+              <DeliveryFigures b={breakdown} />
+              <HesitantNote points={s.points} doc={ctx.doc} />
               <dl className="divide-y divide-mist">
                 <ChannelRow label="Words">{stance ? STANCE_LABEL[stance] : '—'}</ChannelRow>
                 <ChannelRow label="Face" bar={<EmotionBar split={e} tall />} testid="channel-face">
@@ -363,9 +365,10 @@ function CodePanel({ s, ctx, lens, tensions, onUse, onOpenTension }: { s: CodeSi
                   {e.read > 0 && (
                     <span className="mt-1 flex flex-wrap items-center gap-1">
                       <span className="text-xs text-graphite">Reads as</span>
-                      {EMOTIONS.filter((x) => e.counts[x]).map((x) => (
+                      {EMOTIONS.filter((x) => e.counts[x]).map((x, _i, xs) => (
                         <span key={x} className="inline-flex items-center gap-1 text-xs text-graphite tabular-nums">
-                          <EmotionChip emotion={x} /> {e.counts[x]}
+                          <EmotionChip emotion={x} />
+                          {xs.length > 1 && <> {e.counts[x]}</>}
                         </span>
                       ))}
                     </span>
@@ -376,8 +379,14 @@ function CodePanel({ s, ctx, lens, tensions, onUse, onOpenTension }: { s: CodeSi
                   testid="channel-speech"
                   bar={
                     <span className="flex flex-col gap-1.5">
-                      <ToneBar split={s.tones} tall />
-                      <BandBar split={{ counts: { Steady: s.steady, 'Some hesitation': s.some, 'Marked hesitation': s.marked }, n: s.people }} tall />
+                      <span>
+                        <span className="mb-0.5 block text-[11px] font-medium text-graphite">Tone</span>
+                        <ToneBar split={s.tones} tall />
+                      </span>
+                      <span>
+                        <span className="mb-0.5 block text-[11px] font-medium text-graphite">Certainty</span>
+                        <BandBar split={{ counts: { Steady: s.steady, 'Some hesitation': s.some, 'Marked hesitation': s.marked }, n: s.people }} tall />
+                      </span>
                     </span>
                   }
                 >
@@ -391,13 +400,6 @@ function CodePanel({ s, ctx, lens, tensions, onUse, onOpenTension }: { s: CodeSi
           ) : (
             <p className="py-1 text-sm">Only {plural(s.people, 'person')} said this, which is too few to read a pattern or put in the report. Their moments are below.</p>
           )}
-          <label className={cn('mt-3 flex items-start gap-2.5 rounded-sm border border-mist px-3 py-2.5', s.readable ? 'cursor-pointer' : 'opacity-60')}>
-            <input type="checkbox" checked={s.use} disabled={!s.readable} onChange={(ev) => onUse(ev.target.checked)} className="mt-0.5 accent-[var(--color-iris-600)]" />
-            <span>
-              <span className="block text-sm font-medium">Put these signals in the report</span>
-              <span className="block text-xs text-graphite">{s.readable ? 'On by default when hesitation shows, or words and delivery don’t fit.' : 'Needs at least three people.'}</span>
-            </span>
-          </label>
         </div>
 
         {tensions.length > 0 && (
@@ -420,10 +422,10 @@ function CodePanel({ s, ctx, lens, tensions, onUse, onOpenTension }: { s: CodeSi
         <section aria-label="People" className="px-5 py-4">
           <h3 className="text-sm font-semibold">
             Moments <span className="font-normal text-graphite tabular-nums">{s.points.length}</span>
-            <span className="ml-2 text-xs font-normal text-graphite">{lens === 'emotion' ? 'Strongest face first' : 'Tense, flat and most hesitant first'}</span>
+            <span className="ml-2 text-xs font-normal text-graphite">Pulled against first, then uncertain</span>
           </h3>
           <ul className="mt-2 divide-y divide-mist">
-            {orderFor(s.points, lens, ctx).map((p) => (
+            {orderByFit(s.points, ctx).map((p) => (
               <PointCard key={p.participantId} point={p} ctx={ctx} context={s.code.name} />
             ))}
           </ul>
@@ -597,9 +599,10 @@ function MomentPanel({ m, ctx, lens }: { m: MomentSignal; ctx: CodebookCtx; lens
                 {e.read > 0 && (
                   <p className="mt-1.5 flex flex-wrap items-center gap-1.5" data-testid="moment-emotions">
                     <span className="text-xs text-graphite">Reads as</span>
-                    {EMOTIONS.filter((x) => e.counts[x]).map((x) => (
+                    {EMOTIONS.filter((x) => e.counts[x]).map((x, _i, xs) => (
                       <span key={x} className="inline-flex items-center gap-1 text-xs text-graphite tabular-nums">
-                        <EmotionChip emotion={x} /> {e.counts[x]}
+                        <EmotionChip emotion={x} />
+                        {xs.length > 1 && <> {e.counts[x]}</>}
                       </span>
                     ))}
                   </p>
