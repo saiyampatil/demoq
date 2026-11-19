@@ -51,7 +51,7 @@ try {
   const themeMaxN = Math.max(...(await b.evaluate(`[...document.querySelectorAll('[data-testid=bubble]')].filter(x=>x.dataset.key!=='none').map(x=>Number(x.dataset.n))`)))
   ok('radius is on a square-root scale of people (against the largest real theme)', (await b.evaluate(`[...document.querySelectorAll('[data-testid=bubble-fill]')].filter(c=>c.dataset.key!=='none').map(c=>({n:Number(document.querySelector('[data-testid=bubble][data-key="'+c.dataset.key+'"]').dataset.n),r:Number(c.dataset.r)}))`)).every((r) => Math.abs(r.r - Math.round(28 + 64 * (Math.sqrt(r.n) / Math.sqrt(themeMaxN)))) <= 1), radii)
   ok('no percentages anywhere', !/%/.test(await b.evaluate('document.body.innerText')))
-  ok('every bubble is a button with an accessible name: name, n of N, strength in words, words-vs-delivery in words', all.length === 3 && all.every((x) => /^Not in a theme, \d+ of \d+ people, not grouped into a theme yet$/.test(x.label) || /^.+, \d+ of \d+ people, ((high|medium|low) reaction strength|not enough read), (words and delivery (matched|pulled apart|partly matched)|too few to read)$/.test(x.label)), all.map((x) => x.label))
+  ok('every bubble is a button with an accessible name: name, n of N, strength in words, words-vs-delivery in words', all.length === 3 && all.every((x) => /^Not in a theme, \d+ of \d+ people, not grouped into a theme yet$/.test(x.label) || /^.+, \d+ of \d+ people, ((high|medium|low) reaction strength|not enough read), (verdict (Consistent|Mixed|Gap)|no position|too few to read)$/.test(x.label)), all.map((x) => x.label))
 
   // ═══ Strength, bands and the verdict ═══
   const rules = await run(`const doc=store(); const basis=basisOf(ms.ACCEPTED_PARTICIPANTS); const bs=tm.bubblesOf(doc,basis,'all'); const sigs=sg.themeSignals(doc,basis)
@@ -88,7 +88,7 @@ try {
   // ═══ Colour mode, the ring ═══
   await click('[data-testid=mode-verdict]'); await b.sleep(400)
   const vfills = await b.evaluate(`[...document.querySelectorAll('[data-testid=bubble-fill]')].map(c=>({k:c.dataset.key,fill:c.dataset.fill,verdict:document.querySelector('[data-testid=bubble][data-key="'+c.dataset.key+'"]').dataset.verdict}))`)
-  ok('Words vs delivery colours: Consistent neutral, Conflicting amber, Mixed light amber; “Not in a theme” stays grey', vfills.filter((f) => f.k !== 'none').every((f) => f.fill === { Consistent: '#eceef2', Conflicting: '#f0b955', Mixed: '#f8e3b5' }[f.verdict]) && vfills.find((f) => f.k === 'none').fill === '#d3d6dc', vfills)
+  ok('Words vs delivery colours: Consistent sage, Mixed champagne, Gap muted red (the shared map); “Not in a theme” stays grey', vfills.filter((f) => f.k !== 'none').every((f) => f.fill === { Consistent: '#b7d9c4', Conflicting: '#efb0b8', Mixed: '#f3dea0' }[f.verdict]) && vfills.find((f) => f.k === 'none').fill === '#d3d6dc', vfills)
   ok('the ring is the same in both colour modes and states the verdict', (await b.evaluate(`[...document.querySelectorAll('[data-testid=bubble-ring]')].map(r=>r.dataset.ring).join()`)) === 'solid,solid')
   await click('[data-testid=mode-strength]')
 
@@ -96,7 +96,7 @@ try {
   const p1 = await pos()
   await pickB('t-price')
   ok('opening the panel moves no bubble', (await pos()) === p1)
-  ok('the panel has the name, n of N people, strength in words, the verdict chip and a headline', /Price creep/.test((await text('[data-testid=panel-name]')) ?? '') && /8 of 20 people · low reaction strength/.test((await text('[data-testid=panel-numbers]')) ?? '') && /^Fits$/.test((await text('[data-testid=panel-verdict]')) ?? '') && /Delivery matched the words/.test((await text('[data-testid=panel-headline]')) ?? ''), `${await text('[data-testid=panel-name]')} | ${await text('[data-testid=panel-numbers]')} | ${await text('[data-testid=panel-verdict]')} | ${await text('[data-testid=panel-headline]')}`)
+  ok('the panel has the name, n of N people, strength in words, the verdict chip and a headline', /Price creep/.test((await text('[data-testid=panel-name]')) ?? '') && /8 of 20 people · low reaction strength/.test((await text('[data-testid=panel-numbers]')) ?? '') && /^Consistent$/.test((await text('[data-testid=panel-verdict]')) ?? '') && /Delivery matched the words/.test((await text('[data-testid=panel-headline]')) ?? ''), `${await text('[data-testid=panel-name]')} | ${await text('[data-testid=panel-numbers]')} | ${await text('[data-testid=panel-verdict]')} | ${await text('[data-testid=panel-headline]')}`)
   const quotes = await b.evaluate(`[...document.querySelectorAll('[data-testid=quote]')].map(x=>x.innerText)`)
   ok('quotes show participant, time, Play, segment, the code and the delivery reading in plain words', quotes.length >= 10 && quotes.every((t) => /P-\d+ · \d+:\d\d · Play/.test(t) && !/P-\d+ · P-\d+/.test(t) && /Play/.test(t) && /(Dog|Cat) owner · /.test(t) && /Speech (animated|even|flat|tense) · (No|Some|Marked) hesitation/.test(t)), quotes[0])
   const conf = await b.evaluate(`[...document.querySelectorAll('[data-testid=quote]')].length`)
@@ -151,7 +151,7 @@ try {
     if (i < order.names.length) await click('[data-testid=tour-next]')
   }
   ok('the tour visits real themes largest first, never “Not in a theme” and each caption is built from the data', JSON.stringify(seen.slice(0, order.names.length)) === JSON.stringify(order.captions.map((c) => c.replace(/\s+/g, ' '))) && order.names.length === 2 && !order.names.includes('Not in a theme'), { seen, order })
-  ok('captions use only data values: name, n of N people, and words-vs-delivery counts', seen.slice(0, 2).every((c) => /^.+\. \d+ of 20 people\. (Delivery matched the words\.|Words and delivery (partly )?pulled apart in \d+ of \d+ read\.|Too few read to say\.)$/.test(c)), seen)
+  ok('captions use only data values: name, n of N people, and words-vs-delivery counts', seen.slice(0, 2).every((c) => /^.+\. \d+ of 20 people\. (Delivery matched the words\.|(Gap|Mixed): no match for \d+ of \d+ read(, \d+ hesitant)?\.|Too few read to say\.)$/.test(c)), seen)
   ok('it ends on the final step, the only place “Not in a theme” is mentioned', /^That is every approved theme\. \d+ of 20 people said something not grouped yet\.$/.test(seen[seen.length - 1]) && (await b.evaluate(`document.querySelector('[data-testid=tour-next]').disabled`)))
   ok('the tour opens no panel and changes nothing in the codebook', (await count('[data-testid=panel]')) === 0 && (await codebook()) === cbAfterSetup)
   await click('[data-testid=tour-prev]')
@@ -199,7 +199,7 @@ try {
   ok('the summary sentence never names “Not in a theme”', !/Not in a theme/.test(sumText) && /is the largest theme\./.test(sumText), sumText)
   const conflict = await run(`const mk=(name,v,n)=>({key:name,name,kind:'theme',n,verdict:v}); const none={key:'none',name:'Not in a theme',kind:'none',n:12,verdict:'Conflicting'}
     return {one:tm.summaryOf([mk('Alpha','Consistent',9),mk('Wanting control over deliveries','Conflicting',6),none]),two:tm.summaryOf([mk('A','Conflicting',9),mk('B','Conflicting',6)]),zero:tm.summaryOf([mk('A','Consistent',9),mk('B','Mixed',6),none])}`)
-  ok('the summary names the themes where words and delivery pulled apart (and omits it when none did)', conflict.one === 'Alpha is the largest theme. Wanting control over deliveries shows words and delivery pulling apart.' && conflict.two === 'A is the largest theme. A and B show words and delivery pulling apart.' && conflict.zero === 'A is the largest theme.', conflict)
+  ok('the summary names the themes where words and delivery pulled apart (and omits it when none did)', conflict.one === 'Alpha is the largest theme. Wanting control over deliveries shows a Gap: delivery did not match the words.' && conflict.two === 'A is the largest theme. A and B show a Gap: delivery did not match the words.' && conflict.zero === 'A is the largest theme.', conflict)
 
   // Hover and select: nothing dims with the panel open; lines show who is in both.
   const shared = await run(`const doc=store(); const basis=basisOf(ms.ACCEPTED_PARTICIPANTS); const bs=tm.bubblesOf(doc,basis,'all'); const a=bs.find(x=>x.key==='t-price'), c=bs.find(x=>x.key==='t-pet'); return {both:tm.sharedCount(a,c),label:tm.sharedLabel(tm.sharedCount(a,c)),one:tm.sharedLabel(1)}`)
@@ -222,7 +222,7 @@ try {
 
   // Legend, fit, list.
   const leg = await b.evaluate(`(()=>{const it=[...document.querySelectorAll('[data-testid=legend-item]')];return {tops:new Set(it.map(i=>Math.round(i.getBoundingClientRect().top))).size,n:it.length,text:document.querySelector('[data-testid=legend-row]').innerText.replace(/\\s+/g,' '),caption:document.querySelector('[data-testid=closeness-legend]').innerText}})()`)
-  ok('the legend is one compact row of swatches: size, three strength steps and hatched, three ring styles', leg.tops === 1 && leg.n >= 8 && /Size/.test(leg.text) && /Low/.test(leg.text) && /Medium/.test(leg.text) && /High/.test(leg.text) && /Not enough read/.test(leg.text) && /Matched/.test(leg.text) && /Partly/.test(leg.text) && /Pulled apart/.test(leg.text), leg)
+  ok('the legend is one compact row of swatches: size, three strength steps and hatched, three ring styles', leg.tops === 1 && leg.n >= 8 && /Size/.test(leg.text) && /Low/.test(leg.text) && /Medium/.test(leg.text) && /High/.test(leg.text) && /Not enough read/.test(leg.text) && /Consistent/.test(leg.text) && /Mixed/.test(leg.text) && /Gap/.test(leg.text), leg)
   ok('“Closer means more of the same people said both.” sits beside it', leg.caption === 'Closer means more of the same people said both.')
   const fit = async () => b.evaluate(`(()=>{const c=document.querySelector('[data-testid=map-card]').getBoundingClientRect();const svg=document.querySelector('[data-testid=map-svg]').getBoundingClientRect();const bs=[...document.querySelectorAll('[data-testid=bubble-fill]')].map(x=>x.getBoundingClientRect());return {h:Math.round(c.height),vh:innerHeight,inside:bs.every(r=>r.left>=c.left-1&&r.right<=c.right+1&&r.top>=c.top-1&&r.bottom<=c.bottom+1),svgInside:svg.left>=c.left-1&&svg.right<=c.right+1&&svg.top>=c.top-1&&svg.bottom<=c.bottom+1}})()`)
   const f1 = await fit()

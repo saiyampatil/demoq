@@ -1,4 +1,5 @@
 // Theme map settings (A3). Nothing here is hardcoded in the page: change a number or a colour here.
+import { VERDICT_COLOUR } from './delivery'
 
 export const THEME_MAP = {
   /** A segment with fewer people than this is "Directional". */
@@ -21,8 +22,8 @@ export const THEME_MAP = {
   radius: { min: 28, max: 92 },
   /** Fill and text for each strength band: one hue in three steps, never red and green. Text on each fill passes 4.5:1. */
   strengthFill: { High: { fill: '#2f7f78', text: '#ffffff' }, Medium: { fill: '#8cc9c0', text: '#0f2b28' }, Low: { fill: '#d9eeea', text: '#0f2b28' } },
-  /** Words vs delivery: Consistent neutral, Conflicting amber, Mixed light amber. */
-  verdictFill: { Consistent: { fill: '#eceef2', text: '#1b1d22' }, Conflicting: { fill: '#f0b955', text: '#2a1c00' }, Mixed: { fill: '#f8e3b5', text: '#2a1c00' } },
+  /** Words vs delivery: the shared verdict colours (config/delivery.ts): Consistent green, Mixed yellow, Gap red. */
+  verdictFill: { Consistent: { fill: VERDICT_COLOUR.Consistent.fill, text: VERDICT_COLOUR.Consistent.fg }, Conflicting: { fill: VERDICT_COLOUR.Conflicting.fill, text: VERDICT_COLOUR.Conflicting.fg }, Mixed: { fill: VERDICT_COLOUR.Mixed.fill, text: VERDICT_COLOUR.Mixed.fg } },
   /** The one bubble for accepted codes in no theme is plain grey in both colour modes; its band and verdict are still said in words. */
   notInTheme: { fill: '#d3d6dc', text: '#1b1d22' },
   hatched: { fill: '#e4e6ea', stripe: '#b3b8c1', text: '#1b1d22' },

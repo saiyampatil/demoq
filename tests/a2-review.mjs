@@ -98,9 +98,9 @@ try {
   const cfg = await withMod(`(async()=>{const c=await window.__mod('/src/config/delivery');return {lines:c.DELIVERY_RULE_LINES,min:c.DELIVERY.minPeople,majority:c.DELIVERY.majority}})()`)
   await click('[data-testid=how-decided]')
   const popLines = (await all('[data-testid=how-decided-line]')).map((l) => l.replace(/^\d\. /, ''))
-  ok('the rule behind “How it’s decided” is the rule in config: most, speech, face, counted once, uncertain', JSON.stringify(popLines) === JSON.stringify(cfg.lines) && rl.min === cfg.min && rl.majority === 0.5 && /Most didn’t fit: “Doesn’t fit”/.test(popLines[2]) && /Uncertain/.test(popLines[3]), popLines)
+  ok('the rule behind “How it’s decided” is the rule in config: most, speech, face, counted once, uncertain', JSON.stringify(popLines) === JSON.stringify(cfg.lines) && rl.min === cfg.min && rl.majority === 0.5 && /More than half had no match: Gap/.test(popLines[2]) && /Hesitant/.test(popLines[3]), popLines)
   await b.evaluate(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})); true`); await b.sleep(200)
-  const LABEL = { Consistent: 'Fits', Mixed: 'Partly fits', Conflicting: 'Doesn’t fit', 'Too few to read': 'Too few to read', 'No claim': 'Facts only' }
+  const LABEL = { Consistent: 'Consistent', Mixed: 'Mixed', Conflicting: 'Gap', 'Too few to read': 'Too few to read', 'No claim': 'No position' }
   const rowCount = (await all('[data-testid=signal-row]')).length
   let verdicts = 0
   const wrong = []

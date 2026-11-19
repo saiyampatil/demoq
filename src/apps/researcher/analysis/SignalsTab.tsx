@@ -1,6 +1,5 @@
 import { useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router'
-import { AIGeneratedTag } from '@/components/AIGenerated'
 import { cn } from '@/components/cn'
 import { ChevronRightIcon, PlayIcon } from '@/components/icons'
 import { EmptyState } from '@/components/States'
@@ -9,7 +8,7 @@ import { Switch } from '@/components/Switch'
 import { useToast } from '@/components/Toast'
 import { setSignalPick, setSignalPicks } from '@/state/codebook'
 import { EMOTIONS, STANCE_LABEL, faceOf, faceWeight, fitOf, topEmotions, type EmotionSplit } from '@/state/emotion'
-import { breakdownOf, codeSignals, plural, signalGroups, tensionsFor, themeInsight, themeSignals, type CodeSignal, type Point, type Tension, type ThemeSignal } from '@/state/signals'
+import { codeSignals, plural, signalGroups, tensionsFor, themeInsight, themeSignals, type CodeSignal, type Point, type Tension, type ThemeSignal } from '@/state/signals'
 import { mmss } from '../review/reviewUi'
 import { BandBar, DeliveryFigures, EmotionBar, EmotionChip, FitChip, HesitantNote, HowItsDecided, PatternChip, PointCard, SignalLegend, ToneBar, ValenceCounts, ValenceKey, noReading, playHref } from './SignalBits'
 import type { CodebookCtx } from './codebookCtx'
@@ -183,7 +182,7 @@ function ByCode({ ctx, signals, focus, setFocus, tensions, onOpenTension, onOpen
           <ValenceKey />
         </div>
         {flat.length === 0 ? (
-          <EmptyState title="Nothing stands out" description="No accepted code shows hesitation, or words and delivery that don’t fit." action={<Button onClick={() => setNotableOnly(false)}>Show all codes</Button>} />
+          <EmptyState title="Nothing stands out" description="No accepted code shows hesitation, or a Mixed or Gap verdict." action={<Button onClick={() => setNotableOnly(false)}>Show all codes</Button>} />
         ) : (
           <div ref={arrows.ref} onKeyDown={arrows.onKeyDown} className="flex flex-col">
             <TableHead testid="signal-head">
@@ -191,7 +190,7 @@ function ByCode({ ctx, signals, focus, setFocus, tensions, onOpenTension, onOpen
               <span className="w-14">Said by</span>
               <span className="w-[10rem]">Face</span>
               <span className="w-[9rem]">Speech</span>
-              <span className="flex w-[7.5rem] flex-col gap-0.5" title="Do speech and face match what the words claim?">
+              <span className="flex w-[8.5rem] flex-col gap-0.5" title="Do speech and face match what the words claim?">
                 <span>Words vs delivery</span>
                 <HowItsDecided />
               </span>
@@ -255,7 +254,7 @@ function ByCode({ ctx, signals, focus, setFocus, tensions, onOpenTension, onOpen
                             <span className="flex w-[9rem] shrink-0 items-center gap-2">
                               <SpeechCell r={r} />
                             </span>
-                            <span className="w-[7.5rem] shrink-0" data-testid="fit-cell">
+                            <span className="w-[8.5rem] shrink-0" data-testid="fit-cell">
                               <FitChip pattern={r.readable ? r.fit.pattern : 'Too few to read'} />
                             </span>
                           </button>
@@ -311,7 +310,6 @@ function CodePanel({ s, ctx, tensions, onUse, onOpenTension, back }: { s: CodeSi
   const off = s.tones.counts.Flat + s.tones.counts.Tense
   const stance = s.points[0]?.stance
   const tops = topEmotions(e)
-  const breakdown = breakdownOf(s.points, ctx.doc)
   const ordered = orderByFit(s.points, ctx)
   const clearest = ordered[0]
   return (
@@ -348,7 +346,7 @@ function CodePanel({ s, ctx, tensions, onUse, onOpenTension, back }: { s: CodeSi
         <div className="border-b border-mist px-5 py-3" data-testid="channels">
           {s.readable ? (
             <>
-              <DeliveryFigures b={breakdown} />
+              <DeliveryFigures points={s.points} ctx={ctx} what="code" />
               <dl className="divide-y divide-mist">
                 <ChannelRow label="Words">{stance ? STANCE_LABEL[stance] : '—'}</ChannelRow>
                 <ChannelRow label="Face" bar={<EmotionBar split={e} tall />} testid="channel-face">
@@ -410,7 +408,7 @@ function CodePanel({ s, ctx, tensions, onUse, onOpenTension, back }: { s: CodeSi
             <span>
               <span className="block text-sm font-medium">Put these signals in the report</span>
               <span className="block text-xs text-graphite" data-testid="tick-hint">
-                {!s.readable ? 'Needs at least three people.' : !s.showable ? 'Nothing to show: no one made a claim for the delivery to disagree with.' : s.fit.pattern === 'Mixed' || s.fit.pattern === 'Conflicting' ? 'Suggested on: words and delivery don’t fit.' : s.notable ? 'Suggested on: hesitation shows.' : 'Suggested off: nothing stands out.'}
+                {!s.readable ? 'Needs at least three people.' : !s.showable ? 'Nothing to show: nobody took a side for the delivery to match.' : s.fit.pattern === 'Mixed' || s.fit.pattern === 'Conflicting' ? `Suggested on: the verdict is ${verdictLabel(s.fit.pattern)}.` : s.notable ? 'Suggested on: hesitation shows.' : 'Suggested off: nothing stands out.'}
               </span>
             </span>
           </div>
@@ -436,7 +434,7 @@ function CodePanel({ s, ctx, tensions, onUse, onOpenTension, back }: { s: CodeSi
         <section aria-label="People" className="px-5 py-4">
           <h3 className="text-sm font-semibold">
             Moments <span className="font-normal text-graphite tabular-nums">{s.points.length}</span>
-            <span className="ml-2 text-xs font-normal text-graphite">Pulled against first, then uncertain</span>
+            <span className="ml-2 text-xs font-normal text-graphite">No match first, then hesitant</span>
           </h3>
           <ul className="mt-2 divide-y divide-mist">
             {ordered.map((p) => (
@@ -470,11 +468,9 @@ function ThemePanel({ g, prof, ctx, tensions, onCode, onOpenTension, onOpenTensi
           <p className="mt-1 text-xs text-graphite tabular-nums" data-testid="theme-panel-said-by">Said by {prof.people} of {prof.of}</p>
         </header>
 
-        <section aria-label="Insight" className="flex flex-col gap-2 border-b border-mist px-5 py-4" data-testid="theme-insight">
-          <AIGeneratedTag className="self-start" />
-          <p className="text-sm" data-testid="insight-stance">{ins.stance}</p>
-          {ins.delivery && <p className="text-sm" data-testid="insight-delivery">{ins.delivery}</p>}
-        </section>
+        <div className="border-b border-mist px-5 py-3" data-testid="theme-figures">
+          <DeliveryFigures points={prof.points} ctx={ctx} what="theme" />
+        </div>
 
         <section aria-label="Codes to check" className="border-b border-mist px-5 py-4" data-testid="codes-to-check">
           <h3 className="text-sm font-semibold">Codes to check</h3>
@@ -482,14 +478,14 @@ function ThemePanel({ g, prof, ctx, tensions, onCode, onOpenTension, onOpenTensi
             <ul className="mt-2 flex flex-wrap gap-1.5">
               {ins.check.map((c) => (
                 <li key={c.code.id}>
-                  <button type="button" onClick={() => onCode(c.code.id)} data-testid="check-chip" data-code-id={c.code.id} data-verdict={c.fit.pattern} title={`${verdictLabel(c.fit.pattern)}: delivery didn’t fit for ${c.fit.against} of ${c.fit.n}`} className="cursor-pointer rounded-xs focus-visible:outline-2">
+                  <button type="button" onClick={() => onCode(c.code.id)} data-testid="check-chip" data-code-id={c.code.id} data-verdict={c.fit.pattern} title={`${verdictLabel(c.fit.pattern)}: no match for ${c.fit.against} of ${c.fit.n}`} className="cursor-pointer rounded-xs focus-visible:outline-2">
                     <FitChip pattern={c.fit.pattern} label={c.code.name} />
                   </button>
                 </li>
               ))}
             </ul>
           ) : (
-            <p className="mt-1.5 text-sm" data-testid="check-none">None. Every code fits.</p>
+            <p className="mt-1.5 text-sm" data-testid="check-none">None. No code is Mixed or Gap.</p>
           )}
         </section>
 

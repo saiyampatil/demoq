@@ -19,8 +19,8 @@ import {
   type TensionDef,
 } from '@/mock/signals'
 import { askedOf, codeThemes, denominator, peopleOf, tensionDecisions, themeCodes, unthemed, type Basis, type Code, type CodebookDoc, type TensionDecision, type Theme } from './codebook'
-import { DELIVERY } from '@/config/delivery'
-import { emotionSplit, faceOf, fitOf, fitSplit, hasVideo, noReading, toneSplit, FIT_RULE_TEXT, STANCE_LABEL, VALENCE, type Emotion, type EmotionSplit, type FitPattern, type FitSplit, type Stance, type ToneSplit } from './emotion'
+import { DELIVERY, FIT_LABEL, SIDE_LABEL, describedLine } from '@/config/delivery'
+import { emotionSplit, faceOf, fitOf, fitSplit, hasVideo, noReading, toneSplit, FIT_RULE_TEXT, VALENCE, type Emotion, type EmotionSplit, type FitPattern, type FitSplit, type Stance, type ToneSplit } from './emotion'
 
 export { BANDS, MOMENTS, TENSION_KINDS, TENSION_KIND_HINT, TENSION_KIND_LABEL, type Band, type Moment, type Point, type TensionKind } from '@/mock/signals'
 export { SIGNAL_RULES, signsOf } from '@/mock/signals'
@@ -407,11 +407,13 @@ export function breakdownOf(all: Point[], doc: CodebookDoc): Breakdown {
   }
 }
 
-/** The one-line summary for a table: "8 of 14 argued for it. 3 pulled against, 2 uncertain." Empty when nobody made a claim. */
+/** Who spoke in favour and who against it, as a phrase: "8 spoke in favour and 6 spoke against it". */
+const sidesPhrase = (pos: number, neg: number) => (pos && neg ? `${pos} spoke in favour and ${neg} spoke against it` : pos ? `${pos} spoke in favour` : `${neg} spoke against it`)
+
+/** The one-line summary: "8 spoke in favour and 6 spoke against it. Matched 9, no match 3, hesitant 2." Empty when nobody took a side. */
 export function breakdownLine(b: Breakdown): string {
   if (b.positive + b.negative === 0) return ''
-  const who = b.positive && b.negative ? `${b.positive} of ${b.people} argued for it and ${b.negative} complained` : b.positive ? `${b.positive} of ${b.people} argued for it` : `${b.negative} of ${b.people} complained`
-  return `${who}. ${b.against} pulled against${b.uncertain ? `, ${b.uncertain} uncertain` : ''}.`
+  return `${sidesPhrase(b.positive, b.negative)}. ${FIT_LABEL.Matches} ${b.matched}, ${FIT_LABEL['Pulls against'].toLowerCase()} ${b.against}${b.uncertain ? `, ${FIT_LABEL.Uncertain.toLowerCase()} ${b.uncertain}` : ''}.`
 }
 
 /**
@@ -553,35 +555,32 @@ export function rollupPoints(all: Point[], doc: CodebookDoc): Rollup {
 /** The rule for a theme's verdict, in one line for the screen. It is the per-code rule, applied to the theme's people. */
 export const THEME_RULE_TEXT = `Each person counts once, at the quote where their delivery fit their words least. ${FIT_RULE_TEXT}`
 
-/** What the words claim across a theme's people, from the same per-code stance the Words row uses. */
+/** What people said across a theme's people, from the same per-code stance the Words row uses. */
 export function stanceSummary(r: Pick<Rollup, 'stances'>): { short: string; long: string } {
   const { Positive: pos, Negative: neg, Neutral: neu } = r.stances
   const kinds = [pos && 'Positive', neg && 'Negative', neu && 'Neutral'].filter(Boolean) as Stance[]
   if (kinds.length === 0) return { short: '—', long: 'No one said it' }
-  if (kinds.length === 1) return { short: kinds[0] === 'Positive' ? 'Speaks for it' : kinds[0] === 'Negative' ? 'Complains' : 'States a fact', long: STANCE_LABEL[kinds[0]] }
-  const parts = [pos && `${pos} speak for it`, neg && `${neg} complain`, neu && `${neu} state a fact or preference`].filter(Boolean)
-  return { short: 'Mixed words', long: `Mixed: ${parts.join(', ')}` }
+  if (kinds.length === 1) return { short: SIDE_LABEL[kinds[0]], long: SIDE_LABEL[kinds[0]] }
+  return { short: 'More than one side', long: [pos && sidesPhrase(pos, 0), neg && sidesPhrase(0, neg), neu && describedLine(neu)].filter(Boolean).join(', ') }
 }
 
-/** What the people did against their words, as a phrase that follows "people argued for it, but" or "also". */
+/** What the people did that did not match their words, as a phrase that follows "of 7 with Positive words,". */
 const AGAINST: Record<'positive' | 'negative', Partial<Record<'Speech' | 'Face', string>>> = {
   positive: { Speech: 'sounded flat or tense', Face: 'had faces that read as doubt, frustration or confusion' },
   negative: { Speech: 'sounded animated', Face: 'had faces that read as delight or interest as they said it' },
 }
 
-/** The gap, named in plain words and counted in people: "4 of 7 people argued for it, but hesitated as they said it." */
-function gapSentence(g: StanceGap, kind: 'positive' | 'negative', lead: 'but' | 'still', short = false): string {
+/** The gap, named in plain words and counted in people: "Of 7 who spoke in favour, 4 sounded flat or tense." */
+function gapSentence(g: StanceGap, kind: 'positive' | 'negative', short = false): string {
   if (!g.n) return ''
   const clauses = (['Speech', 'Face'] as const)
     .map((c) => ({ k: g[c], c, text: AGAINST[kind][c] }))
     .filter((x): x is { k: number; c: 'Speech' | 'Face'; text: string } => x.k > 0 && !!x.text)
     .sort((a, b) => b.k - a.k)
   if (!clauses.length) return ''
-  const verb = kind === 'positive' ? 'argued for it' : 'complained about it'
-  const [first, ...more0] = short ? [clauses[0]] : clauses
-  const rest = more0
-  const head = lead === 'but' ? `${first.k} of ${g.n} people ${verb}, but ${first.text}` : `Still, ${first.k} of ${g.n} ${g.n === 1 ? 'person' : 'people'} who ${verb} ${first.text}`
-  const more = rest.map((x) => `; ${x.k} of ${g.n} also ${x.text}`).join('')
+  const [first, ...rest] = short ? [clauses[0]] : clauses
+  const head = `Of ${g.n} who ${kind === 'positive' ? 'spoke in favour' : 'spoke against it'}, ${first.k} ${first.text}`
+  const more = rest.map((x) => `; ${x.k} also ${x.text}`).join('')
   const seen = !short && clauses.some((x) => x.c === 'Face') && g.noVideo ? ` (faces were read for ${g.n - g.noVideo} of ${g.n}; ${g.noVideo} audio-only)` : ''
   return `${head}${more}${seen}.`
 }
@@ -590,10 +589,10 @@ function gapSentence(g: StanceGap, kind: 'positive' | 'negative', lead: 'but' | 
 /** `short` keeps only the lead: what a row shows. The full sentence, with every channel and who was left out, is the panel's. */
 export function headlineOf(r: Rollup, short = false): string {
   if (r.verdict === 'Too few to read') return `Only ${plural(r.people, 'person', 'people')} said this, too few to read a pattern.`
-  if (r.fit.n === 0) return 'These words state a fact or a preference, so there is no claim for the speech or face to disagree with.'
-  const gaps = [gapSentence(r.positive, 'positive', r.verdict === 'Consistent' ? 'still' : 'but', short), gapSentence(r.negative, 'negative', r.verdict === 'Consistent' ? 'still' : 'but', short)].filter(Boolean)
+  if (r.fit.n === 0) return 'Nobody took a side, so there is nothing for the speech or face to match.'
+  const gaps = [gapSentence(r.positive, 'positive', short), gapSentence(r.negative, 'negative', short)].filter(Boolean)
   if (r.verdict === 'Consistent' || r.verdict === 'No claim') return [`Delivery matched the words for ${r.fit.fits} of ${r.fit.n} people.`, ...(short ? [] : gaps)].join(' ')
-  return gaps.length ? gaps.join(' ') : `Delivery pulled against the words for ${r.fit.against} of ${r.fit.n} people.`
+  return gaps.length ? gaps.join(' ') : `Delivery did not match the words for ${r.fit.against} of ${r.fit.n} people.`
 }
 
 export type ThemeSignal = Rollup & {
@@ -633,7 +632,7 @@ function profile(base: { id: string; name: string; definition?: string; kind: Th
   const trace = [
     `${r.people} of ${of} said it${basis.participants.size - of ? ` (${basis.participants.size - of} weren’t asked)` : ''}`,
     `faces read for ${gap.read} of ${r.people}${noReading(gap) ? ` (${noReading(gap)})` : ''}`,
-    `${r.fit.n} of ${r.people} spoke for or against it${r.people - r.fit.n ? `, ${r.people - r.fit.n} only stated a fact or preference` : ''}`,
+    `${r.fit.n} of ${r.people} spoke in favour or against it${r.people - r.fit.n ? `, ${r.people - r.fit.n} just described it` : ''}`,
   ].join('; ')
   return {
     ...r,
@@ -674,19 +673,82 @@ export function themeSignals(doc: CodebookDoc, basis: Basis, signals: CodeSignal
 
 // ─── a theme, read in words ─────────────────────────────────────────────────
 
-/** One way delivery stood apart from the words, counted in people on the side it applies to. */
-export type DeliveryPattern = { key: 'hesitated' | 'speech' | 'face'; /** The side of the words it applies to; none for hesitation, which is counted over everyone with a claim. */ side?: 'Positive' | 'Negative'; n: number; of: number; /** "hesitated while saying it", "sounded flat or tense". */ text: string }
+/** One way delivery stood apart from the words, counted among the people on the side it applies to. */
+export type DeliveryPattern = { key: 'hesitated' | 'speech' | 'face'; side: 'Positive' | 'Negative'; n: number; of: number; /** "hesitated while saying it", "sounded flat or tense". */ text: string }
+
+/** One side of what people said, with its people split by whether their delivery matched. */
+export type SideGroup = { side: 'Positive' | 'Negative'; points: Point[]; tiles: Record<'Matches' | 'Pulls against' | 'Uncertain', Point[]>; patterns: DeliveryPattern[] }
+
+/** "Matched" people may be only those whose delivery did match: nothing contradicted the words, and not marked hesitation. */
+export type SideSummary = {
+  /** The one sentence, in one of four shapes. */
+  sentence: string
+  /** The N in "n of N people": the people who raised this theme or code. */
+  of: number
+  /** The sides that have people, the larger first. Two means two stacked tile groups. */
+  groups: SideGroup[]
+  /** People who just described what happened. Never checked. */
+  described: Point[]
+}
+
+/**
+ * What people said, in one sentence, from the existing numbers: one point per person, their side (`stance`) and whether their delivery matched
+ * (`fitOf`). n of N only, no percentages, "more than half" only above half of N. A clause names patterns among the people on that side only
+ * (so one base per clause) and never names confusion.
+ */
+export function sideSummary(points: Point[], doc: CodebookDoc): SideSummary {
+  const N = points.length
+  const sideOf = (side: 'Positive' | 'Negative') => points.filter((p) => p.stance === side)
+  const described = points.filter((p) => p.stance !== 'Positive' && p.stance !== 'Negative')
+  const faceIs = (p: Point, emotions: readonly string[]) => {
+    const face = faceOf(p, doc)
+    return fitOf(p, face).against.includes('Face') && !!face?.emotion && emotions.includes(face.emotion)
+  }
+  const speechOff = (p: Point) => fitOf(p, faceOf(p, doc)).against.includes('Speech')
+  const group = (side: 'Positive' | 'Negative'): SideGroup => {
+    const mine = sideOf(side)
+    const fitOfP = (p: Point) => fitOf(p, faceOf(p, doc)).fit
+    const all: DeliveryPattern[] = [
+      { key: 'hesitated', side, n: mine.filter((p) => p.band === 'Marked hesitation').length, of: mine.length, text: 'hesitated while saying it' },
+      { key: 'speech', side, n: mine.filter(speechOff).length, of: mine.length, text: side === 'Positive' ? 'sounded flat or tense' : 'sounded animated' },
+      { key: 'face', side, n: mine.filter((p) => faceIs(p, side === 'Positive' ? ['Doubt', 'Frustration'] : ['Delight', 'Interest'])).length, of: mine.length, text: side === 'Positive' ? 'looked doubtful or frustrated' : 'looked pleased' },
+    ]
+    return {
+      side,
+      points: mine,
+      tiles: { Matches: mine.filter((p) => fitOfP(p) === 'Matches'), 'Pulls against': mine.filter((p) => fitOfP(p) === 'Pulls against'), Uncertain: mine.filter((p) => fitOfP(p) === 'Uncertain') },
+      patterns: all.filter((x) => x.n >= DELIVERY.minPeople).sort((a, b) => b.n - a.n),
+    }
+  }
+  const groups = (['Positive', 'Negative'] as const).filter((x) => sideOf(x).length > 0).map(group).sort((a, b) => b.points.length - a.points.length || (a.side === 'Positive' ? -1 : 1))
+  const pos = sideOf('Positive').length
+  const neg = sideOf('Negative').length
+  let sentence: string
+  if (!pos && !neg) sentence = `Nobody took a side. All ${N} ${N === 1 ? 'person' : 'people'} just described what happened.`
+  else if (pos * 2 > N || neg * 2 > N) {
+    const g = groups[0]
+    const n = g.points.length
+    const lead = `${n} of ${N} people were verbally ${g.side === 'Positive' ? 'positive' : 'negative'} about it`
+    const list = g.patterns.slice(0, 2).map((x) => x.text)
+    // One base for the clause: "of those 8". A second pattern shares it.
+    const clause = list.length
+      ? `${g.side === 'Positive' ? ', but' : ', and'} ${g.patterns[0].n} of those ${n} ${list[0]}${list[1] ? ` and ${g.patterns[1].n} ${list[1]}` : ''}`
+      : g.tiles.Matches.length * 2 > n
+        ? ', and their delivery backed it up'
+        : ''
+    sentence = `${lead}${clause}.`
+  } else sentence = pos && neg ? `${pos} ${pos === 1 ? 'person' : 'people'} spoke in favour of it and ${neg} spoke against it.` : `${pos || neg} ${(pos || neg) === 1 ? 'person' : 'people'} spoke ${pos ? 'in favour of' : 'against'} it.`
+  return { sentence, of: N, groups, described }
+}
 
 export type ThemeInsight = {
-  /** "Verbally positive: 8 of 14 argued for it." */
-  stance: string
-  /** The patterns that affect three or more people, the most people first (at most two are written). */
+  /** The one sentence (see sideSummary), the groups behind it and who just described it. */
+  summary: SideSummary
+  /** The patterns that affect three or more people on their side, the most people first. */
   patterns: DeliveryPattern[]
-  /** The second sentence: the patterns, or "Holds up: ...", or the plain count when nothing is big enough to name. */
-  delivery: string
-  /** Codes in the theme whose verdict is Partly fits or Doesn't fit, the most people not fitting first. */
+  /** Codes in the theme whose verdict is Mixed or Gap, Gap first, then the most people with no match. */
   check: CodeSignal[]
-  /** Small grey line: who only stated a fact, who was audio-only, faces read. */
+  /** Small grey line: who just described it, who was audio-only, faces read. */
   coverage: string
 }
 
@@ -694,55 +756,13 @@ export type ThemeInsight = {
  * The theme panel's reading, built only from the theme's own numbers (its one-per-person points and its fit split), so it can never
  * disagree with the row or the codes beneath it. Confusion is never named in the face pattern. Hesitation is named, never a verdict.
  */
-export function themeInsight(t: Pick<ThemeSignal, 'points' | 'people' | 'fit' | 'stances' | 'verdict' | 'emotions' | 'codes'>, doc: CodebookDoc): ThemeInsight {
-  const { Positive: pos, Negative: neg } = t.stances
-  const claim = pos + neg
-  const claimants = t.points.filter((p) => p.stance === 'Positive' || p.stance === 'Negative')
-  const both = pos > 0 && neg > 0
-  const stance =
-    t.verdict === 'Too few to read'
-      ? `Too few to read: only ${plural(t.people, 'person', 'people')} said this.`
-      : !claim
-        ? 'Facts only: no one argued for it or complained, so there is nothing for delivery to fit.'
-        : pos * 2 > claim
-          ? `Verbally positive: ${pos} of ${claim} argued for it.`
-          : neg * 2 > claim
-            ? `Mostly complaint: ${neg} of ${claim} complained.`
-            : `Mixed: ${pos} argued for it, ${neg} complained.`
-
-  // Each pattern is counted among the people it can apply to. The face pattern leaves Confusion out on purpose.
-  const sideOnly = (side: 'Positive' | 'Negative', test: (p: Point) => boolean) => claimants.filter((p) => p.stance === side && test(p)).length
-  const faceIs = (p: Point, emotions: readonly string[]) => {
-    const face = faceOf(p, doc)
-    return fitOf(p, face).against.includes('Face') && !!face?.emotion && emotions.includes(face.emotion)
-  }
-  const speechOff = (p: Point) => fitOf(p, faceOf(p, doc)).against.includes('Speech')
-  const all: DeliveryPattern[] = [
-    { key: 'hesitated', n: claimants.filter((p) => p.band === 'Marked hesitation').length, of: claim, text: 'hesitated while saying it' },
-    { key: 'speech', side: 'Positive', n: sideOnly('Positive', speechOff), of: pos, text: 'sounded flat or tense' },
-    { key: 'face', side: 'Positive', n: sideOnly('Positive', (p) => faceIs(p, ['Doubt', 'Frustration'])), of: pos, text: 'looked doubtful or frustrated' },
-    { key: 'speech', side: 'Negative', n: sideOnly('Negative', speechOff), of: neg, text: both ? 'sounded animated' : 'sounded animated as they complained' },
-    { key: 'face', side: 'Negative', n: sideOnly('Negative', (p) => faceIs(p, ['Delight', 'Interest'])), of: neg, text: both ? 'looked pleased' : 'looked pleased as they complained' },
-  ]
-  const patterns = t.verdict === 'Too few to read' || !claim ? [] : all.filter((x) => x.n >= DELIVERY.minPeople).sort((a, b) => b.n - a.n)
-  // "5 of 8 hesitated while saying it", or, when the theme has both sides, "3 of 8 who argued for it sounded flat or tense".
-  const say = (x: DeliveryPattern) => `${x.n} of ${x.of}${x.side && both ? (x.side === 'Positive' ? ' who argued for it' : ' who complained') : ''} ${x.text}`
-  const side = pos && !neg ? ' who argued for it' : neg && !pos ? ' who complained' : ' who took a position'
-  const delivery =
-    t.verdict === 'Too few to read' || !claim
-      ? ''
-      : patterns.length
-        ? `${patterns.slice(0, 2).map(say).join('; ')}.`
-        : t.verdict === 'Consistent'
-          ? `Holds up: delivery fit the words for ${t.fit.fits} of ${t.fit.n}${side}.`
-          : t.fit.against
-            ? `Delivery didn’t fit the words for ${t.fit.against} of ${t.fit.n}, spread across speech and face.`
-            : `Delivery fit the words for ${t.fit.fits} of ${t.fit.n}${side}; the rest hesitated without pulling against them.`
-
-  const check = t.codes.filter((c) => c.fit.pattern === 'Mixed' || c.fit.pattern === 'Conflicting').sort((a, b) => b.fit.against - a.fit.against || (a.fit.pattern === 'Conflicting' ? -1 : 1) - (b.fit.pattern === 'Conflicting' ? -1 : 1) || a.code.name.localeCompare(b.code.name))
-  const factOnly = t.people - t.fit.n
-  const coverage = [factOnly > 0 ? `${factOnly} only stated a fact` : '', t.emotions.noVideo > 0 ? `${t.emotions.noVideo} audio-only, read on speech` : '', `faces read for ${t.emotions.read} of ${t.people}`].filter(Boolean).join(' · ')
-  return { stance, patterns, delivery, check, coverage }
+export function themeInsight(t: Pick<ThemeSignal, 'points' | 'people' | 'emotions' | 'codes'>, doc: CodebookDoc): ThemeInsight {
+  const summary = sideSummary(t.points, doc)
+  const rank = (c: CodeSignal) => (c.fit.pattern === 'Conflicting' ? 0 : 1)
+  const check = t.codes.filter((c) => c.fit.pattern === 'Mixed' || c.fit.pattern === 'Conflicting').sort((a, b) => rank(a) - rank(b) || b.fit.against - a.fit.against || a.code.name.localeCompare(b.code.name))
+  const described = summary.described.length
+  const coverage = [described > 0 ? `${described} just described it` : '', t.emotions.noVideo > 0 ? `${t.emotions.noVideo} audio-only, read on speech` : '', `faces read for ${t.emotions.read} of ${t.people}`].filter(Boolean).join(' · ')
+  return { summary, patterns: summary.groups.flatMap((g) => g.patterns), check, coverage }
 }
 
 // ─── what stands out ────────────────────────────────────────────────────────
@@ -799,7 +819,7 @@ export function standouts(signals: CodeSignal[], moments: MomentSignal[], toRevi
   // Where the words and the delivery disagree most.
   const conflict = signals.filter((s) => s.fit.pattern === 'Conflicting' || s.fit.pattern === 'Mixed').sort((a, b) => (b.fit.against) / b.fit.n - (a.fit.against) / a.fit.n)[0]
   if (conflict)
-    out.push({ id: `fit-${conflict.code.id}`, kind: 'code', lens: 'fit', target: conflict.code.id, lead: conflict.code.name, detail: `Said by ${conflict.people} of ${conflict.of}. For ${conflict.fit.against} of ${conflict.fit.n}, the speech or face pulled against the words${conflict.fit.uncertain ? `, and ${conflict.fit.uncertain} were uncertain` : ''}.` })
+    out.push({ id: `fit-${conflict.code.id}`, kind: 'code', lens: 'fit', target: conflict.code.id, lead: conflict.code.name, detail: `Said by ${conflict.people} of ${conflict.of}. For ${conflict.fit.against} of ${conflict.fit.n}, the speech or face did not match the words${conflict.fit.uncertain ? `, and ${conflict.fit.uncertain} were hesitant` : ''}.` })
   // The most hesitant code that isn't already there.
   const hes = signals.filter((s) => s.readable && (s.pattern === 'Mixed' || s.pattern === 'Often hesitant') && s.code.id !== conflict?.code.id && !insights.some((i) => i.s.code.id === s.code.id)).sort((a, b) => b.marked / b.people - a.marked / a.people)[0]
   if (hes) out.push({ id: `code-${hes.code.id}`, kind: 'code', lens: 'speech', target: hes.code.id, lead: hes.code.name, detail: `Said by ${hes.people} of ${hes.of}, with marked hesitation in ${hes.marked} of ${hes.people}.` })

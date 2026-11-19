@@ -16,7 +16,7 @@
 //   over half match is Consistent, otherwise Mixed, and under the minimum, too few to read.
 
 import { DELIVERY, DELIVERY_RULE_LINES } from '@/config/delivery'
-export { VERDICT_LABEL, verdictLabel } from '@/config/delivery'
+export { FIT_COLOUR, FIT_DEF, FIT_LABEL, FIT_ORDER, VERDICT_COLOUR, VERDICT_DEF, VERDICT_LABEL, VERDICT_ORDER, SIDE_DEF, SIDE_LABEL, describedLine, sideGroupHead, sideGroupLine, RAISED_TIP, verdictLabel } from '@/config/delivery'
 import { EMOTIONS, TONES, VALENCE, VALENCES, type Emotion, type FaceReading, type Intensity, type Tone, type Valence } from '@/mock/emotion'
 import type { Point } from '@/mock/signals'
 import type { CodebookDoc, FaceFix } from './codebook'

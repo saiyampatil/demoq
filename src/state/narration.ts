@@ -6,6 +6,11 @@ export const words = (text: string) => text.trim().split(/\s+/).filter(Boolean).
 /** The "n of N" figures in a sentence. "4 of the 14" counts too. */
 export const figures = (text: string): { n: number; of: number }[] => [...text.matchAll(/(\d+) of (?:the )?(\d+)/g)].map((m) => ({ n: Number(m[1]), of: Number(m[2]) }))
 
+/** How a theme or code says what people said. The only wording a line may use for it (the A2 panels use the same phrases). */
+export const SIDE_PHRASES = ['verbally positive about it', 'verbally negative about it', 'spoke in favour of it', 'spoke against it', 'just described what happened', 'hesitated while saying it', 'sounded flat or tense', 'looked doubtful or frustrated', 'sounded animated', 'looked pleased', 'their delivery backed it up'] as const
+/** Earlier wording for the same thing. Never used again. */
+export const RETIRED_SIDE_WORDING = ['argued for it', 'complained', 'complains about it', 'speaks for it', 'pulled against', 'positive words', 'negative words']
+
 export type NarrationCheck = { ok: boolean; problems: string[] }
 
 /**
@@ -23,6 +28,7 @@ export function checkNarration(text: string, o: { maxWords?: number; figuresAllo
   if (/\b(most people|majority)\b/.test(lower) && !figs.some((f) => f.n * 2 > f.of)) problems.push('Says “most” without more than half')
   AUDIO.bannedWords.forEach((w) => new RegExp(`\\b${w}\\b`, 'i').test(text) && problems.push(`Uses “${w}”`))
   AUDIO.adviceWords.forEach((w) => new RegExp(`\\b${w}\\b`, 'i').test(text) && problems.push(`Reads as advice (“${w}”)`))
+  RETIRED_SIDE_WORDING.forEach((w) => lower.includes(w) && problems.push(`Uses retired wording (“${w}”)`))
   if (/\bfelt\b/i.test(text)) problems.push('Says “felt”: a face reads as, it does not feel')
   if (o.faceBased && !/\bread as\b|\breads as\b|\bshowed\b/i.test(text)) problems.push('A face-based line says what a face read as')
   return { ok: problems.length === 0, problems }

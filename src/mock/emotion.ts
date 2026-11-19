@@ -292,7 +292,8 @@ const STANCE: Record<string, Stance> = {
   'c-nothing': 'Negative',
 }
 export const stanceOf = (codeId: string): Stance => STANCE[codeId] ?? 'Neutral'
-export const STANCE_LABEL: Record<Stance, string> = { Positive: 'Speaks for it', Negative: 'Complains about it', Neutral: 'States a fact or preference' }
+/** What their words said, in the words shown on screen (config/delivery.ts has the definitions). */
+export const STANCE_LABEL: Record<Stance, string> = { Positive: 'Spoke in favour', Negative: 'Spoke against it', Neutral: 'Just described it' }
 
 /** A reading drawn from what the words claim and how steady the answer was, for quotes the story doesn't set by hand. */
 function drawn(key: string, stance: Stance, band: Band): Set2 {

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router'
 import { cn } from '@/components/cn'
-import { verdictLabel } from '@/config/delivery'
+import { FitChip } from '../SignalBits'
 import { screenById, studyPath } from '@/routes/screens'
 import type { Basis, CodebookDoc } from '@/state/codebook'
 import { mmss } from '@/state/reportLogic'
@@ -25,7 +25,7 @@ export function Panel({ studyId, doc, basis, bubble, seg, tensionId, onClose }: 
         <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-graphite tabular-nums" data-testid="panel-numbers">
           <span className="font-medium text-ink">{bubble.n} of {bubble.of} {segmentNoun(seg)}</span>
           <span>· {bandWords(bubble)}</span>
-          <span className="rounded-xs border border-mist-strong px-1.5 py-0.5 text-xs" data-testid="panel-verdict">{verdictLabel(bubble.verdict)}</span>
+          <span data-testid="panel-verdict"><FitChip pattern={bubble.verdict} /></span>
         </p>
         {bubble.kind === 'theme' && <p className="text-sm font-medium" data-testid="panel-headline">{headlineShort(bubble.verdict)}</p>}
       </header>

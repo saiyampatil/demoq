@@ -21,10 +21,10 @@ const click = async (sel) => {
 const MOD = `window.__mod = (path) => import(performance.getEntriesByType('resource').map((r) => r.name).filter((n) => n.includes(path + '.ts')).pop() ?? path + '.ts')`
 const withMod = (expr) => b.evaluate(MOD + '; ' + expr)
 const LINES = [
-  'We look at people who argued for the idea and compare how they said it with what they said.',
-  'It didn’t fit if the voice was tense or flat, or the face showed doubt, frustration or confusion. For a complaint, it didn’t fit if they sounded or looked pleased.',
-  'Most didn’t fit: “Doesn’t fit”. Most fit: “Fits”. Otherwise “Partly fits”. Under 3 people: too few to read.',
-  'Long pauses alone never count as not fitting. They show as Uncertain.',
+  'We look at people who spoke in favour or against it and compare how they said it with what they said.',
+  'No match if the voice was tense or flat, or the face showed doubt, frustration or confusion. For people who spoke against it, no match if they sounded or looked pleased.',
+  'More than half matched: Consistent. More than half had no match: Gap. Otherwise Mixed. Under 3 people: Too few to read.',
+  'Long pauses alone never count as no match. They show as Hesitant, and never count toward Gap.',
   'Each person counts once. Speech and face are never added together.',
 ]
 const ruleOf = (against, unc, nn, min) => (nn < min ? 'Too few to read' : against / nn > 0.5 ? 'Conflicting' : (nn - against - unc) / nn > 0.5 ? 'Consistent' : 'Mixed')
@@ -84,7 +84,7 @@ try {
   ok('someone who only stated a fact is not checked', u.fact.fit === undefined && u.fact.against.length === 0)
   ok('five against and five matching is Mixed: most is more than half', u.mixed === 'Mixed')
   ok('the breakdown counts each person once (a tense complaint matches), with the fact-only and audio-only counts right', u.bd.people === 6 && u.bd.positive === 4 && u.bd.negative === 1 && u.bd.against === 2 && u.bd.uncertain === 1 && u.bd.matched === 2 && u.bd.fact.join() === 'P-5' && u.bd.audioOnly === 2, u.bd)
-  ok('the table line reads “4 of 6 argued for it and 1 complained. 2 pulled against, 1 uncertain.”', u.line === '4 of 6 argued for it and 1 complained. 2 pulled against, 1 uncertain.', u.line)
+  ok('the table line reads “4 spoke in favour and 1 spoke against it. Matched 2, no match 2, hesitant 1.”', u.line === '4 spoke in favour and 1 spoke against it. Matched 2, no match 2, hesitant 1.', u.line)
   ok('the hesitant-delivery observation needs a positive claim and at least half hesitating', u.hesitantPos?.hesitated === 4 && u.hesitantPos.speakers === 6 && u.hesitantNeg === null && u.hesitantFew === null, [u.hesitantPos, u.hesitantNeg, u.hesitantFew])
   ok('the rule lines in config are the five lines, word for word', JSON.stringify(u.lines) === JSON.stringify(LINES), u.lines)
 
@@ -103,7 +103,7 @@ try {
   ok('Escape closes it', (await b.evaluate(`document.querySelectorAll('[data-testid=how-decided-pop]').length`)) === 0)
   ok('no rule paragraph is on the page', (await b.evaluate(`document.querySelectorAll('[data-testid=fit-rule]').length`)) === 0)
   const groups = await b.evaluate(`[...document.querySelectorAll('[aria-label="Signals by code"] section[aria-labelledby^=grp-]')].map(s=>({head:s.querySelector('header').innerText.replace(/\\s+/g,' ').trim(),switches:s.querySelector('header').querySelectorAll('[role=switch]').length,badges:s.querySelector('header').querySelectorAll('[class*=pending-fg],[class*=border-mist-strong]:not([role=switch])').length}))`)
-  ok('each theme header is a label, “n codes”, its verdict chip, “Said by n of N” and one “In report” switch', groups.length >= 2 && groups.every((g) => /^.+ \d+ codes? (Fits|Partly fits|Doesn’t fit|Facts only|Too few to read) Said by \d+ of \d+ (In report|\d+ of \d+ in report|Nothing to show)$/.test(g.head) && g.switches === 1), groups)
+  ok('each theme header is a label, “n codes”, its verdict chip, “Said by n of N” and one “In report” switch', groups.length >= 2 && groups.every((g) => /^.+ \d+ codes? (Consistent|Mixed|Gap|No position|Too few to read) Said by \d+ of \d+ (In report|\d+ of \d+ in report|Nothing to show)$/.test(g.head) && g.switches === 1), groups)
   ok('“Not in a theme” is the last group', groups.length === 0 || !groups.some((g, i) => /^Not in a theme/.test(g.head) && i !== groups.length - 1))
   ok('the group names are the themes, so all four accepted themes are there', ['Price creep', 'The pet decides', 'Wanting control over deliveries', 'Why they joined'].every((t) => groups.some((g) => g.head.startsWith(t))), groups.map((g) => g.head))
 
@@ -141,13 +141,13 @@ try {
   // ── The hesitant-delivery line: only for a positive claim, n of N, at the top ──
   const notes = await b.evaluate(`(async()=>{const out=[];const rows=[...document.querySelectorAll('[data-testid=signal-row]')];for(const r of rows){r.click();await new Promise(x=>setTimeout(x,90));const p=document.querySelector('[data-testid=signal-panel]');const n=p.querySelector('[data-testid=hesitant-note]');out.push({name:r.innerText.split('\\n')[0].replace(/(In report|Nothing to show)$/,'').trim(),note:n?n.innerText.replace(/\\s+/g,' '):null,top:n?n===p.querySelector('.overflow-y-auto').firstElementChild:null})};return out})()`)
   const withNote = notes.filter((x) => x.note)
-  ok('the line appears for codes with a positive claim and hesitating speakers, at the top, in n of N with no percentage', withNote.length >= 1 && withNote.every((x) => /^Positive words, hesitant delivery: said by \d+ of \d+; \d+ of \d+ hesitated\.$/.test(x.note) && x.top && !/%/.test(x.note)), withNote)
+  ok('the line appears for codes with a positive claim and hesitating speakers, at the top, in n of N with no percentage', withNote.length >= 1 && withNote.every((x) => /^Spoke in favour, hesitant delivery: said by \d+ of \d+; \d+ of \d+ hesitated\.$/.test(x.note) && x.top && !/%/.test(x.note)), withNote)
   ok('and not for codes that only complain or state a fact: it matches the observation’s own rule', JSON.stringify(withNote.map((x) => x.name).sort()) === JSON.stringify(u.hesitantNames.sort()), { got: withNote.map((x) => x.name), want: u.hesitantNames })
 
   // ── The report switch: one per theme, and the code’s own in the panel ──
   const groupN = await b.evaluate(`document.querySelectorAll('[aria-label="Signals by code"] section[aria-labelledby^=grp-]').length`)
   ok('no code row has a toggle; there is one switch per theme header, “Not in a theme” included', (await b.evaluate(`document.querySelectorAll('[data-testid=signal-row] [role=switch], [data-testid=use-signal]').length`)) === 0 && (await b.evaluate(`document.querySelectorAll('[data-testid=use-group]').length`)) === groupN && groupN >= 3)
-  ok('codes that cannot be shown say “Nothing to show” in place of a toggle', await b.evaluate(`(()=>{const r=[...document.querySelectorAll('[data-testid=signal-row]')];const nc=r.filter(x=>/Facts only|Too few to read/.test(x.querySelector('[data-testid=fit-cell]').innerText));return nc.length>=2&&nc.every(x=>x.querySelector('[data-testid=row-state]').innerText==='Nothing to show')})()`))
+  ok('codes that cannot be shown say “Nothing to show” in place of a toggle', await b.evaluate(`(()=>{const r=[...document.querySelectorAll('[data-testid=signal-row]')];const nc=r.filter(x=>/No position|Too few to read/.test(x.querySelector('[data-testid=fit-cell]').innerText));return nc.length>=2&&nc.every(x=>x.querySelector('[data-testid=row-state]').innerText==='Nothing to show')})()`))
   const footN = async () => Number((await text('[data-testid=report-footer-count]'))?.match(/report: (\d+)/)?.[1])
   const onNow = () => b.evaluate(`[...document.querySelectorAll('[data-testid=row-state]')].filter(e=>e.innerText==='In report').length`)
   ok('the footer reads “n codes with signals and n tension themes. n tensions still to review.” and counts the codes in report', /^Goes to the report: \d+ codes? with signals and \d+ tension themes?\.$/.test((await text('[data-testid=report-footer-count]')) ?? '') && (await footN()) === (await onNow()), `${await text('[data-testid=report-footer-count]')} | ${await onNow()}`)

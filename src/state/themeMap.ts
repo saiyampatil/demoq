@@ -1,6 +1,7 @@
 // A3 Theme map, worked out from the codebook and A2 every time. Nothing is stored and nothing is written back. A bubble is an
 // accepted theme (plus one grey bubble for accepted codes in no theme); its size is people, its colour how strong the delivery was
 // among the people who could be read, and its ring A2's verdict, reused as it is.
+import { VERDICT_LABEL } from '@/config/delivery'
 import { strengthBandOf, THEME_MAP, type StrengthBand } from '@/config/themeMap'
 import { petOf } from '@/mock/codebook'
 import { excerptPoint, type Point } from '@/mock/signals'
@@ -80,7 +81,8 @@ export function bubblesOf(doc: CodebookDoc, basis: Basis, seg: Segment): Bubble[
 }
 
 export const bandWords = (b: Bubble) => (b.notEnough || !b.band ? 'not enough read' : `${b.band.toLowerCase()} reaction strength`)
-export const verdictWords = (v: FitPattern) => (v === 'Consistent' ? 'words and delivery matched' : v === 'Conflicting' ? 'words and delivery pulled apart' : v === 'Mixed' ? 'words and delivery partly matched' : 'too few to read')
+/** The verdict in words, for a tooltip or a screen reader: "verdict Consistent". */
+export const verdictWords = (v: FitPattern) => (v === 'Too few to read' ? 'too few to read' : v === 'No claim' ? 'no position' : `verdict ${VERDICT_LABEL[v]}`)
 export const accessibleName = (b: Bubble, seg: Segment) => (b.kind === 'none' ? `${b.name}, ${b.n} of ${b.of} ${segmentNoun(seg)}, not grouped into a theme yet` : `${b.name}, ${b.n} of ${b.of} ${segmentNoun(seg)}, ${bandWords(b)}, ${verdictWords(b.verdict)}`)
 
 /** Who is said by both of two sets of people: the layout's only use of it. */
@@ -123,13 +125,13 @@ export function summaryOf(bubbles: Bubble[]): string {
   const first = leaders.length === 1 ? `${leaders[0]} is the largest theme.` : `${leaders.join(' and ')} are the largest themes.`
   const apart = themes.filter((b) => b.verdict === 'Conflicting').map((b) => b.name)
   const names = apart.length <= 2 ? apart.join(' and ') : `${apart.slice(0, -1).join(', ')} and ${apart[apart.length - 1]}`
-  return apart.length > 0 ? `${first} ${names} ${plural(apart.length, 'shows', 'show')} words and delivery pulling apart.` : first
+  return apart.length > 0 ? `${first} ${names} ${plural(apart.length, 'shows', 'show')} a ${VERDICT_LABEL.Conflicting}: delivery did not match the words.` : first
 }
 
 /** What a step of the tour says about a bubble: its name, its people, and A2's fit, using only the bubble's own numbers. */
 export function tourCaption(b: Bubble, seg: Segment): string {
   const fit: FitSplit = b.rollup.fit
-  const tail = b.verdict === 'Consistent' ? 'Delivery matched the words.' : b.verdict === 'Conflicting' ? `Words and delivery pulled apart in ${fit.against} of ${fit.n} read${fit.uncertain ? `, ${fit.uncertain} uncertain` : ''}.` : b.verdict === 'Mixed' ? `Words and delivery partly pulled apart in ${fit.against} of ${fit.n} read${fit.uncertain ? `, ${fit.uncertain} uncertain` : ''}.` : 'Too few read to say.'
+  const tail = b.verdict === 'Consistent' ? 'Delivery matched the words.' : b.verdict === 'Conflicting' ? `${VERDICT_LABEL.Conflicting}: no match for ${fit.against} of ${fit.n} read${fit.uncertain ? `, ${fit.uncertain} hesitant` : ''}.` : b.verdict === 'Mixed' ? `${VERDICT_LABEL.Mixed}: no match for ${fit.against} of ${fit.n} read${fit.uncertain ? `, ${fit.uncertain} hesitant` : ''}.` : 'Too few read to say.'
   return `${b.name}. ${b.n} of ${b.of} ${segmentNoun(seg)}. ${tail}`
 }
 export const TOUR_END = 'That is every approved theme.'
@@ -147,14 +149,14 @@ export function panelRows(b: Bubble): Row[] {
   const r = b.rollup
   const tones = r.tones
   return [
-    { label: 'Spoke for it', n: r.stances.Positive, of: r.people, unit: 'people read' },
+    { label: 'Spoke in favour', n: r.stances.Positive, of: r.people, unit: 'people read' },
     { label: 'Sounded flat or tense', n: tones.counts.Flat + tones.counts.Tense, of: tones.n, unit: 'voices read' },
     { label: 'Hesitated markedly', n: r.marked, of: r.people, unit: 'people read' },
     { label: 'Faces read', n: r.emotions.read, of: r.people, unit: 'people' },
     { label: 'Audio-only, no face', n: r.emotions.noVideo, of: r.people, unit: 'people' },
   ]
 }
-export const headlineShort = (v: FitPattern) => (v === 'Consistent' ? 'Delivery matched the words' : v === 'Conflicting' ? 'Words and delivery pulled apart' : v === 'Mixed' ? 'Words and delivery partly matched' : 'Too few read to say')
+export const headlineShort = (v: FitPattern) => (v === 'Consistent' ? 'Delivery matched the words' : v === 'Conflicting' ? 'Delivery did not match the words' : v === 'Mixed' ? 'Delivery only partly matched the words' : v === 'No claim' ? 'Nobody took a position' : 'Too few read to say')
 
 export const headline = (b: Bubble) => headlineOf(b.rollup)
 
