@@ -228,8 +228,26 @@ export function momentPoints(momentId: string): Point[] {
 
 // ─── tensions: what the product would suggest ───────────────────────────────
 
-export type TensionKind = 'Said vs behaviour' | 'Said vs emotion' | 'Said vs survey' | 'Between segments' | 'Between concepts'
-export const TENSION_KINDS: TensionKind[] = ['Said vs behaviour', 'Said vs emotion', 'Said vs survey', 'Between segments', 'Between concepts']
+export type TensionKind = 'Said vs emotion' | 'Said vs survey' | 'Between segments' | 'Between concepts'
+export const TENSION_KINDS: TensionKind[] = ['Said vs emotion', 'Said vs survey', 'Between segments', 'Between concepts']
+/**
+ * What each type is called on screen. "Said vs emotion" and "Between concepts" both set a choice against a first reaction, but they are
+ * not the same comparison, so the name says what differs: the first reads the face at a DIFFERENT concept, the second reads hesitation
+ * (speech) at the concept they chose.
+ */
+export const TENSION_KIND_LABEL: Record<TensionKind, string> = {
+  'Said vs emotion': 'Said vs emotion · face at another concept',
+  'Said vs survey': 'Said vs survey',
+  'Between segments': 'Between segments',
+  'Between concepts': 'Between concepts · hesitation at the chosen concept',
+}
+/** Exactly what each type compares, so two that look alike are told apart. */
+export const TENSION_KIND_HINT: Record<TensionKind, string> = {
+  'Said vs emotion': 'Their choice in words, against the face they showed at a different concept (not the one they chose)',
+  'Said vs survey': 'What they said in conversation, against what they locked in the survey',
+  'Between segments': 'The same question, answered differently by two groups',
+  'Between concepts': 'Their choice in words, against how hesitant they sounded when first shown that same concept',
+}
 
 /** What the system suggests. The numbers on each are worked out from the data when the screen opens. */
 export type TensionDef = { id: string; kind: TensionKind; title: string; summary: string; themeName: string; codeIds: string[]; /** A key moment the tension also draws on, so the Researcher can open its signals. */ momentId?: string }
@@ -244,19 +262,10 @@ export const TENSION_DEFS: TensionDef[] = [
     codeIds: ['c-idea-pause'],
   },
   {
-    id: 'tn-flex-behaviour',
-    kind: 'Said vs behaviour',
-    title: 'Said flexibility matters more than price, but hesitated as they said it',
-    summary: 'The words were clear. In a number of the answers the delay, pause or fillers were not.',
-    themeName: 'Flexibility: said, but not settled',
-    codeIds: ['c-flex-first'],
-    momentId: 'q-flex',
-  },
-  {
     id: 'tn-pause-portion-face',
     kind: 'Said vs emotion',
     title: 'Picked pause in words, but their faces lit up most at portion-matched boxes',
-    summary: 'Asked which idea would keep them, these people said pause. On video, their warmest first reaction was to Concept C.',
+    summary: 'Asked which idea would keep them, these people said pause. On video, their warmest first reaction was not to pause but to a different concept, Concept C. This sets a choice against a face at another concept.',
     themeName: 'Pause in words, portions in the face',
     codeIds: ['c-idea-pause'],
     momentId: 'm-concept-c',
@@ -273,7 +282,7 @@ export const TENSION_DEFS: TensionDef[] = [
     id: 'tn-pause-concept',
     kind: 'Between concepts',
     title: 'Chose the pause idea in the end, but hesitated when first shown it',
-    summary: 'The first reaction to Concept A and the later choice point in different directions for some people.',
+    summary: 'These people chose pause in the end. When they were first shown pause itself (Concept A), they hesitated. This sets a choice against how they sounded at the same concept.',
     themeName: 'Pause: a slow first reaction',
     codeIds: ['c-idea-pause'],
     momentId: 'm-concept-a',

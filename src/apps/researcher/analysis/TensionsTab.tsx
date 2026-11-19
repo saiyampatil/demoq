@@ -13,26 +13,22 @@ import { useToast } from '@/components/Toast'
 import { formatStamp } from '@/lib/format'
 import { screenById, studyPath } from '@/routes/screens'
 import { dismissTension, restoreTension, turnTensionIntoTheme } from '@/state/codebook'
-import { TENSION_KINDS, tensionsOf, type Side, type Tension, type TensionKind, type TensionStatus } from '@/state/signals'
+import { TENSION_KINDS, TENSION_KIND_HINT, TENSION_KIND_LABEL, tensionsOf, type Side, type Tension, type TensionKind, type TensionStatus } from '@/state/signals'
 import { mmss } from '../review/reviewUi'
 import { ReasonDialog } from './CodeDialogs'
 import { playHref } from './SignalBits'
 import type { CodebookCtx } from './codebookCtx'
 
-export type TensionFilter = TensionStatus | 'All'
+/** 'Waiting' is the cards that need a code the Researcher has not accepted yet: not actionable, so never part of "To review". */
+export type TensionFilter = TensionStatus | 'All' | 'Waiting'
 const FILTERS: { key: TensionFilter; label: string }[] = [
   { key: 'Suggested', label: 'To review' },
-  { key: 'Added as a tension theme', label: 'Added as a tension theme' },
+  { key: 'Added as a tension theme', label: 'Added' },
   { key: 'Dismissed', label: 'Dismissed' },
+  { key: 'Waiting', label: 'Waiting on codebook' },
   { key: 'All', label: 'All' },
 ]
-const KIND_HINT: Record<TensionKind, string> = {
-  'Said vs behaviour': 'What they said, against how they said it',
-  'Said vs emotion': 'What they said, against what showed on their face and in their voice',
-  'Said vs survey': 'What they said, against what they locked in the survey',
-  'Between segments': 'The same question, answered differently by two groups',
-  'Between concepts': 'A first reaction to a concept, against what they chose later',
-}
+const KIND_HINT = TENSION_KIND_HINT
 
 /** Where what people said doesn't add up. PulseAI suggests each one; you add it as a tension theme or dismiss it, and say why. */
 export function TensionsTab({ ctx, filter, setFilter, focusId, onSeeSignals, onContinue }: { ctx: CodebookCtx; filter: TensionFilter; setFilter: (f: TensionFilter) => void; focusId?: string; onSeeSignals: (codeId?: string) => void; onContinue: () => void }) {
@@ -41,8 +37,13 @@ export function TensionsTab({ ctx, filter, setFilter, focusId, onSeeSignals, onC
   const [dismissing, setDismissing] = useState<Tension>()
   const toast = useToast()
   const all = tensionsOf(ctx.doc, ctx.basis)
-  const shown = all.filter((t) => (filter === 'All' || t.status === filter) && (kind === 'all' || t.kind === kind))
-  const count = (f: TensionFilter) => all.filter((t) => f === 'All' || t.status === f).length
+  // A card waiting on an unaccepted code has no decision and cannot be reviewed: it is in "Waiting", never in "To review".
+  const waiting = (t: Tension) => !!t.unavailable && !t.decision
+  const inFilter = (t: Tension, f: TensionFilter) => (f === 'All' ? true : f === 'Waiting' ? waiting(t) : f === 'Suggested' ? t.status === 'Suggested' && !waiting(t) : t.status === f)
+  const shown = all.filter((t) => inFilter(t, filter) && (kind === 'all' || t.kind === kind))
+  const count = (f: TensionFilter) => all.filter((t) => inFilter(t, f)).length
+  // Only the types that have cards, the one with most first.
+  const kinds = TENSION_KINDS.map((k, i) => ({ k, n: all.filter((t) => t.kind === k).length, i })).filter((x) => x.n > 0).sort((a, b) => b.n - a.n || a.i - b.i)
 
   return (
     <div className="flex flex-col gap-4">
@@ -50,7 +51,7 @@ export function TensionsTab({ ctx, filter, setFilter, focusId, onSeeSignals, onC
         <div role="group" aria-label="Tension status" className="flex flex-wrap rounded-sm border border-mist-strong p-0.5">
           {FILTERS.map((f) => (
             <button key={f.key} type="button" aria-pressed={filter === f.key} onClick={() => setFilter(f.key)} data-testid={`tf-${f.key}`} className={cn('h-7 rounded-xs px-2.5 text-sm', filter === f.key ? 'bg-ink font-medium text-white' : 'text-graphite hover:bg-haze hover:text-ink')}>
-              {f.label} <span className={cn('tabular-nums', filter === f.key ? 'text-white/80' : 'text-muted')}>{count(f.key)}</span>
+              {f.label} <span className={cn('tabular-nums', filter === f.key ? 'text-white/80' : 'text-muted')} data-testid={`tf-n-${f.key}`}>{count(f.key)}</span>
             </button>
           ))}
         </div>
@@ -58,14 +59,14 @@ export function TensionsTab({ ctx, filter, setFilter, focusId, onSeeSignals, onC
           <span className="sr-only">Type</span>
           <select value={kind} onChange={(e) => setKind(e.target.value as TensionKind | 'all')} className={cn(controlBase, 'h-8 pr-7 text-sm')}>
             <option value="all">All types</option>
-            {TENSION_KINDS.map((k) => (
+            {kinds.map(({ k, n }) => (
               <option key={k} value={k}>
-                {k}
+                {TENSION_KIND_LABEL[k]} ({n})
               </option>
             ))}
           </select>
         </label>
-        <p className="min-w-0 flex-1 text-sm text-graphite">Where what people said doesn’t match how they looked, sounded or answered. Suggested by PulseAI. Nothing reaches the report until you add it as a tension theme.</p>
+        <p className="min-w-0 flex-1 text-sm text-graphite">Where what people said doesn’t match how they looked, sounded or answered. Suggested by PulseAI. Nothing reaches the report until you add it.</p>
       </div>
 
       {shown.length === 0 ? (
@@ -154,10 +155,10 @@ function TensionCard({ t, ctx, focused, onSeeSignals, onTurn, onDismiss, onResto
   }, [focused])
   const codes = t.codeIds.map((id) => ctx.doc.codes.find((c) => c.id === id)).filter(Boolean)
   return (
-    <li ref={ref} id={`tension-${t.id}`} data-testid="tension-card" data-status={t.status} className={cn('rounded-md border bg-surface transition-shadow', dim ? 'border-mist bg-paper' : 'border-mist', ring && 'border-iris-600 shadow-[0_0_0_3px_var(--color-iris-100)]')}>
+    <li ref={ref} id={`tension-${t.id}`} data-testid="tension-card" data-status={t.status} data-kind={t.kind} data-waiting={t.unavailable && !t.decision ? 'true' : undefined} className={cn('rounded-md border bg-surface transition-shadow', dim ? 'border-mist bg-paper' : 'border-mist', ring && 'border-iris-600 shadow-[0_0_0_3px_var(--color-iris-100)]')}>
       <header className="flex flex-wrap items-center gap-2 px-5 pt-4">
         <span className="inline-flex h-5 items-center rounded-xs border border-mist-strong bg-surface px-1.5 text-xs font-medium text-graphite" title={KIND_HINT[t.kind]}>
-          {t.kind}
+          {TENSION_KIND_LABEL[t.kind]}
         </span>
         {t.status === 'Suggested' && !t.unavailable && <AIGeneratedTag />}
         <span className="flex-1" />

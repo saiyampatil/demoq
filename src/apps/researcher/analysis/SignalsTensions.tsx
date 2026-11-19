@@ -213,6 +213,7 @@ function Progress({ t, tab, filter, onPick }: { t: ReturnType<typeof tensionCoun
     { key: 'Suggested', label: 'To review', n: t.toReview, tone: 'bg-pending-fg' },
     { key: 'Added as a tension theme', label: 'Tension themes', n: t.themes, tone: 'bg-positive-fg' },
     { key: 'Dismissed', label: 'Dismissed', n: t.dismissed, tone: 'bg-held-fg' },
+    ...(t.waiting > 0 ? [{ key: 'Waiting' as TensionFilter, label: 'Waiting on codebook', n: t.waiting, tone: 'bg-mist-strong' }] : []),
   ]
   const decided = t.total - t.toReview
   return (
@@ -222,7 +223,7 @@ function Progress({ t, tab, filter, onPick }: { t: ReturnType<typeof tensionCoun
           <span className="text-lg font-semibold text-ink tabular-nums">{decided}</span> of <span className="tabular-nums">{t.total}</span> tensions decided
         </p>
         <div className="flex h-1.5 overflow-hidden rounded-full bg-haze" aria-hidden="true">
-          {items.slice(1).map((i) => (
+          {items.slice(1, 3).map((i) => (
             <span key={i.key} className={cn('h-full', i.tone)} style={{ width: `${t.total ? (i.n / t.total) * 100 : 0}%` }} />
           ))}
         </div>

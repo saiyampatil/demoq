@@ -44,7 +44,7 @@ export default async ({ b, out }) => {
   for (const g of ['Outputs', 'Explore', 'Lenses', 'Review', 'Release']) is(`Tools has the group ${g}`, new RegExp(g).test(await text('[data-testid=tools]')))
   for (const t of ['Theme videos', 'Showreel', 'Word cloud', 'Theme map', 'Audio summary', 'Ask', 'Numbers', 'Highlights', 'Lens builder', 'Compare lenses', 'Approve sentences', 'Compare AI and mine', 'Exports', 'Publish']) is(`Tools lists ${t}`, (await text('[data-testid=tools]')).includes(t))
   is('the right column is hidden until something is selected', (await count('[data-testid=selected]')) === 0 && (await count('[data-testid=built-from]')) === 0)
-  is('the stepper still says what is open in the steps before (16 codes, 5 tensions)', /16 codes to review/.test(await b.evaluate('document.body.innerText')) && /5 tensions to review/.test(await b.evaluate('document.body.innerText')))
+  is('the stepper still says what is open in the steps before (16 codes, 4 tensions)', /16 codes to review/.test(await b.evaluate('document.body.innerText')) && /4 tensions to review/.test(await b.evaluate('document.body.innerText')))
   for (const t of ['Theme videos', 'Showreel', 'Word cloud', 'Ask', 'Lens builder', 'Exports']) is(`${t} shows no state: nothing says "Not built"`, (await count(`[data-testid=tool-state-${{ 'Theme videos': 'theme-videos', Showreel: 'showreel', 'Word cloud': 'word-cloud', Ask: 'ask', 'Lens builder': 'lens-builder', Exports: 'exports' }[t]}]`)) === 0)
   is('and the word "Not built" is nowhere in the tools', !/Not built/.test(await text('[data-testid=tools]')))
   is('a tool with a state shows it (Approve sentences: 17 to review)', /17 to review/.test(await text('[data-testid=tool-state-review]')))
@@ -204,7 +204,7 @@ export default async ({ b, out }) => {
   await expect('Publish opens the release checklist', `!!document.querySelector('[data-studio=release]')`)
   is('no blockers: ready', /Ready to publish/.test(await text('[data-testid=release-verdict]')), await text('[data-testid=release-verdict]'))
   is('every blocking check is ok', (await b.evaluate(`[...document.querySelectorAll('[data-testid=release-checks] li')].filter(l=>['approved','cited','numbers'].includes(l.dataset.check)).every(l=>l.dataset.ok==='true')`)))
-  is('the advisory checks warn about 5 undecided tensions without blocking', /5 tensions still to decide/.test(await text('[data-testid=release-checks]')))
+  is('the advisory checks warn about 4 undecided tensions without blocking', /4 tensions still to decide/.test(await text('[data-testid=release-checks]')))
   await b.evaluate(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})); true`)
 
   // Change a number underneath an approved sentence: take one person out of "Price went up".

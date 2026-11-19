@@ -64,7 +64,7 @@ try {
   await b.evaluate(`${MOD}; (async()=>{const cb=await window.__mod('/src/state/codebook'); cb.updateCodebook('pet-food-churn', d=>cb.restoreTension(d,{id:'tn-pause-portion-face',title:'x'},{by:'Maya Ortiz'}))})()`); await b.sleep(900)
   ok('restoring it only returns it to Suggested, so the summary still leaves it out', (await read()).every((s) => !s.id.startsWith('exec-tn-')))
   // Six at most, however many tensions are added.
-  await b.evaluate(`${MOD}; (async()=>{const cb=await window.__mod('/src/state/codebook'); for (const [id,codes] of [['tn-pause-survey',['c-idea-pause']],['tn-flex-behaviour',['c-flex-first']],['tn-pause-portion-face',['c-idea-pause']],['tn-pause-concept',['c-idea-pause']],['tn-pet-segments',['c-flex-first','c-price-first']]]) cb.updateCodebook('pet-food-churn', d=>cb.turnTensionIntoTheme(d,{id,title:id},codes,'T '+id,'test',{by:'Maya Ortiz'}))})()`); await b.sleep(1000)
+  await b.evaluate(`${MOD}; (async()=>{const cb=await window.__mod('/src/state/codebook'); for (const [id,codes] of [['tn-pause-survey',['c-idea-pause']],['tn-pause-portion-face',['c-idea-pause']],['tn-pause-concept',['c-idea-pause']],['tn-pet-segments',['c-flex-first','c-price-first']]]) cb.updateCodebook('pet-food-churn', d=>cb.turnTensionIntoTheme(d,{id,title:id},codes,'T '+id,'test',{by:'Maya Ortiz'}))})()`); await b.sleep(1000)
   const many = await read()
   ok('with every tension added there are still six sentences at most, and the evidence sentence is kept', many.length === 6 && many.at(-1).id === 'exec-thin', many.map((s) => s.id))
 

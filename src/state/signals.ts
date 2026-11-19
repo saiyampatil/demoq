@@ -22,7 +22,7 @@ import { askedOf, codeThemes, denominator, peopleOf, tensionDecisions, themeCode
 import { DELIVERY } from '@/config/delivery'
 import { emotionSplit, faceOf, fitOf, fitSplit, hasVideo, noReading, toneSplit, FIT_RULE_TEXT, STANCE_LABEL, VALENCE, type Emotion, type EmotionSplit, type FitPattern, type FitSplit, type Stance, type ToneSplit } from './emotion'
 
-export { BANDS, MOMENTS, TENSION_KINDS, type Band, type Moment, type Point, type TensionKind } from '@/mock/signals'
+export { BANDS, MOMENTS, TENSION_KINDS, TENSION_KIND_HINT, TENSION_KIND_LABEL, type Band, type Moment, type Point, type TensionKind } from '@/mock/signals'
 export { SIGNAL_RULES, signsOf } from '@/mock/signals'
 export { petOf } from '@/mock/signals'
 
@@ -182,12 +182,12 @@ export type Tension = TensionDef & {
 }
 
 const NEGATIVE = new Set(['Probably would not', 'Definitely would not'])
+const POSITIVE = new Set(['Probably would', 'Definitely would'])
 
 function surveyAnswer(participantId: string, survey: string, question: RegExp): string | undefined {
   return findReviewRecord(sessionOfParticipant(participantId))?.survey.find((q) => q.survey === survey && question.test(q.question))?.answer
 }
 
-const quoteOf = (p: Point) => p.excerpt?.text
 
 /** The face at a point, ready for a clip. Nothing when there is no video. */
 function clipFace(p: Point | undefined, doc: CodebookDoc, where: string): ClipFace[] {
@@ -212,29 +212,17 @@ function evidence(def: TensionDef, doc: CodebookDoc, basis: Basis): Pick<Tension
     const answer = (p: string) => surveyAnswer(p, 'Retention idea reaction', /how likely/i)
     const no = chose.filter((p) => NEGATIVE.has(answer(p) ?? ''))
     const silent = chose.filter((p) => !answer(p)).length
+    const positive = chose.filter((p) => POSITIVE.has(answer(p) ?? '')).length
+    // Everyone in the group is on exactly one line: no, positively, or no clear answer (nothing answered, or "might or might not").
+    const unclear = chose.length - no.length - positive
     return {
       sides: [
         { label: 'Picked pause as most likely to keep them', n: chose.length, of: N },
-        { label: 'Of those, answered “probably” or “definitely would not” in the locked survey', n: no.length, of: chose.length, rest: lines({ label: 'Answered another way', n: chose.length - silent - no.length, of: chose.length }, { label: 'Didn’t answer the survey', n: silent, of: chose.length, missing: true }) },
+        { label: 'Of those, answered “probably” or “definitely would not” in the locked survey', n: no.length, of: chose.length, rest: lines({ label: 'Answered positively', n: positive, of: chose.length }, { label: 'No clear survey answer', n: unclear, of: chose.length, missing: true }) },
       ],
       coverage: thin(silent, chose.length) ? [basedOn(silent, chose.length)] : undefined,
       clips: no.map((p) => ({ participantId: p, sessionId: sessionOfParticipant(p), atSec: excerptPoint(code('c-idea-pause').excerpts.find((e) => e.includes(p))!).atSec, quote: excerptPoint(code('c-idea-pause').excerpts.find((e) => e.includes(p))!).excerpt?.text, note: `Locked survey answer: ${surveyAnswer(p, 'Retention idea reaction', /how likely/i)}` })),
       caution: no.length < 3 ? 'Only a few people. Read it as a prompt to look, not a result.' : undefined,
-    }
-  }
-  if (def.id === 'tn-flex-behaviour') {
-    const sig = codeSignals(doc, basis).find((s) => s.code.id === 'c-flex-first')
-    const hes = (sig?.points ?? []).filter((p) => p.band === 'Marked hesitation')
-    const measured = new Set((sig?.points ?? []).map((p) => p.participantId)).size
-    const base = sig?.people ?? 0
-    const unread = Math.max(0, base - measured)
-    return {
-      sides: [
-        { label: 'Said flexibility matters more than price', n: base, of: N },
-        { label: 'Marked hesitation as they said it', n: hes.length, of: base, note: 'Two or more of a long delay, a long pause, or fillers', rest: lines({ label: 'Steady, or only some hesitation', n: measured - hes.length, of: base }, { label: 'Not measured', n: unread, of: base, missing: true }) },
-      ],
-      coverage: thin(unread, base) ? [basedOn(unread, base)] : undefined,
-      clips: hes.map((p) => ({ participantId: p.participantId, sessionId: p.sessionId, atSec: p.atSec, quote: quoteOf(p), note: p.reason, faces: clipFace(p, doc, 'As they said it') })),
     }
   }
   if (def.id === 'tn-pause-portion-face') {
@@ -364,6 +352,8 @@ export function tensionCounts(doc: CodebookDoc) {
   const decided = available.filter((d) => decisions[d.id]).length
   return {
     total: available.length,
+    /** Cards that wait on a code the Researcher has not accepted yet. Not actionable, so never in "to review". */
+    waiting: TENSION_DEFS.length - available.length,
     toReview: available.length - decided,
     themes: available.filter((d) => decisions[d.id]?.status === 'Added as a tension theme').length,
     dismissed: available.filter((d) => decisions[d.id]?.status === 'Dismissed').length,
