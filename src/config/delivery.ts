@@ -17,6 +17,17 @@ export const DELIVERY = {
   hesitantInsight: { minShare: 0.5 },
 }
 
+/** The words on screen for each verdict: one map, used by every screen. The keys are the internal names and do not change. */
+export const VERDICT_LABEL = {
+  Consistent: 'Fits',
+  Mixed: 'Partly fits',
+  Conflicting: 'Doesn’t fit',
+  'No claim': 'Facts only',
+  'Too few to read': 'Too few to read',
+} as const
+export type VerdictKey = keyof typeof VERDICT_LABEL
+export const verdictLabel = (v: VerdictKey) => VERDICT_LABEL[v]
+
 const list = (xs: readonly string[]) => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} or ${xs[xs.length - 1]}`)
 const lower = (xs: readonly string[]) => xs.map((x) => x.toLowerCase())
 
@@ -24,7 +35,7 @@ const lower = (xs: readonly string[]) => xs.map((x) => x.toLowerCase())
 export const DELIVERY_RULE_LINES: string[] = [
   'We look at people who argued for the idea and compare how they said it with what they said.',
   `It didn’t fit if the voice was ${list(lower(DELIVERY.positive.tones))}, or the face showed ${list(lower(DELIVERY.positive.faces))}. For a complaint, it didn’t fit if they sounded or looked pleased.`,
-  `Most didn’t fit: Conflicting. Most fit: Consistent. Otherwise Mixed. Under ${DELIVERY.minPeople} people: too few to read.`,
+  `Most didn’t fit: “${VERDICT_LABEL.Conflicting}”. Most fit: “${VERDICT_LABEL.Consistent}”. Otherwise “${VERDICT_LABEL.Mixed}”. Under ${DELIVERY.minPeople} people: too few to read.`,
   'Long pauses alone never count as not fitting. They show as Uncertain.',
   'Each person counts once. Speech and face are never added together.',
 ]

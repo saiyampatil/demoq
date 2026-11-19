@@ -23,7 +23,7 @@ const withMod = (expr) => b.evaluate(MOD + '; ' + expr)
 const LINES = [
   'We look at people who argued for the idea and compare how they said it with what they said.',
   'It didn’t fit if the voice was tense or flat, or the face showed doubt, frustration or confusion. For a complaint, it didn’t fit if they sounded or looked pleased.',
-  'Most didn’t fit: Conflicting. Most fit: Consistent. Otherwise Mixed. Under 3 people: too few to read.',
+  'Most didn’t fit: “Doesn’t fit”. Most fit: “Fits”. Otherwise “Partly fits”. Under 3 people: too few to read.',
   'Long pauses alone never count as not fitting. They show as Uncertain.',
   'Each person counts once. Speech and face are never added together.',
 ]
@@ -103,7 +103,7 @@ try {
   ok('Escape closes it', (await b.evaluate(`document.querySelectorAll('[data-testid=how-decided-pop]').length`)) === 0)
   ok('no rule paragraph is on the page', (await b.evaluate(`document.querySelectorAll('[data-testid=fit-rule]').length`)) === 0)
   const groups = await b.evaluate(`[...document.querySelectorAll('[aria-label="Signals by code"] section[aria-labelledby^=grp-]')].map(s=>({head:s.querySelector('header').innerText.replace(/\\s+/g,' ').trim(),switches:s.querySelector('header').querySelectorAll('[role=switch]').length,badges:s.querySelector('header').querySelectorAll('[class*=pending-fg],[class*=border-mist-strong]:not([role=switch])').length}))`)
-  ok('each theme header is a plain label, “n codes”, and one “In report” switch: no verdict or badge', groups.length >= 2 && groups.every((g) => /^.+ \d+ codes? (In report|\d+ of \d+ in report|Nothing to show)$/.test(g.head) && g.switches === 1 && g.badges === 0), groups)
+  ok('each theme header is a label, “n codes”, its verdict chip, “Said by n of N” and one “In report” switch', groups.length >= 2 && groups.every((g) => /^.+ \d+ codes? (Fits|Partly fits|Doesn’t fit|Facts only|Too few to read) Said by \d+ of \d+ (In report|\d+ of \d+ in report|Nothing to show)$/.test(g.head) && g.switches === 1), groups)
   ok('“Not in a theme” is the last group', groups.length === 0 || !groups.some((g, i) => /^Not in a theme/.test(g.head) && i !== groups.length - 1))
   ok('the group names are the themes, so all four accepted themes are there', ['Price creep', 'The pet decides', 'Wanting control over deliveries', 'Why they joined'].every((t) => groups.some((g) => g.head.startsWith(t))), groups.map((g) => g.head))
 
@@ -124,8 +124,8 @@ try {
   // ── The cells ──
   const faces = await all('[data-testid=face-cell]')
   const speech = await all('[data-testid=speech-label]')
-  ok('Face is a short label: “Mostly interest”, “Mixed” or “Not read”', faces.length > 8 && faces.every((f) => /^(Mostly [a-z]+|Mixed|Not read)$/.test(f)) && faces.some((f) => /^Mostly [a-z]+$/.test(f)), faces)
-  ok('Speech is a short label: “Mostly animated”, “Mostly even”, “Flat or tense: 6”', speech.length > 8 && speech.every((f) => /^(Flat or tense: \d+|Mostly even|Mostly animated|Mixed|Not read)$/.test(f)), speech)
+  ok('Face is a short label: “Mostly interest”, “No clear lead” or “Not read”', faces.length > 8 && faces.every((f) => /^(Mostly [a-z]+|No clear lead|Not read)$/.test(f)) && faces.some((f) => /^Mostly [a-z]+$/.test(f)), faces)
+  ok('Speech is a short label: “Mostly animated”, “Mostly even”, “Flat or tense: 6”', speech.length > 8 && speech.every((f) => /^(Flat or tense: \d+|Mostly even|Mostly animated|No clear lead|Not read)$/.test(f)), speech)
   ok('no label is truncated or clipped', await b.evaluate(`[...document.querySelectorAll('[data-testid=face-cell],[data-testid=speech-label],[data-testid=fit-cell]')].every(e=>{const c=getComputedStyle(e);return c.textOverflow!=='ellipsis'&&e.scrollWidth<=e.clientWidth+1})`))
   ok('the detail is in the tooltip', await b.evaluate(`[...document.querySelectorAll('[data-testid=face-cell][title]')].every(e=>/faces read/.test(e.title)) && [...document.querySelectorAll('[data-testid=speech-label][title]')].every(e=>/Tone: .*Certainty: /.test(e.title))`))
   ok('participant IDs never appear in the table', !/P-\d{4}/.test((await text('[aria-label="Signals by code"]')) ?? ''))
@@ -147,7 +147,7 @@ try {
   // ── The report switch: one per theme, and the code’s own in the panel ──
   const groupN = await b.evaluate(`document.querySelectorAll('[aria-label="Signals by code"] section[aria-labelledby^=grp-]').length`)
   ok('no code row has a toggle; there is one switch per theme header, “Not in a theme” included', (await b.evaluate(`document.querySelectorAll('[data-testid=signal-row] [role=switch], [data-testid=use-signal]').length`)) === 0 && (await b.evaluate(`document.querySelectorAll('[data-testid=use-group]').length`)) === groupN && groupN >= 3)
-  ok('codes that cannot be shown say “Nothing to show” in place of a toggle', await b.evaluate(`(()=>{const r=[...document.querySelectorAll('[data-testid=signal-row]')];const nc=r.filter(x=>/No claim|Too few to read/.test(x.querySelector('[data-testid=fit-cell]').innerText));return nc.length>=2&&nc.every(x=>x.querySelector('[data-testid=row-state]').innerText==='Nothing to show')})()`))
+  ok('codes that cannot be shown say “Nothing to show” in place of a toggle', await b.evaluate(`(()=>{const r=[...document.querySelectorAll('[data-testid=signal-row]')];const nc=r.filter(x=>/Facts only|Too few to read/.test(x.querySelector('[data-testid=fit-cell]').innerText));return nc.length>=2&&nc.every(x=>x.querySelector('[data-testid=row-state]').innerText==='Nothing to show')})()`))
   const footN = async () => Number((await text('[data-testid=report-footer-count]'))?.match(/report: (\d+)/)?.[1])
   const onNow = () => b.evaluate(`[...document.querySelectorAll('[data-testid=row-state]')].filter(e=>e.innerText==='In report').length`)
   ok('the footer reads “n codes with signals and n tension themes. n tensions still to review.” and counts the codes in report', /^Goes to the report: \d+ codes? with signals and \d+ tension themes?\.$/.test((await text('[data-testid=report-footer-count]')) ?? '') && (await footN()) === (await onNow()), `${await text('[data-testid=report-footer-count]')} | ${await onNow()}`)

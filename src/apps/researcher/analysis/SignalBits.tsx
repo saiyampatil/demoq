@@ -11,7 +11,7 @@ import { petOf } from '@/mock/codebook'
 import { screenById, studyPath } from '@/routes/screens'
 import { band as confidenceBand, correctFace } from '@/state/codebook'
 import { EMOTION_HINT, EMOTIONS, STANCE_LABEL, TONE_HINT, TONES, VALENCE, VALENCE_WORD, VALENCES, faceOf, fitOf, noReading, type Emotion, type EmotionSplit, type Face, type Fit, type FitPattern, type Tone, type ToneSplit } from '@/state/emotion'
-import { DELIVERY_RULE_LINES } from '@/config/delivery'
+import { DELIVERY_RULE_LINES, verdictLabel } from '@/config/delivery'
 import { breakdownLine, hesitantDelivery, signsOf, type Band, type Breakdown, type Pattern, type Point, type Split } from '@/state/signals'
 import { BANDS } from '@/state/signals'
 import { mmss } from '../review/reviewUi'
@@ -41,7 +41,7 @@ export function PatternChip({ pattern }: { pattern: Pattern }) {
         : pattern === 'Mostly steady'
           ? BAND_CHIP.Steady
           : 'border-dashed border-mist-strong bg-surface text-muted'
-  return <span className={cn(chipBase, cls)}>{pattern}</span>
+  return <span className={cn(chipBase, cls)}>Certainty: {pattern.toLowerCase()}</span>
 }
 
 /** Marked, some and steady as one bar. Counts are written beside it, so the colour never carries the meaning alone. */
@@ -219,10 +219,11 @@ const FIT_HINT: Record<FitPattern, string> = {
   'No claim': 'These words state a fact or a preference, so there is nothing for the speech or face to disagree with',
 }
 
-export function FitChip({ pattern }: { pattern: FitPattern }) {
+/** The verdict chip. With `label` it names a code and still says the verdict, so colour never carries it alone. */
+export function FitChip({ pattern, label }: { pattern: FitPattern; label?: string }) {
   return (
     <span className={cn(chipBase, FIT_CHIP[pattern])} title={FIT_HINT[pattern]}>
-      {pattern === 'No claim' ? 'No claim' : pattern}
+      {label ? `${label} · ${verdictLabel(pattern)}` : verdictLabel(pattern)}
     </span>
   )
 }

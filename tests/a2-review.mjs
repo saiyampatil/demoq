@@ -86,7 +86,7 @@ try {
   await click('[data-testid=how-faces]')
   ok('"How faces are read" says a reading is an interpretation that can be corrected', /interpretation/.test((await text('[data-testid=how-faces-note]')) ?? '') && /correct/.test((await text('[data-testid=how-faces-note]')) ?? ''))
   const summaries = await all('[data-testid=face-cell]')
-  ok('rows say “Mostly interest”, “Mixed” or “Not read”, never a bare emotion name or “Tied at”', summaries.some((r) => /^Mostly [a-z]+$/.test(r)) && summaries.every((r) => /^(Mostly [a-z]+|Mixed|Not read)$/.test(r)), summaries.slice(0, 4).join(' | '))
+  ok('rows say “Mostly interest”, “No clear lead” or “Not read”, never a bare emotion name or “Tied at”', summaries.some((r) => /^Mostly [a-z]+$/.test(r)) && summaries.every((r) => /^(Mostly [a-z]+|No clear lead|Not read)$/.test(r)), summaries.slice(0, 4).join(' | '))
 
   // ── 3. One vocabulary: positive, neutral, negative, unclear; confusion is its own group ──
   const key = await text('[data-testid=valence-key]')
@@ -98,8 +98,9 @@ try {
   const cfg = await withMod(`(async()=>{const c=await window.__mod('/src/config/delivery');return {lines:c.DELIVERY_RULE_LINES,min:c.DELIVERY.minPeople,majority:c.DELIVERY.majority}})()`)
   await click('[data-testid=how-decided]')
   const popLines = (await all('[data-testid=how-decided-line]')).map((l) => l.replace(/^\d\. /, ''))
-  ok('the rule behind “How it’s decided” is the rule in config: most, speech, face, counted once, uncertain', JSON.stringify(popLines) === JSON.stringify(cfg.lines) && rl.min === cfg.min && rl.majority === 0.5 && /Most didn’t fit: Conflicting/.test(popLines[2]) && /Uncertain/.test(popLines[3]), popLines)
+  ok('the rule behind “How it’s decided” is the rule in config: most, speech, face, counted once, uncertain', JSON.stringify(popLines) === JSON.stringify(cfg.lines) && rl.min === cfg.min && rl.majority === 0.5 && /Most didn’t fit: “Doesn’t fit”/.test(popLines[2]) && /Uncertain/.test(popLines[3]), popLines)
   await b.evaluate(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})); true`); await b.sleep(200)
+  const LABEL = { Consistent: 'Fits', Mixed: 'Partly fits', Conflicting: 'Doesn’t fit', 'Too few to read': 'Too few to read', 'No claim': 'Facts only' }
   const rowCount = (await all('[data-testid=signal-row]')).length
   let verdicts = 0
   const wrong = []
@@ -114,7 +115,7 @@ try {
     const against = fg.a
     const unc = fg.u
     const want = n < rl.min ? 'Too few to read' : against / n > rl.majority ? 'Conflicting' : (n - against - unc) / n > rl.majority ? 'Consistent' : 'Mixed'
-    if (chip !== want) wrong.push(`${chip} should be ${want} (${against} against, ${unc} uncertain, of ${n})`)
+    if (chip !== LABEL[want]) wrong.push(`${chip} should be ${want} (${against} against, ${unc} uncertain, of ${n})`)
   }
   ok('every code’s Words vs delivery label follows the stated rule', verdicts >= 8 && wrong.length === 0, `${verdicts} checked: ${wrong.join('; ')}`)
 

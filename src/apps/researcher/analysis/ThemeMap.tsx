@@ -6,6 +6,7 @@ import { Button } from '@/components/Button'
 import { cn } from '@/components/cn'
 import { controlBase } from '@/components/Field'
 import { EmptyState, ErrorState, LoadingState } from '@/components/States'
+import { verdictLabel } from '@/config/delivery'
 import { THEME_MAP } from '@/config/themeMap'
 import { layoutBubbles, overlapOf } from '@/lib/themeLayout'
 import { screenById, studyPath } from '@/routes/screens'
@@ -356,7 +357,7 @@ export function ThemeMapPage() {
                   <span className="h-2 overflow-hidden rounded-full bg-haze" aria-hidden="true"><span className="block h-full rounded-full bg-ink" style={{ width: `${b.of ? (b.n / b.of) * 100 : 0}%` }} /></span>
                   <span className="text-xs text-graphite tabular-nums">{b.n} of {b.of} {noun}</span>
                   <span className="text-xs text-graphite">{b.kind === 'none' ? 'Not grouped' : b.notEnough ? 'Not enough read' : b.band}</span>
-                  <span>{b.kind === 'none' ? <span className="text-xs text-graphite">Not compared</span> : <span className="rounded-xs border border-mist-strong px-1.5 py-0.5 text-xs" data-testid="verdict-chip">{b.verdict}</span>}</span>
+                  <span>{b.kind === 'none' ? <span className="text-xs text-graphite">Not compared</span> : <span className="rounded-xs border border-mist-strong px-1.5 py-0.5 text-xs" data-testid="verdict-chip">{verdictLabel(b.verdict)}</span>}</span>
                 </button>
               </li>
             ))}
@@ -388,7 +389,7 @@ export function ThemeMapPage() {
         </li>
         {mode === 'strength'
           ? [sw(THEME_MAP.strengthFill.Low.fill, 'Low'), sw(THEME_MAP.strengthFill.Medium.fill, 'Medium'), sw(THEME_MAP.strengthFill.High.fill, 'High'), sw('', 'Not enough read', true)]
-          : [sw(THEME_MAP.verdictFill.Consistent.fill, 'Consistent'), sw(THEME_MAP.verdictFill.Mixed.fill, 'Mixed'), sw(THEME_MAP.verdictFill.Conflicting.fill, 'Conflicting'), sw('', 'Too few', true)]}
+          : [sw(THEME_MAP.verdictFill.Consistent.fill, verdictLabel('Consistent')), sw(THEME_MAP.verdictFill.Mixed.fill, verdictLabel('Mixed')), sw(THEME_MAP.verdictFill.Conflicting.fill, verdictLabel('Conflicting')), sw('', 'Too few', true)]}
         {ringSw('solid', 'Matched')}
         {ringSw('dotted', 'Partly')}
         {ringSw('dashed', 'Pulled apart')}

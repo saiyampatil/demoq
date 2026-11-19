@@ -672,6 +672,79 @@ export function themeSignals(doc: CodebookDoc, basis: Basis, signals: CodeSignal
   return [...own, ...none, ...tension]
 }
 
+// ─── a theme, read in words ─────────────────────────────────────────────────
+
+/** One way delivery stood apart from the words, counted in people on the side it applies to. */
+export type DeliveryPattern = { key: 'hesitated' | 'speech' | 'face'; /** The side of the words it applies to; none for hesitation, which is counted over everyone with a claim. */ side?: 'Positive' | 'Negative'; n: number; of: number; /** "hesitated while saying it", "sounded flat or tense". */ text: string }
+
+export type ThemeInsight = {
+  /** "Verbally positive: 8 of 14 argued for it." */
+  stance: string
+  /** The patterns that affect three or more people, the most people first (at most two are written). */
+  patterns: DeliveryPattern[]
+  /** The second sentence: the patterns, or "Holds up: ...", or the plain count when nothing is big enough to name. */
+  delivery: string
+  /** Codes in the theme whose verdict is Partly fits or Doesn't fit, the most people not fitting first. */
+  check: CodeSignal[]
+  /** Small grey line: who only stated a fact, who was audio-only, faces read. */
+  coverage: string
+}
+
+/**
+ * The theme panel's reading, built only from the theme's own numbers (its one-per-person points and its fit split), so it can never
+ * disagree with the row or the codes beneath it. Confusion is never named in the face pattern. Hesitation is named, never a verdict.
+ */
+export function themeInsight(t: Pick<ThemeSignal, 'points' | 'people' | 'fit' | 'stances' | 'verdict' | 'emotions' | 'codes'>, doc: CodebookDoc): ThemeInsight {
+  const { Positive: pos, Negative: neg } = t.stances
+  const claim = pos + neg
+  const claimants = t.points.filter((p) => p.stance === 'Positive' || p.stance === 'Negative')
+  const both = pos > 0 && neg > 0
+  const stance =
+    t.verdict === 'Too few to read'
+      ? `Too few to read: only ${plural(t.people, 'person', 'people')} said this.`
+      : !claim
+        ? 'Facts only: no one argued for it or complained, so there is nothing for delivery to fit.'
+        : pos * 2 > claim
+          ? `Verbally positive: ${pos} of ${claim} argued for it.`
+          : neg * 2 > claim
+            ? `Mostly complaint: ${neg} of ${claim} complained.`
+            : `Mixed: ${pos} argued for it, ${neg} complained.`
+
+  // Each pattern is counted among the people it can apply to. The face pattern leaves Confusion out on purpose.
+  const sideOnly = (side: 'Positive' | 'Negative', test: (p: Point) => boolean) => claimants.filter((p) => p.stance === side && test(p)).length
+  const faceIs = (p: Point, emotions: readonly string[]) => {
+    const face = faceOf(p, doc)
+    return fitOf(p, face).against.includes('Face') && !!face?.emotion && emotions.includes(face.emotion)
+  }
+  const speechOff = (p: Point) => fitOf(p, faceOf(p, doc)).against.includes('Speech')
+  const all: DeliveryPattern[] = [
+    { key: 'hesitated', n: claimants.filter((p) => p.band === 'Marked hesitation').length, of: claim, text: 'hesitated while saying it' },
+    { key: 'speech', side: 'Positive', n: sideOnly('Positive', speechOff), of: pos, text: 'sounded flat or tense' },
+    { key: 'face', side: 'Positive', n: sideOnly('Positive', (p) => faceIs(p, ['Doubt', 'Frustration'])), of: pos, text: 'looked doubtful or frustrated' },
+    { key: 'speech', side: 'Negative', n: sideOnly('Negative', speechOff), of: neg, text: both ? 'sounded animated' : 'sounded animated as they complained' },
+    { key: 'face', side: 'Negative', n: sideOnly('Negative', (p) => faceIs(p, ['Delight', 'Interest'])), of: neg, text: both ? 'looked pleased' : 'looked pleased as they complained' },
+  ]
+  const patterns = t.verdict === 'Too few to read' || !claim ? [] : all.filter((x) => x.n >= DELIVERY.minPeople).sort((a, b) => b.n - a.n)
+  // "5 of 8 hesitated while saying it", or, when the theme has both sides, "3 of 8 who argued for it sounded flat or tense".
+  const say = (x: DeliveryPattern) => `${x.n} of ${x.of}${x.side && both ? (x.side === 'Positive' ? ' who argued for it' : ' who complained') : ''} ${x.text}`
+  const side = pos && !neg ? ' who argued for it' : neg && !pos ? ' who complained' : ' who took a position'
+  const delivery =
+    t.verdict === 'Too few to read' || !claim
+      ? ''
+      : patterns.length
+        ? `${patterns.slice(0, 2).map(say).join('; ')}.`
+        : t.verdict === 'Consistent'
+          ? `Holds up: delivery fit the words for ${t.fit.fits} of ${t.fit.n}${side}.`
+          : t.fit.against
+            ? `Delivery didn’t fit the words for ${t.fit.against} of ${t.fit.n}, spread across speech and face.`
+            : `Delivery fit the words for ${t.fit.fits} of ${t.fit.n}${side}; the rest hesitated without pulling against them.`
+
+  const check = t.codes.filter((c) => c.fit.pattern === 'Mixed' || c.fit.pattern === 'Conflicting').sort((a, b) => b.fit.against - a.fit.against || (a.fit.pattern === 'Conflicting' ? -1 : 1) - (b.fit.pattern === 'Conflicting' ? -1 : 1) || a.code.name.localeCompare(b.code.name))
+  const factOnly = t.people - t.fit.n
+  const coverage = [factOnly > 0 ? `${factOnly} only stated a fact` : '', t.emotions.noVideo > 0 ? `${t.emotions.noVideo} audio-only, read on speech` : '', `faces read for ${t.emotions.read} of ${t.people}`].filter(Boolean).join(' · ')
+  return { stance, patterns, delivery, check, coverage }
+}
+
 // ─── what stands out ────────────────────────────────────────────────────────
 
 /** A pattern written as a sentence, with where to see it. The first thing the Researcher reads. */

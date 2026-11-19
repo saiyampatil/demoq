@@ -19,6 +19,7 @@ import {
   type Excerpt,
   type Theme,
 } from './codebook'
+import { verdictLabel } from '@/config/delivery'
 import { toneSplit, topEmotions, TONES } from './emotion'
 import { codeSignals, tensionHeadline, tensionsFor, tensionsOf, themeSignals, type Rollup, type Tension } from './signals'
 import { citesKey, draftOf, type Approval, type Citation, type DraftKind, type ReportDoc, type Sentence, type Strength } from './report'
@@ -221,7 +222,7 @@ function signalLines(s: Pick<Rollup, 'pattern' | 'marked' | 'people' | 'emotions
   const tone = TONES.reduce((best, t) => (tones.counts[t] > tones.counts[best] ? t : best), TONES[0])
   if (tones.n >= 3 && tone !== 'Even' && tones.counts[tone] * 2 >= tones.n) lines.push({ channel: 'Speech', text: `Tone mostly ${tone.toLowerCase()} for ${tones.counts[tone]} of ${tones.n}`, emotionVoice: true })
   if (headline) lines.push({ channel: 'Words vs delivery', text: headline, emotionVoice: true })
-  else if (s.fit.pattern === 'Mixed' || s.fit.pattern === 'Conflicting') lines.push({ channel: 'Words vs delivery', text: `${s.fit.pattern}: speech or face pulled against the words for ${s.fit.against} of ${s.fit.n} people${s.fit.uncertain ? `, ${s.fit.uncertain} uncertain` : ''}`, emotionVoice: true })
+  else if (s.fit.pattern === 'Mixed' || s.fit.pattern === 'Conflicting') lines.push({ channel: 'Words vs delivery', text: `${verdictLabel(s.fit.pattern)}: speech or face pulled against the words for ${s.fit.against} of ${s.fit.n} people${s.fit.uncertain ? `, ${s.fit.uncertain} uncertain` : ''}`, emotionVoice: true })
   return lines
 }
 
