@@ -113,7 +113,7 @@ export function MergeDialog({ ctx, code, open, into, onClose, onMerged }: { ctx:
       onClose={onClose}
       size="lg"
       title={`Merge “${code.name}” into…`}
-      description="Its quotes move to the code you pick. It stays in the codebook as Merged, so the history still reads."
+      description="Two codes become one. Its quotes move to the code you pick, and both share the single label below. It stays under Merged so the history still reads."
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>

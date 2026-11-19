@@ -6,7 +6,7 @@ import { SearchIcon } from '@/components/icons'
 import { EmptyState } from '@/components/States'
 import { StatusGlyph } from '@/components/StatusChip'
 import { statusFamily } from '@/components/status'
-import { band, CODE_QUESTIONS, denominator, excerpt, peopleOf, type Code, type CodeStatus } from '@/state/codebook'
+import { band, CODE_QUESTIONS, denominator, excerpt, mergedFrom, peopleOf, type Code, type CodeStatus } from '@/state/codebook'
 import { BulkAcceptDialog } from './CodeDialogs'
 import { CodeDetail } from './CodeDetail'
 import { GroupSection, TableHead, rowButtonClass } from './codeTable'
@@ -44,7 +44,8 @@ export function CodesTab({ ctx, status, setStatus, picked, setPicked }: { ctx: C
   const groups = useMemo<Group[]>(() => {
     const q = query.trim().toLowerCase()
     const match = (c: Code) =>
-      (status === 'All' || c.status === status) &&
+      // A merged code is one code with its target: it is listed under Merged, and as "includes" on the code it went into, never as a second row in All.
+      (status === 'All' ? c.status !== 'Merged' : c.status === status) &&
       (kind === 'all' || (kind === 'new') === c.isNew) &&
       (!low || band(c.confidence) === 'Low') &&
       (!q || c.name.toLowerCase().includes(q) || c.definition.toLowerCase().includes(q) || c.excerpts.some((x) => excerpt(x).text.toLowerCase().includes(q)))
@@ -173,7 +174,7 @@ export function CodesTab({ ctx, status, setStatus, picked, setPicked }: { ctx: C
                 }
               >
                 {g.codes.map((c) => (
-                  <CodeRow key={c.id} code={c} n={people.get(c.id) ?? 0} of={denominator(c, basis)} on={c.id === selected?.id} onPick={() => setPicked(c.id)} />
+                  <CodeRow key={c.id} code={c} merged={mergedFrom(doc, c.id)} into={c.mergedInto ? doc.codes.find((x) => x.id === c.mergedInto)?.name : undefined} n={people.get(c.id) ?? 0} of={denominator(c, basis)} on={c.id === selected?.id} onPick={() => setPicked(c.id)} />
                 ))}
               </GroupSection>
             ))}
@@ -198,7 +199,7 @@ export function CodesTab({ ctx, status, setStatus, picked, setPicked }: { ctx: C
   )
 }
 
-function CodeRow({ code: c, n, of, on, onPick }: { code: Code; n: number; of: number; on: boolean; onPick: () => void }) {
+function CodeRow({ code: c, merged, into, n, of, on, onPick }: { code: Code; merged: Code[]; into?: string; n: number; of: number; on: boolean; onPick: () => void }) {
   const fam = statusFamily[c.status]
   const conf = band(c.confidence)
   return (
@@ -215,7 +216,14 @@ function CodeRow({ code: c, n, of, on, onPick }: { code: Code; n: number; of: nu
           <StatusGlyph family={fam} />
           <span className="sr-only">{c.status}: </span>
         </span>
-        <span className={cn('min-w-0 flex-1 truncate', c.status === 'Rejected' || c.status === 'Merged' ? 'text-graphite line-through decoration-mist-strong' : 'font-medium text-ink')}>{c.name}</span>
+        <span className={cn('min-w-0 flex-1 truncate', c.status === 'Rejected' || c.status === 'Merged' ? 'text-graphite line-through decoration-mist-strong' : 'font-medium text-ink')}>{c.name}
+          {merged.length > 0 && (
+            <span className="ml-2 inline-flex items-center rounded-xs border border-held-line bg-held-bg px-1.5 text-xs font-medium whitespace-nowrap text-held-fg no-underline" data-testid="merged-tag" title={`One code. Merged in: ${merged.map((m) => m.name).join('; ')}`}>
+              Merged · includes {merged.length === 1 ? `“${merged[0].name}”` : `${merged.length} codes`}
+            </span>
+          )}
+          {c.status === 'Merged' && into && <span className="ml-2 inline-block text-xs font-normal text-graphite no-underline" data-testid="merged-into"> → {into}</span>}
+        </span>
         <span className="flex w-36 shrink-0 items-center gap-2">
           <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-haze" aria-hidden="true">
             <span className={cn('block h-full rounded-full', c.status === 'Accepted' ? 'bg-ink' : 'bg-graphite/50')} style={{ width: `${of ? (n / of) * 100 : 0}%` }} />

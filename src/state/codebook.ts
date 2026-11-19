@@ -188,6 +188,12 @@ export function petSplit(people: Set<string>): Record<Pet, number> {
   return out
 }
 
+/** The codes that were merged into this one, so it can be shown as one code with its history ("includes …"). A code merged into a merged code counts too. */
+export function mergedFrom(doc: CodebookDoc, id: string): Code[] {
+  const direct = doc.codes.filter((c) => c.status === 'Merged' && c.mergedInto === id)
+  return [...direct, ...direct.flatMap((c) => mergedFrom(doc, c.id))]
+}
+
 /** Other open codes said by the same people, most overlap first. A likely merge. */
 export function similarCodes(doc: CodebookDoc, code: Code, basis: Basis) {
   const mine = peopleOf(code, basis)

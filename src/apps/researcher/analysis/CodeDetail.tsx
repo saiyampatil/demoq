@@ -32,7 +32,7 @@ import {
 import { mmss } from '../review/reviewUi'
 import { MergeDialog, ReasonDialog, RenameDialog } from './CodeDialogs'
 import type { CodebookCtx } from './codebookCtx'
-import { rejectCode, removeQuote } from '@/state/codebook'
+import { mergedFrom, rejectCode, removeQuote } from '@/state/codebook'
 
 type Dialog = { kind: 'rename' } | { kind: 'merge'; into?: string } | { kind: 'reject' } | { kind: 'remove'; excerptId: string }
 
@@ -170,6 +170,21 @@ export function CodeDetail({ ctx, code: c, onDecided, onOpen }: { ctx: CodebookC
             )}
             {c.decided.why && <span className="mt-1 block text-ink">“{c.decided.why}”</span>}
           </p>
+        )}
+
+        {mergedFrom(doc, c.id).length > 0 && (
+          <section aria-label="Merged into this code" className="border-b border-mist px-5 py-3" data-testid="merged-from">
+            <h3 className="text-sm font-semibold">One code, merged from {mergedFrom(doc, c.id).length + 1}</h3>
+            <p className="mt-0.5 text-xs text-graphite">“{c.name}” is the one label for all of these. Their quotes are in the list below.</p>
+            <ul className="mt-2 flex flex-col gap-1.5">
+              {mergedFrom(doc, c.id).map((m) => (
+                <li key={m.id} className="rounded-sm border border-mist px-3 py-2 text-sm" data-testid="merged-from-item">
+                  <span className="font-medium text-ink">{m.name}</span>
+                  {m.decided && <span className="block text-xs text-graphite">Merged by {m.decided.by}, {formatStamp(m.decided.at)}.{m.decided.why ? ` “${m.decided.why}”` : ''}</span>}
+                </li>
+              ))}
+            </ul>
+          </section>
         )}
 
         {pending.length > 0 && (

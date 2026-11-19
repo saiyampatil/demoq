@@ -255,6 +255,18 @@ const DRAFTS: Draft[] = [
     quotes: [],
   },
   {
+    id: 'c-wont-eat-new',
+    name: 'Dog refused the new flavour',
+    definition: 'The pet would not eat a flavour that was swapped in.',
+    questionId: 'q-cancel',
+    isNew: true,
+    status: 'Merged',
+    confidence: 0.66,
+    mergedInto: 'c-pet-refused',
+    decided: { by: maya, at: '2026-09-24T14:26:00-04:00', why: 'Same reason as “Pet stopped eating it”: the new flavour was how it showed up.' },
+    quotes: [],
+  },
+  {
     id: 'c-hard-cancel',
     name: 'Cancelling took several steps',
     definition: 'Stopping the subscription needed a call, a chat or several screens.',
