@@ -3,7 +3,6 @@ import { Link, useSearchParams } from 'react-router'
 import { PageHeader } from '../../shared/PageHeader'
 import { Button } from '@/components/Button'
 import { cn } from '@/components/cn'
-import { controlBase } from '@/components/Field'
 import { EmptyState, ErrorState, LoadingState } from '@/components/States'
 import { Switch } from '@/components/Switch'
 import { WORDCLOUD, type Band } from '@/config/wordcloud'
@@ -108,13 +107,6 @@ export function WordCloudPage() {
         actions={
           ready && doc ? (
             <>
-              <label className="flex items-center gap-2 text-sm text-graphite">
-                Lens
-                <select aria-label="Lens" data-testid="lens-select" defaultValue="whole" className={controlBase + ' h-9 pr-8 text-sm text-ink'}>
-                  <option value="whole">Whole study</option>
-                  <option disabled>Make a lens in Tools › Lens builder</option>
-                </select>
-              </label>
               <span className="flex items-center gap-2 text-sm">
                 <Switch checked={leadership} label="Preview as leadership" onChange={setLeadership} />
                 Preview as leadership

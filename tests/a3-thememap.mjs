@@ -33,7 +33,7 @@ try {
   await b.goto('/researcher/studies/pet-food-churn/analysis/report'); await b.waitFor('EXECUTIVE SUMMARY'); await b.sleep(1200)
   await click('[data-testid=tool-theme-map]'); await b.waitFor('Back to Report'); await b.sleep(800)
   ok('Theme map in Tools opens /report/themes-map', /\/analysis\/report\/themes-map$/.test(await b.evaluate('location.pathname')))
-  ok('the header has the description, the study line and the Lens selector', /Size is how many people said it\. Colour is how strong the reaction was\./.test(await b.evaluate('document.body.innerText')) && /Built on 20 accepted sessions · 2 excluded left out · Release v1\.0/.test((await text('[data-testid=built-on]')) ?? '') && (await count('[data-testid=lens-select]')) === 1)
+  ok('the header has the description, the study line and no Lens selector', /Size is how many people said it\. Colour is how strong the reaction was\./.test(await b.evaluate('document.body.innerText')) && /Built on 20 accepted sessions · 2 excluded left out · Release v1\.0/.test((await text('[data-testid=built-on]')) ?? '') && (await count('[data-testid=lens-select]')) === 0)
   await click('[data-testid=back-to-report]'); await b.waitFor('EXECUTIVE SUMMARY')
   await open()
   const cbBefore = await codebook()

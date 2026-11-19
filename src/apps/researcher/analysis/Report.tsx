@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router'
 import { Banner } from '@/components/Banner'
 import { Button } from '@/components/Button'
-import { controlBase } from '@/components/Field'
 import { EmptyState, ErrorState, LoadingState } from '@/components/States'
 import { StatusChip } from '@/components/StatusChip'
 import { WizardFooter } from '@/components/WizardFooter'
@@ -34,7 +33,6 @@ import {
 } from '@/state/report'
 import { plural, renderTemplate, reportModel } from '@/state/reportLogic'
 import { AnalysisStepper } from './AnalysisStepper'
-import { ExploreDrawer, type ExploreTab } from './explore/ExploreControl'
 import { ExecCard, SectionRow, ThemeRows } from './report/Centre'
 import { ReviewStudio } from './report/ReviewStudio'
 import { CompareStudio, ComingStudio, ExcludedDialog, ReleaseStudio } from './report/OtherStudios'
@@ -43,7 +41,6 @@ import { Tools } from './report/Tools'
 import { WsProvider, type Act, type Selection, type ToolKey, type Ws } from './report/ws'
 import { useAnalysis } from './useAnalysis'
 
-const EXPLORE_TOOLS: Partial<Record<ToolKey, ExploreTab>> = { ask: 'ask', numbers: 'numbers', highlights: 'highlights' }
 
 /** A3: the report the client will receive, as one workspace. Everything in it comes from what was approved earlier in Analysis. */
 export function Report() {
@@ -57,7 +54,6 @@ export function Report() {
   const [failed, setFailed] = useState(params.get('demo') === 'error')
   const [sel, setSel] = useState<Selection>(null)
   const [studio, setStudio] = useState<ToolKey | null>(null)
-  const [exploreTab, setExploreTab] = useState<ExploreTab>('highlights')
   const [openSections, setOpenSections] = useState<Set<string> | null>(null)
   const [themesOpen, setThemesOpen] = useState(false)
   const [excludedOpen, setExcludedOpen] = useState(false)
@@ -164,13 +160,6 @@ export function Report() {
         actions={
           ready && doc && model ? (
             <>
-              <label className="flex items-center gap-2 text-sm text-graphite">
-                Lens
-                <select aria-label="Lens" data-testid="lens-select" defaultValue="whole" className={controlBase + ' h-9 pr-8 text-sm text-ink'}>
-                  <option value="whole">Whole study</option>
-                  <option disabled>Make a lens in Tools › Lens builder</option>
-                </select>
-              </label>
               <Button onClick={() => setStudio('release')} data-testid="client-preview">
                 Client preview
               </Button>
@@ -222,7 +211,6 @@ export function Report() {
   const total = model.all.length
   const open = model.open.length
   const approved = total - open
-  const exploreTool = studio ? EXPLORE_TOOLS[studio] : undefined
 
   return (
     <WsProvider value={ws}>
@@ -297,8 +285,7 @@ export function Report() {
         {studio === 'review' && <ReviewStudio onClose={() => setStudio(null)} onRelease={() => setStudio('release')} />}
         {studio === 'compare' && <CompareStudio onClose={() => setStudio(null)} />}
         {studio === 'release' && <ReleaseStudio onClose={() => setStudio(null)} onReview={() => setStudio('review')} stale={stale} />}
-        {studio && !exploreTool && studio !== 'review' && studio !== 'compare' && studio !== 'release' && <ComingStudio tool={studio} onClose={() => setStudio(null)} />}
-        <ExploreDrawer open={!!exploreTool} onClose={() => setStudio(null)} tab={exploreTool ?? exploreTab} onTab={(t) => (setExploreTab(t), setStudio(t))} doc={doc} basis={basis} me={me} studyId={studyId} />
+        {studio && studio !== 'review' && studio !== 'compare' && studio !== 'release' && <ComingStudio tool={studio} onClose={() => setStudio(null)} />}
         <ExcludedDialog open={excludedOpen} onClose={() => setExcludedOpen(false)} sessions={excludedSessions} />
       </div>
     </WsProvider>

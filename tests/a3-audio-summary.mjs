@@ -156,7 +156,7 @@ try {
   await b.goto('/researcher/studies/pet-food-churn/analysis/report'); await b.waitFor('EXECUTIVE SUMMARY'); await b.sleep(1200)
   await click('[data-testid=tool-audio-summary]'); await b.waitFor('Back to Report'); await b.sleep(1500)
   ok('Audio summary in Tools opens /report/audio-summary', /\/analysis\/report\/audio-summary$/.test(await b.evaluate('location.pathname')))
-  ok('the header has the description, the study line and the Lens selector', /written from the themes and tensions you approved\. Every claim links to the exact words people said\./.test(await b.evaluate('document.body.innerText')) && /Built on 20 accepted sessions · 2 excluded left out · Release v1\.0/.test((await text('[data-testid=built-on]')) ?? '') && (await count('[data-testid=lens-select]')) === 1)
+  ok('the header has the description, the study line and no Lens selector', /written from the themes and tensions you approved\. Every claim links to the exact words people said\./.test(await b.evaluate('document.body.innerText')) && /Built on 20 accepted sessions · 2 excluded left out · Release v1\.0/.test((await text('[data-testid=built-on]')) ?? '') && (await count('[data-testid=lens-select]')) === 0)
   const cbBefore = await codebook()
   const view = await run(`const ctx=mk(); const doc=JSON.parse(localStorage.getItem('pulseai-qual:audio-summary'))['pet-food-churn']; const st2=st.statusOf(doc,ctx); const t=sc.timeline(doc.lines)
     return {status:st2,total:sc.totalSeconds(doc.lines),lines:doc.lines.length,chapters:sc.chaptersOf(doc.lines),starts:t.map(l=>sc.clock(l.start)),narrationChapters:[...new Set(doc.lines.filter(l=>l.type==='narration').map(l=>l.chapter))].length}`)

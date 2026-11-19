@@ -182,8 +182,6 @@ const PLANNED: Record<string, { title: string; phase: string; text: string }> = 
   'theme-map': { title: 'Theme map', phase: 'A3-4', text: 'How the themes and codes sit together, sized by how many people said them.' },
   'audio-summary': { title: 'Audio summary', phase: 'A3-7', text: 'The executive summary read aloud with the browser’s own voice, so leadership can listen.' },
   exports: { title: 'Exports', phase: 'A3-2', text: 'The report as a file for the client: PDF, a web page, slides and a Word document.' },
-  'lens-builder': { title: 'Lens builder', phase: 'A3-6', text: 'Re-read the same evidence through a lens with its own rules, as a separate report.' },
-  'compare-lenses': { title: 'Compare lenses', phase: 'A3-6', text: 'Two lenses side by side on the same evidence.' },
 }
 
 /** A tool whose pop-up isn’t built yet. It says so, says what it will do, and shows what it would be built on today. */

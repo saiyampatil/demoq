@@ -3,7 +3,6 @@ import { Link, useSearchParams } from 'react-router'
 import { PageHeader } from '../../shared/PageHeader'
 import { Button } from '@/components/Button'
 import { cn } from '@/components/cn'
-import { controlBase } from '@/components/Field'
 import { EmptyState, ErrorState } from '@/components/States'
 import { clipsOfTheme, SEED_DEFAULT_THEMES, seedOff } from '@/mock/showreel'
 import { screenById, studyPath } from '@/routes/screens'
@@ -52,17 +51,6 @@ export function ShowreelPage() {
         id="A3"
         title="Theme videos and showreel"
         description="Short clips from the accepted quotes, built into a video for each theme and one showreel for the study. This is a mock: no real video is made."
-        actions={
-          ready && doc ? (
-            <label className="flex items-center gap-2 text-sm text-graphite">
-              Lens
-              <select aria-label="Lens" data-testid="lens-select" defaultValue="whole" className={controlBase + ' h-9 pr-8 text-sm text-ink'}>
-                <option value="whole">Whole study</option>
-                <option disabled>Make a lens in Tools › Lens builder</option>
-              </select>
-            </label>
-          ) : undefined
-        }
       />
       <AnalysisStepper studyId={studyId} current="report" />
     </>

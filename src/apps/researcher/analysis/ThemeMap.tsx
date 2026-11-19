@@ -4,7 +4,6 @@ import { PageHeader } from '../../shared/PageHeader'
 import { AIGeneratedTag } from '@/components/AIGenerated'
 import { Button } from '@/components/Button'
 import { cn } from '@/components/cn'
-import { controlBase } from '@/components/Field'
 import { EmptyState, ErrorState, LoadingState } from '@/components/States'
 import { verdictLabel } from '@/config/delivery'
 import { FitChip } from './SignalBits'
@@ -154,17 +153,6 @@ export function ThemeMapPage() {
         id="A3"
         title="Theme map"
         description="Your approved themes as one picture. Size is how many people said it. Colour is how strong the reaction was. Click a theme to see the quotes."
-        actions={
-          ready && doc ? (
-            <label className="flex items-center gap-2 text-sm text-graphite">
-              Lens
-              <select aria-label="Lens" data-testid="lens-select" defaultValue="whole" className={controlBase + ' h-9 pr-8 text-sm text-ink'}>
-                <option value="whole">Whole study</option>
-                <option disabled>Make a lens in Tools › Lens builder</option>
-              </select>
-            </label>
-          ) : undefined
-        }
       />
       <AnalysisStepper studyId={studyId} current="report" />
     </>

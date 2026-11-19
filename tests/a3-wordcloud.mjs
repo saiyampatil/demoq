@@ -38,7 +38,7 @@ try {
   ok('Word cloud in Tools opens /report/wordcloud', /\/analysis\/report\/wordcloud$/.test(await b.evaluate('location.pathname')))
   await click('[data-testid=back-to-report]'); await b.waitFor('EXECUTIVE SUMMARY')
   await open()
-  ok('the header has the description, the study line, the Lens selector and the leadership switch', /sized by how many people said them/.test(await b.evaluate('document.body.innerText')) && /Built on 20 accepted sessions · 2 excluded left out · Release v1\.0/.test((await text('[data-testid=built-on]')) ?? '') && (await count('[data-testid=lens-select]')) === 1 && (await count('[role=switch][aria-label="Preview as leadership"]')) === 1)
+  ok('the header has the description, the study line, no Lens selector and the leadership switch', /sized by how many people said them/.test(await b.evaluate('document.body.innerText')) && /Built on 20 accepted sessions · 2 excluded left out · Release v1\.0/.test((await text('[data-testid=built-on]')) ?? '') && (await count('[data-testid=lens-select]')) === 0 && (await count('[role=switch][aria-label="Preview as leadership"]')) === 1)
 
   // ═══ What feeds the cloud ═══
   const themeWords = await words()

@@ -49,7 +49,7 @@ try {
 
   // ═══ The data ═══
   await open()
-  ok('the header keeps the study line, the Lens selector and two tabs', /Built on 20 accepted sessions · 2 excluded left out · Release v1\.0/.test((await text('[data-testid=built-on]')) ?? '') && (await count('[data-testid=lens-select]')) === 1 && (await count('[role=tab]')) === 2, await text('[data-testid=built-on]'))
+  ok('the header keeps the study line, no Lens selector and two tabs', /Built on 20 accepted sessions · 2 excluded left out · Release v1\.0/.test((await text('[data-testid=built-on]')) ?? '') && (await count('[data-testid=lens-select]')) === 0 && (await count('[role=tab]')) === 2, await text('[data-testid=built-on]'))
   const data = await run(`const doc=store(); const basis=basisOf(ms.ACCEPTED_PARTICIPANTS); const excl=sess.PET_SEED_SESSIONS.filter(s=>s.review?.status==='Excluded').map(s=>s.participant);
     const themes=doc.themes.map(t=>({id:t.id,name:t.name,clips:sh.clipsOfTheme(doc,t,basis)}));
     const all=themes.flatMap(t=>t.clips); const audio=all.filter(c=>c.mode==='audio-only')

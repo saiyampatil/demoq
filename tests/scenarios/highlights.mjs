@@ -33,9 +33,9 @@ export default async ({ b, out }) => {
     await b.goto('/researcher'); await b.evaluate('localStorage.clear(); sessionStorage.clear(); true')
     await b.goto(`${STUDY}/${path}`); await b.waitFor('Explore'); await b.sleep(500)
   }
-  // A1 and A2 have an Explore button in the top bar. On A3 it is the Highlights tool in the Tools list.
+  // A1 and A2 have an Explore button in the top bar. A3 no longer has Explore (it is not built there).
   const openDrawer = async () => {
-    await click(/analysis\/report/.test(await b.evaluate('location.pathname')) ? '[data-testid=tool-highlights]' : '[data-testid=explore-open]')
+    await click('[data-testid=explore-open]')
     await expect('the drawer opens on the Highlights tab', `document.querySelector('[data-testid=explore-tab-highlights]')?.getAttribute('aria-selected')==='true'&&!!document.querySelector('[data-testid=highlights]')`)
   }
   const type = async (v) => { await b.evaluate(setIn('[data-testid=idea-input]', v)) }
@@ -45,8 +45,8 @@ export default async ({ b, out }) => {
     return b.poll(`!document.querySelector('[data-testid=scanning]')&&(!!document.querySelector('[data-testid=results]')||!!document.querySelector('[data-testid=no-matches]')||!!document.querySelector('[data-testid=idea-dismissed]'))`, 5000)
   }
 
-  // ── The same drawer opens on A1, A2 and A3, on Highlights ──
-  for (const [path, label] of [['codebook', 'A1 Codebook'], ['signals', 'A2 Emotion & behaviour'], ['report', 'A3 Report']]) {
+  // ── The same drawer opens on A1 and A2, on Highlights ──
+  for (const [path, label] of [['codebook', 'A1 Codebook'], ['signals', 'A2 Emotion & behaviour']]) {
     await fresh(path)
     await openDrawer()
     out.checks[`${label} has the Explore drawer on Highlights`] = true
@@ -152,7 +152,7 @@ export default async ({ b, out }) => {
   is('after a refresh the Codebook tab lists it', (await b.evaluate(`document.body.innerText`)).includes('Pause as a reason to stay'))
   await b.goto(`${STUDY}/signals`); await b.waitFor('What stands out'); await b.sleep(400)
   is('Emotion & behaviour still loads with the new code', (await b.evaluate(`document.body.innerText`)).includes('Pause as a reason to stay'))
-  await b.goto(`${STUDY}/report`); await b.waitFor('Explore'); await b.sleep(600)
+  await b.goto(`${STUDY}/report`); await b.waitFor('Built on'); await b.sleep(600)
   is('the Report still loads', (await b.evaluate(`document.body.innerText`)).includes('Built on'))
 
   // ── The error state, and its retry ──

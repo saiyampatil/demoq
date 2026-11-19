@@ -41,16 +41,17 @@ export default async ({ b, out }) => {
   await fresh()
   is('the built-on line says sessions, excluded and release', /Built on 20 accepted sessions · 2 excluded left out · Release v1\.0/.test(await text('[data-testid=built-on]')), await text('[data-testid=built-on]'))
   is('the report status starts as Draft', /Draft/.test(await b.evaluate(`document.querySelector('h1')?.parentElement.innerText`)))
-  for (const g of ['Outputs', 'Explore', 'Lenses', 'Review', 'Release']) is(`Tools has the group ${g}`, new RegExp(g).test(await text('[data-testid=tools]')))
-  for (const t of ['Theme videos', 'Showreel', 'Word cloud', 'Theme map', 'Audio summary', 'Ask', 'Numbers', 'Highlights', 'Lens builder', 'Compare lenses', 'Approve sentences', 'Compare AI and mine', 'Exports', 'Publish']) is(`Tools lists ${t}`, (await text('[data-testid=tools]')).includes(t))
+  for (const g of ['Outputs', 'Review', 'Release']) is(`Tools has the group ${g}`, new RegExp(g).test(await text('[data-testid=tools]')))
+  is('Tools has no Explore or Lenses group, and no Ask, Numbers, Highlights or Lens tools', !/Explore|Lenses|Lens builder|Compare lenses/.test(await text('[data-testid=tools]')) && (await count('[data-testid=tool-ask],[data-testid=tool-numbers],[data-testid=tool-highlights],[data-testid=tool-lens-builder]')) === 0)
+  for (const t of ['Theme videos', 'Showreel', 'Word cloud', 'Theme map', 'Audio summary', 'Approve sentences', 'Compare AI and mine', 'Exports', 'Publish']) is(`Tools lists ${t}`, (await text('[data-testid=tools]')).includes(t))
   is('the right column is hidden until something is selected', (await count('[data-testid=selected]')) === 0 && (await count('[data-testid=built-from]')) === 0)
   is('the stepper still says what is open in the steps before (16 codes, 4 tensions)', /16 codes to review/.test(await b.evaluate('document.body.innerText')) && /4 tensions to review/.test(await b.evaluate('document.body.innerText')))
-  for (const t of ['Theme videos', 'Showreel', 'Word cloud', 'Ask', 'Lens builder', 'Exports']) is(`${t} shows no state: nothing says "Not built"`, (await count(`[data-testid=tool-state-${{ 'Theme videos': 'theme-videos', Showreel: 'showreel', 'Word cloud': 'word-cloud', Ask: 'ask', 'Lens builder': 'lens-builder', Exports: 'exports' }[t]}]`)) === 0)
+  for (const t of ['Theme videos', 'Showreel', 'Word cloud', 'Exports']) is(`${t} shows no state: nothing says "Not built"`, (await count(`[data-testid=tool-state-${{ 'Theme videos': 'theme-videos', Showreel: 'showreel', 'Word cloud': 'word-cloud', Exports: 'exports' }[t]}]`)) === 0)
   is('and the word "Not built" is nowhere in the tools', !/Not built/.test(await text('[data-testid=tools]')))
   is('a tool with a state shows it (Approve sentences: 17 to review)', /17 to review/.test(await text('[data-testid=tool-state-review]')))
   is('one primary button, "Review 17 sentences"', (await primary()) === 'Review 17 sentences', await primary())
   is('the footer says where things stand', /0 of 17 sentences approved · 17 to review/.test(await text('[data-testid=report-status]')), await text('[data-testid=report-status]'))
-  is('a lens dropdown with Whole study', /Whole study/.test(await text('[data-testid=lens-select]')))
+  is('there is no lens dropdown on the Report', (await count('[data-testid=lens-select]')) === 0)
   is('the executive summary and 4 guide sections', (await count('[data-testid=exec-card]')) === 1 && (await count('[data-testid=section]')) === 4)
 
   // ── The summary reads as prose; every sentence has its state in view without a click ──
@@ -322,13 +323,9 @@ export default async ({ b, out }) => {
   await clickText('[data-q=q-schedule] button', 'Put back')
   await expect('putting it back counts it again', `/17 to review/.test(document.querySelector('[data-testid=report-status]').innerText)`)
 
-  // ── Tools: Highlights opens the Explore drawer; an unbuilt tool says so honestly ──
-  await click('[data-testid=tool-highlights]')
-  await expect('Highlights opens the Explore drawer on its tab', `document.querySelector('[data-testid=explore-tab-highlights]')?.getAttribute('aria-selected')==='true'`)
-  await b.evaluate(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})); true`)
-  await b.sleep(300)
-  await click('[data-testid=tool-lens-builder]')
-  await expect('an unbuilt tool opens a pop-up that says it is not built yet', `/Not built yet in the prototype/.test(document.querySelector('[data-studio=lens-builder]')?.innerText||'')`)
+  // ── Tools: an unbuilt tool says so honestly ──
+  await click('[data-testid=tool-exports]')
+  await expect('an unbuilt tool opens a pop-up that says it is not built yet', `/Not built yet in the prototype/.test(document.querySelector('[data-studio=exports]')?.innerText||'')`)
   is('and it lists what it would be built on with real counts', /20 accepted sessions/.test(await text('[data-testid=coming-studio]')))
   await b.evaluate(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})); true`)
 

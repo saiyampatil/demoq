@@ -3,7 +3,6 @@ import { Link, useSearchParams } from 'react-router'
 import { PageHeader } from '../../shared/PageHeader'
 import { Button } from '@/components/Button'
 import { cn } from '@/components/cn'
-import { controlBase } from '@/components/Field'
 import { EmptyState, ErrorState, LoadingState } from '@/components/States'
 import { currentUser } from '@/mock/people'
 import { screenById, studyPath } from '@/routes/screens'
@@ -172,17 +171,6 @@ export function AudioSummaryPage() {
         id="A3"
         title="Audio summary"
         description="A spoken summary of the study, written from the themes and tensions you approved. Every claim links to the exact words people said."
-        actions={
-          ready && doc ? (
-            <label className="flex items-center gap-2 text-sm text-graphite">
-              Lens
-              <select aria-label="Lens" data-testid="lens-select" defaultValue="whole" className={controlBase + ' h-9 pr-8 text-sm text-ink'}>
-                <option value="whole">Whole study</option>
-                <option disabled>Make a lens in Tools › Lens builder</option>
-              </select>
-            </label>
-          ) : undefined
-        }
       />
       <AnalysisStepper studyId={studyId} current="report" />
     </>

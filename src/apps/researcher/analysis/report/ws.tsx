@@ -18,8 +18,6 @@ export type Selection = { kind: 'sentence'; id: string; cite?: number } | { kind
 
 export type ToolKey =
   | 'theme-videos' | 'showreel' | 'word-cloud' | 'theme-map' | 'audio-summary'
-  | 'ask' | 'numbers' | 'highlights'
-  | 'lens-builder' | 'compare-lenses'
   | 'review' | 'compare'
   | 'exports' | 'release'
 

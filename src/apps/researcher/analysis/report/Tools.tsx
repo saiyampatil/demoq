@@ -15,21 +15,6 @@ const GROUPS: { label: string; tools: Tool[] }[] = [
     ],
   },
   {
-    label: 'Explore',
-    tools: [
-      { key: 'ask', label: 'Ask', built: false },
-      { key: 'numbers', label: 'Numbers', built: false },
-      { key: 'highlights', label: 'Highlights', built: true },
-    ],
-  },
-  {
-    label: 'Lenses',
-    tools: [
-      { key: 'lens-builder', label: 'Lens builder', built: false },
-      { key: 'compare-lenses', label: 'Compare lenses', built: false },
-    ],
-  },
-  {
     label: 'Review',
     tools: [
       { key: 'review', label: 'Approve sentences', built: true },
