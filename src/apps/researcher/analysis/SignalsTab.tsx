@@ -10,7 +10,7 @@ import { setSignalPick, setSignalPicks } from '@/state/codebook'
 import { EMOTIONS, STANCE_LABEL, faceOf, faceWeight, fitOf, topEmotions, type EmotionSplit } from '@/state/emotion'
 import { breakdownOf, codeSignals, plural, signalGroups, tensionsFor, type CodeSignal, type Point, type Tension } from '@/state/signals'
 import { mmss } from '../review/reviewUi'
-import { BandBar, DeliveryFigures, EmotionBar, EmotionChip, EmotionLegend, FitChip, HesitantNote, HowItsDecided, PatternChip, PointCard, ToneBar, ToneLegend, ValenceCounts, ValenceKey, noReading, playHref } from './SignalBits'
+import { BandBar, DeliveryFigures, EmotionBar, EmotionChip, FitChip, HesitantNote, HowItsDecided, PatternChip, PointCard, SignalLegend, ToneBar, ValenceCounts, ValenceKey, noReading, playHref } from './SignalBits'
 import type { CodebookCtx } from './codebookCtx'
 import { GroupSection, TableHead, rowButtonClass } from './codeTable'
 
@@ -140,15 +140,16 @@ function ByCode({ ctx, signals, focus, setFocus, tensions, onOpenTension }: { ct
     <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] xl:grid-cols-[minmax(0,1fr)_minmax(0,28rem)]">
       <section aria-label="Signals by code" className="min-w-0 rounded-md border border-mist bg-surface">
         <div className="flex flex-wrap items-center gap-3 border-b border-mist px-4 py-2.5">
-          <EmotionLegend />
-          <ToneLegend />
           <span className="flex-1" />
           <label className="flex h-8 items-center gap-2 rounded-sm border border-mist-strong px-2.5 text-sm text-graphite">
             <input type="checkbox" checked={notableOnly} onChange={(e) => setNotableOnly(e.target.checked)} className="accent-[var(--color-iris-600)]" />
             Worth a look only
           </label>
         </div>
-        <ValenceKey />
+        <SignalLegend />
+        <div className="border-b border-mist px-4 py-2">
+          <ValenceKey />
+        </div>
         {flat.length === 0 ? (
           <EmptyState title="Nothing stands out" description="No accepted code shows hesitation, or words and delivery that don’t fit." action={<Button onClick={() => setNotableOnly(false)}>Show all codes</Button>} />
         ) : (

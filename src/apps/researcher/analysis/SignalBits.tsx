@@ -151,8 +151,13 @@ export function ValenceCounts({ e, className }: { e: EmotionSplit; className?: s
 
 // ─── voice ──────────────────────────────────────────────────────────────────
 
-const TONE_FILL: Record<Tone, string> = { Animated: 'bg-emo-interest', Even: 'bg-emo-neutral', Flat: 'bg-tone-flat', Tense: 'bg-emo-doubt' }
-const TONE_CHIP: Record<Tone, string> = { Animated: VALENCE_CHIP.Positive, Even: VALENCE_CHIP.Neutral, Flat: 'border-mist-strong bg-neutral-bg text-neutral-fg', Tense: VALENCE_CHIP.Negative }
+const TONE_FILL: Record<Tone, string> = { Animated: 'bg-tone-animated', Even: 'bg-tone-even', Flat: 'bg-tone-flat', Tense: 'bg-tone-tense' }
+const TONE_CHIP: Record<Tone, string> = {
+  Animated: 'border-tone-animated-line bg-tone-animated-bg text-tone-animated-fg',
+  Even: VALENCE_CHIP.Neutral,
+  Flat: 'border-mist-strong bg-neutral-bg text-neutral-fg',
+  Tense: 'border-tone-tense-line bg-tone-tense-bg text-tone-tense-fg',
+}
 
 export function ToneChip({ tone }: { tone: Tone }) {
   return (
@@ -173,6 +178,28 @@ export function ToneBar({ split, tall }: { split: ToneSplit; tall?: boolean }) {
 
 export function ToneLegend() {
   return <Legend items={TONES.map((t) => ({ label: t, fill: TONE_FILL[t], hint: TONE_HINT[t] }))} />
+}
+
+/**
+ * Every colour on the page, in three labelled rows so face and speech are never read as one set: Face (what showed on the face),
+ * Speech · tone (how the voice sounded), Speech · certainty (hesitation). No colour is shared between rows.
+ */
+export function SignalLegend() {
+  const rows: { group: string; label: string; node: React.ReactNode }[] = [
+    { group: 'face', label: 'Face', node: <EmotionLegend /> },
+    { group: 'tone', label: 'Speech · tone', node: <ToneLegend /> },
+    { group: 'certainty', label: 'Speech · certainty', node: <BandLegend /> },
+  ]
+  return (
+    <div className="flex flex-col gap-1.5 border-b border-mist bg-paper px-4 py-2.5" data-testid="legend" role="group" aria-label="What the colours mean">
+      {rows.map((r) => (
+        <div key={r.group} className="grid grid-cols-[8.5rem_minmax(0,1fr)] items-center gap-x-3" data-testid="legend-row" data-group={r.group}>
+          <span className="text-xs font-semibold text-ink">{r.label}</span>
+          {r.node}
+        </div>
+      ))}
+    </div>
+  )
 }
 
 // ─── words vs delivery ──────────────────────────────────────────────────────

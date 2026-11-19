@@ -197,6 +197,23 @@ try {
   const both = await b.evaluate(`[...document.querySelectorAll('[aria-label="Signals by code"] section[aria-labelledby^=grp-]')].filter(s=>[...s.querySelectorAll('[data-testid=signal-row]')].some(r=>r.innerText.startsWith('Flexibility matters more than price'))).map(s=>s.querySelector('[data-testid=use-group]').getAttribute('aria-checked'))`)
   ok('and both theme headers follow that one state', both.length === 2)
 
+  // ── The legend: face and speech apart, and no colour shared ──
+  await b.goto(`${root}/signals?view=code`); await b.waitFor('Words vs delivery'); await b.sleep(800)
+  const leg = await b.evaluate(`(()=>{const rows=[...document.querySelectorAll('[data-testid=legend-row]')].map(r=>({group:r.dataset.group,label:r.querySelector('span').innerText.trim(),items:[...r.querySelectorAll('li')].map(li=>({name:li.innerText.trim(),color:getComputedStyle(li.querySelector('span')).backgroundColor}))}));return rows})()`)
+  const by = (g) => leg.find((r) => r.group === g)
+  ok('the legend has three labelled rows: Face, Speech · tone and Speech · certainty', JSON.stringify(leg.map((r) => r.label)) === JSON.stringify(['Face', 'Speech · tone', 'Speech · certainty']), leg.map((r) => r.label))
+  ok('Face lists the seven expressions, tone the four tones, certainty the three bands', by('face').items.length === 7 && JSON.stringify(by('tone').items.map((i) => i.name)) === JSON.stringify(['Animated', 'Even', 'Flat', 'Tense']) && JSON.stringify(by('certainty').items.map((i) => i.name)) === JSON.stringify(['Marked hesitation', 'Some hesitation', 'Steady']))
+  const col = (g, n) => by(g).items.find((i) => i.name === n).color
+  ok('Animated is not the colour of Interest, and Tense is not the colour of Doubt', col('tone', 'Animated') !== col('face', 'Interest') && col('tone', 'Tense') !== col('face', 'Doubt'), [col('tone', 'Animated'), col('face', 'Interest'), col('tone', 'Tense'), col('face', 'Doubt')])
+  const faceColors = new Set(by('face').items.map((i) => i.color))
+  const certColors = new Set(by('certainty').items.map((i) => i.color))
+  ok('no tone colour is used by any expression or certainty band, except that Even and Neutral may both be a plain light grey', by('tone').items.filter((i) => i.name !== 'Even').every((i) => !faceColors.has(i.color) && !certColors.has(i.color)) && !certColors.has(col('tone', 'Even')), leg)
+  ok('the four tones are four different colours, and the three certainty bands three', new Set(by('tone').items.map((i) => i.color)).size === 4 && certColors.size === 3)
+  ok('certainty has a legend on the main table, not only in the panel', (await b.evaluate(`!!document.querySelector('[aria-label="Signals by code"] [data-testid=legend-row][data-group=certainty]')`)))
+  await b.evaluate(`[...document.querySelectorAll('[data-testid=signal-row]')].find(r=>/Pause would/.test(r.innerText)).click(); true`); await b.sleep(300)
+  const bars = await b.evaluate(`(()=>{const p=document.querySelector('[data-testid=signal-panel]');const tone=[...p.querySelectorAll('[data-testid=channel-speech] [role=img]')];return tone.length})()`)
+  ok('the panel’s tone and certainty bars use the same colours as the legend', bars >= 2)
+
   // ── An older theme-level tick becomes code ticks, once ──
   await b.evaluate(`(()=>{const k=Object.keys(localStorage).find(k=>/codebook/.test(k));const o=JSON.parse(localStorage[k]);const id=Object.keys(o)[0];const d=o[id];const flex=d.codes.find(c=>c.name==='Flexibility matters more than price');const price=d.themes.find(t=>t.name==='Price creep');price.codeIds=price.codeIds.filter(x=>x!==flex.id);localStorage[k]=JSON.stringify(o);return true})()`)
   const ids = await b.evaluate(`(()=>{const k=Object.keys(localStorage).find(k=>/codebook/.test(k));const o=JSON.parse(localStorage[k]);const id=Object.keys(o)[0];const d=o[id];const th=(n)=>d.themes.find(t=>t.name===n);const ctl=th('Wanting control over deliveries'), joined=th('Why they joined'), price=th('Price creep');return {ctl:ctl.codeIds,joined:joined.codeIds,price:price.codeIds,pickedNow:d.signalPicks}})()`)

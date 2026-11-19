@@ -72,7 +72,17 @@
   --color-emo-cold-bg: #fbece6;
   --color-emo-cold-fg: #8b3420;
   --color-emo-cold-line: #f0c7b8;
-  --color-tone-flat: #9a99ad;
+  /* Voice tone: its own blue-slate family, so no tone shares a colour with a facial expression (teal, sand, terracotta) or with certainty (violet). */
+  --color-tone-animated: #2c8fd6;
+  --color-tone-even: #cfe0ee;
+  --color-tone-flat: #7b8fa6;
+  --color-tone-tense: #14406b;
+  --color-tone-animated-bg: #e6f2fb;
+  --color-tone-animated-fg: #0f5588;
+  --color-tone-animated-line: #a9d1ef;
+  --color-tone-tense-bg: #e4ebf3;
+  --color-tone-tense-fg: #14406b;
+  --color-tone-tense-line: #a3b6cb;
 
   /* Type */
   --font-*: initial;
