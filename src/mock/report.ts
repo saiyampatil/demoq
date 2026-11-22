@@ -4,14 +4,15 @@
 //   {N}                the accepted sessions the report is built on
 // state/reportLogic.ts fills them in from the codebook every time, so a number can never be out of step with A1 and A2.
 // Denominators are honest: "n of N", never bare percentages. Behaviour is described, never diagnosed.
-import type { Citation, Sentence } from '@/state/report'
-import { CODE_QUESTIONS } from './codebook'
+import type { Citation } from '@/state/report'
+import { CODE_QUESTIONS, questionsOf } from './codebook'
+import { registerReportPack, reportPackOf, type SeedSentence } from './reportPacks'
+import './iceCream/report'
+
+export type { SeedSentence }
 
 const c = (id: string): Citation => ({ kind: 'code', id })
 const t = (id: string): Citation => ({ kind: 'theme', id })
-
-/** A seed sentence: `text` is filled in from the template when the report is made. */
-export type SeedSentence = Omit<Sentence, 'text'> & { template: string }
 
 // The executive summary is not written here: state/execSummary.ts builds it from the codebook and the tensions.
 
@@ -95,13 +96,78 @@ export const FINDING_DRAFTS: Record<string, SeedSentence[]> = {
 
 export const QUESTION_IDS: string[] = CODE_QUESTIONS.map((q) => q.id)
 
+type Section = { id: string; label: string; questionIds: string[] }
 /** The guide's sections in order, each with its questions. The report's findings are grouped the same way. */
-export const REPORT_SECTIONS: { id: string; label: string; questionIds: string[] }[] = (() => {
-  const out: { id: string; label: string; questionIds: string[] }[] = []
-  CODE_QUESTIONS.forEach((q) => {
+function sectionsOf(questions: { id: string; section: string }[]): Section[] {
+  const out: Section[] = []
+  questions.forEach((q) => {
     const s = out.find((x) => x.label === q.section)
     if (s) s.questionIds.push(q.id)
     else out.push({ id: `sec-${out.length + 1}`, label: q.section, questionIds: [q.id] })
   })
   return out
-})()
+}
+export const REPORT_SECTIONS: Section[] = sectionsOf(CODE_QUESTIONS)
+
+// ─── per study ──────────────────────────────────────────────────────────────
+
+/** The pre-written finding drafts of a study, by guide question. */
+export const findingDraftsOf = (studyId: string): Record<string, SeedSentence[]> => reportPackOf(studyId)?.findingDrafts ?? {}
+/** The guide questions a study's report has a finding for, in guide order. */
+export const questionIdsOf = (studyId: string): string[] => questionsOf(studyId).map((q) => q.id)
+/** A study's guide sections in order, each with its questions. */
+export const reportSectionsOf = (studyId: string): Section[] => sectionsOf(questionsOf(studyId))
+
+// ─── Pet Food Subscription Churn ────────────────────────────────────────────
+
+registerReportPack({
+  studyId: 'pet-food-churn',
+  findingDrafts: FINDING_DRAFTS,
+  stimulusOfCode: { 'c-idea-pause': 'Concept A', 'c-idea-swap': 'Concept B', 'c-idea-portion': 'Concept C' },
+  regenerateExample: 'More from dog owners, or Shorter',
+  highlightExamples: ['pause when we travel', 'too much food', 'vet'],
+  focusExample: 'start with price creep',
+  tensions: {
+    'tn-pause-survey': {
+      exec: (s) => `${s(1)} people who picked pause answered “probably” or “definitely would not” in the locked survey.`,
+      audio: (n, of) => `${n} of ${of} people who picked pause answered “probably” or “definitely would not” in the locked survey.`,
+      alts: (n, of) => [`In the locked survey, ${n} of ${of} people who picked pause answered “probably” or “definitely would not”.`],
+    },
+    'tn-flex-behaviour': {
+      exec: (s) => `${s(1)} people who said flexibility matters more than price showed marked hesitation as they said it.`,
+      audio: (n, of) => `${n} of ${of} people who said flexibility matters more than price showed marked hesitation as they said it.`,
+      alts: (n, of) => [`${n} of ${of} people who put flexibility ahead of price showed marked hesitation as they said it.`],
+    },
+    'tn-pause-portion-face': {
+      exec: (s) => `${s(1)} people on video who picked pause showed delight or interest at first sight of Concept C.`,
+      audio: (n, of) => `${n} of ${of} people on video who picked pause read as delight or interest at first sight of Concept C.`,
+      alts: (n, of) => [`At first sight of Concept C, ${n} of ${of} people on video who picked pause read as delight or interest.`],
+      faceBased: true,
+    },
+    'tn-pause-concept': {
+      exec: (s) => `${s(1)} people who chose pause showed marked hesitation at first sight of Concept A.`,
+      audio: (n, of) => `${n} of ${of} people who chose pause showed marked hesitation at first sight of Concept A.`,
+      alts: (n, of) => [`At first sight of Concept A, ${n} of ${of} people who chose pause showed marked hesitation.`],
+    },
+    'tn-vet-survey': {
+      exec: (s) => `${s(1)} people who said a vet’s advice ended it named something else as their one biggest reason in the survey.`,
+      audio: (n, of) => `${n} of ${of} people who said a vet’s advice ended it named something else as their one biggest reason in the survey.`,
+      alts: (n, of) => [`In the survey, ${n} of ${of} people who said a vet’s advice ended it named something else as their one biggest reason.`],
+    },
+    // Cats against dogs: a sentence in the executive summary, but never a spoken line (a comparison has no single number to say).
+    'tn-pet-segments': {
+      nums: (sides) => {
+        const [cat, , dog] = sides
+        if (!cat || !dog) return undefined
+        return cat.of && dog.of && cat.n / cat.of !== dog.n / dog.of ? (cat.n / cat.of > dog.n / dog.of ? { n: cat.n, of: cat.of } : { n: dog.n, of: dog.of }) : undefined
+      },
+      exec: (s, sides) => {
+        const [cat, , dog] = sides
+        const c = cat.of ? cat.n / cat.of : 0
+        const d = dog.of ? dog.n / dog.of : 0
+        if (c === d) return undefined
+        return c > d ? `${s(0)} cat owners said flexibility matters more than price, a larger share than dog owners.` : `${s(2)} dog owners said flexibility matters more than price, a larger share than cat owners.`
+      },
+    },
+  },
+})

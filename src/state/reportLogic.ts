@@ -1,9 +1,10 @@
 // What the Report means, worked out from the codebook, the signals and Review every time: live numbers, what a citation points
 // at, where a sentence stands, how strong a finding is, and whether the report can be published. Nothing here is stored.
 // Counts are distinct people, "n of N", never percentages or quote counts, and they come from the same functions as A1 and A2.
-import { REPORT_SECTIONS } from '@/mock/report'
+import { reportSectionsOf } from '@/mock/report'
+import { analysedStudies } from '@/mock/studyAnalysis'
+import { questionsOf } from '@/mock/codebook'
 import {
-  CODE_QUESTIONS,
   denominator,
   excerpt,
   liveExcerpts,
@@ -27,7 +28,9 @@ import { citesKey, draftOf, type Approval, type Citation, type DraftKind, type R
 export type Ctx = { doc: CodebookDoc; basis: Basis }
 export const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
 export const mmss = (sec: number) => `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2, '0')}`
-export const questionLabel = (id: string) => CODE_QUESTIONS.find((q) => q.id === id)?.label ?? id
+/** A guide question by ID. Question IDs are unique across studies, so the study isn't needed. */
+export const questionById = (id: string) => analysedStudies().flatMap((s) => questionsOf(s)).find((q) => q.id === id)
+export const questionLabel = (id: string) => questionById(id)?.label ?? id
 
 // ─── live numbers ───────────────────────────────────────────────────────────
 
@@ -284,7 +287,7 @@ export function reportModel(report: ReportDoc, doc: CodebookDoc, basis: Basis): 
   const decisions = tensionDecisions(doc)
 
   const findings: FindingModel[] = report.findings.map((f) => {
-    const q = CODE_QUESTIONS.find((x) => x.id === f.questionId)!
+    const q = questionById(f.questionId)!
     const codes = doc.codes.filter((c) => c.questionId === q.id && c.status === 'Accepted')
     const people = new Set(codes.flatMap((c) => [...peopleOf(c, basis)])).size
     const notAsked = q.skipped.filter((s) => basis.participants.has(s.participantId)).length
@@ -316,7 +319,7 @@ export function reportModel(report: ReportDoc, doc: CodebookDoc, basis: Basis): 
   })
 
   const exec = { active: report.execSummary.active, sentences: withEdited(info(draftOf(report.execSummary)), report.execSummary), hasMine: report.execSummary.researcherDraft.length > 0 }
-  const sections = REPORT_SECTIONS.map((s) => ({ id: s.id, label: s.label, findings: s.questionIds.flatMap((id) => findings.filter((f) => f.questionId === id)) }))
+  const sections = reportSectionsOf(report.studyId).map((s) => ({ id: s.id, label: s.label, findings: s.questionIds.flatMap((id) => findings.filter((f) => f.questionId === id)) }))
   const themes: ThemeModel[] = doc.themes
     .map((theme) => {
       const codes = themeCodes(doc, theme)

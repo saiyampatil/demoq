@@ -11,6 +11,7 @@ import { EmotionChip } from './SignalBits'
 import { StatusChip } from '@/components/StatusChip'
 import { useToast } from '@/components/Toast'
 import { formatStamp } from '@/lib/format'
+import { segmentsOf, type SegmentConfig } from '@/mock/studyAnalysis'
 import { screenById, studyPath } from '@/routes/screens'
 import { dismissTension, restoreTension, turnTensionIntoTheme } from '@/state/codebook'
 import { TENSION_KINDS, TENSION_KIND_HINT, TENSION_KIND_LABEL, tensionsOf, type Side, type Tension, type TensionKind, type TensionStatus } from '@/state/signals'
@@ -188,7 +189,7 @@ function TensionCard({ t, ctx, focused, onSeeSignals, onTurn, onDismiss, onResto
         ) : (
           <>
             {t.kind === 'Between segments' && t.sides.length === 4 ? (
-              <SegmentChart sides={t.sides} />
+              <SegmentChart sides={t.sides} answers={t.answers ?? ['First answer', 'Second answer']} segments={segmentsOf(ctx.studyId)} />
             ) : (
               <div className="mt-4 grid items-stretch gap-2 sm:grid-cols-[1fr_auto_1fr]" data-testid="tension-sides">
                 <SideBlock s={t.sides[0]} dim={dim} />
@@ -285,16 +286,18 @@ function TensionCard({ t, ctx, focused, onSeeSignals, onTurn, onDismiss, onResto
   )
 }
 
-/** The same question, answered by two groups: one row per answer, a bar each for cat and dog owners, sized by the share of that group. */
-function SegmentChart({ sides }: { sides: Side[] }) {
+/** The same question, answered by two groups: one row per answer, a bar each for the first and the second group (cat and dog owners, parents and adults), sized by the share of that group. */
+function SegmentChart({ sides, answers, segments }: { sides: Side[]; answers: [string, string]; segments: SegmentConfig }) {
   const rows = [
-    { label: 'Said flexibility matters more', cat: sides[0], dog: sides[2] },
-    { label: 'Said price matters more', cat: sides[1], dog: sides[3] },
+    { label: answers[0], first: sides[0], second: sides[2] },
+    { label: answers[1], first: sides[1], second: sides[3] },
   ]
+  // A longer answer needs a wider label column.
+  const wide = answers.some((a) => a.length > 30)
   // The people in neither row, so each group's lines add up to the group.
   const restOf = (s: Side) => s.rest ?? []
   const restLabels = [...new Set([...restOf(sides[0]), ...restOf(sides[2])].map((r) => r.label))]
-  const restRow = (label: string) => ({ label, cat: restOf(sides[0]).find((r) => r.label === label), dog: restOf(sides[2]).find((r) => r.label === label) })
+  const restRow = (label: string) => ({ label, first: restOf(sides[0]).find((r) => r.label === label), second: restOf(sides[2]).find((r) => r.label === label) })
   const bar = (s: Side, tone: string) => (
     <div className="flex items-center gap-2">
       <span className="h-2 flex-1 overflow-hidden rounded-full bg-haze" aria-hidden="true">
@@ -307,19 +310,19 @@ function SegmentChart({ sides }: { sides: Side[] }) {
   )
   return (
     <div className="mt-4 rounded-sm border border-mist px-4 py-3" data-testid="segment-chart">
-      <div className="grid grid-cols-[9.5rem_1fr_1fr] items-center gap-x-4 gap-y-2.5 text-sm">
+      <div className={cn('grid items-center gap-x-4 gap-y-2.5 text-sm', wide ? 'grid-cols-[13rem_1fr_1fr]' : 'grid-cols-[9.5rem_1fr_1fr]')}>
         <span />
         <span className="flex items-center gap-1.5 text-xs font-medium text-graphite">
-          <span aria-hidden="true" className="size-2 rounded-full bg-iris-300" /> Cat owners
+          <span aria-hidden="true" className="size-2 rounded-full bg-iris-300" /> {segments.first.label}
         </span>
         <span className="flex items-center gap-1.5 text-xs font-medium text-graphite">
-          <span aria-hidden="true" className="size-2 rounded-full bg-ink" /> Dog owners
+          <span aria-hidden="true" className="size-2 rounded-full bg-ink" /> {segments.second.label}
         </span>
         {rows.map((r) => (
           <div key={r.label} className="contents">
             <span>{r.label}</span>
-            {bar(r.cat, 'bg-iris-300')}
-            {bar(r.dog, 'bg-ink')}
+            {bar(r.first, 'bg-iris-300')}
+            {bar(r.second, 'bg-ink')}
           </div>
         ))}
         {restLabels.map((l) => {
@@ -328,8 +331,8 @@ function SegmentChart({ sides }: { sides: Side[] }) {
           return (
             <div key={l} className="contents" data-testid="segment-rest" data-label={l}>
               <span className="text-graphite">{l}</span>
-              {mk(r.cat)}
-              {mk(r.dog)}
+              {mk(r.first)}
+              {mk(r.second)}
             </div>
           )
         })}

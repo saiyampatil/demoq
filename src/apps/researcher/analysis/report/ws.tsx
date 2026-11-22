@@ -6,7 +6,7 @@ import type { StatusFamily } from '@/components/status'
 import type { Basis, CodebookDoc, Excerpt } from '@/state/codebook'
 import type { Citation, DraftKind, ReportDoc, Strength, Target } from '@/state/report'
 import { citationLabel, mmss, questionLabel, type Ctx, type Resolved, type ReportModel, type SentenceInfo, type SentenceState } from '@/state/reportLogic'
-import { petOf } from '@/mock/codebook'
+import { segmentWord } from '@/mock/studyAnalysis'
 import { findReviewRecord } from '@/mock/review'
 
 export const MINI = 'rounded-xs border border-mist bg-surface px-2 py-0.5 text-xs font-medium text-graphite hover:bg-haze disabled:opacity-50 disabled:pointer-events-none'
@@ -221,7 +221,7 @@ export function QuoteCard({ ex, codeName, compact }: { ex: Excerpt; codeName?: s
     <li data-testid="quote" data-session={ex.sessionId} data-participant={ex.participantId} data-at={ex.atSec} className="rounded-sm border border-mist bg-surface px-3 py-2.5">
       <p className={cn('font-serif leading-snug text-ink', compact && 'text-sm')}>“{ex.text}”</p>
       <p className="mt-1.5 flex flex-wrap items-center gap-x-1.5 text-xs text-graphite">
-        <span>{ex.participantId}</span>·<span>{petOf(ex.participantId)} owner</span>·<span>Session {ex.sessionId}</span>·<span className="tabular-nums">{mmss(ex.atSec)}</span>
+        <span>{ex.participantId}</span>·<span>{segmentWord(ex.participantId).replace(/^./, (c) => c.toUpperCase())}</span>·<span>Session {ex.sessionId}</span>·<span className="tabular-nums">{mmss(ex.atSec)}</span>
         {codeName && <>·<span>{codeName}</span></>}
         {ex.corrected && <>·<span>corrected transcript</span></>}
         <button type="button" className={cn(MINI, 'ml-auto')} aria-expanded={playing} onClick={() => setPlaying((p) => !p)}>

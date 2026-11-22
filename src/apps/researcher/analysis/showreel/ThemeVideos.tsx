@@ -6,6 +6,7 @@ import { cn } from '@/components/cn'
 import { SideDrawer } from '@/components/SideDrawer'
 import { Switch } from '@/components/Switch'
 import { useToast } from '@/components/Toast'
+import { reportPackOf } from '@/mock/reportPacks'
 import { autoPick, BRIEF_RANGE, clipLength, MAX_CLIPS, MIN_CLIPS, rank, scoreOf, summaryOf, type Clip, type Stimulus, type Strength } from '@/mock/showreel'
 import { screenById, studyPath } from '@/routes/screens'
 import { mmss, plural } from '@/state/reportLogic'
@@ -267,7 +268,7 @@ export function ThemeVideos({ studyId, doc, basis, show, themes, selectedId, onS
             {regen && !cantRegenerate(show, t.id, t.clips) && (
               <div className="flex flex-col gap-2 rounded-sm border border-mist bg-paper p-3" data-testid="regen-panel">
                 <label className="text-sm font-medium" htmlFor="regen-text">Tell the system what to change</label>
-                <textarea id="regen-text" rows={2} value={instruction} onChange={(e) => setInstruction(e.target.value)} placeholder="For example: More from dog owners, or Shorter" className="w-full rounded-sm border border-mist-strong bg-surface px-2 py-1 text-sm" />
+                <textarea id="regen-text" rows={2} value={instruction} onChange={(e) => setInstruction(e.target.value)} placeholder={`For example: ${reportPackOf(studyId)?.regenerateExample ?? 'Shorter'}`} className="w-full rounded-sm border border-mist-strong bg-surface px-2 py-1 text-sm" />
                 <div className="flex items-center gap-3">
                   <Button
                     size="sm"

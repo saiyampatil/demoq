@@ -4,6 +4,7 @@ import { Banner } from '@/components/Banner'
 import { Button } from '@/components/Button'
 import { cn } from '@/components/cn'
 import { EmptyState, ErrorState, LoadingState } from '@/components/States'
+import { hasAnalysis } from '@/mock/studyAnalysis'
 import { screenById, studyPath } from '@/routes/screens'
 import { signalsReadiness } from '@/state/analysisProgress'
 import { CODEBOOK_STUDY, updateCodebook } from '@/state/codebook'
@@ -62,9 +63,9 @@ export function SignalsTensions() {
         {header}
         <div className="rounded-md border border-dashed border-mist-strong bg-surface">
           <EmptyState
-            title={studyId === CODEBOOK_STUDY ? 'Accept a code first' : 'No analysis for this study yet'}
-            description={studyId === CODEBOOK_STUDY ? 'Signals are measured on the codes you’ve accepted in the codebook.' : 'Results Analysis is built on Pet Food Subscription Churn in this prototype.'}
-            action={<Button to={studyPath(CODEBOOK_STUDY, screenById.A1)}>Go to the codebook</Button>}
+            title={hasAnalysis(studyId) ? 'Accept a code first' : 'No analysis for this study yet'}
+            description={hasAnalysis(studyId) ? 'Signals are measured on the codes you’ve accepted in the codebook.' : 'Results Analysis is built on the finished studies in this prototype: Pet Food Subscription Churn and Ice Cream Flavour Concept Test.'}
+            action={<Button to={studyPath(hasAnalysis(studyId) ? studyId : CODEBOOK_STUDY, screenById.A1)}>Go to the codebook</Button>}
           />
         </div>
       </div>

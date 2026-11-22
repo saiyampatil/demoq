@@ -53,7 +53,7 @@ try {
     }
     for (const m of sg.MOMENTS) {
       const seen = new Map()
-      for (const p of sg.momentPoints(m.id)) {
+      for (const p of sg.momentPoints(m.id, 'pet-food-churn')) {
         out.pts++
         if (p.atSec % 30 === 0) out.clock++
         if (seen.has(p.atSec)) out.dupMoment.push(m.id + ':' + p.participantId + '=' + seen.get(p.atSec)); seen.set(p.atSec, p.participantId)
@@ -179,7 +179,7 @@ try {
     const sg = await window.__mod('/src/mock/signals'), ss = await window.__mod('/src/mock/sessions')
     const excluded = ss.PET_SEED_SESSIONS.filter((s) => s.review?.status === 'Excluded').map((s) => s.participant)
     const seen = new Set()
-    for (const m of sg.MOMENTS) for (const p of sg.momentPoints(m.id)) seen.add(p.participantId)
+    for (const m of sg.MOMENTS) for (const p of sg.momentPoints(m.id, 'pet-food-churn')) seen.add(p.participantId)
     const flagged = ss.PET_SEED_SESSIONS.filter((s) => s.review?.status === 'Accepted' && s.review.flags.length).map((s) => s.participant)
     return { excluded, leaked: excluded.filter((p) => seen.has(p)), flagged, flaggedIn: flagged.filter((p) => seen.has(p)), people: seen.size }
   })()`)

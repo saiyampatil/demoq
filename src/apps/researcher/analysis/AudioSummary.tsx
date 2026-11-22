@@ -5,6 +5,8 @@ import { Button } from '@/components/Button'
 import { cn } from '@/components/cn'
 import { EmptyState, ErrorState, LoadingState } from '@/components/States'
 import { currentUser } from '@/mock/people'
+import { hasAnalysis } from '@/mock/studyAnalysis'
+import { reportPackOf } from '@/mock/reportPacks'
 import { screenById, studyPath } from '@/routes/screens'
 import { CODEBOOK_STUDY, codeThemes, themeCodes } from '@/state/codebook'
 import { buildDraft, chapterTitle, chaptersOf, clock, focusPlan, segmentLabel, staleOf, timeline, type Ctx, type Line } from '@/state/audioScript'
@@ -182,7 +184,7 @@ export function AudioSummaryPage() {
       <div className="flex flex-col gap-6">
         {header}
         <div className="rounded-md border border-dashed border-mist-strong bg-surface">
-          <EmptyState title="No approved themes yet" description="The summary is written from themes you approved, in sessions accepted in Review." action={<Button to={studyPath(CODEBOOK_STUDY, screenById.A1)}>Go to the codebook</Button>} />
+          <EmptyState title="No approved themes yet" description="The summary is written from themes you approved, in sessions accepted in Review." action={<Button to={studyPath(hasAnalysis(studyId) ? studyId : CODEBOOK_STUDY, screenById.A1)}>Go to the codebook</Button>} />
         </div>
       </div>
     )
@@ -321,7 +323,7 @@ export function AudioSummaryPage() {
           </label>
           <label className="flex min-w-48 flex-1 items-center gap-1.5 text-sm text-graphite">
             Focus
-            <input type="text" value={focus} onChange={(e) => { setFocus(e.target.value); setFocusMsg(undefined) }} placeholder="For example: start with price creep" aria-label="Focus" data-testid="focus" className="h-8 min-w-0 flex-1 rounded-sm border border-mist-strong bg-surface px-2 text-sm text-ink" />
+            <input type="text" value={focus} onChange={(e) => { setFocus(e.target.value); setFocusMsg(undefined) }} placeholder={`For example: ${reportPackOf(studyId)?.focusExample ?? 'start with the biggest theme'}`} aria-label="Focus" data-testid="focus" className="h-8 min-w-0 flex-1 rounded-sm border border-mist-strong bg-surface px-2 text-sm text-ink" />
           </label>
           <Button size="sm" data-testid="rebuild" onClick={doRebuild}>Rebuild draft</Button>
           <div className="relative">

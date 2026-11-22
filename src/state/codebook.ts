@@ -4,27 +4,25 @@
 import { useSyncExternalStore } from 'react'
 import {
   AI_CODER,
-  CODE_QUESTIONS,
-  CODED_AT,
+  CODEBOOK_PACKS,
   CODEBOOK_STUDY,
+  CODE_QUESTIONS,
   EXCERPTS,
-  SEED_CODES,
-  SEED_LOG,
-  SEED_TENSIONS,
-  SEED_THEMES,
-  THEME_SUGGESTIONS,
   petOf,
+  questionsOf,
+  type CodeQuestion,
   type CodeStatus,
   type Excerpt,
   type LogEntry,
-  type Pet,
   type SeedCode,
   type SeedTensionDecision,
 } from '@/mock/codebook'
+import { segmentsOf } from '@/mock/studyAnalysis'
 import type { Emotion } from '@/mock/emotion'
 import { now, uid } from './brief'
 
 export type { CodeStatus, Excerpt, LogEntry, Pet } from '@/mock/codebook'
+export { hasAnalysis } from '@/mock/studyAnalysis'
 
 export type Code = SeedCode
 /** A theme made from a tension (docs/ANALYSIS_PLAN.md). It groups codes that are also in other themes, and the codes stay where they are. */
@@ -93,19 +91,20 @@ function save() {
 }
 
 export function seedCodebook(studyId: string, acceptedSessions: string[]): CodebookDoc | undefined {
-  if (studyId !== CODEBOOK_STUDY) return undefined
+  const pack = CODEBOOK_PACKS[studyId]
+  if (!pack) return undefined
   return {
     studyId,
-    codedAt: CODED_AT,
+    codedAt: pack.codedAt,
     builtOn: acceptedSessions,
-    codes: structuredClone(SEED_CODES),
-    themes: structuredClone(SEED_THEMES),
+    codes: structuredClone(pack.codes),
+    themes: structuredClone(pack.themes),
     pending: {},
     skipped: {},
     dismissedSuggestions: [],
-    tensions: structuredClone(SEED_TENSIONS),
+    tensions: structuredClone(pack.tensions),
     signalPicks: {},
-    log: structuredClone(SEED_LOG),
+    log: structuredClone(pack.log),
   }
 }
 
@@ -152,7 +151,10 @@ export function useCodebook(studyId: string): CodebookDoc | undefined {
 
 // ─── reading ────────────────────────────────────────────────────────────────
 
-export const questionOf = (id: string) => CODE_QUESTIONS.find((q) => q.id === id)!
+/** The guide questions of a study, in order. */
+export const questionsOfStudy = (studyId: string): CodeQuestion[] => (CODEBOOK_PACKS[studyId] ? questionsOf(studyId) : [])
+/** A guide question by ID. Question IDs are unique across studies. */
+export const questionOf = (id: string): CodeQuestion => Object.values(CODEBOOK_PACKS).flatMap((p) => p.questions).find((q) => q.id === id)!
 export const excerpt = (id: string): Excerpt => EXCERPTS[id]
 
 export type Confidence = 'High' | 'Medium' | 'Low'
@@ -182,9 +184,11 @@ export function askedOf(code: Pick<Code, 'questionId' | 'isNew'>, basis: Basis):
 
 export const peopleOf = (code: Code, basis: Basis) => new Set(liveExcerpts(code, basis).map((e) => e.participantId))
 
-export function petSplit(people: Set<string>): Record<Pet, number> {
-  const out: Record<Pet, number> = { Dog: 0, Cat: 0 }
-  people.forEach((p) => out[petOf(p)]++)
+/** How many of these people are in each of the study's two groups, in the order they read on screen. */
+export function segmentSplit(studyId: string, people: Set<string>): { first: number; second: number } {
+  const { first } = segmentsOf(studyId)
+  const out = { first: 0, second: 0 }
+  people.forEach((p) => (petOf(p) === first.key ? out.first++ : out.second++))
   return out
 }
 
@@ -238,7 +242,7 @@ export function unthemed(doc: CodebookDoc): Code[] {
 /** AI theme drafts that still make sense: at least two of their codes are accepted and not yet in a theme. */
 export function openSuggestions(doc: CodebookDoc) {
   const free = new Set(unthemed(doc).map((c) => c.id))
-  return THEME_SUGGESTIONS.filter((s) => !doc.dismissedSuggestions.includes(s.id))
+  return (CODEBOOK_PACKS[doc.studyId]?.themeSuggestions ?? []).filter((s) => !doc.dismissedSuggestions.includes(s.id))
     .map((s) => ({ ...s, codeIds: s.codeIds.filter((id) => free.has(id)) }))
     .filter((s) => s.codeIds.length >= 2)
 }
@@ -411,7 +415,7 @@ export function deleteTheme(d: CodebookDoc, id: string, { by }: Who, why: string
 
 /** The decisions on each tension. A decision saved as "Turned into a theme", before the rename, reads as "Added as a tension theme". */
 export const tensionDecisions = (d: CodebookDoc): Record<string, TensionDecision> =>
-  Object.fromEntries(Object.entries(d.tensions ?? SEED_TENSIONS).map(([id, v]) => [id, (v.status as string) === 'Turned into a theme' ? { ...v, status: 'Added as a tension theme' as const } : v]))
+  Object.fromEntries(Object.entries(d.tensions ?? CODEBOOK_PACKS[d.studyId]?.tensions ?? {}).map(([id, v]) => [id, (v.status as string) === 'Turned into a theme' ? { ...v, status: 'Added as a tension theme' as const } : v]))
 
 const tensionEntry = (by: string, t: { id: string; title: string }, action: string, detail?: string, why?: string): LogEntry => ({
   id: uid('cl'),
@@ -539,4 +543,5 @@ export function addIdeaCode(d: CodebookDoc, id: string, input: IdeaCode, { by }:
   return log(out, entry(by, code, 'Accepted', `Added from Explore: ${input.quotes.length} ${input.quotes.length === 1 ? 'quote' : 'quotes'} from ${people} ${people === 1 ? 'person' : 'people'}`, `Typed idea: “${input.idea}”`))
 }
 
+/** Pet Food's guide questions, kept for callers that predate a second study. Use questionsOfStudy for a study. */
 export { AI_CODER, CODE_QUESTIONS, CODEBOOK_STUDY }

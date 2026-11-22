@@ -3,7 +3,7 @@
 // (and logged). Ignores live in the page and are never saved. Nothing here writes to the codebook, the report or a transcript.
 import { useSyncExternalStore } from 'react'
 import { bandOf, WORDCLOUD, type Band } from '@/config/wordcloud'
-import { petOf } from '@/mock/codebook'
+import { segmentWord } from '@/mock/studyAnalysis'
 import { detailsOf, type Details } from '@/mock/participantDetails'
 import { findReviewRecord, transcriptFor } from '@/mock/review'
 import { now, uid } from './brief'
@@ -259,4 +259,8 @@ export function searchTranscripts(basis: Basis, query: string): Hit[] {
   return out
 }
 
-export const segmentOf = (participantId: string) => `${petOf(participantId)} owner`
+/** What kind of person said it, in words: "cat owner", "parent". */
+export const segmentOf = (participantId: string) => {
+  const w = segmentWord(participantId)
+  return w.charAt(0).toUpperCase() + w.slice(1)
+}

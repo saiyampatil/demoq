@@ -6,10 +6,11 @@ import { EmptyState, ErrorState, LoadingState } from '@/components/States'
 import { StatusChip } from '@/components/StatusChip'
 import { WizardFooter } from '@/components/WizardFooter'
 import { PageHeader } from '../../shared/PageHeader'
+import { hasAnalysis } from '@/mock/studyAnalysis'
 import { screenById, studyPath } from '@/routes/screens'
 import { CODEBOOK_STUDY, dismissTension, updateCodebook } from '@/state/codebook'
 import { uid } from '@/state/brief'
-import { FINDING_DRAFTS, QUESTION_IDS, type SeedSentence } from '@/mock/report'
+import { findingDraftsOf, questionIdsOf, type SeedSentence } from '@/mock/report'
 import { execDraft } from '@/state/execSummary'
 import {
   REPORT_USER,
@@ -73,7 +74,7 @@ export function Report() {
   // First visit: make the report from the pre-written AI drafts, with today's numbers filled in. In an effect, never in render.
   useEffect(() => {
     if (ready && doc && ctx && !report) {
-      ensureReport(studyId, doc.builtOn, QUESTION_IDS, { exec: rendered(execDraft(ctx)), findings: Object.fromEntries(Object.entries(FINDING_DRAFTS).map(([k, v]) => [k, rendered(v)])) })
+      ensureReport(studyId, doc.builtOn, questionIdsOf(studyId), { exec: rendered(execDraft(ctx)), findings: Object.fromEntries(Object.entries(findingDraftsOf(studyId)).map(([k, v]) => [k, rendered(v)])) })
     }
   }, [ready, doc, ctx, report, studyId, rendered])
 
@@ -105,7 +106,7 @@ export function Report() {
 
   const act: Act = useMemo(() => {
     const by = REPORT_USER
-    const seedFor = (t: Target) => rendered(t === 'exec' ? (ctx ? execDraft(ctx) : []) : (FINDING_DRAFTS[t.questionId] ?? []))
+    const seedFor = (t: Target) => rendered(t === 'exec' ? (ctx ? execDraft(ctx) : []) : (findingDraftsOf(studyId)[t.questionId] ?? []))
     return {
       approve: (id, opts) => update((r) => approveSentence(r, id, { by }, opts)),
       withdraw: (id) => update((r) => withdrawApproval(r, id, { by })),
@@ -177,9 +178,9 @@ export function Report() {
         {header}
         <div className="rounded-md border border-dashed border-mist-strong bg-surface">
           <EmptyState
-            title={studyId === CODEBOOK_STUDY ? 'No accepted interviews yet' : 'No analysis for this study yet'}
-            description={studyId === CODEBOOK_STUDY ? 'Findings are written only from sessions accepted in Review, after the codebook is built.' : 'Results Analysis is built on Pet Food Subscription Churn in this prototype.'}
-            action={<Button to={studyPath(CODEBOOK_STUDY, screenById.A1)}>Go to the codebook</Button>}
+            title={hasAnalysis(studyId) ? 'No accepted interviews yet' : 'No analysis for this study yet'}
+            description={hasAnalysis(studyId) ? 'Findings are written only from sessions accepted in Review, after the codebook is built.' : 'Results Analysis is built on two finished studies in this prototype: Pet Food Subscription Churn and Ice Cream Flavour Concept Test.'}
+            action={<Button to={studyPath(hasAnalysis(studyId) ? studyId : CODEBOOK_STUDY, screenById.A1)}>Go to the codebook</Button>}
           />
         </div>
       </div>

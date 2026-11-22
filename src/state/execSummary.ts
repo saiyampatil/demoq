@@ -1,4 +1,6 @@
 // The AI draft of the executive summary, built from the codebook, the tensions and Review every time. Findings only.
+// Each study has its own plan below (Pet Food: why people cancelled; Ice Cream: which flavour they would buy first), sharing the
+// rules, the evidence-is-thin sentence and the tension sentences.
 // At most six sentences, in this order; a sentence is left out when its data doesn't exist:
 //   1 the main reason people cancelled   2 price against flexibility (or the next reason)   3 what would have kept them
 //   4 people nothing would have kept     5 one for each tension the Researcher ADDED as a tension theme   6 where the evidence is thin
@@ -6,7 +8,9 @@
 // one claim and one "n of N" per sentence (the close-to-even one may carry two), at most 25 words, no percentages, "most" only
 // for more than half, and nothing implied about the people who gave no clear answer.
 import type { SeedSentence } from '@/mock/report'
-import { CODE_QUESTIONS, denominator, peopleOf, tensionDecisions, type Basis, type Code, type CodebookDoc } from './codebook'
+import { tensionNarrationOf } from '@/mock/reportPacks'
+import { denominator, peopleOf, tensionDecisions, type Basis, type Code, type CodebookDoc } from './codebook'
+import { questionsOf } from '@/mock/codebook'
 import { strengthFor, type Ctx } from './reportLogic'
 import { tensionsOf } from './signals'
 import type { Citation } from './report'
@@ -47,30 +51,53 @@ function leader(list: { c: Code; n: number }[], of: number, kind: 'reason' | 'id
 /** Sentence for a tension the Researcher added as a theme, one claim, one figure. Undefined when there is nothing true to say. */
 function tensionSentence(id: string, sides: { n: number; of: number }[]): string | undefined {
   const s = (i: number) => `{side:${id}:${i}:n} of {side:${id}:${i}:of}`
-  switch (id) {
-    case 'tn-pause-survey':
-      return `${s(1)} people who picked pause answered “probably” or “definitely would not” in the locked survey.`
-    case 'tn-flex-behaviour':
-      return `${s(1)} people who said flexibility matters more than price showed marked hesitation as they said it.`
-    case 'tn-pause-portion-face':
-      return `${s(1)} people on video who picked pause showed delight or interest at first sight of Concept C.`
-    case 'tn-pause-concept':
-      return `${s(1)} people who chose pause showed marked hesitation at first sight of Concept A.`
-    case 'tn-vet-survey':
-      return `${s(1)} people who said a vet’s advice ended it named something else as their one biggest reason in the survey.`
-    case 'tn-pet-segments': {
-      const [cat, , dog] = sides
-      const c = cat.of ? cat.n / cat.of : 0
-      const d = dog.of ? dog.n / dog.of : 0
-      if (c === d) return undefined
-      return c > d ? `${s(0)} cat owners said flexibility matters more than price, a larger share than dog owners.` : `${s(2)} dog owners said flexibility matters more than price, a larger share than cat owners.`
-    }
-    default:
-      return undefined
-  }
+  return tensionNarrationOf(id)?.exec?.(s, sides)
 }
 
-export function execDraft({ doc, basis }: Ctx): SeedSentence[] {
+/** The "evidence is thin" sentence: the guide questions with too few people, or that some people were not asked. */
+function thinSentence(doc: CodebookDoc, basis: Basis): SeedSentence | undefined {
+  const questions = questionsOf(doc.studyId)
+  const weak = questions.filter((q) => {
+    const codes = acceptedUnder(doc, q.id)
+    const n = new Set(codes.flatMap((c) => [...peopleOf(c, basis)])).size
+    const notAsked = q.skipped.filter((s) => basis.participants.has(s.participantId)).length
+    return strengthFor(n, notAsked > 0) !== 'Strong'
+  })
+  if (!weak.length) return undefined
+  const head = `Evidence is thin on ${weak.length} of ${questions.length} guide questions:`
+  let names = weak.map((q) => `“${q.label}”`)
+  // Keep it to 25 words: name what fits, then say how many more.
+  let more = 0
+  const build = () => `${head} ${names.join(', ')}${more ? ` and ${more} more` : ''}.`
+  while (names.length > 1 && words(build()) > MAX_WORDS) {
+    names = names.slice(0, -1)
+    more = weak.length - names.length
+  }
+  return { id: 'exec-thin', template: build(), cites: weak.flatMap((q) => acceptedUnder(doc, q.id).slice(0, 1).map((c) => code(c.id))) }
+}
+
+/** One sentence for each tension the Researcher added as a tension theme, as many as fit. Suggested, dismissed or unreviewed ones never appear. */
+function tensionSentences({ doc, basis }: Ctx, room: number): SeedSentence[] {
+  const decisions = tensionDecisions(doc)
+  return tensionsOf(doc, basis)
+    .filter((t) => !t.unavailable && decisions[t.id]?.status === 'Added as a tension theme')
+    .flatMap((t) => {
+      const text = tensionSentence(t.id, t.sides)
+      return text ? [{ t, text }] : []
+    })
+    .slice(0, Math.max(0, room))
+    .map(({ t, text }): SeedSentence => ({ id: `exec-tn-${t.id}`, template: text, cites: [{ kind: 'tension', id: t.id }, ...t.codeIds.map(code)] }))
+}
+
+/** The summary for a study. A study with no plan has no summary. */
+export function execDraft(ctx: Ctx): SeedSentence[] {
+  const plan = PLANS[ctx.doc.studyId]
+  return plan ? plan(ctx) : []
+}
+
+// ─── Pet Food Subscription Churn ────────────────────────────────────────────
+
+function petExecDraft({ doc, basis }: Ctx): SeedSentence[] {
   const N = basis.participants.size
   const out: SeedSentence[] = []
   const add = (id: string, template: string, cites: Citation[]) => out.push({ id, template, cites })
@@ -107,37 +134,56 @@ export function execDraft({ doc, basis }: Ctx): SeedSentence[] {
   if (nothing && people(nothing, basis) > 0) add('exec-nothing', 'For {n:c-nothing} of {of:c-nothing} people, nothing the company could have done would have kept them.', [code('c-nothing')])
 
   // 6 is last, so work out whether it exists first and keep a place for it.
-  const weak = CODE_QUESTIONS.filter((q) => {
-    const codes = acceptedUnder(doc, q.id)
-    const n = new Set(codes.flatMap((c) => [...peopleOf(c, basis)])).size
-    const notAsked = q.skipped.filter((s) => basis.participants.has(s.participantId)).length
-    return strengthFor(n, notAsked > 0) !== 'Strong'
-  })
-  let thin: SeedSentence | undefined
-  if (weak.length) {
-    const head = `Evidence is thin on ${weak.length} of ${CODE_QUESTIONS.length} guide questions:`
-    let names = weak.map((q) => `“${q.label}”`)
-    // Keep it to 25 words: name what fits, then say how many more.
-    let more = 0
-    const build = () => `${head} ${names.join(', ')}${more ? ` and ${more} more` : ''}.`
-    while (names.length > 1 && words(build()) > MAX_WORDS) {
-      names = names.slice(0, -1)
-      more = weak.length - names.length
-    }
-    thin = { id: 'exec-thin', template: build(), cites: weak.flatMap((q) => acceptedUnder(doc, q.id).slice(0, 1).map((c) => code(c.id))) }
-  }
+  const thin = thinSentence(doc, basis)
 
   // 5. One sentence for each tension the Researcher added as a tension theme. Suggested, dismissed or unreviewed ones never appear.
-  const decisions = tensionDecisions(doc)
-  const room = Math.max(0, MAX_SENTENCES - out.length - (thin ? 1 : 0))
-  tensionsOf(doc, basis)
-    .filter((t) => !t.unavailable && decisions[t.id]?.status === 'Added as a tension theme')
-    .flatMap((t) => {
-      const text = tensionSentence(t.id, t.sides)
-      return text ? [{ t, text }] : []
-    })
-    .slice(0, room)
-    .forEach(({ t, text }) => add(`exec-tn-${t.id}`, text, [{ kind: 'tension', id: t.id }, ...t.codeIds.map(code)]))
+  out.push(...tensionSentences({ doc, basis }, MAX_SENTENCES - out.length - (thin ? 1 : 0)))
   if (thin) out.push(thin)
   return out.slice(0, MAX_SENTENCES)
+}
+
+// ─── Ice Cream Flavour Concept Test ─────────────────────────────────────────
+//   1 the flavour people would buy first   2 the one after it   3 going back to the usual flavour   4 what they expect to pay
+//   5 one for each tension the Researcher added as a tension theme   6 where the evidence is thin
+
+/** "Would buy Salted Caramel Swirl first" to "Salted Caramel Swirl". Undefined if the code is named another way. */
+const flavourOf = (name: string) => name.match(/^Would buy (.+) first$/)?.[1]
+
+function iceExecDraft({ doc, basis }: Ctx): SeedSentence[] {
+  const out: SeedSentence[] = []
+  const add = (id: string, template: string, cites: Citation[]) => out.push({ id, template, cites })
+  // A share worded the way the "most" rule allows: "Most" only for more than half of the people who were asked.
+  const share = (c: Code, most: string, some: string) => (people(c, basis) * 2 > denominator(c, basis) ? most : some)
+
+  // 1 and 2. The flavour picked first most often, and the next one.
+  const picks = ranked(acceptedUnder(doc, 'iq-pick'), basis)
+  const top = picks[0]
+  if (top) {
+    const tied = picks.filter((x) => x.n === top.n)
+    const tok = (x: { c: Code }) => `{n:${x.c.id}} of {of:${x.c.id}}`
+    const name = (x: { c: Code }) => flavourOf(x.c.name) ?? `“${x.c.name}”`
+    if (tied.length > 1) add('exec-pick', `${name(tied[0])} and ${name(tied[1])} were tied as the flavour people would buy first, each with ${tok(tied[0])} people.`, tied.slice(0, 2).map((x) => code(x.c.id)))
+    else if (top.n * 2 > denominator(top.c, basis)) add('exec-pick', `Most people would buy ${name(top)} first: ${tok(top)}.`, [code(top.c.id)])
+    else add('exec-pick', `${name(top)} was picked first by more people than any other flavour: ${tok(top)}.`, [code(top.c.id)])
+    const next = picks.find((x) => x.n < top.n)
+    if (next && tied.length === 1) add('exec-next', `${name(next)} came next: ${tok(next)} people would buy it first.`, [code(next.c.id)])
+  }
+
+  // 3. Going back to the usual flavour: what the client's own sales data could not explain.
+  const usual = accepted(doc, 'ic-stick-usual')
+  if (usual && people(usual, basis) > 0) add('exec-usual', `${share(usual, 'Most people', '{n:ic-stick-usual} of {of:ic-stick-usual} people')} said they go back to their usual flavour after trying something new${share(usual, ': {n:ic-stick-usual} of {of:ic-stick-usual}.', '.')}`, [code('ic-stick-usual')])
+
+  // 4. What they expect to pay.
+  const pay = accepted(doc, 'ic-pay-five-six')
+  if (pay && people(pay, basis) > 0) add('exec-price', `${share(pay, 'Most people who were asked', '{n:ic-pay-five-six} of {of:ic-pay-five-six} people')} expected to pay about five to six dollars for a tub${share(pay, ': {n:ic-pay-five-six} of {of:ic-pay-five-six}.', '.')}`, [code('ic-pay-five-six')])
+
+  const thin = thinSentence(doc, basis)
+  out.push(...tensionSentences({ doc, basis }, MAX_SENTENCES - out.length - (thin ? 1 : 0)))
+  if (thin) out.push(thin)
+  return out.slice(0, MAX_SENTENCES)
+}
+
+const PLANS: Record<string, (ctx: Ctx) => SeedSentence[]> = {
+  'pet-food-churn': petExecDraft,
+  'ice-cream-flavours': iceExecDraft,
 }

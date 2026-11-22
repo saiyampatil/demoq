@@ -10,9 +10,10 @@ import { FitChip } from './SignalBits'
 import { THEME_MAP } from '@/config/themeMap'
 import { layoutBubbles, overlapOf } from '@/lib/themeLayout'
 import { screenById, studyPath } from '@/routes/screens'
+import { hasAnalysis } from '@/mock/studyAnalysis'
 import { CODEBOOK_STUDY } from '@/state/codebook'
 import { plural } from '@/state/reportLogic'
-import { accessibleName, bandWords, bubblesOf, directionalNote, peopleSets, segmentNoun, segmentSize, SEGMENTS, sharedLabel, sharing, summaryOf, tensionLines, tourCaption, tourEnd, tourOrder, verdictWords, type Bubble, type Segment } from '@/state/themeMap'
+import { accessibleName, bandWords, bubblesOf, directionalNote, peopleSets, segmentNoun, segmentSize, segmentOptions, sharedLabel, sharing, summaryOf, tensionLines, tourCaption, tourEnd, tourOrder, verdictWords, type Bubble, type Segment } from '@/state/themeMap'
 import { AnalysisStepper } from './AnalysisStepper'
 import { Panel } from './thememap/Panel'
 import { useAnalysis } from './useAnalysis'
@@ -84,6 +85,8 @@ export function ThemeMapPage() {
   const card = useRef<HTMLElement>(null)
   const excluded = review.filter((r) => r.status === 'Excluded').length
 
+  // A segment of one study means nothing in another.
+  useEffect(() => setSeg('all'), [studyId])
   useEffect(() => {
     const t = setTimeout(() => setLoaded(true), 450)
     return () => clearTimeout(t)
@@ -164,7 +167,7 @@ export function ThemeMapPage() {
       <div className="flex flex-col gap-6">
         {header}
         <div className="rounded-md border border-dashed border-mist-strong bg-surface">
-          <EmptyState title="No accepted themes yet" description="The map is made of themes you approved, from sessions accepted in Review." action={<Button to={studyPath(CODEBOOK_STUDY, screenById.A1)}>Go to the codebook</Button>} />
+          <EmptyState title="No accepted themes yet" description="The map is made of themes you approved, from sessions accepted in Review." action={<Button to={studyPath(hasAnalysis(studyId) ? studyId : CODEBOOK_STUDY, screenById.A1)}>Go to the codebook</Button>} />
         </div>
       </div>
     )
@@ -400,7 +403,7 @@ export function ThemeMapPage() {
       </p>
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2" data-testid="toolbar">
-        <Segmented label="Show" testid="segment" value={seg} options={SEGMENTS} onChange={setSeg} />
+        <Segmented label="Show" testid="segment" value={seg} options={segmentOptions(studyId)} onChange={setSeg} />
         <span className="flex items-center gap-2 text-sm text-graphite">
           Colour
           <Segmented label="Colour" testid="mode" value={mode} options={[['strength', 'Reaction strength'], ['verdict', 'Words vs delivery']]} onChange={setMode} />

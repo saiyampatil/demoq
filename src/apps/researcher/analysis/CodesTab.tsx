@@ -6,7 +6,7 @@ import { SearchIcon } from '@/components/icons'
 import { EmptyState } from '@/components/States'
 import { StatusGlyph } from '@/components/StatusChip'
 import { statusFamily } from '@/components/status'
-import { band, CODE_QUESTIONS, denominator, excerpt, mergedFrom, peopleOf, type Code, type CodeStatus } from '@/state/codebook'
+import { band, questionsOfStudy, denominator, excerpt, mergedFrom, peopleOf, type Code, type CodeStatus } from '@/state/codebook'
 import { BulkAcceptDialog } from './CodeDialogs'
 import { CodeDetail } from './CodeDetail'
 import { GroupSection, TableHead, rowButtonClass } from './codeTable'
@@ -50,7 +50,7 @@ export function CodesTab({ ctx, status, setStatus, picked, setPicked }: { ctx: C
       (!low || band(c.confidence) === 'Low') &&
       (!q || c.name.toLowerCase().includes(q) || c.definition.toLowerCase().includes(q) || c.excerpts.some((x) => excerpt(x).text.toLowerCase().includes(q)))
     const byPeople = (a: Code, b: Code) => (people.get(b.id) ?? 0) - (people.get(a.id) ?? 0) || a.name.localeCompare(b.name)
-    const out: Group[] = CODE_QUESTIONS.map((qn) => {
+    const out: Group[] = questionsOfStudy(doc.studyId).map((qn) => {
       const n = denominator({ questionId: qn.id, isNew: false }, basis)
       return {
         id: qn.id,
@@ -62,7 +62,7 @@ export function CodesTab({ ctx, status, setStatus, picked, setPicked }: { ctx: C
     })
     out.push({ id: 'new', label: 'New codes, not asked about in the guide', codes: doc.codes.filter((c) => c.isNew && match(c)).sort(byPeople) })
     return out.filter((g) => g.codes.length)
-  }, [doc.codes, status, kind, low, query, people, basis])
+  }, [doc.codes, doc.studyId, status, kind, low, query, people, basis])
 
   const flat = groups.flatMap((g) => g.codes)
   const selected = doc.codes.find((c) => c.id === picked && flat.some((x) => x.id === c.id)) ?? flat[0]

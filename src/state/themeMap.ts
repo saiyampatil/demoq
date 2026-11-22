@@ -4,6 +4,7 @@
 import { VERDICT_LABEL } from '@/config/delivery'
 import { strengthBandOf, THEME_MAP, type StrengthBand } from '@/config/themeMap'
 import { petOf } from '@/mock/codebook'
+import { analysedStudies, segmentsOf } from '@/mock/studyAnalysis'
 import { excerptPoint, type Point } from '@/mock/signals'
 import { faceOf } from './emotion'
 import type { FitPattern, FitSplit } from './emotion'
@@ -11,9 +12,23 @@ import { liveExcerpts, peopleOf, tensionDecisions, themeCodes, themePeople, unth
 import { numbersOf } from './reportLogic'
 import { codeSignals, headlineOf, rollupPoints, tensionsOf, themeSignals, type Rollup } from './signals'
 
-export type Segment = 'all' | 'Cat' | 'Dog'
-export const SEGMENTS: [Segment, string][] = [['all', 'Everyone'], ['Cat', 'Cat owners'], ['Dog', 'Dog owners']]
-export const segmentNoun = (s: Segment) => (s === 'Cat' ? 'cat owners' : s === 'Dog' ? 'dog owners' : 'people')
+/** 'all', or the key of one of the study's two segments (Pet Food: Cat, Dog. Ice Cream: Parent, Adult). */
+export type Segment = string
+/** The choices of the Show control: everyone, then the study's two groups in the order they read on screen. */
+export const segmentOptions = (studyId: string): [Segment, string][] => {
+  const { first, second } = segmentsOf(studyId)
+  return [['all', 'Everyone'], [first.key, first.label], [second.key, second.label]]
+}
+/** A group in a sentence: "cat owners", "parents", or "people" for everyone. Keys are unique across studies, so the key is enough. */
+export const segmentNoun = (s: Segment) => {
+  if (s === 'all') return 'people'
+  for (const id of analysedStudies()) {
+    const c = segmentsOf(id)
+    if (c.first.key === s) return c.first.noun
+    if (c.second.key === s) return c.second.noun
+  }
+  return 'people'
+}
 export const NONE_KEY = 'none'
 
 export type Ring = 'solid' | 'dashed' | 'dotted' | 'none'
@@ -38,7 +53,8 @@ export type Bubble = {
   ring: Ring
 }
 
-export const segmentOf = (participantId: string): 'Cat' | 'Dog' => petOf(participantId)
+export const segmentOf = (participantId: string): string => petOf(participantId)
+export { segmentLabelOf } from './signals'
 const inSegment = (seg: Segment, p: string) => seg === 'all' || segmentOf(p) === seg
 export const segmentSize = (basis: Basis, seg: Segment) => [...basis.participants].filter((p) => inSegment(seg, p)).length
 /** "Directional. Fewer than 5 people." for a segment that small, else nothing. */

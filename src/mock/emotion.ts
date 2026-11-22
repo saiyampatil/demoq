@@ -1,4 +1,4 @@
-// Emotion readings for Pet Food Subscription Churn: what PulseAI would read from the face (video) and the voice (audio)
+// Emotion readings: what PulseAI would read from the face (video) and the voice (audio)
 // at each coded quote and each key moment. Everything is simulated and deterministic: the same moment always gives the
 // same reading. The concept reactions are written by hand so the study tells one coherent story (docs/DECISIONS.md):
 //   Concept A (pause): surprise and doubt. Concept B (recipe swap): confusion for some, interest for others.
@@ -9,7 +9,9 @@
 
 import type { Band } from './signals'
 import { r1, seeded } from './seed'
-import { PET_SEED_SESSIONS } from './sessions'
+import { STUDY_SEEDS } from './sessions'
+import { addConceptFaces, CONCEPT_FACES, QUOTE_FACES, STANCE, VOICE_OVERRIDES, type Set2 } from './emotionKit'
+import './iceCream/emotion'
 
 // ─── the vocabulary ─────────────────────────────────────────────────────────
 
@@ -91,7 +93,7 @@ export type VoiceReading = {
 
 // ─── who has video ──────────────────────────────────────────────────────────
 
-const AUDIO_ONLY = new Set(PET_SEED_SESSIONS.filter((s) => s.media === 'Audio only').map((s) => s.participant))
+const AUDIO_ONLY = new Set(Object.values(STUDY_SEEDS).flatMap((seeds) => seeds.filter((s) => s.media === 'Audio only').map((s) => s.participant)))
 export const hasVideo = (participantId: string) => !AUDIO_ONLY.has(participantId)
 
 // ─── voice: measured against the person's own usual ─────────────────────────
@@ -121,11 +123,11 @@ const TONE_RANGES: Record<Tone, [[number, number], [number, number], [number, nu
 const within = ([lo, hi]: [number, number], x: number) => lo + (hi - lo) * x
 
 /** Hand-set tones at coded quotes, by "codeId:participantId", where the story needs them. */
-const VOICE_OVERRIDES: Record<string, Tone> = {
+Object.assign(VOICE_OVERRIDES, {
   'c-idea-pause:P-3104': 'Animated',
   'c-idea-pause:P-3109': 'Flat',
   'c-idea-pause:P-3121': 'Tense',
-}
+} satisfies Record<string, Tone>)
 /** "x:c-idea-pause-P-3109-2" to "c-idea-pause:P-3109". */
 const quoteRef = (key: string) => {
   const m = key.match(/^x:(.+)-(P-\d+)-\d+$/)
@@ -179,13 +181,11 @@ function reading(key: string, emotion: Emotion, intensity: Intensity): FaceReadi
   }
 }
 
-type Set2 = [Emotion, Intensity]
-
 /**
  * First reactions to each concept, in the first five seconds, for everyone with video. Written by hand.
  * P-3106 never saw Concept B (the card failed), so has no reading there.
  */
-const CONCEPT_FACES: Record<string, Record<string, Set2>> = {
+addConceptFaces({
   'm-concept-a': {
     'P-3101': ['Confusion', 'Medium'],
     'P-3102': ['Interest', 'Medium'],
@@ -239,10 +239,10 @@ const CONCEPT_FACES: Record<string, Record<string, Set2>> = {
     'P-3121': ['Delight', 'High'],
     'P-3122': ['Delight', 'Medium'],
   },
-}
+})
 
 /** Hand-set readings at coded quotes, by "codeId:participantId", where the story needs them. The rest are drawn below. */
-const QUOTE_FACES: Record<string, Set2> = {
+Object.assign(QUOTE_FACES, {
   // Picked pause in words. One looked engaged; two looked unsure as they said it.
   'c-idea-pause:P-3104': ['Interest', 'Medium'],
   'c-idea-pause:P-3109': ['Doubt', 'Medium'],
@@ -261,10 +261,10 @@ const QUOTE_FACES: Record<string, Set2> = {
   'c-flex-first:P-3121': ['Neutral', 'Low'],
   'c-piling-up:P-3104': ['Frustration', 'High'],
   'c-piling-up:P-3121': ['Frustration', 'Medium'],
-}
+} satisfies Record<string, Set2>)
 
 /** What each code's words claim. Codes not listed state a fact or a preference. */
-const STANCE: Record<string, Stance> = {
+Object.assign(STANCE, {
   'c-runout': 'Positive',
   'c-ingredients': 'Positive',
   'c-skip-pause': 'Positive',
@@ -290,7 +290,7 @@ const STANCE: Record<string, Stance> = {
   'c-swap-unclear': 'Negative',
   'c-trust': 'Negative',
   'c-nothing': 'Negative',
-}
+} satisfies Record<string, Stance>)
 export const stanceOf = (codeId: string): Stance => STANCE[codeId] ?? 'Neutral'
 /** What their words said, in the words shown on screen (config/delivery.ts has the definitions). */
 export const STANCE_LABEL: Record<Stance, string> = { Positive: 'Spoke in favour', Negative: 'Spoke against it', Neutral: 'Just described it' }

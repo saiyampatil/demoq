@@ -6,7 +6,7 @@ import { EmptyState, ErrorState, LoadingState } from '@/components/States'
 import { formatStamp } from '@/lib/format'
 import { screenById, studyPath } from '@/routes/screens'
 import { codebookReadiness } from '@/state/analysisProgress'
-import { CODEBOOK_STUDY, counts, rebuild, updateCodebook, type CodebookDoc } from '@/state/codebook'
+import { CODEBOOK_STUDY, counts, hasAnalysis, rebuild, updateCodebook, type CodebookDoc } from '@/state/codebook'
 import { PageHeader } from '../../shared/PageHeader'
 import { ExploreControl } from './explore/ExploreControl'
 import { AnalysisStepper } from './AnalysisStepper'
@@ -62,15 +62,15 @@ export function Codebook() {
     </>
   )
 
-  if (studyId !== CODEBOOK_STUDY || !accepted.length)
+  if (!hasAnalysis(studyId) || !accepted.length)
     return (
       <div className="flex flex-col gap-6">
         {header()}
         <div className="rounded-md border border-dashed border-mist-strong bg-surface">
-          {studyId !== CODEBOOK_STUDY ? (
+          {!hasAnalysis(studyId) ? (
             <EmptyState
               title="No codebook for this study yet"
-              description="The codebook is built from interviews accepted in Review. In this prototype it’s built on Pet Food Subscription Churn."
+              description="The codebook is built from interviews accepted in Review. In this prototype it’s built on Pet Food Subscription Churn and Ice Cream Flavour Concept Test."
               action={<Button to={studyPath(CODEBOOK_STUDY, screenById.A1)}>Open Pet Food Subscription Churn</Button>}
             />
           ) : (

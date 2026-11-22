@@ -4,7 +4,7 @@ import { Button } from '@/components/Button'
 import { Card } from '@/components/Card'
 import { EmptyState } from '@/components/States'
 import { WizardFooter } from '@/components/WizardFooter'
-import { CODEBOOK_STUDY } from '@/state/codebook'
+import { CODEBOOK_STUDY, hasAnalysis } from '@/state/codebook'
 import { screenById, studyPath } from '@/routes/screens'
 import { PageHeader } from '../../shared/PageHeader'
 import { AnalysisStepper } from './AnalysisStepper'
@@ -51,9 +51,9 @@ export function StepPage({
       {!ready ? (
         <div className="rounded-md border border-dashed border-mist-strong bg-surface">
           <EmptyState
-            title={studyId === CODEBOOK_STUDY ? 'Accept a code first' : 'No analysis for this study yet'}
-            description={studyId === CODEBOOK_STUDY ? 'This step works on the codes you’ve accepted in the codebook.' : 'Results Analysis is built on Pet Food Subscription Churn in this prototype.'}
-            action={<Button to={studyPath(studyId === CODEBOOK_STUDY ? studyId : CODEBOOK_STUDY, screenById.A1)}>Go to the codebook</Button>}
+            title={hasAnalysis(studyId) ? 'Accept a code first' : 'No analysis for this study yet'}
+            description={hasAnalysis(studyId) ? 'This step works on the codes you’ve accepted in the codebook.' : 'Results Analysis is built on Pet Food Subscription Churn and Ice Cream Flavour Concept Test in this prototype.'}
+            action={<Button to={studyPath(hasAnalysis(studyId) ? studyId : CODEBOOK_STUDY, screenById.A1)}>Go to the codebook</Button>}
           />
         </div>
       ) : (

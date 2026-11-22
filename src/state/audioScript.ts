@@ -3,8 +3,10 @@
 // kept or changed are stored (state/audioSummary.ts); lengths, start times and out-of-date marks never are.
 import { AUDIO } from '@/config/audioSummary'
 import { clipsOfTheme } from '@/mock/showreel'
-import { petOf } from '@/mock/codebook'
-import { CODE_QUESTIONS, codeThemes, excerpt, liveExcerpts, peopleOf, tensionDecisions, themeCodes, themePeople, type Basis, type Code, type CodebookDoc, type Excerpt, type Theme } from './codebook'
+import { questionsOf } from '@/mock/codebook'
+import { tensionNarrationOf } from '@/mock/reportPacks'
+import { segmentWord } from '@/mock/studyAnalysis'
+import { codeThemes, excerpt, liveExcerpts, peopleOf, tensionDecisions, themeCodes, themePeople, type Basis, type Code, type CodebookDoc, type Excerpt, type Theme } from './codebook'
 import { execDraft } from './execSummary'
 import { checkNarration, figures, spokenWords } from './narration'
 import { numbersOf, renderTemplate, strengthFor } from './reportLogic'
@@ -84,16 +86,17 @@ export const outsideBrief = (sec: number) => sec < AUDIO.range.min * 60 || sec >
 // ─── sources and fingerprints ───────────────────────────────────────────────
 
 const hash = (s: string) => [...s].reduce((n, c) => ((n * 31 + c.charCodeAt(0)) >>> 0), 7).toString(36)
-export const segmentLabel = (participantId: string) => `${petOf(participantId)} owner`
+/** Who said it, as the line's tag reads: "Cat owner", "Parent". */
+export const segmentLabel = (participantId: string) => {
+  const w = segmentWord(participantId)
+  return w.charAt(0).toUpperCase() + w.slice(1)
+}
 const citeOf = (e: Excerpt): Cite => ({ excerptId: e.id, sessionId: e.sessionId, participantId: e.participantId, turnIndex: e.turnIndex, atSec: e.atSec })
 
 /** The tension's numbers as its sentence states them. */
 function tensionNums(t: Tension): { n: number; of: number } | undefined {
-  if (t.id === 'tn-pet-segments') {
-    const [cat, , dog] = t.sides
-    if (!cat || !dog) return undefined
-    return cat.of && dog.of && cat.n / cat.of !== dog.n / dog.of ? (cat.n / cat.of > dog.n / dog.of ? { n: cat.n, of: cat.of } : { n: dog.n, of: dog.of }) : undefined
-  }
+  const nar = tensionNarrationOf(t.id)
+  if (nar?.nums) return nar.nums(t.sides)
   const side = t.sides[1]
   return side ? { n: side.n, of: side.of } : undefined
 }
@@ -211,7 +214,7 @@ export function thinText(ctx: Ctx): string | undefined {
   return s ? renderTemplate(s.template, ctx) : undefined
 }
 const weakQuestionCodes = (ctx: Ctx): Code[] =>
-  CODE_QUESTIONS.flatMap((q) => {
+  questionsOf(ctx.doc.studyId).flatMap((q) => {
     const codes = ctx.doc.codes.filter((c) => c.questionId === q.id && c.status === 'Accepted')
     const n = new Set(codes.flatMap((c) => [...peopleOf(c, ctx.basis)])).size
     const notAsked = q.skipped.filter((s) => ctx.basis.participants.has(s.participantId)).length
@@ -235,22 +238,6 @@ const citesOf = (codes: Code[], ctx: Ctx, max = 3): Cite[] => {
     .slice(0, max)
     .map(citeOf)
 }
-const TENSION_TEXT: Record<string, (n: number, of: number) => string> = {
-  'tn-pause-survey': (n, of) => `${n} of ${of} people who picked pause answered “probably” or “definitely would not” in the locked survey.`,
-  'tn-flex-behaviour': (n, of) => `${n} of ${of} people who said flexibility matters more than price showed marked hesitation as they said it.`,
-  'tn-pause-portion-face': (n, of) => `${n} of ${of} people on video who picked pause read as delight or interest at first sight of Concept C.`,
-  'tn-pause-concept': (n, of) => `${n} of ${of} people who chose pause showed marked hesitation at first sight of Concept A.`,
-  'tn-vet-survey': (n, of) => `${n} of ${of} people who said a vet’s advice ended it named something else as their one biggest reason in the survey.`,
-}
-
-const TENSION_ALTS: Record<string, (n: number, of: number) => string[]> = {
-  'tn-pause-survey': (n, of) => [`In the locked survey, ${n} of ${of} people who picked pause answered “probably” or “definitely would not”.`],
-  'tn-flex-behaviour': (n, of) => [`${n} of ${of} people who put flexibility ahead of price showed marked hesitation as they said it.`],
-  'tn-pause-portion-face': (n, of) => [`At first sight of Concept C, ${n} of ${of} people on video who picked pause read as delight or interest.`],
-  'tn-pause-concept': (n, of) => [`At first sight of Concept A, ${n} of ${of} people who chose pause showed marked hesitation.`],
-  'tn-vet-survey': (n, of) => [`In the survey, ${n} of ${of} people who said a vet’s advice ended it named something else as their one biggest reason.`],
-}
-
 /** A narration line that passes the rules, or nothing. A sentence that breaks one is never used. */
 const narr = (o: Omit<Line, 'id' | 'type' | 'state' | 'audio' | 'history' | 'fingerprint' | 'cites'> & { cites: Cite[]; faceBased?: boolean; figuresAllowed?: number }, ctx: Ctx): Line[] => {
   const { faceBased, figuresAllowed, alts, ...rest } = o
@@ -333,15 +320,12 @@ export function buildDraft(ctx: Ctx, targetMin: number, include: string[] = [], 
   const tensionLeftOut: LeftOut[] = []
   for (const t of tensions) {
     const nums = tensionNums(t)
-    const make = TENSION_TEXT[t.id]
+    const nar = tensionNarrationOf(t.id)
     const theme = doc.themes.find((x) => x.tensionId === t.id)
-    if (!nums || !make || !theme) continue
+    if (!nums || !nar?.audio || !theme) continue
     const codes = themeCodes(doc, theme)
-    const cat = t.sides[0]
-    const dog = t.sides[2]
-    const group = t.id === 'tn-pet-segments' && cat && dog ? (cat.n / cat.of > dog.n / dog.of ? 'cat owners' : 'dog owners') : ''
-    const text = t.id === 'tn-pet-segments' ? `${nums.n} of ${nums.of} ${group} said flexibility matters more than price.` : make(nums.n, nums.of)
-    const got = narr({ key: `tension:${t.id}:n`, chapter: 'tensions', text, source: { kind: 'tension', id: t.id }, cites: citesOf(codes, ctx), faceBased: t.id === 'tn-pause-portion-face', alts: TENSION_ALTS[t.id]?.(nums.n, nums.of) }, ctx)
+    const text = nar.audio(nums.n, nums.of, t.sides)
+    const got = narr({ key: `tension:${t.id}:n`, chapter: 'tensions', text, source: { kind: 'tension', id: t.id }, cites: citesOf(codes, ctx), faceBased: nar.faceBased, alts: nar.alts?.(nums.n, nums.of) }, ctx)
     tensionLines.push(...got)
     if (!got.length) tensionLeftOut.push({ kind: 'tension', id: t.id, name: t.title, why: 'time' })
   }
@@ -414,7 +398,7 @@ export function buildDraft(ctx: Ctx, targetMin: number, include: string[] = [], 
 export function leftOutOf(lines: Line[], ctx: Ctx, written: boolean): LeftOut[] {
   const have = new Set(lines.flatMap((l) => (l.source && (l.source.kind === 'theme' || l.source.kind === 'tension') && !l.removed ? [`${l.source.kind}:${l.source.id}`] : [])))
   const themes = codeThemes(ctx.doc).filter((t) => themeCodes(ctx.doc, t).length > 0 && (numbersOf(t.id, ctx)?.n ?? 0) > 0)
-  const tensions = tensionsOf(ctx.doc, ctx.basis).filter((t) => !t.unavailable && tensionDecisions(ctx.doc)[t.id]?.status === 'Added as a tension theme' && ctx.doc.themes.some((x) => x.tensionId === t.id) && TENSION_TEXT[t.id])
+  const tensions = tensionsOf(ctx.doc, ctx.basis).filter((t) => !t.unavailable && tensionDecisions(ctx.doc)[t.id]?.status === 'Added as a tension theme' && ctx.doc.themes.some((x) => x.tensionId === t.id) && tensionNarrationOf(t.id)?.audio)
   return [
     ...themes.filter((t) => !have.has(`theme:${t.id}`)).map((t): LeftOut => ({ kind: 'theme', id: t.id, name: t.name, why: written ? 'new' : 'time' })),
     ...tensions.filter((t) => !have.has(`tension:${t.id}`)).map((t): LeftOut => ({ kind: 'tension', id: t.id, name: t.title, why: written ? 'new' : 'time' })),

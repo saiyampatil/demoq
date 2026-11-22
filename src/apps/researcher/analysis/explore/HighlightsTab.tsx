@@ -8,6 +8,8 @@ import { TextArea } from '@/components/Field'
 import { PlayIcon, SearchIcon } from '@/components/icons'
 import { LoadingState } from '@/components/States'
 import { useToast } from '@/components/Toast'
+import { reportPackOf } from '@/mock/reportPacks'
+import { segmentWord } from '@/mock/studyAnalysis'
 import { screenById, studyPath } from '@/routes/screens'
 import { addIdeaCode, denominator, dismissSuggestion, peopleOf, questionOf, restoreSuggestion } from '@/state/codebook'
 import { uid } from '@/state/brief'
@@ -18,7 +20,8 @@ import type { CodebookCtx } from '../codebookCtx'
 const DEBOUNCE_MS = 300
 /** Mock delay, so the scan feels like a scan. */
 const SCAN_MS = 400
-const EXAMPLES = ['pause when we travel', 'too much food', 'vet']
+
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
 
 type Phase = 'idle' | 'loading' | 'done' | 'error'
 
@@ -28,6 +31,7 @@ type Phase = 'idle' | 'loading' | 'done' | 'error'
  */
 export function HighlightsTab({ ctx }: { ctx: CodebookCtx }) {
   const { doc, basis } = ctx
+  const EXAMPLES = reportPackOf(ctx.studyId)?.highlightExamples ?? []
   const toast = useToast()
   const [idea, setIdea] = useState('')
   const [query, setQuery] = useState('')
@@ -86,7 +90,7 @@ export function HighlightsTab({ ctx }: { ctx: CodebookCtx }) {
             data-testid="idea-input"
             value={idea}
             onChange={(e) => setIdea(e.target.value)}
-            placeholder="For example: pause when we travel"
+            placeholder={`For example: ${EXAMPLES[0] ?? ""}`}
             autoComplete="off"
             className="h-10 w-full rounded-sm border border-mist-strong bg-surface pr-3 pl-9 text-sm outline-none placeholder:text-muted focus:border-iris-600 focus:shadow-[0_0_0_3px_var(--color-iris-100)]"
           />
@@ -336,7 +340,7 @@ function Quote({ hit: h, stems, ctx, out, onToggle }: { hit: Hit; stems: string[
       </p>
       <p className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-graphite">
         <span className="font-medium text-ink tabular-nums">{h.participantId}</span>
-        <span>{h.pet} owner</span>
+        <span>{cap(segmentWord(h.participantId))}</span>
         <span className="tabular-nums">{h.sessionId}</span>
         <span className="tabular-nums">{mmss(h.atSec)}</span>
         <span className="basis-full">{h.questionId ? questionOf(h.questionId).label : 'Outside the guide'}</span>

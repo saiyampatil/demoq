@@ -1,16 +1,20 @@
-// Behavioural signals for Pet Food Subscription Churn, as the product would measure them from the recordings.
+// Behavioural signals, as the product would measure them from the recordings. This file holds the machinery and Pet Food Subscription Churn's
+// content; Ice Cream Flavour Concept Test's is in iceCream/signals.ts, and both add to the tables in signalKit.ts.
 // Everything here is simulated and deterministic: the same moment always gives the same numbers.
 //
 // A signal is a fact about one moment, never a conclusion: how long the answer took to start, the longest pause, and
 // how many fillers or restarts there were, each compared with the same person's own usual answer time. Facial analysis is on hold.
 
-import { CODE_QUESTIONS, EXCERPTS, SEED_CODES, petOf, type Excerpt } from './codebook'
+import { CODEBOOK_PACKS, CODEBOOK_STUDY, CODE_QUESTIONS, EXCERPTS, petOf, questionsOf, type Excerpt } from './codebook'
 import { findReviewRecord, turnAtSec, turnIndexAtSec } from './review'
 import { faceAtExcerpt, faceAtMoment, stanceOf, voiceAt, type FaceReading, type Stance, type VoiceReading } from './emotion'
 import { r1, seeded } from './seed'
-import { PET_SEED_SESSIONS, sessionIdOf } from './sessions'
+import { STUDY_SEEDS, sessionIdOf } from './sessions'
+import { segmentOf } from './studyAnalysis'
+import { addReactions, PLAN, REACTIONS, NOT_SEEN, registerSignalPack, SIGNAL_PACKS } from './signalKit'
+import './iceCream/signals'
 
-export { petOf }
+export { petOf, segmentOf }
 
 /** Mock thresholds (docs/OPEN_QUESTIONS.md). A moment shows a sign of hesitation for each one it meets. */
 export const SIGNAL_RULES = { delaySec: 2, delayRatio: 1.5, pauseSec: 1.5, fillers: 2 }
@@ -22,29 +26,48 @@ export type Sign = 'delay' | 'pause' | 'fillers'
 
 // ─── who, and what is measured ──────────────────────────────────────────────
 
-const SESSION_OF = new Map(PET_SEED_SESSIONS.filter((s) => s.variant === 'done').map((s) => [s.participant, sessionIdOf(s)]))
-/** The accepted participants, in order. Their sessions are the only ones a signal is ever measured on. */
-export const ACCEPTED_PARTICIPANTS = PET_SEED_SESSIONS.filter((s) => s.variant === 'done' && s.review?.status === 'Accepted').map((s) => s.participant)
+const SESSION_OF = new Map(
+  Object.values(STUDY_SEEDS)
+    .flat()
+    .filter((s) => s.variant === 'done')
+    .map((s) => [s.participant, sessionIdOf(s)]),
+)
+/** A study's accepted participants, in order. Their sessions are the only ones a signal is ever measured on. */
+export const acceptedParticipants = (studyId: string): string[] => (STUDY_SEEDS[studyId] ?? []).filter((s) => s.variant === 'done' && s.review?.status === 'Accepted').map((s) => s.participant)
+/** Pet Food's accepted participants (kept for callers written when it was the only study). */
+export const ACCEPTED_PARTICIPANTS = acceptedParticipants(CODEBOOK_STUDY)
 export const sessionOfParticipant = (p: string) => SESSION_OF.get(p) ?? `${p}-1`
 
 export type Moment = { id: string; label: string; text: string; kind: 'question' | 'stimulus'; fraction: number }
 
-/** The key moments: each guide question the codes answer, and the first reaction to each concept. */
-export const MOMENTS: Moment[] = ([
-  ...CODE_QUESTIONS.map((q): Moment => ({ id: q.id, label: q.label, text: q.text, kind: 'question', fraction: q.fraction })),
+/** The key moments of one study: each guide question the codes answer, and the first reaction to each concept. */
+export const momentsOf = (studyId: string): Moment[] =>
+  ([
+    ...questionsOf(studyId).map((q): Moment => ({ id: q.id, label: q.label, text: q.text, kind: 'question', fraction: q.fraction })),
+    ...(SIGNAL_PACKS[studyId]?.concepts ?? []),
+  ] as Moment[]).sort((a, b) => a.fraction - b.fraction)
+
+const PET_CONCEPTS: Moment[] = [
   { id: 'm-concept-a', label: 'First reaction: Concept A, Pause, don’t cancel', text: 'Here is Concept A. Tell me your first reaction, before I say anything about it.', kind: 'stimulus', fraction: 0.5 },
   { id: 'm-concept-b', label: 'First reaction: Concept B, Recipe swap guarantee', text: 'Here is Concept B. Tell me your first reaction, before I say anything about it.', kind: 'stimulus', fraction: 0.54 },
   { id: 'm-concept-c', label: 'First reaction: Concept C, Portion-matched boxes', text: 'Here is Concept C. Tell me your first reaction, before I say anything about it.', kind: 'stimulus', fraction: 0.58 },
+]
+/** Pet Food's key moments (kept for callers written when it was the only study). */
+export const MOMENTS: Moment[] = ([
+  ...CODE_QUESTIONS.map((q): Moment => ({ id: q.id, label: q.label, text: q.text, kind: 'question', fraction: q.fraction })),
+  ...PET_CONCEPTS,
 ] as Moment[]).sort((a, b) => a.fraction - b.fraction)
 
-/** Who hesitated at each concept's first reaction. The rest were steady. */
-const REACTIONS: Record<string, { marked: string[]; some: string[] }> = {
-  'm-concept-a': { marked: ['P-3104', 'P-3109', 'P-3113', 'P-3118', 'P-3101', 'P-3110', 'P-3120'], some: ['P-3121', 'P-3105', 'P-3114'] },
-  'm-concept-b': { marked: ['P-3110', 'P-3120', 'P-3116'], some: ['P-3101', 'P-3108', 'P-3111', 'P-3102'] },
-  'm-concept-c': { marked: ['P-3113', 'P-3118'], some: ['P-3102', 'P-3122', 'P-3103'] },
-}
-/** A failed concept card is treated as not seen (P-3106's Concept B), so there is no reaction to measure. */
-const NOT_SEEN: Record<string, string[]> = { 'm-concept-b': ['P-3106'] }
+// Who hesitated at each concept's first reaction (the rest were steady), and who never saw one. A failed concept card is treated as
+// not seen (P-3106's Concept B), so there is no reaction to measure.
+addReactions(
+  {
+    'm-concept-a': { marked: ['P-3104', 'P-3109', 'P-3113', 'P-3118', 'P-3101', 'P-3110', 'P-3120'], some: ['P-3121', 'P-3105', 'P-3114'] },
+    'm-concept-b': { marked: ['P-3110', 'P-3120', 'P-3116'], some: ['P-3101', 'P-3108', 'P-3111', 'P-3102'] },
+    'm-concept-c': { marked: ['P-3113', 'P-3118'], some: ['P-3102', 'P-3122', 'P-3103'] },
+  },
+  { 'm-concept-b': ['P-3106'] },
+)
 
 // ─── numbers ────────────────────────────────────────────────────────────────
 
@@ -93,8 +116,8 @@ function makeFacts(seed: string, band: Band, usual: number): Facts {
 
 // ─── per code: how many said it with a sign of hesitation ───────────────────
 
-/** [marked, some] among the people who said each code. Codes not listed are all steady. */
-const PLAN: Record<string, [number, number]> = {
+// [marked, some] among the people who said each code. Codes not listed are all steady. (Shared with the other studies' codes, in ./signalKit.)
+Object.assign(PLAN, {
   'c-runout': [0, 1],
   'c-ingredients': [0, 1],
   'c-intro-discount': [0, 1],
@@ -120,20 +143,34 @@ const PLAN: Record<string, [number, number]> = {
   'c-stable-price': [0, 1],
   'c-control': [1, 1],
   'c-trust': [1, 0],
-}
+} satisfies Record<string, [number, number]>)
 
+// Which excerpts hesitated, and which code each quote belongs to, over every study's codes. Built the first time a quote is read
+// and again whenever another study's codebook has registered, so the order the files load in never matters.
 const EXCERPT_BAND = new Map<string, Band>()
-SEED_CODES.forEach((code) => {
-  const [marked, some] = PLAN[code.id] ?? [0, 0]
-  const order = [...code.excerpts].sort((x, y) => u(`${code.id}${x}`) - u(`${code.id}${y}`))
-  order.forEach((id, i) => EXCERPT_BAND.set(id, i < marked ? 'Marked hesitation' : i < marked + some ? 'Some hesitation' : 'Steady'))
-  code.more.forEach((id) => EXCERPT_BAND.set(id, 'Steady'))
-})
+/** The code each quote belongs to, so a quote knows what its words claim. */
+const CODE_OF_EXCERPT = new Map<string, string>()
+let indexed = -1
+function index() {
+  const packs = Object.values(CODEBOOK_PACKS)
+  if (indexed === packs.length) return
+  packs.forEach((pack) =>
+    pack.codes.forEach((code) => {
+      const [marked, some] = PLAN[code.id] ?? [0, 0]
+      const order = [...code.excerpts].sort((x, y) => u(`${code.id}${x}`) - u(`${code.id}${y}`))
+      order.forEach((id, i) => EXCERPT_BAND.set(id, i < marked ? 'Marked hesitation' : i < marked + some ? 'Some hesitation' : 'Steady'))
+      code.more.forEach((id) => EXCERPT_BAND.set(id, 'Steady'))
+      ;[...code.excerpts, ...code.more].forEach((id) => CODE_OF_EXCERPT.set(id, code.id))
+    }),
+  )
+  indexed = packs.length
+}
 
 export type Point = {
   participantId: string
   sessionId: string
-  pet: 'Dog' | 'Cat'
+  /** The key of the participant's segment in their study (a pet, a household). */
+  segment: string
   atSec: number
   facts: Facts
   usual: number
@@ -157,7 +194,7 @@ function point(key: string, participantId: string, atSec: number, facts: Facts, 
     key,
     participantId,
     sessionId: sessionOfParticipant(participantId),
-    pet: petOf(participantId),
+    segment: segmentOf(participantId),
     atSec,
     facts,
     usual,
@@ -168,12 +205,9 @@ function point(key: string, participantId: string, atSec: number, facts: Facts, 
   }
 }
 
-/** The code each quote belongs to, so a quote knows what its words claim. */
-const CODE_OF_EXCERPT = new Map<string, string>()
-SEED_CODES.forEach((c) => [...c.excerpts, ...c.more].forEach((id) => CODE_OF_EXCERPT.set(id, c.id)))
-
 /** The signals at one coded quote. */
 export function excerptPoint(excerptId: string): Point {
+  index()
   const e = EXCERPTS[excerptId]
   const band = EXCERPT_BAND.get(excerptId) ?? 'Steady'
   const codeId = CODE_OF_EXCERPT.get(excerptId)
@@ -184,18 +218,21 @@ export function excerptPoint(excerptId: string): Point {
 const worst = (a: Point, b: Point) => (bandRank(b.band) > bandRank(a.band) ? b : a)
 
 /** Everyone's signals at a key moment. A person's coded quotes there set it; otherwise it is drawn from how often people hesitate. */
-export function momentPoints(momentId: string): Point[] {
-  const m = MOMENTS.find((x) => x.id === momentId)!
-  const skipped = new Set([...(CODE_QUESTIONS.find((q) => q.id === momentId)?.skipped.map((s) => s.participantId) ?? []), ...(NOT_SEEN[momentId] ?? [])])
+export function momentPoints(momentId: string, studyId: string): Point[] {
+  index()
+  const m = momentsOf(studyId).find((x) => x.id === momentId)!
+  const accepted = acceptedParticipants(studyId)
+  const skipped = new Set([...(questionsOf(studyId).find((q) => q.id === momentId)?.skipped.map((s) => s.participantId) ?? []), ...(NOT_SEEN[momentId] ?? [])])
   // Quoted answers keep their own time; everyone else is placed around them.
   const quoted = new Map<string, Point>()
+  const coded = new Set((CODEBOOK_PACKS[studyId]?.codes ?? []).flatMap((c) => c.excerpts))
   if (m.kind === 'question')
-    ACCEPTED_PARTICIPANTS.forEach((p) => {
-      const mine = Object.values(EXCERPTS).filter((e) => e.participantId === p && e.questionId === m.id && SEED_CODES.some((c) => c.excerpts.includes(e.id))).map((e) => excerptPoint(e.id))
+    accepted.forEach((p) => {
+      const mine = Object.values(EXCERPTS).filter((e) => e.participantId === p && e.questionId === m.id && coded.has(e.id)).map((e) => excerptPoint(e.id))
       if (mine.length) quoted.set(p, mine.reduce(worst))
     })
   const taken = new Set<number>([...quoted.values()].map((q) => q.atSec))
-  return ACCEPTED_PARTICIPANTS.filter((p) => !skipped.has(p)).map((p) => {
+  return accepted.filter((p) => !skipped.has(p)).map((p) => {
     const sessionId = sessionOfParticipant(p)
     const rec = findReviewRecord(sessionId)
     const key = `m:${m.id}:${p}`
@@ -216,7 +253,7 @@ export function momentPoints(momentId: string): Point[] {
     const at = timeOf(turn)
     taken.add(at)
     if (m.kind === 'stimulus') {
-      const r = REACTIONS[m.id]
+      const r = REACTIONS[m.id] ?? { marked: [], some: [] }
       const band: Band = r.marked.includes(p) ? 'Marked hesitation' : r.some.includes(p) ? 'Some hesitation' : 'Steady'
       return point(key, p, at, makeFacts(`${m.id}${p}`, band, usualDelay(p)), band, { face: faceAtMoment(m.id, p, band) })
     }
@@ -250,7 +287,18 @@ export const TENSION_KIND_HINT: Record<TensionKind, string> = {
 }
 
 /** What the system suggests. The numbers on each are worked out from the data when the screen opens. */
-export type TensionDef = { id: string; kind: TensionKind; title: string; summary: string; themeName: string; codeIds: string[]; /** A key moment the tension also draws on, so the Researcher can open its signals. */ momentId?: string }
+export type TensionDef = {
+  id: string
+  kind: TensionKind
+  title: string
+  summary: string
+  themeName: string
+  codeIds: string[]
+  /** A key moment the tension also draws on, so the Researcher can open its signals. */
+  momentId?: string
+  /** Between segments only: what each of the two answers is called, in the order of the rows. */
+  answers?: [string, string]
+}
 
 export const TENSION_DEFS: TensionDef[] = [
   {
@@ -277,6 +325,7 @@ export const TENSION_DEFS: TensionDef[] = [
     summary: 'The same question, with different answers in each group. Not everyone in either group gave a clear answer. Directional: the groups are small.',
     themeName: 'Cats and flexibility, dogs and price',
     codeIds: ['c-flex-first', 'c-price-first'],
+    answers: ['Said flexibility matters more', 'Said price matters more'],
   },
   {
     id: 'tn-pause-concept',
@@ -296,3 +345,8 @@ export const TENSION_DEFS: TensionDef[] = [
     codeIds: ['c-vet-diet'],
   },
 ]
+
+/** The tensions of one study. */
+export const tensionDefsOf = (studyId: string): TensionDef[] => SIGNAL_PACKS[studyId]?.tensions ?? []
+
+registerSignalPack({ studyId: CODEBOOK_STUDY, concepts: PET_CONCEPTS, tensions: TENSION_DEFS })

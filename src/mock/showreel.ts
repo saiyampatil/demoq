@@ -6,7 +6,9 @@
 // docs/OPEN_QUESTIONS.md: the end time follows the length of the quote, emotion strength and the stimulus are made up
 // deterministically from the quote, and "audio only" is the participant's real recording type.
 import { hasVideo } from './emotion'
-import { petOf } from './codebook'
+import { segmentOf, segmentsOfParticipant } from './studyAnalysis'
+import { stimulusOfCodeId } from './reportPacks'
+import './report'
 import { liveExcerpts, themeCodes, type Basis, type Code, type CodebookDoc, type Excerpt, type Theme } from '@/state/codebook'
 
 export type Strength = 'High' | 'Medium' | 'Low'
@@ -37,7 +39,6 @@ export const MAX_CLIP_SEC = 15
 /** The brief's length for a theme video. A warning, never a block. */
 export const BRIEF_RANGE = { min: 45, max: 90 }
 
-const STIMULUS_OF_CODE: Record<string, Stimulus> = { 'c-idea-pause': 'Concept A', 'c-idea-swap': 'Concept B', 'c-idea-portion': 'Concept C' }
 const STRENGTHS: Strength[] = ['High', 'Medium', 'Low']
 const hash = (s: string) => [...s].reduce((n, c) => (n * 31 + c.charCodeAt(0)) >>> 0, 7)
 
@@ -55,7 +56,7 @@ function clipOf(e: Excerpt, theme: Theme, code: Code): Clip {
     start: e.atSec,
     end: e.atSec + length,
     quote: e.text,
-    stimulus: STIMULUS_OF_CODE[code.id] ?? 'None',
+    stimulus: stimulusOfCodeId(code.id) ?? 'None',
     emotionStrength: STRENGTHS[hash(e.id) % 3],
     clarity: e.confidence >= 0.8 ? 'Clear' : 'Fair',
     confidence: e.confidence,
@@ -97,8 +98,11 @@ export function autoPick(clips: Clip[], variant = 0, instruction = ''): Clip[] {
   if (clips.length < MIN_CLIPS) return []
   const text = instruction.toLowerCase()
   let ordered = rank(clips)
-  if (/\bdog\b/.test(text)) ordered = [...ordered].sort((a, b) => Number(petOf(b.participantId) === 'Dog') - Number(petOf(a.participantId) === 'Dog'))
-  else if (/\bcat\b/.test(text)) ordered = [...ordered].sort((a, b) => Number(petOf(b.participantId) === 'Cat') - Number(petOf(a.participantId) === 'Cat'))
+  // A group named in the instruction (a segment key, as "dog" or "parents") goes first. If two are named, the second group wins.
+  const cfg = segmentsOfParticipant(ordered[0].participantId)
+  const keys = [cfg.second.key, cfg.first.key]
+  const named = keys.find((k) => new RegExp(`\\b${k.toLowerCase()}s?\\b`).test(text))
+  if (named) ordered = [...ordered].sort((a, b) => Number(segmentOf(b.participantId) === named) - Number(segmentOf(a.participantId) === named))
   if (/short/.test(text)) ordered = [...ordered].sort((a, b) => clipLength(a) - clipLength(b))
   // One per person first.
   const firsts: Clip[] = []

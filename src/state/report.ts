@@ -3,7 +3,7 @@
 // and a published version never changes. What each sentence means is worked out in state/reportLogic.ts.
 import { useSyncExternalStore } from 'react'
 import { currentUser } from '@/mock/people'
-import { CODEBOOK_STUDY } from '@/state/codebook'
+import { hasAnalysis } from '@/mock/studyAnalysis'
 import { now, uid } from './brief'
 
 export const REPORT_STORAGE_KEY = 'pulseai-qual:report'
@@ -133,7 +133,7 @@ function seedReport(studyId: string, builtOn: string[], questionIds: string[], s
 
 /** Creates the report the first time, and replaces one saved with an older shape. Call from an effect, not from render. */
 export function ensureReport(studyId: string, builtOn: string[], questionIds: string[], seed: ReportSeed): ReportDoc | undefined {
-  if (studyId !== CODEBOOK_STUDY) return undefined
+  if (!hasAnalysis(studyId)) return undefined
   const existing = store[studyId]
   if (existing && existing.schema === SCHEMA) return existing
   const doc = seedReport(studyId, builtOn, questionIds, seed)

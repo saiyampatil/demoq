@@ -248,12 +248,12 @@ function iceGuide(): GuideDoc {
 // ─── the interviews and their review ────────────────────────────────────────
 
 const ICE_LINES = [
-  'We usually get a tub every week, mostly vanilla or chocolate chip for the kids.',
+  'We usually get a tub most weeks, mostly vanilla or chocolate chip.',
   'I like trying something new, but I always end up going back to my usual.',
-  'The caramel one sounds like what I already eat, just a bit fancier.',
-  'I wasn’t sure what a lassi was, to be honest.',
+  'It sounds nice, but I’d want to see the tub in the shop first.',
+  'I’d need to know what it tastes like before I bought it.',
   'If it’s too sweet, I can’t finish a bowl.',
-  'I’d buy it for the weekend, when everyone is home.',
+  'I’d probably eat it in the evening, after dinner.',
 ]
 
 export const ICE_CONTENT: FieldworkContent = { seeds: ICE_SEED_SESSIONS, lines: ICE_LINES, start: '2026-10-05T09:00:00-04:00' }
@@ -293,12 +293,12 @@ const ICE_PACK: ReviewPack = {
     'What would you expect to pay for a tub?',
   ],
   answers: [
-    'A tub of vanilla from the supermarket, on the weekly shop.',
-    'Mostly what the kids will actually eat.',
-    'The caramel one, because it feels like the safe choice.',
-    'It sounds rich, and I like the salty bit.',
-    'I’m not sure what cardamom does in ice cream.',
-    'Around five dollars. Over six and I’d wait for a sale.',
+    'From the supermarket, on the weekly shop.',
+    'Mostly whatever everyone at home will actually eat.',
+    'It depends on what looks good that day.',
+    'It sounds rich, and I like the idea of it.',
+    'I’m not sure about that part, to be honest.',
+    'About what I usually pay, I think.',
   ],
   library: {
     'Identity mismatch': { text: 'I’m 51, actually. I’m buying this for my grandchildren.' },

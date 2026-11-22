@@ -5,6 +5,7 @@ import { Button } from '@/components/Button'
 import { cn } from '@/components/cn'
 import { EmptyState, ErrorState } from '@/components/States'
 import { clipsOfTheme, SEED_DEFAULT_THEMES, seedOff } from '@/mock/showreel'
+import { hasAnalysis } from '@/mock/studyAnalysis'
 import { screenById, studyPath } from '@/routes/screens'
 import { CODEBOOK_STUDY } from '@/state/codebook'
 import { numbersOf, plural } from '@/state/reportLogic'
@@ -37,7 +38,7 @@ export function ShowreelPage() {
 
   // Every theme gets its first version up front, and the demo's two Defaults go in once.
   useEffect(() => {
-    if (themes.length) updateShowreel(studyId, (d) => ensureVersions(d, themes, studyId === CODEBOOK_STUDY && !seedOff(), SEED_DEFAULT_THEMES))
+    if (themes.length) updateShowreel(studyId, (d) => ensureVersions(d, themes, hasAnalysis(studyId) && !seedOff(), SEED_DEFAULT_THEMES))
   }, [themes, studyId])
 
   const header = (
@@ -63,9 +64,9 @@ export function ShowreelPage() {
         {header}
         <div className="rounded-md border border-dashed border-mist-strong bg-surface">
           <EmptyState
-            title={studyId === CODEBOOK_STUDY ? 'No accepted interviews yet' : 'No analysis for this study yet'}
+            title={hasAnalysis(studyId) ? 'No accepted interviews yet' : 'No analysis for this study yet'}
             description="Clips come only from sessions accepted in Review."
-            action={<Button to={studyPath(CODEBOOK_STUDY, screenById.A1)}>Go to the codebook</Button>}
+            action={<Button to={studyPath(hasAnalysis(studyId) ? studyId : CODEBOOK_STUDY, screenById.A1)}>Go to the codebook</Button>}
           />
         </div>
       </div>

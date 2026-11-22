@@ -173,3 +173,9 @@ export const ICE_SEED_SESSIONS: SeedSession[] = [
   { participant: 'P-4123', state: 'Illinois', variant: 'withdrawn', at: ICE(15, '14:10'), durationMin: 5 },
   { participant: 'P-4124', state: 'Washington', variant: 'noshow', at: ICE(12, '10:00') },
 ]
+
+/** The seed sessions of each finished study, by study ID. Analysis reads who took part, who was accepted and who has video from here. */
+export const STUDY_SEEDS: Record<string, SeedSession[]> = {
+  'pet-food-churn': PET_SEED_SESSIONS,
+  'ice-cream-flavours': ICE_SEED_SESSIONS,
+}

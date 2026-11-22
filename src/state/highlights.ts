@@ -11,7 +11,9 @@
 //     contributes at most two turns, so ten results are ten different voices where there are that many.
 //  5. The top ten are shown. Every quote is a whole turn, word for word. No score is ever shown, and nothing is said about a person.
 
-import { CODE_QUESTIONS, petOf, type Pet } from '@/mock/codebook'
+import { questionsOf } from '@/mock/codebook'
+import { STUDY_SEEDS } from '@/mock/sessions'
+import { segmentOf } from '@/mock/studyAnalysis'
 import { findReviewRecord, transcriptFor } from '@/mock/review'
 import type { Basis, CodebookDoc } from './codebook'
 
@@ -58,19 +60,22 @@ export const ideaKey = (idea: string) => `hl:${[...contentStems(idea)].sort().jo
 
 // ─── the guide question a turn falls under ──────────────────────────────────
 
-const BY_POSITION = [...CODE_QUESTIONS].sort((a, b) => a.fraction - b.fraction)
+const byPosition = (studyId: string) => [...questionsOf(studyId)].sort((a, b) => a.fraction - b.fraction)
+/** The study a participant took part in. Participant IDs are unique across studies. */
+const studyOf = (participantId: string) => Object.entries(STUDY_SEEDS).find(([, seeds]) => seeds.some((s) => s.participant === participantId))?.[0] ?? ''
 /** Before the first question and after the last answer there is no guide question: the opening and the close. */
 const CLOSE = 0.93
 const SLACK = 0.01
 
 /** The question the interview was on at this point: the last one asked before it. Null before the first question and in the close. */
-export function questionAt(fraction: number): string | null {
-  if (fraction < BY_POSITION[0].fraction - SLACK || fraction > CLOSE) return null
-  let id = BY_POSITION[0].id
-  for (const q of BY_POSITION) if (q.fraction <= fraction + SLACK) id = q.id
+export function questionAt(fraction: number, studyId = 'pet-food-churn'): string | null {
+  const by = byPosition(studyId)
+  if (fraction < by[0].fraction - SLACK || fraction > CLOSE) return null
+  let id = by[0].id
+  for (const q of by) if (q.fraction <= fraction + SLACK) id = q.id
   return id
 }
-const nearestQuestion = (fraction: number) => BY_POSITION.reduce((best, q) => (Math.abs(q.fraction - fraction) < Math.abs(best.fraction - fraction) ? q : best)).id
+const nearestQuestion = (fraction: number, studyId: string) => byPosition(studyId).reduce((best, q) => (Math.abs(q.fraction - fraction) < Math.abs(best.fraction - fraction) ? q : best)).id
 
 // ─── the corpus: what participants said, in the accepted sessions ───────────
 
@@ -79,7 +84,8 @@ export type Hit = {
   key: string
   sessionId: string
   participantId: string
-  pet: Pet
+  /** The segment key of the person (a pet owner, a parent): the two groups of their study. */
+  segment: string
   /** 0-based turn index and 1-based turn number. */
   turnIndex: number
   turn: number
@@ -104,12 +110,12 @@ function rowsOf(sessionId: string): Row[] {
           key: `${sessionId}#${t.turn}`,
           sessionId,
           participantId: rec.participantId,
-          pet: petOf(rec.participantId),
+          segment: segmentOf(rec.participantId),
           turnIndex: t.index,
           turn: t.turn,
           atSec: t.atSec,
           text: t.text,
-          questionId: questionAt(t.index / rec.turnCount),
+          questionId: questionAt(t.index / rec.turnCount, studyOf(rec.participantId)),
           fraction: t.index / rec.turnCount,
           stems: new Set(contentStems(t.text)),
         }))
@@ -205,7 +211,7 @@ export function proposalFor(scan: ScanResult, hits: Hit[] = scan.hits): Proposal
   const [top, n] = [...byQuestion.entries()].sort((a, b) => b[1] - a[1])[0] ?? [null, 0]
   let questionId = top && n * 2 >= hits.length ? top : null
   if (questionId) {
-    const q = CODE_QUESTIONS.find((x) => x.id === questionId)
+    const q = questionsOf(studyOf(hits[0].participantId)).find((x) => x.id === questionId)
     if (q?.skipped.some((s) => hits.some((h) => h.participantId === s.participantId))) questionId = null
   }
   const mid = hits.reduce((sum, h) => sum + h.fraction, 0) / hits.length
@@ -213,7 +219,7 @@ export function proposalFor(scan: ScanResult, hits: Hit[] = scan.hits): Proposal
     name: nameFromIdea(scan.idea),
     definition: definitionFromIdea(scan.idea),
     questionId,
-    anchorQuestionId: questionId ?? nearestQuestion(mid),
+    anchorQuestionId: questionId ?? nearestQuestion(mid, studyOf(hits[0].participantId)),
     hits,
     people: new Set(hits.map((h) => h.participantId)).size,
   }
@@ -230,7 +236,7 @@ export function matchedWords(text: string, stems: string[]): Set<string> {
 export type CodeGroup = { id: string; label: string; codes: CodebookDoc['codes'] }
 export function currentCodeGroups(doc: CodebookDoc): CodeGroup[] {
   const accepted = doc.codes.filter((c) => c.status === 'Accepted')
-  const groups: CodeGroup[] = BY_POSITION.map((q) => ({ id: q.id, label: q.label, codes: accepted.filter((c) => !c.isNew && c.questionId === q.id) }))
+  const groups: CodeGroup[] = byPosition(doc.studyId).map((q) => ({ id: q.id, label: q.label, codes: accepted.filter((c) => !c.isNew && c.questionId === q.id) }))
   groups.push({ id: 'new', label: 'Outside the guide', codes: accepted.filter((c) => c.isNew) })
   return groups.filter((g) => g.codes.length)
 }

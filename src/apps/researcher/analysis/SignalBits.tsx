@@ -8,12 +8,11 @@ import { PlayIcon } from '@/components/icons'
 import { Modal } from '@/components/Modal'
 import { useToast } from '@/components/Toast'
 import { Tooltip } from '@/components/Tooltip'
-import { petOf } from '@/mock/codebook'
 import { screenById, studyPath } from '@/routes/screens'
 import { band as confidenceBand, correctFace } from '@/state/codebook'
 import { EMOTION_HINT, EMOTIONS, STANCE_LABEL, TONE_HINT, TONES, VALENCE, VALENCE_WORD, VALENCES, faceOf, fitOf, noReading, type Emotion, type EmotionSplit, type Face, type Fit, type FitPattern, type Tone, type ToneSplit } from '@/state/emotion'
 import { DELIVERY_RULE_LINES, FIT_COLOUR, FIT_DEF, FIT_LABEL, FIT_ORDER, VERDICT_COLOUR, VERDICT_DEF, VERDICT_LABEL, VERDICT_ORDER, SIDE_DEF, SIDE_LABEL, describedLine, sideGroupHead, sideGroupLine, RAISED_TIP, verdictLabel, type Chip, type FitKey } from '@/config/delivery'
-import { sideSummary, hesitantDelivery, signsOf, type Band, type Pattern, type Point, type Split } from '@/state/signals'
+import { sideSummary, hesitantDelivery, segmentLabelOf, signsOf, type Band, type Pattern, type Point, type Split } from '@/state/signals'
 import { BANDS } from '@/state/signals'
 import { mmss } from '../review/reviewUi'
 import type { CodebookCtx } from './codebookCtx'
@@ -380,7 +379,7 @@ export function DeliveryFigures({ points, ctx, what }: { points: Point[]; ctx: C
                   return (
                     <li key={p.participantId} data-testid="tile-person" className="flex items-center gap-2 px-2.5 py-1.5 text-xs">
                       <span className="font-medium tabular-nums">{p.participantId}</span>
-                      <span className="text-graphite">{petOf(p.participantId)} owner</span>
+                      <span className="text-graphite">{segmentLabelOf(p.participantId)}</span>
                       <span className="text-graphite" data-testid="tile-reason">{reasonWord(p, f, ctx.doc)}</span>
                       <Link to={playHref(ctx.studyId, p.sessionId, p.atSec)} className="ml-auto inline-flex items-center gap-1 rounded-xs font-medium text-iris-700 hover:underline" aria-label={`Play ${p.participantId} at ${mmss(p.atSec)}`}>
                         <PlayIcon size={11} /> Play
@@ -467,7 +466,7 @@ export function PointCard({ point: p, ctx, context, reasons }: { point: Point; c
     <li className="py-3.5 first:pt-1 last:pb-0" data-testid="signal-point" data-band={p.band} data-key={p.key}>
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-graphite">
         <span className="font-medium text-ink tabular-nums">{p.participantId}</span>
-        <span>{petOf(p.participantId)} owner</span>
+        <span>{segmentLabelOf(p.participantId)}</span>
         <span className="tabular-nums">{mmss(p.atSec)}</span>
         <span className="flex-1" />
         {fit.fit && <OneFitChip fit={fit.fit} against={fit.against} />}

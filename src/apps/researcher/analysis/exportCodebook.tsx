@@ -12,6 +12,7 @@ import {
   themeCodes,
   themePeople,
   type Basis,
+  CODEBOOK_STUDY,
   type CodebookDoc,
 } from "@/state/codebook";
 import { mmss } from "../review/reviewUi";
@@ -68,7 +69,7 @@ export function codebookSheets(doc: CodebookDoc, basis: Basis) {
       "Code",
       "Code status",
       "Participant",
-      "Pet",
+      doc.studyId === CODEBOOK_STUDY ? "Pet" : "Group",
       "Session",
       "Time",
       "Quote",

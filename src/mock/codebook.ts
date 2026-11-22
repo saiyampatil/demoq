@@ -1,16 +1,19 @@
 // The codebook PulseAI drafted for Pet Food Subscription Churn, and what Maya Ortiz had already done with it.
 // Every quote is written into that participant's transcript at the turn it cites, so a quote and its session never disagree.
 
-import { findReviewRecord, placeTranscriptLines, turnAtSec } from './review'
 import './petFood'
+// Ice Cream Flavour Concept Test registers its own codebook (it imports codebookKit, never this file).
+import './iceCream/codebook'
+import { buildPack, registerPack, type CodeQuestion, type Draft, type SeedTheme, type SeedTensionDecision } from './codebookKit'
+import { registerAnalysis, registerSegments, segmentOf } from './studyAnalysis'
+
+export { CODEBOOK_PACKS, EXCERPTS, packOf, questionsOf } from './codebookKit'
+export type { CodeQuestion, CodeStatus, CodebookPack, Excerpt, LogEntry, SeedCode, SeedTensionDecision, SeedTheme } from './codebookKit'
 
 export const CODEBOOK_STUDY = 'pet-food-churn'
 const maya = 'Maya Ortiz'
 export const AI_CODER = 'PulseAI'
 export const CODED_AT = '2026-09-24T10:00:00-04:00'
-
-/** A guide question the codes are grouped under. `skipped` lists who was never asked it, so N is honest per question. */
-export type CodeQuestion = { id: string; label: string; text: string; section: string; fraction: number; skipped: { participantId: string; why: string }[] }
 
 export const CODE_QUESTIONS: CodeQuestion[] = [
   { id: 'q-start', label: 'Starting the subscription', text: 'How did you come to start the subscription, and what did you expect from it?', section: 'How they feed and shop', fraction: 0.16, skipped: [] },
@@ -31,48 +34,19 @@ export const CODE_QUESTIONS: CodeQuestion[] = [
 ]
 
 /** The pet each person described in their intro answer. Used for the directional split on a code. */
-export type Pet = 'Dog' | 'Cat'
+export type Pet = string
 const CATS = new Set(['P-3102', 'P-3105', 'P-3108', 'P-3110', 'P-3113', 'P-3116', 'P-3118', 'P-3121'])
-export const petOf = (participantId: string): Pet => (CATS.has(participantId) ? 'Cat' : 'Dog')
-
-export type Excerpt = {
-  id: string
-  sessionId: string
-  participantId: string
-  questionId: string
-  text: string
-  turnIndex: number
-  atSec: number
-  confidence: number
-  /** The quote comes from a corrected line in the reviewed transcript. */
-  corrected?: boolean
-}
-
-export type CodeStatus = 'Suggested' | 'Accepted' | 'Rejected' | 'Merged'
-
-export type SeedCode = {
-  id: string
-  name: string
-  definition: string
-  /** The guide question it answers, or where a new code came up. */
-  questionId: string
-  isNew: boolean
-  status: CodeStatus
-  confidence: number
-  excerpts: string[]
-  /** Matching excerpts elsewhere, surfaced after the code changes (founder brief, step 3). */
-  more: string[]
-  decided?: { by: string; at: string; why?: string }
-  mergedInto?: string
-}
+registerAnalysis(CODEBOOK_STUDY)
+registerSegments(
+  CODEBOOK_STUDY,
+  { first: { key: 'Cat', label: 'Cat owners', noun: 'cat owners', one: 'cat owner' }, second: { key: 'Dog', label: 'Dog owners', noun: 'dog owners', one: 'dog owner' } },
+  Object.fromEntries(Array.from({ length: 24 }, (_, i) => `P-${3101 + i}`).map((p) => [p, CATS.has(p) ? 'Cat' : 'Dog'])),
+)
+/** The segment of a participant in any study (the name is from when the only segments were pets). */
+export const petOf = segmentOf
 
 // ─── quotes ─────────────────────────────────────────────────────────────────
-// [participant, quote, confidence?]. A missing confidence means the code's own.
-type Q = [string, string, number?]
-
 const sessionOf = (p: string) => (p === 'P-3104' ? 'P-3104-2' : `${p}-1`)
-
-type Draft = Omit<SeedCode, 'excerpts' | 'more'> & { quotes: Q[]; extra?: Q[] }
 
 const DRAFTS: Draft[] = [
   // Starting the subscription
@@ -568,63 +542,7 @@ const DRAFTS: Draft[] = [
   },
 ]
 
-// ─── place the quotes in the transcripts ────────────────────────────────────
-
-/** P-3107's price quote is a corrected line (turn 42) of the reviewed transcript, not a placed one. */
-const CORRECTED: Record<string, { index: number; text: string }> = {
-  'P-3107|c-price-rise': { index: 41, text: 'We switched from the Burrow box to a store brand after the second price rise.' },
-}
-DRAFTS.find((d) => d.id === 'c-price-rise')!.quotes.push(['P-3107', CORRECTED['P-3107|c-price-rise'].text])
-
-const PROBES = ['Tell me more about that.', 'What else comes to mind?', 'Can you give me an example?', 'Anything else on that?']
-
-export const EXCERPTS: Record<string, Excerpt> = {}
-const placed = new Map<string, { index: number; text: string }[]>()
-const nextSlot = new Map<string, number>()
-const usedAt = new Map<string, Set<number>>()
-
-function place(code: Draft, [participantId, text, conf]: Q, n: number): string {
-  const sessionId = sessionOf(participantId)
-  const rec = findReviewRecord(sessionId)
-  const id = `${code.id}-${participantId}-${n}`
-  if (!rec) throw new Error(`No review record for ${sessionId}`)
-  const total = rec.durationMin * 60
-  const at = (i: number) => turnAtSec(sessionId, i, total, rec.turnCount)
-  const fixed = CORRECTED[`${participantId}|${code.id}`]
-  let index: number
-  if (fixed) index = fixed.index
-  else {
-    const q = CODE_QUESTIONS.find((x) => x.id === code.questionId)!
-    const key = `${sessionId}|${q.id}`
-    const lines = placed.get(sessionId) ?? []
-    const taken = new Set([...rec.flags.map((f) => f.turn - 1), ...(rec.reviewed?.edits.map((e) => e.index) ?? []), ...lines.map((l) => l.index)])
-    const first = !nextSlot.has(key)
-    let i = nextSlot.get(key) ?? Math.round(q.fraction * rec.turnCount) | 1
-    // Nobody else's answer to this question starts on the same second: a tie reads as a copy and Play would be ambiguous.
-    const seen = usedAt.get(q.id) ?? new Set<number>()
-    while (taken.has(i) || taken.has(i - 1) || seen.has(at(i))) i += 2
-    seen.add(at(i))
-    usedAt.set(q.id, seen)
-    nextSlot.set(key, i + 2)
-    index = i
-    lines.push({ index: i - 1, text: first ? q.text : PROBES[(i >> 1) % PROBES.length] }, { index: i, text })
-    placed.set(sessionId, lines)
-  }
-  EXCERPTS[id] = { id, sessionId, participantId, questionId: code.questionId, text, turnIndex: index, atSec: at(index), confidence: conf ?? code.confidence, ...(fixed ? { corrected: true } : {}) }
-  return id
-}
-
-export const SEED_CODES: SeedCode[] = DRAFTS.map((d) => {
-  const { quotes, extra = [], ...rest } = d
-  return { ...rest, excerpts: quotes.map((q, n) => place(d, q, n)), more: extra.map((q, n) => place(d, q, n + 50)) }
-})
-placed.forEach((lines, sessionId) => placeTranscriptLines(sessionId, lines))
-
-// "Boxes came too often" was merged into "Food piling up": its quotes now live there, so it keeps none of its own.
-
 // ─── themes ─────────────────────────────────────────────────────────────────
-
-export type SeedTheme = { id: string; name: string; definition: string; codeIds: string[]; by: string; at: string; /** A theme made from a tension: it borrows codes and owns none. */ tensionId?: string }
 
 export const SEED_THEMES: SeedTheme[] = [
   { id: 't-price', name: 'Price creep', definition: 'Repeated price rises wore down the sense of value until people left.', codeIds: ['c-price-rise', 'c-price-first', 'c-stable-price'], by: maya, at: '2026-09-25T09:30:00-04:00' },
@@ -640,29 +558,40 @@ export const THEME_SUGGESTIONS: Omit<SeedTheme, 'by' | 'at'>[] = [
   { id: 'ts-friction', name: 'Friction in the account', definition: 'Changing a recipe or cancelling took more effort than people expected.', codeIds: ['c-swap-hassle', 'c-hard-cancel', 'c-swap-unclear'] },
 ]
 
-// ─── the log so far ─────────────────────────────────────────────────────────
+// ─── what has been decided on the tensions ──────────────────────────────────
 
-export type LogEntry = { id: string; at: string; by: string; target: { kind: 'code' | 'theme' | 'tension' | 'reading' | 'codebook'; id: string; name: string }; action: string; detail?: string; why?: string }
-
-/** Decisions already made on the tensions PulseAI suggested (src/mock/signals.ts). */
-export type SeedTensionDecision = { status: 'Added as a tension theme' | 'Dismissed'; by: string; at: string; why?: string; themeId?: string }
 export const SEED_TENSIONS: Record<string, SeedTensionDecision> = {
   'tn-pause-concept': { status: 'Added as a tension theme', by: maya, at: '2026-09-26T10:05:00-04:00', themeId: 't-tn-slow' },
   'tn-vet-survey': { status: 'Dismissed', by: maya, at: '2026-09-26T10:20:00-04:00', why: 'One person out of three. Too few to read.' },
 }
 
-export const SEED_LOG: LogEntry[] = (() => {
-  const out: LogEntry[] = [
-    { id: 'l-0', at: CODED_AT, by: AI_CODER, target: { kind: 'codebook', id: 'codebook', name: 'Codebook' }, action: 'Suggested codes', detail: `${DRAFTS.length} codes from 20 accepted sessions` },
-  ]
-  SEED_CODES.forEach((c) => {
-    if (!c.decided) return
-    const action = c.status === 'Accepted' ? 'Accepted' : c.status === 'Rejected' ? 'Rejected' : 'Merged'
-    const detail = c.status === 'Merged' ? `Into “${SEED_CODES.find((x) => x.id === c.mergedInto)!.name}”` : undefined
-    out.push({ id: `l-${c.id}`, at: c.decided.at, by: c.decided.by, target: { kind: 'code', id: c.id, name: c.name }, action, detail, why: c.decided.why })
-  })
-  out.push({ id: 'l-rename', at: '2026-09-24T14:12:00-04:00', by: maya, target: { kind: 'code', id: 'c-pet-refused', name: 'Pet stopped eating it' }, action: 'Renamed', detail: 'From “Palatability issues”', why: 'Use the words people actually said.' })
-  out.push({ id: 'l-tn-vet', at: SEED_TENSIONS['tn-vet-survey'].at, by: maya, target: { kind: 'tension', id: 'tn-vet-survey', name: 'Said a vet’s advice ended it, but named price in the survey' }, action: 'Dismissed', why: SEED_TENSIONS['tn-vet-survey'].why })
-  SEED_THEMES.forEach((t) => out.push({ id: `l-${t.id}`, at: t.at, by: t.by, target: { kind: 'theme', id: t.id, name: t.name }, action: 'Created theme', detail: `${t.codeIds.length} codes` }))
-  return out.sort((a, b) => b.at.localeCompare(a.at))
-})()
+// ─── place the quotes in the transcripts and build the pack ─────────────────
+
+/** P-3107's price quote is a corrected line (turn 42) of the reviewed transcript, not a placed one. */
+const CORRECTED: Record<string, { index: number; text: string }> = {
+  'P-3107|c-price-rise': { index: 41, text: 'We switched from the Burrow box to a store brand after the second price rise.' },
+}
+
+const PET_PACK = registerPack(
+  buildPack({
+    studyId: CODEBOOK_STUDY,
+    coder: AI_CODER,
+    codedAt: CODED_AT,
+    questions: CODE_QUESTIONS,
+    drafts: DRAFTS,
+    sessionOf,
+    corrected: CORRECTED,
+    themes: SEED_THEMES,
+    themeSuggestions: THEME_SUGGESTIONS,
+    tensions: SEED_TENSIONS,
+    suggestedDetail: `${DRAFTS.length} codes from 20 accepted sessions`,
+    extraLog: () => [
+      { id: 'l-rename', at: '2026-09-24T14:12:00-04:00', by: maya, target: { kind: 'code', id: 'c-pet-refused', name: 'Pet stopped eating it' }, action: 'Renamed', detail: 'From “Palatability issues”', why: 'Use the words people actually said.' },
+      { id: 'l-tn-vet', at: SEED_TENSIONS['tn-vet-survey'].at, by: maya, target: { kind: 'tension', id: 'tn-vet-survey', name: 'Said a vet’s advice ended it, but named price in the survey' }, action: 'Dismissed', why: SEED_TENSIONS['tn-vet-survey'].why },
+    ],
+  }),
+)
+
+// "Boxes came too often" was merged into "Food piling up": its quotes now live there, so it keeps none of its own.
+export const SEED_CODES = PET_PACK.codes
+export const SEED_LOG = PET_PACK.log

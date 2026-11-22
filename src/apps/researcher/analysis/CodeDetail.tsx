@@ -9,6 +9,7 @@ import { StatusChip } from '@/components/StatusChip'
 import { useToast } from '@/components/Toast'
 import { formatStamp } from '@/lib/format'
 import { petOf } from '@/mock/codebook'
+import { segmentsOf } from '@/mock/studyAnalysis'
 import { findReviewRecord, transcriptFor } from '@/mock/review'
 import { screenById, studyPath } from '@/routes/screens'
 import {
@@ -20,7 +21,7 @@ import {
   excerpt,
   liveExcerpts,
   peopleOf,
-  petSplit,
+  segmentSplit,
   questionOf,
   restoreCode,
   similarCodes,
@@ -47,7 +48,8 @@ export function CodeDetail({ ctx, code: c, onDecided, onOpen }: { ctx: CodebookC
   const quotes = useMemo(() => liveExcerpts(c, basis).sort((a, b) => b.confidence - a.confidence), [c, basis])
   const people = peopleOf(c, basis)
   const N = denominator(c, basis)
-  const split = petSplit(people)
+  const split = segmentSplit(doc.studyId, people)
+  const groups = segmentsOf(doc.studyId)
   const similar = c.status === 'Suggested' || c.status === 'Accepted' ? similarCodes(doc, c, basis) : []
   const pending = (doc.pending[c.id] ?? []).map(excerpt).filter((e) => basis.sessions.has(e.sessionId))
   const history = doc.log.filter((l) => l.target.kind === 'code' && l.target.id === c.id).slice(0, 3)
@@ -125,17 +127,17 @@ export function CodeDetail({ ctx, code: c, onDecided, onOpen }: { ctx: CodebookC
               {people.size > 0 && (
                 <div className="mt-2.5">
                   <div className="flex h-1.5 max-w-56 overflow-hidden rounded-full bg-haze" aria-hidden="true">
-                    <span className="bg-ink" style={{ width: `${(split.Dog / people.size) * 100}%` }} />
-                    <span className="bg-iris-300" style={{ width: `${(split.Cat / people.size) * 100}%` }} />
+                    <span className="bg-ink" style={{ width: `${(split.second / people.size) * 100}%` }} />
+                    <span className="bg-iris-300" style={{ width: `${(split.first / people.size) * 100}%` }} />
                   </div>
                   <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs whitespace-nowrap text-graphite tabular-nums">
                     <span className="inline-flex items-center gap-1">
                       <span aria-hidden="true" className="size-2 rounded-full bg-ink" />
-                      {split.Dog} dog {split.Dog === 1 ? 'owner' : 'owners'}
+                      {split.second} {split.second === 1 ? groups.second.one : groups.second.noun}
                     </span>
                     <span className="inline-flex items-center gap-1">
                       <span aria-hidden="true" className="size-2 rounded-full bg-iris-300" />
-                      {split.Cat} cat {split.Cat === 1 ? 'owner' : 'owners'}
+                      {split.first} {split.first === 1 ? groups.first.one : groups.first.noun}
                     </span>
                     <span className="text-muted" title="Too few people to compare groups with confidence">
                       Directional

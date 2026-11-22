@@ -5,7 +5,7 @@ import { FitChip } from '../SignalBits'
 import { screenById, studyPath } from '@/routes/screens'
 import type { Basis, CodebookDoc } from '@/state/codebook'
 import { mmss } from '@/state/reportLogic'
-import { bandWords, headlineShort, panelRows, quotesOf, segmentNoun, segmentOf, verdictWords, type Bubble, type Segment } from '@/state/themeMap'
+import { bandWords, headlineShort, panelRows, quotesOf, segmentLabelOf, segmentNoun, segmentOf, verdictWords, type Bubble, type Segment } from '@/state/themeMap'
 import { peopleOf } from '@/state/codebook'
 
 const LINK = 'text-sm text-graphite underline-offset-2 hover:text-ink hover:underline'
@@ -65,7 +65,7 @@ export function Panel({ studyId, doc, basis, bubble, seg, tensionId, onClose }: 
             <p className="mt-1 text-xs text-graphite tabular-nums">
               {e.participantId} · {mmss(e.atSec)} · <Link to={href(e.sessionId, e.atSec)} className="font-medium text-iris-700 hover:underline" data-testid="play">Play</Link>
             </p>
-            <p className="text-xs text-graphite">{segmentOf(e.participantId)} owner · {code.name}</p>
+            <p className="text-xs text-graphite">{segmentLabelOf(e.participantId)} · {code.name}</p>
             <p className="text-xs text-graphite" data-testid="reading">{reading}</p>
           </li>
         ))}

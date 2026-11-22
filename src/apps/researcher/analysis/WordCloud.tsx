@@ -8,6 +8,7 @@ import { Switch } from '@/components/Switch'
 import { WORDCLOUD, type Band } from '@/config/wordcloud'
 import { layoutCloud } from '@/lib/cloudLayout'
 import { currentUser } from '@/mock/people'
+import { hasAnalysis } from '@/mock/studyAnalysis'
 import { screenById, studyPath } from '@/routes/screens'
 import { CODEBOOK_STUDY, codeThemes } from '@/state/codebook'
 import { plural } from '@/state/reportLogic'
@@ -125,7 +126,7 @@ export function WordCloudPage() {
       <div className="flex flex-col gap-6">
         {header}
         <div className="rounded-md border border-dashed border-mist-strong bg-surface">
-          <EmptyState title="No accepted themes yet" description="Words come only from codes and themes you accepted, in sessions accepted in Review." action={<Button to={studyPath(CODEBOOK_STUDY, screenById.A1)}>Go to the codebook</Button>} />
+          <EmptyState title="No accepted themes yet" description="Words come only from codes and themes you accepted, in sessions accepted in Review." action={<Button to={studyPath(hasAnalysis(studyId) ? studyId : CODEBOOK_STUDY, screenById.A1)}>Go to the codebook</Button>} />
         </div>
       </div>
     )
