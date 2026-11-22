@@ -78,6 +78,24 @@ export const PET_SURVEYS: Record<'keep' | 'reason', SurveyDef> = {
   },
 }
 
+// Ice Cream Flavour Concept Test
+export const ICE_SURVEYS: Record<'reaction' | 'occasion', SurveyDef> = {
+  reaction: {
+    title: 'Flavour reaction',
+    questions: [
+      choice('q1', 'Thinking about the flavour you liked best of the three, how likely would you be to buy a tub when it is in stores?', LIKELY),
+      rating('q2', 'How appealing is that flavour to you?', 'Not at all appealing', 'Very appealing'),
+    ],
+  },
+  occasion: {
+    title: 'When they would eat it',
+    questions: [
+      choice('q1', 'When would you most likely eat this ice cream?', ['After dinner at home', 'As a treat for myself', 'With the family at the weekend', 'At a party or get-together', 'On a hot day', 'Something else']),
+      choice('q2', 'Which other times would you also eat it?', ['After dinner at home', 'As a treat for myself', 'With the family at the weekend', 'At a party or get-together', 'On a hot day', 'Something else'], 'multiple'),
+    ],
+  },
+}
+
 /** A deterministic answer for a mock respondent, so seeds read the same every time. Multiple choice picks two. */
 export function mockAnswer(q: SurveyQuestion, n: number): string {
   const o = q.options
@@ -112,12 +130,45 @@ const PET_ANSWERS: Record<string, { keep: string; appeal: string; reason: string
   'P-3122': { keep: 'Probably would', appeal: '4', reason: 'Too much food piled up', others: ['The price went up'] },
 }
 
-/** A participant's locked answer to one survey question. Pet Food answers are authored above; other studies get a deterministic one. */
+/**
+ * What each accepted Ice Cream participant locked in the two surveys. It follows what they said in the interview
+ * (src/mock/iceCream/codebook.ts), so a survey answer and the same person's quotes never contradict each other by accident.
+ * `appeal` and `keep` are about the flavour they liked best; `main` and `others` are the times they would eat it.
+ */
+const ICE_ANSWERS: Record<string, { keep: string; appeal: string; main: string; others: string[] }> = {
+  'P-4101': { keep: 'Probably would', appeal: '4', main: 'As a treat for myself', others: ['After dinner at home'] },
+  'P-4102': { keep: 'Definitely would', appeal: '5', main: 'With the family at the weekend', others: ['After dinner at home'] },
+  'P-4103': { keep: 'Probably would', appeal: '4', main: 'On a hot day', others: ['As a treat for myself'] },
+  'P-4104': { keep: 'Definitely would', appeal: '5', main: 'With the family at the weekend', others: ['At a party or get-together'] },
+  'P-4105': { keep: 'Probably would', appeal: '4', main: 'After dinner at home', others: ['With the family at the weekend'] },
+  'P-4106': { keep: 'Probably would not', appeal: '3', main: 'As a treat for myself', others: ['After dinner at home'] },
+  'P-4107': { keep: 'Definitely would', appeal: '5', main: 'After dinner at home', others: ['With the family at the weekend'] },
+  'P-4108': { keep: 'Probably would', appeal: '4', main: 'On a hot day', others: ['At a party or get-together'] },
+  'P-4109': { keep: 'Probably would', appeal: '4', main: 'With the family at the weekend', others: ['On a hot day'] },
+  'P-4110': { keep: 'Probably would', appeal: '4', main: 'As a treat for myself', others: ['After dinner at home'] },
+  'P-4111': { keep: 'Might or might not', appeal: '3', main: 'After dinner at home', others: ['Something else'] },
+  'P-4113': { keep: 'Definitely would', appeal: '5', main: 'On a hot day', others: ['At a party or get-together'] },
+  'P-4114': { keep: 'Definitely would', appeal: '5', main: 'With the family at the weekend', others: ['As a treat for myself'] },
+  'P-4115': { keep: 'Probably would', appeal: '4', main: 'As a treat for myself', others: ['At a party or get-together'] },
+  'P-4116': { keep: 'Might or might not', appeal: '3', main: 'At a party or get-together', others: ['On a hot day'] },
+  'P-4117': { keep: 'Probably would', appeal: '4', main: 'With the family at the weekend', others: ['After dinner at home'] },
+  'P-4118': { keep: 'Probably would not', appeal: '3', main: 'After dinner at home', others: ['As a treat for myself'] },
+  'P-4120': { keep: 'Probably would', appeal: '4', main: 'On a hot day', others: ['As a treat for myself'] },
+  'P-4121': { keep: 'Probably would not', appeal: '3', main: 'After dinner at home', others: ['With the family at the weekend'] },
+  'P-4122': { keep: 'Probably would', appeal: '4', main: 'As a treat for myself', others: ['After dinner at home'] },
+}
+
+/** A participant's locked answer to one survey question. Pet Food and Ice Cream answers are authored above; other studies get a deterministic one. */
 export function surveyAnswerFor(participantId: string, surveyTitle: string, q: SurveyQuestion): string {
   const a = PET_ANSWERS[participantId]
   if (a) {
     if (surveyTitle === PET_SURVEYS.keep.title) return q.id === 'q1' ? a.keep : a.appeal
     if (surveyTitle === PET_SURVEYS.reason.title) return q.id === 'q1' ? a.reason : a.others.join('; ')
+  }
+  const ice = ICE_ANSWERS[participantId]
+  if (ice) {
+    if (surveyTitle === ICE_SURVEYS.reaction.title) return q.id === 'q1' ? ice.keep : ice.appeal
+    if (surveyTitle === ICE_SURVEYS.occasion.title) return q.id === 'q1' ? ice.main : ice.others.join('; ')
   }
   const num = Number(participantId.replace(/\D/g, '')) || 0
   return mockAnswer(q, num + surveyTitle.length)

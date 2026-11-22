@@ -7,6 +7,7 @@ import { seedApprovedBrief } from '@/mock/brief'
 import { DEFAULT_STAGE, MOISTURIZER_ID, presetStudy, type StagePresetKey } from '@/mock/moisturizerStudy'
 import { otherStudies } from '@/mock/studies'
 import { PET_ID, PET_RECORD, seedPetFood } from '@/mock/petFood'
+import { ICE_ID, ICE_RECORD, seedIceCream } from '@/mock/iceCream'
 import type { StudyRecord } from '@/mock/types'
 import { audienceSummary, emptySourcing, migrateAudience, type AudienceDoc } from './audience'
 import { briefSummary, now, type BriefDoc } from './brief'
@@ -27,6 +28,8 @@ type Persisted = {
   moisturizer: StudyRecord
   /** Pet Food Subscription Churn, a finished study. */
   pet: StudyRecord
+  /** Ice Cream Flavour Concept Test, a second finished study. */
+  ice: StudyRecord
   /** Studies created with "New study", newest first. */
   created: StudyRecord[]
   briefs: Record<string, BriefDoc>
@@ -114,10 +117,34 @@ function petState(): Pick<Persisted, 'pet' | 'briefs' | 'audiences' | 'guides' |
   }
 }
 
+/** Ice Cream Flavour Concept Test: a second finished study, filled in the same way. It never changes with the seed study's stage. */
+function iceState(): Pick<Persisted, 'ice' | 'briefs' | 'audiences' | 'guides' | 'launches' | 'fieldworks'> {
+  const p = seedIceCream()
+  return {
+    ice: { ...ICE_RECORD, brief: briefSummary(p.brief), audience: audienceSummary(p.audience), guide: guideSummary(p.guide) },
+    briefs: { [ICE_ID]: p.brief },
+    audiences: { [ICE_ID]: p.audience },
+    guides: { [ICE_ID]: p.guide },
+    launches: { [ICE_ID]: p.launch },
+    fieldworks: { [ICE_ID]: p.fieldwork },
+  }
+}
+
 const freshState = (): Persisted => {
   const seed = seedStage(DEFAULT_STAGE)
   const pet = petState()
-  return { ...seed, ...pet, briefs: { ...seed.briefs, ...pet.briefs }, audiences: { ...seed.audiences, ...pet.audiences }, guides: { ...seed.guides, ...pet.guides }, launches: { ...seed.launches, ...pet.launches }, fieldworks: { ...seed.fieldworks, ...pet.fieldworks }, created: [] }
+  const ice = iceState()
+  return {
+    ...seed,
+    ...pet,
+    ...ice,
+    briefs: { ...seed.briefs, ...pet.briefs, ...ice.briefs },
+    audiences: { ...seed.audiences, ...pet.audiences, ...ice.audiences },
+    guides: { ...seed.guides, ...pet.guides, ...ice.guides },
+    launches: { ...seed.launches, ...pet.launches, ...ice.launches },
+    fieldworks: { ...seed.fieldworks, ...pet.fieldworks, ...ice.fieldworks },
+    created: [],
+  }
 }
 
 function load(): Persisted {
@@ -130,6 +157,11 @@ function load(): Persisted {
         if (!parsed.pet || !parsed.briefs?.[PET_ID]) {
           const pet = petState()
           parsed = { ...parsed, ...pet, briefs: { ...parsed.briefs, ...pet.briefs }, audiences: { ...parsed.audiences, ...pet.audiences }, guides: { ...parsed.guides, ...pet.guides }, launches: { ...parsed.launches, ...pet.launches }, fieldworks: { ...parsed.fieldworks, ...pet.fieldworks } }
+        }
+        // Progress saved before Ice Cream Flavour Concept Test was filled in has none of its documents: add them.
+        if (!parsed.ice || !parsed.briefs?.[ICE_ID]) {
+          const ice = iceState()
+          parsed = { ...parsed, ...ice, briefs: { ...parsed.briefs, ...ice.briefs }, audiences: { ...parsed.audiences, ...ice.audiences }, guides: { ...parsed.guides, ...ice.guides }, launches: { ...parsed.launches, ...ice.launches }, fieldworks: { ...parsed.fieldworks, ...ice.fieldworks } }
         }
         // Briefs saved before emailed approval existed have no review requests.
         const briefs = Object.fromEntries(Object.entries(parsed.briefs ?? {}).map(([id, doc]) => [id, { ...doc, reviewRequests: doc.reviewRequests ?? [] }]))
@@ -144,6 +176,7 @@ function load(): Persisted {
           Object.entries(parsed.fieldworks ?? {}).map(([id, fw]) => {
             if (fw.seed === SESSION_SEED) return [id, fw]
             if (id === PET_ID) return [id, seedPetFood().fieldwork]
+            if (id === ICE_ID) return [id, seedIceCream().fieldwork]
             const guide = guides[id]
             const audience = audiences[id]
             const plan = compileStudyPlan(guide, studyLanguage(briefs[id]))
@@ -236,7 +269,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     setState((prev) => {
       const doc = fn(prev.briefs[id])
       const sync = (s: StudyRecord) => (s.id === id ? { ...s, brief: briefSummary(doc), updatedAt: now() } : s)
-      return { ...prev, briefs: { ...prev.briefs, [id]: doc }, moisturizer: sync(prev.moisturizer), pet: sync(prev.pet), created: prev.created.map(sync) }
+      return { ...prev, briefs: { ...prev.briefs, [id]: doc }, moisturizer: sync(prev.moisturizer), pet: sync(prev.pet), ice: sync(prev.ice), created: prev.created.map(sync) }
     })
   }, [])
 
@@ -244,7 +277,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     setState((prev) => {
       const doc = fn(prev.audiences[id])
       const sync = (s: StudyRecord) => (s.id === id ? { ...s, audience: audienceSummary(doc), updatedAt: now() } : s)
-      return { ...prev, audiences: { ...prev.audiences, [id]: doc }, moisturizer: sync(prev.moisturizer), pet: sync(prev.pet), created: prev.created.map(sync) }
+      return { ...prev, audiences: { ...prev.audiences, [id]: doc }, moisturizer: sync(prev.moisturizer), pet: sync(prev.pet), ice: sync(prev.ice), created: prev.created.map(sync) }
     })
   }, [])
   const setAudience = useCallback((id: string, doc: AudienceDoc) => writeAudience(id, () => doc), [writeAudience])
@@ -273,7 +306,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
               updatedAt: now(),
             }
           : s
-      return { ...prev, guides: { ...prev.guides, [id]: doc }, moisturizer: sync(prev.moisturizer), pet: sync(prev.pet), created: prev.created.map(sync) }
+      return { ...prev, guides: { ...prev.guides, [id]: doc }, moisturizer: sync(prev.moisturizer), pet: sync(prev.pet), ice: sync(prev.ice), created: prev.created.map(sync) }
     })
   }, [])
   const setGuide = useCallback((id: string, doc: GuideDoc) => writeGuide(id, () => doc), [writeGuide])
@@ -305,7 +338,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
         else if (guide && audience && plan.state === 'ok')
           fieldworks = { ...fieldworks, [id]: generateFieldwork({ studyId: id, audience, guide, plan: plan.plan, releaseNumber: doc.release!.number, releaseVersion: doc.release!.version, launch: doc }) }
       }
-      return { ...prev, launches: { ...prev.launches, [id]: doc }, fieldworks, moisturizer: sync(prev.moisturizer), pet: sync(prev.pet), created: prev.created.map(sync) }
+      return { ...prev, launches: { ...prev.launches, [id]: doc }, fieldworks, moisturizer: sync(prev.moisturizer), pet: sync(prev.pet), ice: sync(prev.ice), created: prev.created.map(sync) }
     })
   }, [])
   const writeFieldwork = useCallback((id: string, fn: (doc: FieldworkDoc | undefined) => FieldworkDoc) => {
@@ -318,7 +351,7 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       const terminated = !before?.terminated && !!doc.terminated
       const completed = doc.sessions.filter((x) => x.status === 'Completed').length
       const sync = (s: StudyRecord): StudyRecord => (s.id === id ? { ...s, completedSessions: completed, status: closed ? 'Complete' : terminated ? 'Terminated' : paused ? 'Paused' : resumed ? 'Live' : s.status, updatedAt: now() } : s)
-      return { ...prev, fieldworks: { ...prev.fieldworks, [id]: doc }, moisturizer: sync(prev.moisturizer), pet: sync(prev.pet), created: prev.created.map(sync) }
+      return { ...prev, fieldworks: { ...prev.fieldworks, [id]: doc }, moisturizer: sync(prev.moisturizer), pet: sync(prev.pet), ice: sync(prev.ice), created: prev.created.map(sync) }
     })
   }, [])
   const updateFieldwork = useCallback(
@@ -374,8 +407,8 @@ export function StudyProvider({ children }: { children: ReactNode }) {
       const r = readiness({ study: s, audience: state.audiences[s.id], guide: state.guides[s.id], launch: state.launches[s.id], language: studyLanguage(state.briefs[s.id]) })
       return r.ready === (s.status === 'Ready to Launch') ? s : { ...s, status: r.ready ? 'Ready to Launch' : 'Not Ready' }
     }
-    const studies = [...state.created.map(derive), derive(state.moisturizer), derive(state.pet), ...otherStudies]
-    const editable = new Set([state.moisturizer.id, state.pet.id, ...state.created.map((s) => s.id)])
+    const studies = [...state.created.map(derive), derive(state.moisturizer), derive(state.pet), derive(state.ice), ...otherStudies]
+    const editable = new Set([state.moisturizer.id, state.pet.id, state.ice.id, ...state.created.map((s) => s.id)])
     return {
       studies,
       getStudy: (id) => studies.find((s) => s.id === id),

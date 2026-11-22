@@ -121,3 +121,55 @@ export const PET_SEED_SESSIONS: SeedSession[] = [
   { participant: 'P-3123', state: 'Illinois', variant: 'withdrawn', at: PET(18, '14:10'), durationMin: 5 },
   { participant: 'P-3124', state: 'Washington', variant: 'noshow', at: PET(12, '10:00') },
 ]
+
+// ─── Ice Cream Flavour Concept Test ─────────────────────────────────────────
+// A finished study: 24 people invited, 22 interviews completed, 2 excluded in review and replaced from the reserve,
+// 20 accepted for the target of 20. Fieldwork ran Oct 5 to 19, 2026 (Eastern daylight time).
+
+const ICE = (day: number, hm: string) => `2026-10-${String(day).padStart(2, '0')}T${hm}:00-04:00`
+
+const ICE_DONE: PetDone[] = [
+  ['P-4101', 'Texas', 5, '11:20', 26, 91, 88, [], 'Accepted'],
+  ['P-4102', 'California', 5, '15:40', 24, 72, 60, ['Insufficient probing'], 'Accepted'],
+  ['P-4103', 'New York', 6, '10:05', 27, 90, 90, [], 'Accepted'],
+  ['P-4104', 'Illinois', 7, '14:30', 28, 85, 80, [], 'Accepted', [['Survey answer not saved', 'Degraded', 'Resolved', 'Answer re-entered and locked']], 2],
+  ['P-4105', 'Georgia', 7, '16:45', 25, 88, 86, [], 'Accepted'],
+  ['P-4106', 'Washington', 8, '12:15', 25, 81, 63, ['Incorrect stimulus presentation'], 'Accepted', [['Stimulus failed to load', 'Degraded', 'Resolved', 'A fallback card was shown. Counted as not seen.']]],
+  ['P-4107', 'Ohio', 8, '17:00', 30, 87, 84, [], 'Accepted'],
+  ['P-4108', 'Florida', 9, '11:10', 23, 65, 77, ['Rushed response'], 'Accepted'],
+  ['P-4109', 'Colorado', 9, '14:25', 27, 89, 85, [], 'Accepted', [['Audio dropped', 'Degraded', 'Resolved', 'Participant rejoined and the answer was repeated']]],
+  ['P-4110', 'North Carolina', 10, '10:40', 26, 91, 87, [], 'Accepted'],
+  ['P-4111', 'Massachusetts', 10, '15:15', 25, 80, 67, ['Guide deviation'], 'Accepted'],
+  ['P-4112', 'Texas', 11, '09:50', 12, 25, 60, ['Duplicate entry', 'Rushed response'], 'Excluded'],
+  ['P-4113', 'Arizona', 11, '13:30', 28, 86, 83, [], 'Accepted', [['Transcription delayed', 'Minor', 'Resolved', 'The transcript filled in within the hour']]],
+  ['P-4114', 'Michigan', 12, '11:55', 25, 90, 82, [], 'Accepted'],
+  ['P-4115', 'Oregon', 12, '16:20', 29, 84, 88, [], 'Accepted'],
+  ['P-4116', 'Pennsylvania', 13, '10:30', 24, 74, 56, ['Missed core theme'], 'Accepted'],
+  ['P-4117', 'Virginia', 13, '14:05', 26, 89, 90, [], 'Accepted'],
+  ['P-4118', 'Minnesota', 14, '12:00', 27, 82, 78, [], 'Accepted'],
+  ['P-4119', 'California', 14, '15:45', 14, 47, 32, ['Leading question', 'Extended silence'], 'Excluded'],
+  ['P-4120', 'Tennessee', 15, '10:20', 25, 92, 86, [], 'Accepted'],
+  ['P-4121', 'Georgia', 16, '11:35', 26, 88, 87, [], 'Accepted'],
+  ['P-4122', 'New Jersey', 17, '13:10', 25, 86, 82, [], 'Accepted'],
+]
+
+/** Four accepted participants used the audio-only access mode (P12), so there is no video of them. */
+const ICE_AUDIO_ONLY = new Set(['P-4107', 'P-4110', 'P-4113', 'P-4120'])
+
+export const ICE_SEED_SESSIONS: SeedSession[] = [
+  // The first attempt of P-4104 lost its connection; the participant came back on a new link.
+  { participant: 'P-4104', no: 1, state: 'Illinois', variant: 'error', at: ICE(7, '13:50'), durationMin: 4, issues: [['Connection lost', 'Blocking', 'Resolved', 'The participant came back on a new link. Their second session is the one in Review.']] },
+  ...ICE_DONE.map(([participant, state, day, hm, durationMin, integrity, quality, flags, status, issues, no]): SeedSession => ({
+    participant,
+    ...(no ? { no } : {}),
+    state,
+    variant: 'done',
+    at: ICE(day, hm),
+    durationMin,
+    ...(issues ? { issues } : {}),
+    ...(ICE_AUDIO_ONLY.has(participant) ? { media: 'Audio only' as const } : {}),
+    review: { integrity, quality, flags, status },
+  })),
+  { participant: 'P-4123', state: 'Illinois', variant: 'withdrawn', at: ICE(15, '14:10'), durationMin: 5 },
+  { participant: 'P-4124', state: 'Washington', variant: 'noshow', at: ICE(12, '10:00') },
+]
