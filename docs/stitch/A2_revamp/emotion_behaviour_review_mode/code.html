@@ -1,0 +1,857 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PulseAI Qual — Emotion & Behaviour: Review Mode</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Plus+Jakarta+Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: #F8FAFC;
+      color: #0F172A;
+      -webkit-font-smoothing: antialiased;
+    }
+    .custom-scroll::-webkit-scrollbar {
+      width: 5px;
+    }
+    .custom-scroll::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .custom-scroll::-webkit-scrollbar-thumb {
+      background: #CBD5E1;
+      border-radius: 9999px;
+    }
+    .card-transition {
+      transition: all 200ms cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .card-transition, .seg-fill {
+        transition: none !important;
+        animation: none !important;
+      }
+    }
+    .focus-ring:focus-visible {
+      outline: 2px solid #6366F1;
+      outline-offset: 2px;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col bg-[#F8FAFC]">
+
+  <!-- Top Sticky Navigation Bar -->
+  <header class="sticky top-0 z-40 bg-white border-b border-slate-200">
+    <!-- Row 1: Study Breadcrumbs & Global Metadata -->
+    <div class="max-w-[1440px] mx-auto px-6 h-12 flex items-center justify-between border-b border-slate-100 text-xs">
+      <div class="flex items-center gap-2 text-slate-500">
+        <span class="hover:text-slate-800 cursor-pointer">Studies</span>
+        <span>/</span>
+        <span class="text-slate-700 font-medium">Ice Cream Flavour Concept Test · Scoop &amp; Co</span>
+      </div>
+      <div class="flex items-center gap-4">
+        <!-- Interactive Frame Switcher for Design Review -->
+        <div class="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-xs">
+          <span class="px-2 py-0.5 text-slate-400 font-medium uppercase tracking-wider text-[10px]">Frame:</span>
+          <button onclick="setFrame(1)" id="btn-f1" class="px-2.5 py-1 rounded font-medium text-slate-700 bg-white shadow-xs focus-ring">1: Theme</button>
+          <button onclick="setFrame(2)" id="btn-f2" class="px-2.5 py-1 rounded font-medium text-slate-500 hover:text-slate-800 focus-ring">2: Concept</button>
+          <button onclick="setFrame(3)" id="btn-f3" class="px-2.5 py-1 rounded font-medium text-slate-500 hover:text-slate-800 focus-ring">3: Out of date</button>
+          <button onclick="setFrame(4)" id="btn-f4" class="px-2.5 py-1 rounded font-medium text-slate-500 hover:text-slate-800 focus-ring">4: Edit mode</button>
+          <button onclick="setFrame(5)" id="btn-f5" class="px-2.5 py-1 rounded font-medium text-slate-500 hover:text-slate-800 focus-ring">5: Summary</button>
+          <button onclick="setFrame(6)" id="btn-f6" class="px-2.5 py-1 rounded font-medium text-slate-500 hover:text-slate-800 focus-ring">6: Skipped</button>
+        </div>
+        <div class="h-4 w-px bg-slate-200"></div>
+        <a href="#" onclick="showToast('Review session exited. Returning to table.')" class="text-xs font-semibold text-slate-600 hover:text-slate-900 flex items-center gap-1 focus-ring rounded px-1.5 py-0.5">
+          Exit review
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </a>
+      </div>
+    </div>
+
+    <!-- Row 2: Review Header Strip (Replaces Tabs) -->
+    <div class="max-w-[1440px] mx-auto px-6 h-14 flex items-center justify-between">
+      <div class="flex items-center gap-4">
+        <h1 class="text-base font-bold text-slate-900 tracking-tight flex items-center gap-2">
+          Emotion &amp; behaviour
+          <span class="text-xs font-normal text-slate-400">/</span>
+          <span class="text-xs font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200/60 px-2 py-0.5 rounded-full" id="queue-counter">
+            Reviewing insights · 2 of 4
+          </span>
+        </h1>
+      </div>
+
+      <!-- Segmented Progress Bar (1 block per item in queue) -->
+      <div class="flex items-center gap-3">
+        <div class="flex items-center gap-1.5" id="progress-container">
+          <!-- Block 1: Decided / Accepted -->
+          <div class="w-10 h-2 rounded-full bg-slate-700 cursor-pointer" title="1. Safe choice wins (Accepted)" onclick="setFrame(1)"></div>
+          <!-- Block 2: Current (Accent indigo) -->
+          <div class="w-10 h-2 rounded-full bg-indigo-600 ring-2 ring-indigo-200 cursor-pointer" title="2. Parents choose (Current)" onclick="setFrame(1)" id="bar-2"></div>
+          <!-- Block 3: Pending -->
+          <div class="w-10 h-2 rounded-full bg-slate-200 cursor-pointer" title="3. Curious about different" onclick="setFrame(3)" id="bar-3"></div>
+          <!-- Block 4: Pending -->
+          <div class="w-10 h-2 rounded-full bg-slate-200 cursor-pointer" title="4. Concept B: Mango Lassi" onclick="setFrame(2)" id="bar-4"></div>
+        </div>
+        <span class="text-xs text-slate-500 font-medium" id="progress-label">2 undecided</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Review Viewport -->
+  <main class="flex-1 max-w-[1440px] w-full mx-auto px-6 py-8 flex items-start justify-center relative">
+
+    <!-- Previous Chevron Button (Left) -->
+    <div class="fixed left-6 top-1/2 -translate-y-1/2 z-20">
+      <button onclick="prevItem()" id="btn-prev" class="w-11 h-11 rounded-full bg-white border border-slate-200 shadow-sm flex items-center justify-center text-slate-600 hover:text-slate-900 hover:border-slate-300 hover:bg-slate-50 focus-ring transition-all" title="Previous insight (←)">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+      </button>
+    </div>
+
+    <!-- Next Chevron Button (Right) -->
+    <div class="fixed right-6 top-1/2 -translate-y-1/2 z-20">
+      <button onclick="nextItem()" id="btn-next" class="w-11 h-11 rounded-full bg-white border border-slate-200 shadow-sm flex items-center justify-center text-slate-600 hover:text-slate-900 hover:border-slate-300 hover:bg-slate-50 focus-ring transition-all" title="Next / Skip (→)">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+      </button>
+    </div>
+
+    <!-- Central Reading Card (Max width ~720px) -->
+    <div class="w-full max-w-[720px] bg-white border border-slate-200 rounded-xl shadow-xs overflow-hidden card-transition mb-24" id="review-panel">
+
+      <!-- ============================================================= -->
+      <!-- FRAME 1: THEME INSIGHT (Parents choose for the whole family)   -->
+      <!-- ============================================================= -->
+      <div id="content-f1" class="p-8 space-y-6">
+        <!-- Meta Row -->
+        <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Theme</span>
+            <span class="text-xs text-slate-300">·</span>
+            <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-800 border border-amber-200">Mixed</span>
+            <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-200 flex items-center gap-1">
+              <span class="w-1.5 h-1.5 rounded-full bg-indigo-600"></span> Suggested
+            </span>
+          </div>
+          <span class="text-xs text-slate-500 font-medium">Said by 9 of 20 people</span>
+        </div>
+
+        <!-- Title -->
+        <div>
+          <h2 class="text-xl font-bold text-slate-900 tracking-tight">Parents choose for the whole family</h2>
+        </div>
+
+        <!-- AI Insight Sentence (Largest Text with AI tag) -->
+        <div class="bg-slate-50/80 border border-slate-200/80 rounded-lg p-5 relative">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-[11px] font-semibold text-indigo-700 uppercase tracking-wider flex items-center gap-1.5">
+              <svg class="w-3.5 h-3.5 text-indigo-600" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L14.4 9.6L22 12L14.4 14.4L12 22L9.6 14.4L2 12L9.6 9.6L12 2Z"/></svg>
+              AI-generated insight
+            </span>
+            <span class="text-xs text-slate-400">PulseAI Qual</span>
+          </div>
+          <p class="text-lg font-semibold text-slate-900 leading-snug">
+            “7 of 9 people were verbally positive about it, but 3 of those 7 sounded flat or tense.”
+          </p>
+        </div>
+
+        <!-- Delivery Match: Segmented Metric Bar Section -->
+        <div class="space-y-4 pt-1">
+          <div class="flex items-center justify-between">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500">Did their delivery match their words?</h3>
+            <span class="text-xs text-slate-400">2 audio-only, read on speech</span>
+          </div>
+
+          <!-- Spoke in favour (7 people) -->
+          <div class="bg-white border border-slate-200 rounded-lg p-4 space-y-3">
+            <div class="flex items-center justify-between text-xs">
+              <span class="font-semibold text-slate-800">Spoke in favour · 7 people</span>
+              <button onclick="toggleShowWho('f1-favor-who')" class="text-indigo-600 hover:text-indigo-800 font-medium flex items-center gap-0.5 focus-ring rounded">
+                Show who <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+              </button>
+            </div>
+            
+            <!-- Segmented Bar: 7 blocks (3 Matched, 3 No match, 1 Hesitant) -->
+            <div class="space-y-1.5">
+              <div class="flex items-center gap-1 w-full h-2.5">
+                <!-- Matched (3 in emerald) -->
+                <div class="h-full flex-1 bg-emerald-600 rounded-sm" title="P-4111, P-4102, P-4105 (Matched)"></div>
+                <div class="h-full flex-1 bg-emerald-600 rounded-sm" title="Matched"></div>
+                <div class="h-full flex-1 bg-emerald-600 rounded-sm" title="Matched"></div>
+                <!-- No match (3 in amber) -->
+                <div class="h-full flex-1 bg-amber-500 rounded-sm" title="P-4113, P-4114, P-4119 (No match)"></div>
+                <div class="h-full flex-1 bg-amber-500 rounded-sm" title="No match"></div>
+                <div class="h-full flex-1 bg-amber-500 rounded-sm" title="No match"></div>
+                <!-- Hesitant (1 in slate) -->
+                <div class="h-full flex-1 bg-slate-400 rounded-sm" title="P-4103 (Hesitant)"></div>
+              </div>
+              <div class="flex items-center justify-between text-[11px] text-slate-500">
+                <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-emerald-600"></span> 3 Matched</span>
+                <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-amber-500"></span> 3 No match (flat/tense)</span>
+                <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-slate-400"></span> 1 Hesitant</span>
+              </div>
+            </div>
+
+            <!-- Expandable "Show Who" Drawer -->
+            <div id="f1-favor-who" class="hidden text-xs bg-slate-50 p-2.5 rounded border border-slate-100 text-slate-600 space-y-1">
+              <p><strong class="text-slate-800">Matched (3):</strong> P-4111 (Parent · Animated), P-4102 (Parent · Even), P-4105 (Parent · Even)</p>
+              <p><strong class="text-slate-800">No match (3):</strong> P-4113 (Parent · Tense), P-4114 (Adult · Flat), P-4119 (Parent · Flat)</p>
+              <p><strong class="text-slate-800">Hesitant (1):</strong> P-4103 (Parent · Hesitated)</p>
+            </div>
+          </div>
+
+          <!-- Spoke against it (2 people) -->
+          <div class="bg-white border border-slate-200 rounded-lg p-3 flex items-center justify-between text-xs">
+            <span class="font-medium text-slate-700">Spoke against it · 2 people</span>
+            <span class="text-slate-500">1 Matched (P-4108) · 1 No match (P-4116)</span>
+          </div>
+        </div>
+
+        <!-- Moments to watch -->
+        <div class="space-y-3 pt-2">
+          <div class="flex items-center justify-between">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500">Moments to watch (clearest first)</h3>
+            <span class="text-xs text-slate-400">5 moments recorded</span>
+          </div>
+
+          <!-- Moment 1: P-4114 -->
+          <div class="p-3.5 bg-slate-50/60 border border-slate-200 rounded-lg space-y-2 text-xs">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <button class="w-6 h-6 rounded-full bg-white border border-slate-300 flex items-center justify-center text-slate-700 hover:bg-slate-100 focus-ring" title="Play audio">
+                  <svg class="w-3 h-3 fill-current ml-0.5" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                </button>
+                <span class="font-bold text-slate-800">P-4114</span>
+                <span class="text-slate-400">·</span>
+                <span class="text-slate-600">Adult without children</span>
+                <span class="text-slate-400">·</span>
+                <span class="text-slate-500">13:03</span>
+              </div>
+              <span class="px-2 py-0.5 rounded text-[11px] font-medium bg-amber-50 text-amber-800 border border-amber-200">No match</span>
+            </div>
+            <p class="text-slate-900 font-medium italic pl-8">
+              “My nephews would go for cookie dough, so I’d buy that when they visit.”
+            </p>
+            <p class="text-[11px] text-slate-500 pl-8">
+              Voice varied less than usual: pitch range 3.6 vs their usual 5.6. Quieter than usual by 2.8 dB.
+            </p>
+          </div>
+
+          <!-- Moment 2: P-4113 -->
+          <div class="p-3.5 bg-slate-50/60 border border-slate-200 rounded-lg space-y-2 text-xs">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <button class="w-6 h-6 rounded-full bg-white border border-slate-300 flex items-center justify-center text-slate-700 hover:bg-slate-100 focus-ring" title="Play audio">
+                  <svg class="w-3 h-3 fill-current ml-0.5" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                </button>
+                <span class="font-bold text-slate-800">P-4113</span>
+                <span class="text-slate-400">·</span>
+                <span class="text-slate-600">Parent</span>
+                <span class="text-slate-400">·</span>
+                <span class="text-slate-500">16:07</span>
+              </div>
+              <span class="px-2 py-0.5 rounded text-[11px] font-medium bg-amber-50 text-amber-800 border border-amber-200">No match</span>
+            </div>
+            <p class="text-slate-900 font-medium italic pl-8">
+              “The kids pick. That’s it. Cookie dough, every time.”
+            </p>
+            <p class="text-[11px] text-slate-500 pl-8">
+              Spoke faster than usual: 179 words a minute vs their usual 138.
+            </p>
+          </div>
+        </div>
+
+        <!-- Related Tensions & Codes to Check -->
+        <div class="grid grid-cols-2 gap-3 pt-2 text-xs">
+          <div class="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-1">
+            <span class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Tension on this theme</span>
+            <div class="font-medium text-slate-900 flex items-center justify-between">
+              <span>Between segments (Cookie)</span>
+              <span class="text-indigo-600 cursor-pointer hover:underline">Card 1 ›</span>
+            </div>
+          </div>
+          <div class="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-1">
+            <span class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Codes to check</span>
+            <div class="font-medium text-slate-900 flex items-center justify-between">
+              <span>Would buy Cookie Dough first</span>
+              <span class="px-1.5 py-0.2 rounded text-[10px] bg-amber-50 text-amber-800 border border-amber-200">Mixed</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Researcher Note Box -->
+        <div class="space-y-1.5 pt-2">
+          <label class="text-xs font-semibold text-slate-700">Your note <span class="font-normal text-slate-400">(kept separate from the insight line)</span></label>
+          <textarea rows="2" placeholder="Add an optional note for Scoops & Co research team..." class="w-full text-xs p-2.5 rounded-lg border border-slate-200 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none text-slate-800 resize-none"></textarea>
+        </div>
+      </div>
+
+      <!-- ============================================================= -->
+      <!-- FRAME 2: CONCEPT LINE (Concept B: Mango Lassi)                 -->
+      <!-- ============================================================= -->
+      <div id="content-f2" class="hidden p-8 space-y-6">
+        <!-- Meta Row -->
+        <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Concept B</span>
+            <span class="text-xs text-slate-300">·</span>
+            <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-800 border border-amber-200">≠ Differs</span>
+            <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-200 flex items-center gap-1">
+              <span class="w-1.5 h-1.5 rounded-full bg-indigo-600"></span> Suggested
+            </span>
+          </div>
+          <span class="text-xs text-slate-500 font-medium">Seen by 20 of 20 people</span>
+        </div>
+
+        <!-- Title -->
+        <div>
+          <h2 class="text-xl font-bold text-slate-900 tracking-tight">Concept B: Mango Lassi</h2>
+        </div>
+
+        <!-- AI Insight Sentence -->
+        <div class="bg-slate-50/80 border border-slate-200/80 rounded-lg p-5 relative">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-[11px] font-semibold text-indigo-700 uppercase tracking-wider flex items-center gap-1.5">
+              <svg class="w-3.5 h-3.5 text-indigo-600" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L14.4 9.6L22 12L14.4 14.4L12 22L9.6 14.4L2 12L9.6 9.6L12 2Z"/></svg>
+              AI-generated insight
+            </span>
+            <span class="text-xs text-slate-400">PulseAI Qual</span>
+          </div>
+          <p class="text-lg font-semibold text-slate-900 leading-snug">
+            “Mango Lassi drew the warmest first reaction for 9 of 15 people on video. 3 of 20 people chose it to take home.”
+          </p>
+        </div>
+
+        <!-- Said · Did · Showed Segmented Bars (3 equal-height tiles) -->
+        <div class="space-y-2">
+          <div class="flex items-center justify-between text-xs">
+            <h3 class="font-bold uppercase tracking-wider text-slate-500">Said · Did · Showed Triangulation</h3>
+            <span class="text-slate-400">Faces read at reveal: 15 of 20 (5 audio-only)</span>
+          </div>
+
+          <div class="grid grid-cols-3 gap-3">
+            <!-- Said Tile -->
+            <div class="p-3.5 bg-white border border-slate-200 rounded-lg space-y-2 flex flex-col justify-between">
+              <div>
+                <span class="text-xs font-bold text-slate-900">5 of 20 people</span>
+                <p class="text-[11px] text-slate-500">Said first</p>
+              </div>
+              <div class="w-full h-2 bg-slate-100 rounded-sm overflow-hidden flex gap-0.5">
+                <div class="h-full w-[25%] bg-slate-700"></div>
+              </div>
+              <span class="text-[11px] text-slate-400 font-medium">Said 3rd</span>
+            </div>
+
+            <!-- Did Tile -->
+            <div class="p-3.5 bg-white border border-slate-200 rounded-lg space-y-2 flex flex-col justify-between">
+              <div>
+                <span class="text-xs font-bold text-slate-900">3 of 20 people</span>
+                <p class="text-[11px] text-slate-500">Chose in task</p>
+              </div>
+              <div class="w-full h-2 bg-slate-100 rounded-sm overflow-hidden flex gap-0.5">
+                <div class="h-full w-[15%] bg-slate-700"></div>
+              </div>
+              <span class="text-[11px] text-slate-400 font-medium">Did 3rd</span>
+            </div>
+
+            <!-- Showed Tile (Face Tint Family) -->
+            <div class="p-3.5 bg-teal-50/40 border border-teal-200 rounded-lg space-y-2 flex flex-col justify-between">
+              <div>
+                <span class="text-xs font-bold text-teal-950">9 of 15 on video</span>
+                <p class="text-[11px] text-teal-700">Warmest reaction</p>
+              </div>
+              <div class="w-full h-2 bg-teal-100/60 rounded-sm overflow-hidden flex gap-0.5">
+                <div class="h-full w-[60%] bg-teal-600"></div>
+              </div>
+              <span class="text-[11px] text-teal-800 font-bold">Showed 1st</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- First Reactions, Warmest First (Face Moments) -->
+        <div class="space-y-3 pt-1">
+          <div class="flex items-center justify-between text-xs">
+            <h3 class="font-bold uppercase tracking-wider text-slate-500">First reactions (warmest first)</h3>
+            <span class="text-slate-400">First 5 seconds after reveal</span>
+          </div>
+
+          <!-- Face Moment 1: P-4109 -->
+          <div class="p-3.5 bg-white border border-teal-200/80 rounded-lg space-y-2.5 text-xs">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <!-- Abstract Play Thumbnail with Teal Tint -->
+                <div class="w-7 h-7 rounded bg-teal-100 border border-teal-300 flex items-center justify-center text-teal-700 cursor-pointer hover:bg-teal-200 focus-ring" title="Play concept reveal clip">
+                  <svg class="w-3.5 h-3.5 fill-current ml-0.5" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                </div>
+                <div>
+                  <span class="font-bold text-slate-900">P-4109</span>
+                  <span class="text-slate-400">·</span>
+                  <span class="text-slate-600">Adult without children</span>
+                  <span class="text-slate-400">·</span>
+                  <span class="text-slate-500">14:39 (1.5 s after reveal)</span>
+                </div>
+              </div>
+              <button class="text-slate-400 hover:text-slate-600 font-medium text-[11px]">Not right?</button>
+            </div>
+            <!-- Visible Cue (Plain text Seen: without quotation marks) -->
+            <div class="space-y-1 pl-9">
+              <p class="text-slate-700 font-medium">Seen: Leaned in with a wide smile</p>
+              <div class="flex items-center gap-2">
+                <span class="px-2 py-0.5 rounded text-[11px] font-semibold bg-teal-50 text-teal-900 border border-teal-200">
+                  reads as Delight at Mango · High confidence
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Face Moment 2: P-4106 -->
+          <div class="p-3.5 bg-white border border-teal-200/80 rounded-lg space-y-2.5 text-xs">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <div class="w-7 h-7 rounded bg-teal-100 border border-teal-300 flex items-center justify-center text-teal-700 cursor-pointer hover:bg-teal-200 focus-ring" title="Play concept reveal clip">
+                  <svg class="w-3.5 h-3.5 fill-current ml-0.5" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                </div>
+                <div>
+                  <span class="font-bold text-slate-900">P-4106</span>
+                  <span class="text-slate-400">·</span>
+                  <span class="text-slate-600">Adult without children</span>
+                  <span class="text-slate-400">·</span>
+                  <span class="text-slate-500">14:29 (1.3 s after reveal)</span>
+                </div>
+              </div>
+              <button class="text-slate-400 hover:text-slate-600 font-medium text-[11px]">Not right?</button>
+            </div>
+            <div class="space-y-1 pl-9">
+              <p class="text-slate-700 font-medium">Seen: Cheeks raised in a clear smile</p>
+              <div class="flex items-center gap-2">
+                <span class="px-2 py-0.5 rounded text-[11px] font-semibold bg-teal-50 text-teal-900 border border-teal-200">
+                  reads as Delight at Mango · High confidence
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Related Tension Link -->
+        <div class="p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs flex items-center justify-between">
+          <span class="text-slate-600">Related tension: <strong class="text-slate-900">Said vs did, Mango (Card 3)</strong></span>
+          <span class="text-indigo-600 font-medium cursor-pointer hover:underline">View tension ›</span>
+        </div>
+      </div>
+
+      <!-- ============================================================= -->
+      <!-- FRAME 3: OUT OF DATE ITEM (Curious about something different)  -->
+      <!-- ============================================================= -->
+      <div id="content-f3" class="hidden p-8 space-y-6">
+        <!-- Meta Row -->
+        <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Theme</span>
+            <span class="text-xs text-slate-300">·</span>
+            <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-800 border border-amber-200">Gap</span>
+            <span class="px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-900 border border-amber-300 flex items-center gap-1">
+              <svg class="w-3 h-3 text-amber-700" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
+              Out of date
+            </span>
+          </div>
+          <span class="text-xs text-slate-500 font-medium">Said by 10 of 20 people</span>
+        </div>
+
+        <div>
+          <h2 class="text-xl font-bold text-slate-900 tracking-tight">Curious about something different</h2>
+        </div>
+
+        <!-- Side-by-side Out of Date Comparison Box -->
+        <div class="bg-amber-50/50 border border-amber-200 rounded-xl p-5 space-y-4">
+          <div class="flex items-center gap-2 text-xs font-bold text-amber-900">
+            <svg class="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+            The underlying study data changed after this insight was decided.
+          </div>
+
+          <div class="grid grid-cols-2 gap-4 text-xs">
+            <!-- WAS -->
+            <div class="p-3.5 bg-white/80 border border-slate-200 rounded-lg space-y-1.5 opacity-80">
+              <span class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Previous Accepted Wording</span>
+              <p class="text-slate-800 line-through">
+                “12 of 14 people were verbally positive about it, and their delivery backed it up.”
+              </p>
+              <span class="text-[10px] text-slate-400 block pt-1">Accepted by PM · 21 Nov 2026 · data v1</span>
+            </div>
+
+            <!-- NOW -->
+            <div class="p-3.5 bg-white border border-amber-300 rounded-lg space-y-1.5 shadow-xs">
+              <span class="text-[11px] font-bold text-amber-800 uppercase tracking-wider flex items-center gap-1">
+                <span class="w-1.5 h-1.5 rounded-full bg-amber-600"></span> Updated Data (v2)
+              </span>
+              <p class="text-slate-900 font-semibold">
+                “6 of 10 people were verbally positive about it, but 4 of those 6 sounded flat or tense.”
+              </p>
+              <span class="text-[10px] text-indigo-600 font-medium block pt-1">PulseAI recalculation based on updated participant pool</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Evidence Summary -->
+        <div class="bg-slate-50 border border-slate-200 rounded-lg p-4 text-xs space-y-2">
+          <span class="font-bold text-slate-700">Delivery breakdown:</span>
+          <p class="text-slate-600">
+            6 spoke in favour (1 matched, 4 no match, 1 hesitant) · 3 spoke against it (2 matched, 1 no match) · 1 just described it.
+          </p>
+        </div>
+      </div>
+
+      <!-- ============================================================= -->
+      <!-- FRAME 4: EDIT MODE (Wording Editable, Numbers Locked)          -->
+      <!-- ============================================================= -->
+      <div id="content-f4" class="hidden p-8 space-y-6">
+        <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Editing Wording</span>
+            <span class="text-xs text-slate-300">·</span>
+            <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">The safe choice wins the shelf</span>
+          </div>
+          <span class="text-xs text-indigo-600 font-medium">Numbers locked</span>
+        </div>
+
+        <!-- Editable Sentence Box with Locked Numeric Chips -->
+        <div class="space-y-3">
+          <label class="text-xs font-bold text-slate-700 block">Edit insight statement</label>
+          <div class="p-4 bg-white border-2 border-indigo-500 rounded-xl space-y-3 shadow-xs">
+            <div class="flex flex-wrap items-center gap-1.5 text-base text-slate-900 font-medium leading-relaxed" id="editable-wording-container">
+              <!-- Locked Chip 1 -->
+              <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-100 border border-slate-300 rounded text-sm font-bold text-slate-800 select-none" title="Figure locked to PulseAI telemetry">
+                <svg class="w-3 h-3 text-slate-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"/></svg>
+                12 of 14 people
+              </span>
+              <input type="text" value="said good things about it, and their delivery backed it up." class="flex-1 min-w-[280px] border-b border-dashed border-slate-400 focus:border-indigo-600 outline-none text-slate-900 px-1 py-0.5 text-base">
+            </div>
+
+            <p class="text-[11px] text-slate-500">
+              You can adjust phrasing, tone, and emphasis. Counts and bases remain locked to verify scientific integrity.
+            </p>
+          </div>
+
+          <!-- Live Rule Validation Error Box (Simulation) -->
+          <div class="p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700 flex items-start gap-2">
+            <svg class="w-4 h-4 text-red-500 mt-0.5 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
+            <div>
+              <span class="font-bold">Validation rule:</span> The numbers are locked to PulseAI’s data. Change the wording, not the figures. Showing figures as a percentage or share of 100 is not permitted.
+            </div>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-end gap-3 pt-2">
+          <button onclick="setFrame(1)" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 focus-ring">Cancel</button>
+          <button onclick="showToast('Wording saved as Edited insight.'); setFrame(1);" class="px-4 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-xs focus-ring">Save wording</button>
+        </div>
+      </div>
+
+      <!-- ============================================================= -->
+      <!-- FRAME 5: END SUMMARY (All Insights Decided)                   -->
+      <!-- ============================================================= -->
+      <div id="content-f5" class="hidden p-8 space-y-6">
+        <div class="text-center space-y-2 py-4">
+          <div class="w-12 h-12 bg-indigo-50 border border-indigo-200 rounded-full flex items-center justify-center mx-auto text-indigo-600">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+          </div>
+          <h2 class="text-xl font-bold text-slate-900">All insights decided</h2>
+          <p class="text-xs text-slate-500 max-w-sm mx-auto">
+            You have reviewed all 4 queue items in this session. You can now proceed to review candidate tensions or generate the report.
+          </p>
+        </div>
+
+        <!-- Breakdown Metric Cards -->
+        <div class="grid grid-cols-4 gap-3 text-center">
+          <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-lg">
+            <span class="text-2xl font-bold text-slate-900">2</span>
+            <p class="text-[11px] font-medium text-slate-500">Accepted</p>
+          </div>
+          <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-lg">
+            <span class="text-2xl font-bold text-slate-900">1</span>
+            <p class="text-[11px] font-medium text-slate-500">Edited</p>
+          </div>
+          <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-lg">
+            <span class="text-2xl font-bold text-slate-900">1</span>
+            <p class="text-[11px] font-medium text-slate-500">Left out</p>
+          </div>
+          <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-lg">
+            <span class="text-2xl font-bold text-slate-900">0</span>
+            <p class="text-[11px] font-medium text-slate-500">Skipped</p>
+          </div>
+        </div>
+
+        <!-- Report Status Statement -->
+        <div class="p-4 bg-indigo-50/50 border border-indigo-200/80 rounded-lg text-xs space-y-1">
+          <div class="font-bold text-indigo-950">Ready for reporting:</div>
+          <p class="text-indigo-800">
+            Goes to the report: 1 theme insight, 1 concept line and 1 tension theme · 3 candidate tensions still to review.
+          </p>
+        </div>
+
+        <!-- Navigation Next Steps -->
+        <div class="pt-4 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-slate-100">
+          <button onclick="setFrame(1)" class="w-full sm:w-auto px-4 py-2.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 focus-ring">
+            ← Back to table
+          </button>
+          <div class="flex items-center gap-3 w-full sm:w-auto">
+            <button onclick="showToast('Navigating to candidate tensions...')" class="w-full sm:w-auto px-4 py-2.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 focus-ring">
+              Review 3 tensions
+            </button>
+            <button onclick="showToast('Report builder initialized with accepted insights.')" class="w-full sm:w-auto px-5 py-2.5 text-xs font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 shadow-xs focus-ring">
+              Continue to Report →
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============================================================= -->
+      <!-- FRAME 6: SKIPPED TAG STATE (Item Returned to Queue End)       -->
+      <!-- ============================================================= -->
+      <div id="content-f6" class="hidden p-8 space-y-6">
+        <!-- Meta Row with Skipped Tag -->
+        <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Theme</span>
+            <span class="text-xs text-slate-300">·</span>
+            <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-800 border border-amber-200">Mixed</span>
+            <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700 border border-slate-300">Suggested</span>
+            <!-- Explicit Skipped Tag -->
+            <span class="px-2 py-0.5 rounded-full text-xs font-semibold bg-purple-50 text-purple-700 border border-purple-200 flex items-center gap-1">
+              <svg class="w-3 h-3 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7"/></svg>
+              Skipped
+            </span>
+          </div>
+          <span class="text-xs text-slate-500 font-medium">Said by 9 of 20 people</span>
+        </div>
+
+        <div class="p-3 bg-purple-50/60 border border-purple-200 rounded-lg text-xs text-purple-900 flex items-center justify-between">
+          <span>This insight was skipped earlier and returned to the end of your review queue.</span>
+          <span class="font-bold text-purple-700">1 remaining to decide</span>
+        </div>
+
+        <!-- Title -->
+        <div>
+          <h2 class="text-xl font-bold text-slate-900 tracking-tight">Parents choose for the whole family</h2>
+        </div>
+
+        <!-- AI Insight Sentence -->
+        <div class="bg-slate-50/80 border border-slate-200/80 rounded-lg p-5">
+          <span class="text-[11px] font-semibold text-indigo-700 uppercase tracking-wider block mb-1">AI-generated insight</span>
+          <p class="text-lg font-semibold text-slate-900 leading-snug">
+            “7 of 9 people were verbally positive about it, but 3 of those 7 sounded flat or tense.”
+          </p>
+        </div>
+
+        <div class="p-4 bg-white border border-slate-200 rounded-lg text-xs text-slate-600 space-y-1">
+          <span class="font-bold text-slate-800">Quick decision note:</span>
+          <p>Decide whether this belongs in the primary Scoops &amp; Co report as a key theme, or if you prefer to edit wording.</p>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- ================================================================= -->
+  <!-- STICKY BOTTOM DECISION BAR (Replaces Global Footer in Review Mode) -->
+  <!-- ================================================================= -->
+  <footer class="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200 shadow-lg py-3 px-6" id="review-footer">
+    <div class="max-w-[720px] mx-auto flex flex-col gap-2">
+      <div class="flex items-center justify-between">
+        <!-- Undecided Counter -->
+        <div class="text-xs text-slate-500 font-medium" id="footer-undecided-text">
+          <span class="font-bold text-slate-800" id="count-remaining">2</span> still to decide in queue
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="flex items-center gap-2" id="action-buttons-group">
+          <!-- Leave Out -->
+          <button onclick="handleLeaveOut()" class="px-3.5 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg focus-ring">
+            Leave out
+          </button>
+          
+          <!-- Edit Wording -->
+          <button onclick="setFrame(4)" class="px-3.5 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg focus-ring">
+            Edit wording
+          </button>
+
+          <!-- Skip for now -->
+          <button onclick="handleSkip()" class="px-3.5 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg focus-ring" id="btn-skip">
+            Skip for now
+          </button>
+
+          <!-- Primary: Accept and next (Or Re-accept in Out of date) -->
+          <button onclick="handleAccept()" id="btn-primary-action" class="px-5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-xs flex items-center gap-1.5 focus-ring">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+            <span id="primary-action-label">Accept and next</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Quiet Keyboard Shortcut Hints -->
+      <div class="flex items-center justify-center gap-4 text-[11px] text-slate-400 select-none pt-0.5 border-t border-slate-100">
+        <span><kbd class="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-600 font-mono text-[10px]">A</kbd> Accept &amp; next</span>
+        <span><kbd class="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-600 font-mono text-[10px]">E</kbd> Edit</span>
+        <span><kbd class="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-600 font-mono text-[10px]">L</kbd> Leave out</span>
+        <span><kbd class="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-600 font-mono text-[10px]">→</kbd> Skip</span>
+        <span><kbd class="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-600 font-mono text-[10px]">←</kbd> Previous</span>
+        <span><kbd class="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-600 font-mono text-[10px]">Esc</kbd> Exit review</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Toast Notification with 6s Undo Action -->
+  <div id="toast" class="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 hidden bg-slate-900 text-white text-xs px-4 py-3 rounded-lg shadow-xl flex items-center gap-3 border border-slate-700">
+    <span id="toast-message">Insight accepted.</span>
+    <button onclick="undoLastAction()" class="text-indigo-300 hover:text-white font-bold underline cursor-pointer focus-ring rounded">Undo (6s)</button>
+  </div>
+
+  <script>
+    let currentFrame = 1;
+    let toastTimeout = null;
+    let lastAcceptedFrame = 1;
+
+    function setFrame(f) {
+      currentFrame = f;
+      // Hide all frame contents
+      for (let i = 1; i <= 6; i++) {
+        const el = document.getElementById(`content-f${i}`);
+        if (el) el.classList.add('hidden');
+        const btn = document.getElementById(`btn-f${i}`);
+        if (btn) {
+          btn.className = "px-2.5 py-1 rounded font-medium text-slate-500 hover:text-slate-800 focus-ring";
+        }
+      }
+
+      // Show selected frame content
+      const activeEl = document.getElementById(`content-f${f}`);
+      if (activeEl) activeEl.classList.remove('hidden');
+
+      const activeBtn = document.getElementById(`btn-f${f}`);
+      if (activeBtn) {
+        activeBtn.className = "px-2.5 py-1 rounded font-medium text-slate-700 bg-white shadow-xs focus-ring";
+      }
+
+      // Configure bottom actions based on state
+      const primaryBtn = document.getElementById('btn-primary-action');
+      const primaryLabel = document.getElementById('primary-action-label');
+      const footer = document.getElementById('review-footer');
+      const queueCounter = document.getElementById('queue-counter');
+      const countRemaining = document.getElementById('count-remaining');
+
+      if (f === 5) {
+        // Summary Frame
+        footer.classList.add('hidden');
+        queueCounter.innerText = "Review complete · 4 of 4 decided";
+      } else {
+        footer.classList.remove('hidden');
+        if (f === 3) {
+          // Out of date item
+          primaryLabel.innerText = "Re-accept";
+          primaryBtn.classList.remove('bg-indigo-600', 'hover:bg-indigo-700');
+          primaryBtn.classList.add('bg-amber-600', 'hover:bg-amber-700');
+          queueCounter.innerText = "Reviewing insights · 3 of 4 (Out of date)";
+          countRemaining.innerText = "2";
+        } else if (f === 6) {
+          // Skipped item
+          primaryLabel.innerText = "Accept and next";
+          primaryBtn.classList.add('bg-indigo-600', 'hover:bg-indigo-700');
+          primaryBtn.classList.remove('bg-amber-600', 'hover:bg-amber-700');
+          queueCounter.innerText = "Reviewing insights · 4 of 4 (Skipped)";
+          countRemaining.innerText = "1";
+        } else {
+          primaryLabel.innerText = "Accept and next";
+          primaryBtn.classList.add('bg-indigo-600', 'hover:bg-indigo-700');
+          primaryBtn.classList.remove('bg-amber-600', 'hover:bg-amber-700');
+          queueCounter.innerText = `Reviewing insights · ${f} of 4`;
+          countRemaining.innerText = (4 - f).toString();
+        }
+      }
+
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function toggleShowWho(id) {
+      const el = document.getElementById(id);
+      if (el) el.classList.toggle('hidden');
+    }
+
+    function handleAccept() {
+      lastAcceptedFrame = currentFrame;
+      showToast("Insight accepted. Affected downstream counts updated.");
+      if (currentFrame < 5) {
+        setFrame(currentFrame + 1);
+      } else {
+        setFrame(5);
+      }
+    }
+
+    function handleLeaveOut() {
+      showToast("Insight marked as Left out.");
+      nextItem();
+    }
+
+    function handleSkip() {
+      showToast("Insight skipped. Placed at the end of the queue.");
+      setFrame(6);
+    }
+
+    function prevItem() {
+      if (currentFrame > 1) {
+        setFrame(currentFrame - 1);
+      }
+    }
+
+    function nextItem() {
+      if (currentFrame < 6) {
+        setFrame(currentFrame + 1);
+      } else {
+        setFrame(5);
+      }
+    }
+
+    function showToast(msg) {
+      const t = document.getElementById('toast');
+      const m = document.getElementById('toast-message');
+      m.innerText = msg;
+      t.classList.remove('hidden');
+      if (toastTimeout) clearTimeout(toastTimeout);
+      toastTimeout = setTimeout(() => {
+        t.classList.add('hidden');
+      }, 6000);
+    }
+
+    function undoLastAction() {
+      const t = document.getElementById('toast');
+      t.classList.add('hidden');
+      setFrame(lastAcceptedFrame);
+      showToast("Action undone.");
+    }
+
+    // Keyboard shortcuts
+    window.addEventListener('keydown', (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      
+      const key = e.key.toUpperCase();
+      if (key === 'A') {
+        e.preventDefault();
+        handleAccept();
+      } else if (key === 'E') {
+        e.preventDefault();
+        setFrame(4);
+      } else if (key === 'L') {
+        e.preventDefault();
+        handleLeaveOut();
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        nextItem();
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        prevItem();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        showToast("Exiting review mode...");
+      }
+    });
+  </script>
+</body>
+</html>

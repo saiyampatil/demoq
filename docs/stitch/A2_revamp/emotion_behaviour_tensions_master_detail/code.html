@@ -1,0 +1,1161 @@
+<!DOCTYPE html>
+
+<html class="h-full bg-slate-50 text-slate-800 antialiased" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Emotion &amp; Behaviour Analysis | Tensions · Scoop &amp; Co</title>
+<!-- Tailwind CSS v3 CDN with forms and container queries -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'Inter', 'system-ui', '-apple-system', 'sans-serif'],
+          },
+          colors: {
+            brand: {
+              50: '#eef2ff',
+              100: '#e0e7ff',
+              600: '#4f46e5',
+              700: '#4338ca',
+            }
+          }
+        }
+      }
+    }
+  </script>
+<!-- Google Fonts: Plus Jakarta Sans & Material Symbols -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #f8fafc;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+    @keyframes segmentFillIn {
+      from { opacity: 0; transform: scaleX(0); transform-origin: left; }
+      to { opacity: 1; transform: scaleX(1); transform-origin: left; }
+    }
+    .segment-block-fill {
+      animation: segmentFillIn 300ms ease-out backwards;
+      animation-delay: calc(var(--i) * 35ms);
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .segment-block-fill { animation: none; }
+    }
+  </style>
+<meta content="web_dashboard" name="shell-type"/>
+</head>
+<body class="h-full flex flex-col overflow-hidden text-slate-800 font-sans text-sm leading-normal bg-slate-50">
+<!-- BEGIN: StickyGlobalTopHeader -->
+<header class="sticky top-0 z-30 bg-white border-b border-slate-200 shrink-0 select-none shadow-none" data-purpose="app-header">
+<div class="max-w-[1440px] mx-auto px-6 pt-3.5 pb-0">
+<div class="flex flex-wrap items-center justify-between gap-y-2">
+<!-- Title and Study Meta -->
+<div>
+<div class="flex items-center gap-2 text-xs text-slate-500 font-medium mb-0.5">
+<span>Studies</span>
+<span class="text-slate-300">/</span>
+<span class="text-slate-700 font-semibold">Ice Cream Flavour Concept Test · Scoop &amp; Co</span>
+</div>
+<div class="flex items-center gap-3">
+<h1 class="text-xl font-bold tracking-tight text-slate-900">Emotion &amp; behaviour</h1>
+<div class="flex items-center gap-2 flex-wrap">
+<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
+                20 people
+              </span>
+<span class="text-xs text-slate-500">
+                Tensions are checked on 20 people
+              </span>
+</div>
+</div>
+</div>
+<!-- Frame Switcher Demonstration Helper -->
+<div class="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-xs">
+<span class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider px-2">Frame:</span>
+<button class="px-2.5 py-1 rounded text-xs font-medium text-slate-600 hover:text-slate-900 transition-colors" id="btn-frame-1" onclick="setFrame(1)">1: Default</button>
+<button class="px-2.5 py-1 rounded text-xs font-semibold bg-white text-indigo-600 shadow-xs border border-slate-200/80 transition-colors" id="btn-frame-2" onclick="setFrame(2)">2: Said vs showed</button>
+<button class="px-2.5 py-1 rounded text-xs font-medium text-slate-600 hover:text-slate-900 transition-colors" id="btn-frame-3" onclick="setFrame(3)">3: Between segments</button>
+</div>
+</div>
+<!-- Navigation Tabs (Tensions is active with badge 3) -->
+<nav aria-label="Tabs" class="flex items-center space-x-6 mt-3 text-sm font-medium border-b border-slate-200" data-purpose="primary-tabs">
+<a class="border-b-2 border-transparent text-slate-500 hover:text-slate-800 pb-2.5 flex items-center gap-1.5 transition-colors" href="#themes">
+          Themes
+          <span class="px-1.5 py-0.2 text-xs font-medium rounded-full bg-slate-100 text-slate-600 border border-slate-200">2</span>
+</a>
+<a class="border-b-2 border-transparent text-slate-500 hover:text-slate-800 pb-2.5 flex items-center gap-1.5 transition-colors" href="#concepts">
+          Concepts
+          <span class="px-1.5 py-0.2 text-xs font-medium rounded-full bg-slate-100 text-slate-600 border border-slate-200">2</span>
+</a>
+<a class="border-b-2 border-indigo-600 text-indigo-600 pb-2.5 font-semibold flex items-center gap-1.5" href="#tensions">
+          Tensions
+          <span class="px-1.5 py-0.2 text-xs font-semibold rounded-full bg-indigo-100 text-indigo-800">3</span>
+</a>
+</nav>
+</div>
+</header>
+<!-- END: StickyGlobalTopHeader -->
+<!-- BEGIN: MainContentArea -->
+<main class="flex-1 overflow-hidden" data-purpose="master-detail-workspace">
+<div class="flex flex-col w-full h-[calc(100vh-106px)] overflow-hidden font-sans bg-slate-50 select-none">
+<!-- Sub-header Explanatory Notice -->
+<div class="px-6 py-2 bg-white border-b border-slate-200 flex items-center justify-between shrink-0">
+<div class="flex items-center gap-2 text-xs text-slate-600 font-medium">
+<span class="material-symbols-outlined text-[17px] text-indigo-600">sync_problem</span>
+<span>Places where two things disagree. Nothing reaches the report until you add it.</span>
+</div>
+<div class="flex items-center gap-3 text-xs">
+<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[11px] font-medium border border-slate-200">
+<span class="w-1.5 h-1.5 rounded-full bg-indigo-600 animate-pulse"></span>
+            Tensions checked on 20 people
+          </span>
+<button class="flex items-center gap-1 text-slate-500 hover:text-indigo-600 transition-colors cursor-pointer font-medium" id="how-to-read-trigger">
+<span class="material-symbols-outlined text-[15px]">info</span>
+<span>How to read this</span>
+</button>
+</div>
+</div>
+<!-- Main Master-Detail Workspace (40% Left Master, 60% Right Detail) -->
+<div class="flex-1 flex overflow-hidden max-w-[1440px] w-full mx-auto p-4 gap-4">
+<!-- ==================== LEFT MASTER COLUMN (42%) ==================== -->
+<section aria-label="Tensions Master List" class="w-[42%] flex flex-col h-full bg-white rounded-xl border border-slate-200 overflow-hidden shadow-none">
+<!-- Top Filters -->
+<div class="p-3.5 pb-2.5 flex flex-col gap-2.5 shrink-0 border-b border-slate-100">
+<!-- Segmented Tab Filter Bar -->
+<div class="flex p-0.5 bg-slate-100 rounded-lg border border-slate-200 text-xs font-medium" role="tablist">
+<button class="flex-1 py-1.5 rounded-md text-indigo-700 font-semibold bg-white shadow-xs transition-all flex items-center justify-center gap-1.5" id="filter-btn-to-review" onclick="setFilter('to-review')">
+<span>To review</span>
+<span class="px-1.5 py-0.2 rounded-full bg-indigo-50 text-indigo-700 text-[10px] font-bold">3</span>
+</button>
+<button class="flex-1 py-1.5 rounded-md text-slate-600 hover:text-slate-900 transition-all flex items-center justify-center gap-1.5" id="filter-btn-added" onclick="setFilter('added')">
+<span>Added</span>
+<span class="text-[10px] text-slate-500">1</span>
+</button>
+<button class="flex-1 py-1.5 rounded-md text-slate-600 hover:text-slate-900 transition-all flex items-center justify-center gap-1.5" id="filter-btn-dismissed" onclick="setFilter('dismissed')">
+<span>Dismissed</span>
+<span class="text-[10px] text-slate-500">0</span>
+</button>
+<button class="flex-1 py-1.5 rounded-md text-slate-600 hover:text-slate-900 transition-all flex items-center justify-center gap-1.5" id="filter-btn-waiting" onclick="setFilter('waiting')">
+<span>Waiting on codebook</span>
+<span class="text-[10px] text-slate-500">1</span>
+</button>
+<button class="flex-1 py-1.5 rounded-md text-slate-600 hover:text-slate-900 transition-all flex items-center justify-center gap-1.5" id="filter-btn-all" onclick="setFilter('all')">
+<span>All</span>
+<span class="text-[10px] text-slate-500">5</span>
+</button>
+</div>
+<!-- Sub-filters Line -->
+<div class="flex items-center justify-between gap-2 px-0.5 text-xs">
+<div class="flex items-center gap-2">
+<!-- Dropdown Type -->
+<div class="relative inline-block">
+<button class="px-2.5 py-1 rounded-md bg-white border border-slate-200 text-slate-700 text-[11px] font-medium flex items-center gap-1 hover:border-slate-300 transition-colors">
+<span class="text-slate-500 font-normal">Type:</span> All
+                    <span class="material-symbols-outlined text-[14px]">expand_more</span>
+</button>
+</div>
+<!-- Dropdown Affects -->
+<div class="relative inline-block">
+<button class="px-2.5 py-1 rounded-md bg-white border border-slate-200 text-slate-700 text-[11px] font-medium flex items-center gap-1 hover:border-slate-300 transition-colors">
+<span class="text-slate-500 font-normal">Affects:</span> All
+                    <span class="material-symbols-outlined text-[14px]">expand_more</span>
+</button>
+</div>
+</div>
+<span class="text-[11px] text-slate-500">Sorted by people involved</span>
+</div>
+</div>
+<!-- Tension Cards Scrollable List (Flat white cards, hairline borders) -->
+<div class="flex-1 overflow-y-auto p-3 space-y-2.5" id="master-cards-list">
+<!-- Card 4 (Said vs showed, Caramel) - Selected in Frame 2 -->
+<div class="tension-list-item cursor-pointer p-3.5 rounded-lg bg-white border border-slate-200 hover:border-slate-300 transition-all relative overflow-hidden group border-l-4 border-l-indigo-600 bg-indigo-50/20" id="master-card-4" onclick="selectTension('card4')">
+<div class="flex items-center justify-between gap-2 mb-1.5">
+<div class="flex items-center gap-1.5">
+<span class="inline-flex items-center gap-1 text-[11px] font-medium text-slate-700 px-2 py-0.5 rounded bg-slate-100 border border-slate-200">
+<span class="material-symbols-outlined text-[13px] text-slate-600">visibility</span>
+                    Said vs showed
+                  </span>
+<!-- Directional tag (amber pill, base < 10) -->
+<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-900 border border-amber-200">
+                    Directional
+                  </span>
+</div>
+<!-- Status pill: Suggested (outlined with an accent dot) -->
+<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium text-slate-700 border border-slate-300 bg-white">
+<span class="w-1.5 h-1.5 rounded-full bg-indigo-600"></span>
+                  Suggested
+                </span>
+</div>
+<h3 class="text-xs font-semibold text-slate-900 leading-snug group-hover:text-indigo-600 transition-colors mb-1.5">
+                Said Salted Caramel first, but their warmest first reaction was somewhere else
+              </h3>
+<div class="flex items-center justify-between text-[11px] text-slate-500 mt-2 pt-2 border-t border-slate-100">
+<span class="inline-flex items-center gap-1 text-slate-600 hover:text-indigo-600 font-medium">
+                  Affects: Concept A: Salted Caramel Swirl ›
+                </span>
+<span class="font-medium text-[10px] text-slate-600 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                  8 of 20 people
+                </span>
+</div>
+</div>
+<!-- Card 1 (Between segments) - Selected in Frame 3 -->
+<div class="tension-list-item cursor-pointer p-3.5 rounded-lg bg-white border border-slate-200 hover:border-slate-300 transition-all relative overflow-hidden group" id="master-card-1" onclick="selectTension('card1')">
+<div class="flex items-center justify-between gap-2 mb-1.5">
+<div class="flex items-center gap-1.5">
+<span class="inline-flex items-center gap-1 text-[11px] font-medium text-slate-700 px-2 py-0.5 rounded bg-slate-100 border border-slate-200">
+<span class="material-symbols-outlined text-[13px] text-slate-600">group</span>
+                    Between segments
+                  </span>
+<!-- Directional tag (Parents group is 8 < 10) -->
+<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-900 border border-amber-200">
+                    Directional
+                  </span>
+</div>
+<!-- Status pill: Suggested (outlined with accent dot) -->
+<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium text-slate-700 border border-slate-300 bg-white">
+<span class="w-1.5 h-1.5 rounded-full bg-indigo-600"></span>
+                  Suggested
+                </span>
+</div>
+<h3 class="text-xs font-semibold text-slate-900 leading-snug group-hover:text-indigo-600 transition-colors mb-1.5">
+                Cookie is a parents’ flavour; caramel and mango are the adults’
+              </h3>
+<div class="flex items-center justify-between text-[11px] text-slate-500 mt-2 pt-2 border-t border-slate-100">
+<span class="inline-flex items-center gap-1 text-slate-600 hover:text-indigo-600 font-medium">
+                  Affects: Parents choose for whole family ›
+                </span>
+<span class="font-medium text-[10px] text-slate-600 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                  20 people
+                </span>
+</div>
+</div>
+<!-- Card 3 (Said vs did) -->
+<div class="tension-list-item cursor-pointer p-3.5 rounded-lg bg-white border border-slate-200 hover:border-slate-300 transition-all relative overflow-hidden group" id="master-card-3" onclick="selectTension('card3')">
+<div class="flex items-center justify-between gap-2 mb-1.5">
+<div class="flex items-center gap-1.5">
+<span class="inline-flex items-center gap-1 text-[11px] font-medium text-slate-700 px-2 py-0.5 rounded bg-slate-100 border border-slate-200">
+<span class="material-symbols-outlined text-[13px] text-slate-600">swap_horiz</span>
+                    Said vs did
+                  </span>
+<!-- Directional tag (base 5 < 10) -->
+<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-900 border border-amber-200">
+                    Directional
+                  </span>
+</div>
+<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium text-slate-700 border border-slate-300 bg-white">
+<span class="w-1.5 h-1.5 rounded-full bg-indigo-600"></span>
+                  Suggested
+                </span>
+</div>
+<h3 class="text-xs font-semibold text-slate-900 leading-snug group-hover:text-indigo-600 transition-colors mb-1.5">
+                Said Mango Lassi first, but fewer took it home
+              </h3>
+<div class="flex items-center justify-between text-[11px] text-slate-500 mt-2 pt-2 border-t border-slate-100">
+<span class="inline-flex items-center gap-1 text-slate-600 hover:text-indigo-600 font-medium">
+                  Affects: Concept B: Mango Lassi ›
+                </span>
+<span class="font-medium text-[10px] text-slate-600 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                  5 of 20 people
+                </span>
+</div>
+</div>
+<!-- Card 2 (Said vs locked answer - Added State) -->
+<div class="tension-list-item cursor-pointer p-3.5 rounded-lg bg-white border border-slate-200 hover:border-slate-300 transition-all relative overflow-hidden group" id="master-card-2" onclick="selectTension('card2')">
+<div class="flex items-center justify-between gap-2 mb-1.5">
+<div class="flex items-center gap-1.5">
+<span class="inline-flex items-center gap-1 text-[11px] font-medium text-slate-700 px-2 py-0.5 rounded bg-slate-100 border border-slate-200">
+<span class="material-symbols-outlined text-[13px] text-slate-600">lock_clock</span>
+                    Said vs locked answer
+                  </span>
+<!-- Directional tag (base 7 < 10) -->
+<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-900 border border-amber-200">
+                    Directional
+                  </span>
+</div>
+<!-- Status pill: Added (neutral slate/gray filled with a check) -->
+<span class="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-700 bg-slate-200 px-2 py-0.5 rounded-full border border-slate-300">
+<span class="material-symbols-outlined text-[12px] font-bold">check</span>
+                  Added as a theme
+                </span>
+</div>
+<h3 class="text-xs font-semibold text-slate-900 leading-snug group-hover:text-indigo-600 transition-colors mb-1.5">
+                Said Cookie Dough Crunch first, but some then said they probably wouldn’t buy it
+              </h3>
+<div class="flex items-center justify-between text-[11px] text-slate-500 mt-2 pt-2 border-t border-slate-100">
+<span class="inline-flex items-center gap-1 text-slate-600 hover:text-indigo-600 font-medium">
+                  Affects: Concept C: Cookie Dough Crunch ›
+                </span>
+<span class="font-medium text-[10px] text-slate-600 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                  7 of 20 people
+                </span>
+</div>
+</div>
+<!-- Card 5 (Waiting on codebook) -->
+<div class="tension-list-item cursor-pointer p-3.5 rounded-lg bg-slate-50/70 border border-dashed border-slate-300 transition-all relative overflow-hidden group opacity-85 hover:opacity-100" id="master-card-5">
+<div class="flex items-center justify-between gap-2 mb-1.5">
+<span class="inline-flex items-center gap-1 text-[11px] font-medium text-slate-600 px-2 py-0.5 rounded bg-slate-200/70 border border-slate-300">
+<span class="material-symbols-outlined text-[13px] text-slate-500">lock</span>
+                  Waiting on codebook
+                </span>
+<span class="material-symbols-outlined text-[16px] text-slate-400">lock_outline</span>
+</div>
+<h3 class="text-xs font-medium text-slate-700 leading-snug mb-1">
+                Said a high price would stop them, but answered positively in the locked survey
+              </h3>
+<p class="text-[11px] text-slate-500 italic mb-2">
+                Accept “A high price would stop them” in the codebook to review this.
+              </p>
+<div class="flex items-center justify-between text-[11px] text-slate-500 pt-2 border-t border-slate-200">
+<span class="text-[10px] text-slate-500 font-medium">Waiting on codebook</span>
+<span class="text-[10px] font-medium text-indigo-600 hover:underline">View in Codebook →</span>
+</div>
+</div>
+</div>
+</section>
+<!-- ==================== RIGHT DETAIL PANEL (58%) ==================== -->
+<section aria-label="Tension Detail Workspace" class="w-[58%] flex flex-col h-full bg-white rounded-xl border border-slate-200 overflow-hidden relative shadow-none">
+<!-- Toast Confirmation -->
+<div class="hidden absolute top-3 left-4 right-4 z-40 bg-slate-900 text-white px-4 py-2.5 rounded-lg shadow-lg flex items-center justify-between transition-all text-xs" id="add-toast">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-[18px] text-emerald-400">check_circle</span>
+<span><strong>Added as a theme</strong> · From a tension — Affected insights marked <em>Out of date</em></span>
+</div>
+<button class="text-slate-300 hover:text-white underline font-semibold ml-3 cursor-pointer" onclick="dismissToast()">Undo</button>
+</div>
+<!-- ==================== FRAME 1 VIEW: Calm Empty State ==================== -->
+<div class="hidden flex-1 flex-col items-center justify-center p-8 text-center" id="detail-frame1-empty">
+<div class="w-12 h-12 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 mb-3">
+<span class="material-symbols-outlined text-2xl">sync_problem</span>
+</div>
+<h3 class="text-sm font-semibold text-slate-800 mb-1">Select a tension to review</h3>
+<p class="text-xs text-slate-500 max-w-sm mb-4">
+              Review discrepancies between verbal answers, facial telemetry, and behavior. Nothing reaches the final report until you add it as a theme.
+            </p>
+<div class="inline-flex items-center gap-2 text-xs text-indigo-600 font-medium">
+<span>Choose from 3 suggestions on the left</span>
+<span class="material-symbols-outlined text-sm">west</span>
+</div>
+</div>
+<!-- ==================== FRAME 2 VIEW: Card 4 (Said vs showed) ==================== -->
+<div class="flex-1 flex flex-col overflow-hidden" id="detail-card4-view">
+<!-- Scrollable content area -->
+<div class="flex-1 overflow-y-auto p-5 space-y-4">
+<!-- Top Meta Row -->
+<div class="flex flex-col gap-1.5">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="inline-flex items-center gap-1 text-xs font-semibold text-slate-800 px-2 py-0.5 rounded bg-slate-100 border border-slate-200">
+<span class="material-symbols-outlined text-[14px] text-slate-600">visibility</span>
+                      Said vs showed
+                    </span>
+<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-900 border border-amber-200">
+                      Directional
+                    </span>
+<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium text-slate-700 border border-slate-300 bg-white">
+<span class="w-1.5 h-1.5 rounded-full bg-indigo-600"></span>
+                      Suggested
+                    </span>
+<span class="text-xs text-slate-500 font-medium">Based on 8 of 20 people</span>
+</div>
+<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium text-indigo-700 bg-indigo-50 border border-indigo-100">
+                    ✦ AI-generated
+                  </span>
+</div>
+<!-- Title & Affects Target -->
+<h2 class="text-base font-bold text-slate-900 tracking-tight leading-snug mt-1">
+                  Said Salted Caramel first, but their warmest first reaction was somewhere else
+                </h2>
+<!-- Panel AI Line: Two short sentences, one base each, with numbers, NO "but" -->
+<div class="p-2.5 rounded-lg bg-indigo-50/50 border border-indigo-100/80 text-xs text-slate-700 flex items-start gap-2">
+<span class="text-indigo-600 font-bold shrink-0 mt-0.5">✦</span>
+<p class="leading-relaxed">
+                    8 people said Salted Caramel Swirl first. Of the 6 on video, 1 had their warmest first reaction to it and 4 to Mango Lassi.
+                  </p>
+</div>
+<div class="flex items-center gap-1 text-xs text-slate-600 hover:text-indigo-600 font-medium cursor-pointer pt-0.5">
+<span>Affects: Concept A: Salted Caramel Swirl ›</span>
+</div>
+</div>
+<!-- Segmented Comparison Breakdown Box -->
+<div class="p-3.5 rounded-lg bg-white border border-slate-200 space-y-2.5">
+<div class="flex items-center justify-between text-xs font-medium text-slate-800">
+<span class="flex items-center gap-1.5">
+<span class="w-2.5 h-2.5 rounded-full bg-sky-500"></span>
+<span><strong>Said Caramel first</strong> · 8 people</span>
+</span>
+<button class="text-indigo-600 hover:underline text-xs flex items-center gap-0.5 font-semibold cursor-pointer" onclick="toggleParticipantsList()">
+<span id="show-who-btn-label">Show who</span>
+<span class="material-symbols-outlined text-[14px]">expand_more</span>
+</button>
+</div>
+<!-- 8 Equal Segment Blocks (Sky = Caramel, Amber = Mango, Purple = Cookie, Muted = Audio only) -->
+<div class="flex gap-1.5 h-2.5 w-full bg-slate-100 p-0.5 rounded border border-slate-200">
+<!-- Block 1: Caramel (Sky) - P-4108 -->
+<div class="flex-1 bg-sky-500 rounded-xs segment-block-fill cursor-help" style="--i: 1;" title="P-4108: Caramel warmest"></div>
+<!-- Block 2: Mango (Amber) - P-4101 -->
+<div class="flex-1 bg-amber-500 rounded-xs segment-block-fill cursor-help" style="--i: 2;" title="P-4101: Mango warmest"></div>
+<!-- Block 3: Mango (Amber) - P-4104 -->
+<div class="flex-1 bg-amber-500 rounded-xs segment-block-fill cursor-help" style="--i: 3;" title="P-4104: Mango warmest"></div>
+<!-- Block 4: Mango (Amber) - P-4106 -->
+<div class="flex-1 bg-amber-500 rounded-xs segment-block-fill cursor-help" style="--i: 4;" title="P-4106: Mango warmest"></div>
+<!-- Block 5: Mango (Amber) - P-4107 -->
+<div class="flex-1 bg-amber-500 rounded-xs segment-block-fill cursor-help" style="--i: 5;" title="P-4107: Mango warmest"></div>
+<!-- Block 6: Cookie (Purple) - P-4115 -->
+<div class="flex-1 bg-purple-500 rounded-xs segment-block-fill cursor-help" style="--i: 6;" title="P-4115: Cookie warmest"></div>
+<!-- Block 7: Muted Gray (Audio only) - P-4116 -->
+<div class="flex-1 bg-slate-300 rounded-xs segment-block-fill cursor-help border border-dashed border-slate-400" style="--i: 7;" title="P-4116: Audio-only, not read"></div>
+<!-- Block 8: Muted Gray (Audio only) - P-4117 -->
+<div class="flex-1 bg-slate-300 rounded-xs segment-block-fill cursor-help border border-dashed border-slate-400" style="--i: 8;" title="P-4117: Audio-only, not read"></div>
+</div>
+<!-- Legend Row (flavour colours match Concepts tab) -->
+<div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-600 pt-0.5">
+<span class="flex items-center gap-1.5">
+<span class="w-2 h-2 rounded-full bg-sky-500"></span>
+                    Caramel (1 of 6 on video)
+                  </span>
+<span class="flex items-center gap-1.5">
+<span class="w-2 h-2 rounded-full bg-amber-500"></span>
+                    Mango (4 of 6 on video)
+                  </span>
+<span class="flex items-center gap-1.5">
+<span class="w-2 h-2 rounded-full bg-purple-500"></span>
+                    Cookie (1 of 6 on video)
+                  </span>
+<span class="flex items-center gap-1.5">
+<span class="w-2 h-2 rounded-full bg-slate-300 border border-slate-400"></span>
+                    Audio-only, not read (2 of 8)
+                  </span>
+</div>
+<!-- Accounting Line -->
+<div class="text-[11px] text-slate-500 flex items-center gap-1 border-t border-slate-100 pt-2">
+<span class="material-symbols-outlined text-[13px] text-slate-400">mic_off</span>
+<span>6 people shown on video · 2 unaccounted (audio-only, not read: P-4116, P-4117)</span>
+</div>
+<!-- Inline Participant Drawer (collapsible) -->
+<div class="hidden pt-2 border-t border-slate-100 grid grid-cols-2 gap-2 text-xs" id="inline-participants-drawer">
+<div class="p-2 rounded bg-slate-50 border border-slate-200 flex items-center justify-between">
+<span class="font-medium text-slate-800">P-4101 · Adult without children</span>
+<span class="text-[10px] text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded font-semibold">Mango</span>
+</div>
+<div class="p-2 rounded bg-slate-50 border border-slate-200 flex items-center justify-between">
+<span class="font-medium text-slate-800">P-4104 · Adult without children</span>
+<span class="text-[10px] text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded font-semibold">Mango</span>
+</div>
+<div class="p-2 rounded bg-slate-50 border border-slate-200 flex items-center justify-between">
+<span class="font-medium text-slate-800">P-4106 · Adult without children</span>
+<span class="text-[10px] text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded font-semibold">Mango</span>
+</div>
+<div class="p-2 rounded bg-slate-50 border border-slate-200 flex items-center justify-between">
+<span class="font-medium text-slate-800">P-4107 · Adult without children</span>
+<span class="text-[10px] text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded font-semibold">Mango</span>
+</div>
+<div class="p-2 rounded bg-slate-50 border border-slate-200 flex items-center justify-between">
+<span class="font-medium text-slate-800">P-4115 · Adult without children</span>
+<span class="text-[10px] text-purple-800 bg-purple-100 px-1.5 py-0.5 rounded font-semibold">Cookie</span>
+</div>
+<div class="p-2 rounded bg-slate-50 border border-slate-200 flex items-center justify-between">
+<span class="font-medium text-slate-800">P-4108 · Adult without children</span>
+<span class="text-[10px] text-sky-800 bg-sky-100 px-1.5 py-0.5 rounded font-semibold">Caramel (aligned)</span>
+</div>
+</div>
+</div>
+<!-- Section: Supporting moments (strictly only people whose warmest reaction differs from said) -->
+<div class="space-y-3 pt-1">
+<div class="flex items-center justify-between">
+<span class="text-xs font-bold text-slate-800 tracking-wide">
+                    Supporting moments (3 of 5)
+                  </span>
+<span class="text-[11px] text-slate-500">Sorted by people involved</span>
+</div>
+<!-- Moment 1: P-4101 -->
+<div class="p-3.5 rounded-lg bg-white border border-slate-200 flex flex-col gap-2.5">
+<div class="flex items-start justify-between gap-2">
+<div class="flex items-center gap-2.5">
+<!-- Abstract video thumbnail placeholder (subtle rounded square, no real face) -->
+<div class="w-8 h-8 rounded-md bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-600 shrink-0">
+<span class="material-symbols-outlined text-[18px]">play_arrow</span>
+</div>
+<div>
+<div class="flex items-center gap-2">
+<span class="text-xs font-bold text-slate-900">P-4101</span>
+<span class="text-[11px] text-slate-500">Adult without children</span>
+<span class="text-[11px] text-slate-400 font-mono">14:09</span>
+</div>
+</div>
+</div>
+<!-- Outlined Not right? button -->
+<button class="px-2 py-0.5 rounded border border-slate-200 text-[11px] font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors" onclick="openNotRightModal('P-4101')">
+                      Not right?
+                    </button>
+</div>
+<!-- Anatomy: Seen first, then face chip (teal hue), strictly verbatim -->
+<div class="flex flex-wrap items-center gap-2 text-xs">
+<span class="text-slate-700 font-medium">Seen: Broad smile that reached the eyes</span>
+<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10.5px] font-medium text-teal-800 bg-teal-50 border border-teal-200">
+<span class="material-symbols-outlined text-[13px] text-teal-600">sentiment_very_satisfied</span>
+                      reads as Delight at Mango · High confidence
+                    </span>
+</div>
+<!-- Verbatim Respondent speech in italic quotes below -->
+<p class="text-xs text-slate-700 italic bg-slate-50 p-2.5 rounded border-l-2 border-teal-500">
+                    “Caramel is my safe pick. The mango one is the one that made me smile.”
+                  </p>
+</div>
+<!-- Moment 2: P-4104 -->
+<div class="p-3.5 rounded-lg bg-white border border-slate-200 flex flex-col gap-2.5">
+<div class="flex items-start justify-between gap-2">
+<div class="flex items-center gap-2.5">
+<div class="w-8 h-8 rounded-md bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-600 shrink-0">
+<span class="material-symbols-outlined text-[18px]">play_arrow</span>
+</div>
+<div>
+<div class="flex items-center gap-2">
+<span class="text-xs font-bold text-slate-900">P-4104</span>
+<span class="text-[11px] text-slate-500">Adult without children</span>
+<span class="text-[11px] text-slate-400 font-mono">14:17</span>
+</div>
+</div>
+</div>
+<button class="px-2 py-0.5 rounded border border-slate-200 text-[11px] font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors" onclick="openNotRightModal('P-4104')">
+                      Not right?
+                    </button>
+</div>
+<div class="flex flex-wrap items-center gap-2 text-xs">
+<span class="text-slate-700 font-medium">Seen: A short laugh and a lean toward the card</span>
+<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10.5px] font-medium text-teal-800 bg-teal-50 border border-teal-200">
+<span class="material-symbols-outlined text-[13px] text-teal-600">sentiment_very_satisfied</span>
+                      reads as Delight at Mango · High confidence
+                    </span>
+</div>
+<p class="text-xs text-slate-700 italic bg-slate-50 p-2.5 rounded border-l-2 border-teal-500">
+                    “Caramel is what I’d say, but I was curious about the mango.”
+                  </p>
+</div>
+<!-- Moment 3: P-4106 -->
+<div class="p-3.5 rounded-lg bg-white border border-slate-200 flex flex-col gap-2.5">
+<div class="flex items-start justify-between gap-2">
+<div class="flex items-center gap-2.5">
+<div class="w-8 h-8 rounded-md bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-600 shrink-0">
+<span class="material-symbols-outlined text-[18px]">play_arrow</span>
+</div>
+<div>
+<div class="flex items-center gap-2">
+<span class="text-xs font-bold text-slate-900">P-4106</span>
+<span class="text-[11px] text-slate-500">Adult without children</span>
+<span class="text-[11px] text-slate-400 font-mono">14:29</span>
+</div>
+</div>
+</div>
+<button class="px-2 py-0.5 rounded border border-slate-200 text-[11px] font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors" onclick="openNotRightModal('P-4106')">
+                      Not right?
+                    </button>
+</div>
+<div class="flex flex-wrap items-center gap-2 text-xs">
+<span class="text-slate-700 font-medium">Seen: Cheeks raised in a clear smile</span>
+<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10.5px] font-medium text-teal-800 bg-teal-50 border border-teal-200">
+<span class="material-symbols-outlined text-[13px] text-teal-600">sentiment_very_satisfied</span>
+                      reads as Delight at Mango · High confidence
+                    </span>
+</div>
+<p class="text-xs text-slate-700 italic bg-slate-50 p-2.5 rounded border-l-2 border-teal-500">
+                    “I’d buy caramel, though the mango card did catch my eye.”
+                  </p>
+</div>
+<!-- Show all 5 action link -->
+<div class="pt-1 text-center">
+<button class="text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition-colors inline-flex items-center gap-1" id="btn-show-all-5" onclick="toggleExtraMoments()">
+<span id="label-show-all-5">Show all 5</span>
+<span class="material-symbols-outlined text-[14px]">expand_more</span>
+</button>
+</div>
+<!-- Hidden extra moments (P-4107 & P-4115) -->
+<div class="hidden space-y-3" id="extra-moments-list">
+<!-- Moment 4: P-4107 -->
+<div class="p-3.5 rounded-lg bg-white border border-slate-200 flex flex-col gap-2.5">
+<div class="flex items-start justify-between gap-2">
+<div class="flex items-center gap-2.5">
+<div class="w-8 h-8 rounded-md bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-600 shrink-0">
+<span class="material-symbols-outlined text-[18px]">play_arrow</span>
+</div>
+<div>
+<div class="flex items-center gap-2">
+<span class="text-xs font-bold text-slate-900">P-4107</span>
+<span class="text-[11px] text-slate-500">Adult without children</span>
+<span class="text-[11px] text-slate-400 font-mono">15:02</span>
+</div>
+</div>
+</div>
+<button class="px-2 py-0.5 rounded border border-slate-200 text-[11px] font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors" onclick="openNotRightModal('P-4107')">
+                        Not right?
+                      </button>
+</div>
+<div class="flex flex-wrap items-center gap-2 text-xs">
+<span class="text-slate-700 font-medium">Seen: Sustained gaze and subtle head tilt</span>
+<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10.5px] font-medium text-teal-800 bg-teal-50 border border-teal-200">
+<span class="material-symbols-outlined text-[13px] text-teal-600">sentiment_satisfied</span>
+                        reads as Interest at Mango · High confidence
+                      </span>
+</div>
+<p class="text-xs text-slate-700 italic bg-slate-50 p-2.5 rounded border-l-2 border-teal-500">
+                      “I usually pick caramel without thinking, but that spicy mango sound was genuinely intriguing.”
+                    </p>
+</div>
+<!-- Moment 5: P-4115 -->
+<div class="p-3.5 rounded-lg bg-white border border-slate-200 flex flex-col gap-2.5">
+<div class="flex items-start justify-between gap-2">
+<div class="flex items-center gap-2.5">
+<div class="w-8 h-8 rounded-md bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-600 shrink-0">
+<span class="material-symbols-outlined text-[18px]">play_arrow</span>
+</div>
+<div>
+<div class="flex items-center gap-2">
+<span class="text-xs font-bold text-slate-900">P-4115</span>
+<span class="text-[11px] text-slate-500">Adult without children</span>
+<span class="text-[11px] text-slate-400 font-mono">16:44</span>
+</div>
+</div>
+</div>
+<button class="px-2 py-0.5 rounded border border-slate-200 text-[11px] font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors" onclick="openNotRightModal('P-4115')">
+                        Not right?
+                      </button>
+</div>
+<div class="flex flex-wrap items-center gap-2 text-xs">
+<span class="text-slate-700 font-medium">Seen: Eyebrows raised with wide grin</span>
+<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10.5px] font-medium text-teal-800 bg-teal-50 border border-teal-200">
+<span class="material-symbols-outlined text-[13px] text-teal-600">sentiment_very_satisfied</span>
+                        reads as Delight at Cookie · High confidence
+                      </span>
+</div>
+<p class="text-xs text-slate-700 italic bg-slate-50 p-2.5 rounded border-l-2 border-purple-500">
+                      “Salted Caramel was my automatic answer, but the cookie dough chunks had my full attention.”
+                    </p>
+</div>
+</div>
+</div>
+<!-- Researcher Note Box -->
+<div class="pt-2">
+<label class="block text-xs font-medium text-slate-700 mb-1">Researcher notes (private)</label>
+<div class="p-2 rounded-lg bg-slate-50 border border-slate-200">
+<textarea class="w-full bg-transparent border-0 text-xs text-slate-800 placeholder:text-slate-400 focus:ring-0 resize-none p-0" placeholder="Add a note... Kept apart from the insight, never part of the report sentence." rows="2"></textarea>
+</div>
+</div>
+</div>
+<!-- Sticky Bottom Action Bar in Right Panel (clean, flat, primary indigo + outlined neutral) -->
+<div class="p-3 bg-white border-t border-slate-200 flex items-center justify-between shrink-0">
+<div class="flex items-center gap-2 text-xs text-slate-500 font-medium">
+<span class="w-2 h-2 rounded-full bg-amber-400"></span>
+<span>Not decided yet</span>
+</div>
+<div class="flex items-center gap-2.5">
+<button class="px-3.5 py-1.5 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 text-xs font-semibold transition-colors cursor-pointer" onclick="openDismissDialog()">
+                  Dismiss
+                </button>
+<button class="px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer flex items-center gap-1.5" onclick="addAsTheme()">
+<span class="material-symbols-outlined text-[15px]">add_circle</span>
+<span>Add as a tension theme</span>
+</button>
+</div>
+</div>
+</div>
+<!-- ==================== FRAME 3 VIEW: Card 1 (Between segments) ==================== -->
+<div class="hidden flex-1 flex-col overflow-hidden" id="detail-card1-view">
+<div class="flex-1 overflow-y-auto p-5 space-y-4">
+<!-- Top Meta Row -->
+<div class="flex flex-col gap-1.5">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="inline-flex items-center gap-1 text-xs font-semibold text-slate-800 px-2 py-0.5 rounded bg-slate-100 border border-slate-200">
+<span class="material-symbols-outlined text-[14px] text-slate-600">group</span>
+                      Between segments
+                    </span>
+<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-900 border border-amber-200">
+                      Directional
+                    </span>
+<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium text-slate-700 border border-slate-300 bg-white">
+<span class="w-1.5 h-1.5 rounded-full bg-indigo-600"></span>
+                      Suggested
+                    </span>
+<span class="text-xs text-slate-500 font-medium">20 people</span>
+</div>
+<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium text-indigo-700 bg-indigo-50 border border-indigo-100">
+                    ✦ AI-generated
+                  </span>
+</div>
+<h2 class="text-base font-bold text-slate-900 tracking-tight leading-snug mt-1">
+                  Cookie is a parents’ flavour; caramel and mango are the adults’
+                </h2>
+<!-- Panel AI Line: Two short sentences, one base each, with numbers, NO "but" -->
+<div class="p-2.5 rounded-lg bg-indigo-50/50 border border-indigo-100/80 text-xs text-slate-700 flex items-start gap-2">
+<span class="text-indigo-600 font-bold shrink-0 mt-0.5">✦</span>
+<p class="leading-relaxed">
+                    5 of 8 parents picked Cookie Dough Crunch first. 6 of 12 adults without children picked Salted Caramel Swirl first.
+                  </p>
+</div>
+<div class="flex items-center gap-1 text-xs text-slate-600 hover:text-indigo-600 font-medium cursor-pointer pt-0.5">
+<span>Affects: Parents choose for whole family ›</span>
+</div>
+</div>
+<!-- Stacked Segmented Comparison Bars (Parents vs Adults without children) -->
+<div class="p-3.5 rounded-lg bg-white border border-slate-200 space-y-3">
+<div class="text-xs font-bold text-slate-800">
+                  First choice by segment
+                </div>
+<!-- Bar 1: Parents -->
+<div>
+<div class="flex items-center justify-between text-xs font-medium text-slate-700 mb-1">
+<span>Parent (8 people)</span>
+<span class="text-[11px] text-purple-700 font-semibold">Cookie Dough 62.5% (5 of 8)</span>
+</div>
+<div class="flex gap-1 h-3 w-full bg-slate-100 p-0.5 rounded border border-slate-200">
+<div class="w-[62.5%] bg-purple-500 rounded-xs" title="5 parents picked Cookie"></div>
+<div class="w-[25%] bg-sky-500 rounded-xs" title="2 parents picked Caramel"></div>
+<div class="w-[12.5%] bg-amber-500 rounded-xs" title="1 parent picked Mango"></div>
+</div>
+</div>
+<!-- Bar 2: Adults without children -->
+<div>
+<div class="flex items-center justify-between text-xs font-medium text-slate-700 mb-1">
+<span>Adult without children (12 people)</span>
+<span class="text-[11px] text-sky-700 font-semibold">Caramel 50% (6 of 12) · Mango 42% (5 of 12)</span>
+</div>
+<div class="flex gap-1 h-3 w-full bg-slate-100 p-0.5 rounded border border-slate-200">
+<div class="w-[50%] bg-sky-500 rounded-xs" title="6 adults picked Caramel"></div>
+<div class="w-[41.6%] bg-amber-500 rounded-xs" title="5 adults picked Mango"></div>
+<div class="w-[8.4%] bg-purple-500 rounded-xs" title="1 adult picked Cookie"></div>
+</div>
+</div>
+<!-- Legend Row -->
+<div class="flex items-center gap-4 pt-1.5 text-[11px] text-slate-600 border-t border-slate-100">
+<span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-purple-500"></span>Cookie Dough Crunch</span>
+<span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-sky-500"></span>Salted Caramel Swirl</span>
+<span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>Mango Lassi</span>
+</div>
+<!-- Accounting line -->
+<div class="text-[11px] text-slate-500 flex items-center gap-1 border-t border-slate-100 pt-1.5">
+<span class="material-symbols-outlined text-[13px] text-slate-400">info</span>
+<span>Parent group (8 people) under 10 base threshold · Tagged Directional</span>
+</div>
+</div>
+<!-- Supporting moments from file -->
+<div class="space-y-3 pt-1">
+<div class="flex items-center justify-between">
+<span class="text-xs font-bold text-slate-800 tracking-wide">
+                    Supporting moments (2 of 2 segments)
+                  </span>
+<span class="text-[11px] text-slate-500">Sorted by people involved</span>
+</div>
+<!-- Moment Parent -->
+<div class="p-3.5 rounded-lg bg-white border border-slate-200 flex flex-col gap-2">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<div class="w-8 h-8 rounded-md bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-600 shrink-0">
+<span class="material-symbols-outlined text-[18px]">play_arrow</span>
+</div>
+<div>
+<span class="text-xs font-bold text-slate-900">P-4112</span>
+<span class="text-[11px] text-slate-500 ml-1.5">Parent</span>
+<span class="text-[11px] text-slate-400 font-mono ml-1">05:22</span>
+</div>
+</div>
+<button class="px-2 py-0.5 rounded border border-slate-200 text-[11px] font-medium text-slate-600 hover:text-slate-900 transition-colors" onclick="openNotRightModal('P-4112')">
+                      Not right?
+                    </button>
+</div>
+<div class="flex items-center gap-2 text-xs">
+<span class="text-slate-700 font-medium">Seen: Immediate nod pointing to Cookie Dough card</span>
+<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10.5px] font-medium text-purple-800 bg-purple-50 border border-purple-200">
+                      reads as Interest at Cookie · High confidence
+                    </span>
+</div>
+<p class="text-xs text-slate-700 italic bg-slate-50 p-2.5 rounded border-l-2 border-purple-500">
+                    “If I bring the cookie tub home, the kids won't fight me on dessert. It's guaranteed.”
+                  </p>
+</div>
+<!-- Moment Adult -->
+<div class="p-3.5 rounded-lg bg-white border border-slate-200 flex flex-col gap-2">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<div class="w-8 h-8 rounded-md bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-600 shrink-0">
+<span class="material-symbols-outlined text-[18px]">play_arrow</span>
+</div>
+<div>
+<span class="text-xs font-bold text-slate-900">P-4103</span>
+<span class="text-[11px] text-slate-500 ml-1.5">Adult without children</span>
+<span class="text-[11px] text-slate-400 font-mono ml-1">11:15</span>
+</div>
+</div>
+<button class="px-2 py-0.5 rounded border border-slate-200 text-[11px] font-medium text-slate-600 hover:text-slate-900 transition-colors" onclick="openNotRightModal('P-4103')">
+                      Not right?
+                    </button>
+</div>
+<div class="flex items-center gap-2 text-xs">
+<span class="text-slate-700 font-medium">Seen: Slight frown at Cookie card, warm smile at Mango</span>
+<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10.5px] font-medium text-teal-800 bg-teal-50 border border-teal-200">
+                      reads as Delight at Mango · High confidence
+                    </span>
+</div>
+<p class="text-xs text-slate-700 italic bg-slate-50 p-2.5 rounded border-l-2 border-amber-500">
+                    “Cookie dough feels too heavy for me now. The cardamom swirl in the mango one sounds sophisticated.”
+                  </p>
+</div>
+</div>
+</div>
+<!-- Sticky Bottom Action Bar -->
+<div class="p-3 bg-white border-t border-slate-200 flex items-center justify-between shrink-0">
+<span class="text-xs font-medium text-slate-500">Directional tension (Parent n=8)</span>
+<div class="flex gap-2">
+<button class="px-3.5 py-1.5 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 text-xs font-semibold transition-colors" onclick="openDismissDialog()">Dismiss</button>
+<button class="px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-xs transition-colors flex items-center gap-1.5" onclick="addAsTheme()">
+<span class="material-symbols-outlined text-[15px]">add_circle</span>
+<span>Add as a tension theme</span>
+</button>
+</div>
+</div>
+</div>
+</section>
+</div>
+<!-- ==================== OVERLAYS & MODALS ==================== -->
+<!-- Modal: Dismiss Tension Dialog -->
+<div class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4" id="dismiss-modal">
+<div class="w-full max-w-md bg-white p-5 rounded-xl border border-slate-200 shadow-xl">
+<div class="flex items-center justify-between mb-3">
+<h3 class="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[18px] text-red-600">remove_circle_outline</span>
+              Dismiss Tension
+            </h3>
+<button class="text-slate-400 hover:text-slate-600" onclick="closeDismissDialog()">
+<span class="material-symbols-outlined text-[18px]">close</span>
+</button>
+</div>
+<p class="text-xs text-slate-600 mb-3">
+            Dismissing removes this tension from suggested items. You can restore it anytime under the "Dismissed" filter tab.
+          </p>
+<div class="space-y-3 mb-4">
+<div>
+<label class="block text-xs font-medium text-slate-700 mb-1">Reason for dismissal (required)</label>
+<select class="w-full bg-white border border-slate-300 rounded-md text-xs text-slate-800 p-2 focus:ring-1 focus:ring-indigo-600">
+<option>Sample too small / anecdotal</option>
+<option>Already accounted for in main theme</option>
+<option>Telemetry anomaly / face artifact</option>
+<option>Not strategically relevant for client</option>
+</select>
+</div>
+<div>
+<label class="block text-xs font-medium text-slate-700 mb-1">Additional note</label>
+<textarea class="w-full bg-white border border-slate-300 rounded-md text-xs text-slate-800 p-2 focus:ring-1 focus:ring-indigo-600 resize-none" placeholder="Optional context..." rows="2"></textarea>
+</div>
+</div>
+<div class="flex items-center justify-end gap-2">
+<button class="px-3 py-1.5 rounded-md border border-slate-300 bg-white text-slate-700 text-xs font-medium hover:bg-slate-50" onclick="closeDismissDialog()">
+              Cancel
+            </button>
+<button class="px-3.5 py-1.5 rounded-md bg-red-600 text-white text-xs font-semibold hover:bg-red-700 shadow-xs" onclick="confirmDismiss()">
+              Confirm Dismissal
+            </button>
+</div>
+</div>
+</div>
+<!-- Modal: "Not Right?" Telemetry Flag Modal -->
+<div class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4" id="not-right-modal">
+<div class="w-full max-w-sm bg-white p-5 rounded-xl border border-slate-200 shadow-xl">
+<div class="flex items-center justify-between mb-2">
+<h4 class="text-xs font-bold text-slate-900">Flag Telemetry for <span id="modal-participant-id">P-4101</span></h4>
+<button class="text-slate-400 hover:text-slate-600" onclick="closeNotRightModal()">
+<span class="material-symbols-outlined text-[16px]">close</span>
+</button>
+</div>
+<p class="text-[11.5px] text-slate-600 mb-3 leading-relaxed">
+            If the automated face reading misclassified delight or interest, flag it here. The tension confidence will update accordingly.
+          </p>
+<div class="space-y-1.5 mb-4 text-xs">
+<label class="flex items-center gap-2 p-2 rounded border border-slate-200 bg-slate-50 hover:bg-slate-100 cursor-pointer">
+<input checked="" class="text-indigo-600 focus:ring-0" name="flag_reason" type="radio"/>
+<span>Expression was polite/nervous, not genuine delight</span>
+</label>
+<label class="flex items-center gap-2 p-2 rounded border border-slate-200 bg-slate-50 hover:bg-slate-100 cursor-pointer">
+<input class="text-indigo-600 focus:ring-0" name="flag_reason" type="radio"/>
+<span>Lighting or camera angle distortion</span>
+</label>
+<label class="flex items-center gap-2 p-2 rounded border border-slate-200 bg-slate-50 hover:bg-slate-100 cursor-pointer">
+<input class="text-indigo-600 focus:ring-0" name="flag_reason" type="radio"/>
+<span>Reaction belonged to previous concept</span>
+</label>
+</div>
+<div class="flex justify-end gap-2">
+<button class="px-3 py-1 rounded border border-slate-300 bg-white text-slate-700 text-xs font-medium hover:bg-slate-50" onclick="closeNotRightModal()">Cancel</button>
+<button class="px-3 py-1 rounded bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700" onclick="closeNotRightModal()">Submit Correction</button>
+</div>
+</div>
+</div>
+<!-- Modal: "How to read this" Modal -->
+<div class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4" id="how-to-read-modal">
+<div class="w-full max-w-md bg-white p-5 rounded-xl border border-slate-200 shadow-xl">
+<div class="flex items-center justify-between mb-3">
+<h3 class="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[18px] text-indigo-600">psychology_alt</span>
+              How to Read Tensions
+            </h3>
+<button class="text-slate-400 hover:text-slate-600" id="close-modal-trigger">
+<span class="material-symbols-outlined text-[18px]">close</span>
+</button>
+</div>
+<div class="space-y-2.5 text-xs text-slate-600 leading-relaxed">
+<div class="p-2.5 rounded bg-slate-50 border border-slate-200">
+<strong class="text-slate-900 block mb-0.5">What is a Tension?</strong>
+              A tension is an automated detector checking for discrepancies between verbal answers (what they said), non-verbal facial telemetry (what they showed), and behavioral tasks (what they did).
+            </div>
+<div class="p-2.5 rounded bg-slate-50 border border-slate-200">
+<strong class="text-slate-900 block mb-0.5">Directional Indicators</strong>
+              Any card where the relevant base or subgroup is under 10 people is marked with an amber <span class="font-semibold text-amber-800">Directional</span> tag.
+            </div>
+<div class="p-2.5 rounded bg-slate-50 border border-slate-200">
+<strong class="text-slate-900 block mb-0.5">Report Safety</strong>
+              None of these tensions appear in executive reports or themes unless you explicitly press <span class="font-semibold text-indigo-600">"Add as a tension theme"</span>.
+            </div>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- END: MainContentArea -->
+<!-- BEGIN: GlobalBottomFooter -->
+<footer class="sticky bottom-0 z-30 bg-white border-t border-slate-200 shrink-0 py-2.5 px-6" data-purpose="global-bottom-bar">
+<div class="max-w-[1440px] mx-auto flex items-center justify-between">
+<!-- Back Navigation & Quick Summary -->
+<div class="flex items-center gap-4 text-xs">
+<a class="inline-flex items-center gap-1.5 font-semibold text-slate-600 hover:text-slate-900 transition-colors" href="#codebook">
+          ← Back to Codebook
+        </a>
+<span class="text-slate-300">|</span>
+<span class="text-slate-600">
+<strong class="font-semibold text-slate-900">2 of 6</strong> insights decided ·
+          <span class="text-amber-700 font-semibold ml-1">3 tensions to review.</span>
+</span>
+</div>
+<!-- Continue Action -->
+<div class="flex items-center gap-3">
+<button class="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-4 py-2 rounded-lg text-xs shadow-none transition-colors" type="button">
+          Review 4 insights
+        </button>
+<button class="inline-flex items-center gap-2 bg-white hover:bg-slate-50 text-slate-700 font-semibold px-4 py-2 rounded-lg text-xs border border-slate-300 transition-colors" type="button">
+<span>Continue to Report</span>
+<span class="text-sm">→</span>
+</button>
+</div>
+</div>
+</footer>
+<!-- END: GlobalBottomFooter -->
+<!-- BEGIN: InteractiveScripts -->
+<script>
+    let currentFilter = 'to-review';
+
+    function setFilter(filterName) {
+      currentFilter = filterName;
+      const buttons = ['to-review', 'added', 'dismissed', 'waiting', 'all'];
+      
+      buttons.forEach(b => {
+        const btn = document.getElementById(`filter-btn-${b}`);
+        if (b === filterName) {
+          btn.className = "flex-1 py-1.5 rounded-md text-indigo-700 font-semibold bg-white shadow-xs transition-all flex items-center justify-center gap-1.5";
+        } else {
+          btn.className = "flex-1 py-1.5 rounded-md text-slate-600 hover:text-slate-900 transition-all flex items-center justify-center gap-1.5";
+        }
+      });
+
+      // Show/hide cards according to filter
+      const card4 = document.getElementById('master-card-4');
+      const card1 = document.getElementById('master-card-1');
+      const card3 = document.getElementById('master-card-3');
+      const card2 = document.getElementById('master-card-2');
+      const card5 = document.getElementById('master-card-5');
+
+      if (filterName === 'added') {
+        card4?.classList.add('hidden');
+        card1?.classList.add('hidden');
+        card3?.classList.add('hidden');
+        card2?.classList.remove('hidden');
+        card5?.classList.add('hidden');
+      } else if (filterName === 'waiting') {
+        card4?.classList.add('hidden');
+        card1?.classList.add('hidden');
+        card3?.classList.add('hidden');
+        card2?.classList.add('hidden');
+        card5?.classList.remove('hidden');
+      } else if (filterName === 'dismissed') {
+        card4?.classList.add('hidden');
+        card1?.classList.add('hidden');
+        card3?.classList.add('hidden');
+        card2?.classList.add('hidden');
+        card5?.classList.add('hidden');
+      } else {
+        // to-review or all
+        card4?.classList.remove('hidden');
+        card1?.classList.remove('hidden');
+        card3?.classList.remove('hidden');
+        card2?.classList.remove('hidden');
+        card5?.classList.remove('hidden');
+      }
+    }
+
+    function setFrame(frameNum) {
+      // Update top frame buttons
+      [1, 2, 3].forEach(n => {
+        const btn = document.getElementById(`btn-frame-${n}`);
+        if (n === frameNum) {
+          btn.className = "px-2.5 py-1 rounded text-xs font-semibold bg-white text-indigo-600 shadow-xs border border-slate-200/80 transition-colors";
+        } else {
+          btn.className = "px-2.5 py-1 rounded text-xs font-medium text-slate-600 hover:text-slate-900 transition-colors";
+        }
+      });
+
+      const emptyView = document.getElementById('detail-frame1-empty');
+      const detailCard4 = document.getElementById('detail-card4-view');
+      const detailCard1 = document.getElementById('detail-card1-view');
+
+      const card4 = document.getElementById('master-card-4');
+      const card1 = document.getElementById('master-card-1');
+      const card3 = document.getElementById('master-card-3');
+      const card2 = document.getElementById('master-card-2');
+
+      const unselectedClass = "tension-list-item cursor-pointer p-3.5 rounded-lg bg-white border border-slate-200 hover:border-slate-300 transition-all relative overflow-hidden group";
+      const selectedClass = "tension-list-item cursor-pointer p-3.5 rounded-lg bg-white border border-slate-200 hover:border-slate-300 transition-all relative overflow-hidden group border-l-4 border-l-indigo-600 bg-indigo-50/20";
+
+      [card4, card1, card3, card2].forEach(c => {
+        if (c) c.className = unselectedClass;
+      });
+
+      if (frameNum === 1) {
+        // Frame 1: Empty state in right panel
+        emptyView?.classList.remove('hidden');
+        detailCard4?.classList.add('hidden');
+        detailCard1?.classList.add('hidden');
+      } else if (frameNum === 2) {
+        // Frame 2: Said vs showed card selected
+        emptyView?.classList.add('hidden');
+        detailCard4?.classList.remove('hidden');
+        detailCard1?.classList.add('hidden');
+        if (card4) card4.className = selectedClass;
+      } else if (frameNum === 3) {
+        // Frame 3: Between segments card selected
+        emptyView?.classList.add('hidden');
+        detailCard4?.classList.add('hidden');
+        detailCard1?.classList.remove('hidden');
+        if (card1) card1.className = selectedClass;
+      }
+    }
+
+    function selectTension(cardKey) {
+      if (cardKey === 'card4') {
+        setFrame(2);
+      } else if (cardKey === 'card1') {
+        setFrame(3);
+      } else {
+        setFrame(2); // fallback
+      }
+    }
+
+    function toggleParticipantsList() {
+      const drawer = document.getElementById('inline-participants-drawer');
+      const label = document.getElementById('show-who-btn-label');
+      if (drawer) {
+        const isHidden = drawer.classList.contains('hidden');
+        if (isHidden) {
+          drawer.classList.remove('hidden');
+          if (label) label.textContent = 'Hide who';
+        } else {
+          drawer.classList.add('hidden');
+          if (label) label.textContent = 'Show who';
+        }
+      }
+    }
+
+    let showingAllMoments = false;
+    function toggleExtraMoments() {
+      const extra = document.getElementById('extra-moments-list');
+      const label = document.getElementById('label-show-all-5');
+      showingAllMoments = !showingAllMoments;
+      if (extra) {
+        if (showingAllMoments) {
+          extra.classList.remove('hidden');
+          if (label) label.textContent = 'Show top 3';
+        } else {
+          extra.classList.add('hidden');
+          if (label) label.textContent = 'Show all 5';
+        }
+      }
+    }
+
+    function openDismissDialog() {
+      document.getElementById('dismiss-modal')?.classList.remove('hidden');
+    }
+
+    function closeDismissDialog() {
+      document.getElementById('dismiss-modal')?.classList.add('hidden');
+    }
+
+    function confirmDismiss() {
+      closeDismissDialog();
+      const card4 = document.getElementById('master-card-4');
+      if (card4) card4.style.opacity = '0.35';
+    }
+
+    function addAsTheme() {
+      const toast = document.getElementById('add-toast');
+      toast?.classList.remove('hidden');
+      setTimeout(() => {
+        toast?.classList.add('hidden');
+      }, 5000);
+    }
+
+    function dismissToast() {
+      document.getElementById('add-toast')?.classList.add('hidden');
+    }
+
+    function openNotRightModal(participantId) {
+      const modal = document.getElementById('not-right-modal');
+      const label = document.getElementById('modal-participant-id');
+      if (label) label.textContent = participantId;
+      modal?.classList.remove('hidden');
+    }
+
+    function closeNotRightModal() {
+      const modal = document.getElementById('not-right-modal');
+      modal?.classList.add('hidden');
+    }
+
+    // Explainer popover toggle
+    const readTrigger = document.getElementById('how-to-read-trigger');
+    const readModal = document.getElementById('how-to-read-modal');
+    const closeModal = document.getElementById('close-modal-trigger');
+
+    readTrigger?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      readModal?.classList.toggle('hidden');
+    });
+
+    closeModal?.addEventListener('click', () => {
+      readModal?.classList.add('hidden');
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!readModal?.contains(e.target) && e.target !== readTrigger) {
+        readModal?.classList.add('hidden');
+      }
+    });
+  </script>
+<!-- END: InteractiveScripts -->
+</body></html>
