@@ -21,11 +21,11 @@ const click = async (sel) => {
 const MOD = `window.__mod = (path) => import(performance.getEntriesByType('resource').map((r) => r.name).filter((n) => n.includes(path + '.ts')).pop() ?? path + '.ts')`
 const withMod = (expr) => b.evaluate(MOD + '; ' + expr)
 const LINES = [
-  'We look at people who spoke in favour or against it and compare how they said it with what they said.',
-  'No match if the voice was tense or flat, or the face showed doubt, frustration or confusion. For people who spoke against it, no match if they sounded or looked pleased.',
+  'We look at people who spoke in favour or against it and compare how they sounded with what they said. Faces play no part.',
+  'No match if they spoke in favour and sounded tense or flat, or spoke against it and sounded animated.',
   'More than half matched: Consistent. More than half had no match: Gap. Otherwise Mixed. Under 3 people: Too few to read.',
-  'Long pauses alone never count as no match. They show as Hesitant, and never count toward Gap.',
-  'Each person counts once. Speech and face are never added together.',
+  'Hesitating a lot, with nothing else off, shows as Hesitant and never counts toward Gap.',
+  'Each person counts once. With several codes in a theme, their positions are counted together.',
 ]
 const ruleOf = (against, unc, nn, min) => (nn < min ? 'Too few to read' : against / nn > 0.5 ? 'Conflicting' : (nn - against - unc) / nn > 0.5 ? 'Consistent' : 'Mixed')
 try {
@@ -76,14 +76,16 @@ try {
   ok('ten people who all hesitated, with calm voices and a pleased face, are Uncertain, none against: never Conflicting', u.hesAll.against === 0 && u.hesAll.uncertain === 10 && u.hesAll.verdict === 'Mixed', u.hesAll)
   ok('against a positive claim, tense and flat pull against; animated and even match', u.posTense === 'Pulls against' && u.posFlat === 'Pulls against' && u.posAnimated === 'Matches' && u.posEven === 'Matches', [u.posTense, u.posFlat, u.posAnimated, u.posEven])
   ok('against a complaint, tense matches and animated pulls against', u.negTense === 'Matches' && u.negAnimated === 'Pulls against' && u.negFlat === 'Matches' && u.negEven === 'Matches', [u.negTense, u.negAnimated, u.negFlat, u.negEven])
-  ok('against a positive claim, doubt, frustration and confusion pull against; interest, delight, surprise and neutral match', ['Doubt', 'Frustration', 'Confusion'].every((f) => u['posF' + f] === 'Pulls against') && ['Interest', 'Delight', 'Surprise', 'Neutral'].every((f) => u['posF' + f] === 'Matches'))
-  ok('against a complaint, delight and interest pull against; doubt, frustration and confusion match', ['Delight', 'Interest'].every((f) => u['negF' + f] === 'Pulls against') && ['Doubt', 'Frustration', 'Confusion', 'Surprise', 'Neutral'].every((f) => u['negF' + f] === 'Matches'))
+  // Decision: faces never feed a verdict. These two used to assert that doubt, frustration, confusion (against a positive claim) and
+  // delight, interest (against a complaint) pulled against. They now assert the opposite: no face, at high confidence, moves a fit.
+  ok('no face reading pulls against a positive claim: doubt, frustration and confusion match like every other face when the voice is even', ['Doubt', 'Frustration', 'Confusion', 'Interest', 'Delight', 'Surprise', 'Neutral'].every((f) => u['posF' + f] === 'Matches'))
+  ok('no face reading pulls against a complaint: delight and interest match too when the voice is even', ['Delight', 'Interest', 'Doubt', 'Frustration', 'Confusion', 'Surprise', 'Neutral'].every((f) => u['negF' + f] === 'Matches'))
   ok('a face below medium confidence never pulls against', u.faceLow === 'Matches')
-  ok('Speech and Face at the same moment count once', u.both.fit === 'Pulls against' && u.both.against.length === 2)
+  ok('a tense voice with a doubtful face is one No match, and only Speech is named as the reason', u.both.fit === 'Pulls against' && u.both.against.length === 1 && u.both.against[0] === 'Speech', u.both)
   ok('audio-only people are read on speech (a tense voice counts), never on hesitation alone, and never as neutral', u.audioOnly === 'Pulls against' && u.audioHes === 'Uncertain')
   ok('someone who only stated a fact is not checked', u.fact.fit === undefined && u.fact.against.length === 0)
   ok('five against and five matching is Mixed: most is more than half', u.mixed === 'Mixed')
-  ok('the breakdown counts each person once (a tense complaint matches), with the fact-only and audio-only counts right', u.bd.people === 6 && u.bd.positive === 4 && u.bd.negative === 1 && u.bd.against === 2 && u.bd.uncertain === 1 && u.bd.matched === 2 && u.bd.fact.join() === 'P-5' && u.bd.audioOnly === 2, u.bd)
+  ok('the breakdown counts each person once (a tense complaint matches), with the fact-only count right (audio-only is no longer counted apart: everyone is read on speech)', u.bd.people === 6 && u.bd.positive === 4 && u.bd.negative === 1 && u.bd.against === 2 && u.bd.uncertain === 1 && u.bd.matched === 2 && u.bd.fact.join() === 'P-5', u.bd)
   ok('the table line reads “4 spoke in favour and 1 spoke against it. Matched 2, no match 2, hesitant 1.”', u.line === '4 spoke in favour and 1 spoke against it. Matched 2, no match 2, hesitant 1.', u.line)
   ok('the hesitant-delivery observation needs a positive claim and at least half hesitating', u.hesitantPos?.hesitated === 4 && u.hesitantPos.speakers === 6 && u.hesitantNeg === null && u.hesitantFew === null, [u.hesitantPos, u.hesitantNeg, u.hesitantFew])
   ok('the rule lines in config are the five lines, word for word', JSON.stringify(u.lines) === JSON.stringify(LINES), u.lines)

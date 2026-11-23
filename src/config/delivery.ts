@@ -1,20 +1,27 @@
-// How delivery is read against the words (Results Analysis, A2 Signals). One rule, stated once, used by every screen.
-// Delivery has two groups. Speech is tone plus certainty (hesitation), read for everyone. Face is expression, video only.
+// How delivery is read against the words (Results Analysis, A2). One rule, stated once, used by every screen.
+// Verdicts come from speech only: tone and certainty, each against the person's own baseline, read for everyone (audio-only included).
+// Faces play no part in any verdict, row or count. They are stored and never used here.
 // Thresholds are mock values awaiting founder approval (docs/OPEN_QUESTIONS.md).
 
 export const DELIVERY = {
-  /** Fewer people with a claim than this and no verdict is read. */
+  /** Fewer people than this and no verdict is read. */
   minPeople: 3,
-  /** "Most": a verdict needs strictly more than this share of the people with a claim. */
+  /** "Most": a verdict needs strictly more than this share of the people with a position. Exactly half is never more than half. */
   majority: 0.5,
-  /** A face counts against the words only at this confidence or higher (the Medium band starts at 0.6). */
-  faceMinConfidence: 0.6,
-  /** Against a positive claim (they argued for it): these tones and expressions pull against the words. */
-  positive: { tones: ['Tense', 'Flat'] as const, faces: ['Doubt', 'Frustration', 'Confusion'] as const },
-  /** Against a complaint: sounding or looking pleased pulls against the words. Tense matches a complaint. */
-  negative: { tones: ['Animated'] as const, faces: ['Delight', 'Interest'] as const },
-  /** "Positive words, hesitant delivery": shown for a positive claim when at least this share of the people who argued for it hesitated. */
+  /** For it: these tones do not match the words. Against it: these do not match. Hesitation never counts here. */
+  positive: { tones: ['Tense', 'Flat'] as const },
+  negative: { tones: ['Animated'] as const },
+  /** "Positive words, hesitant delivery": shown for a positive claim when at least this share of the people who were for it hesitated. */
   hesitantInsight: { minShare: 0.5 },
+  /** A clause in an insight sentence, or a "What stood out" label, needs at least this many people. Under it the clause is left out. */
+  clauseMin: 3,
+  /** Moments to watch: how many clips a theme and a code show at most, one per person. */
+  moments: { theme: 5, code: 3 },
+  /**
+   * How a moment is scored, by distance from that person's own baseline and by whether it contradicts their words.
+   * Each measure is capped, so one extreme number never decides alone.
+   */
+  momentScore: { delayCap: 4, pauseCap: 2, fillersCap: 2, toneWeight: 1, contradictBonus: 2, hesitantBonus: 1 },
 }
 
 /**
@@ -64,8 +71,8 @@ export type FitKey = 'Matches' | 'Pulls against' | 'Uncertain'
 export const FIT_ORDER: FitKey[] = ['Matches', 'Pulls against', 'Uncertain']
 export const FIT_LABEL: Record<FitKey, string> = { Matches: 'Matched', 'Pulls against': 'No match', Uncertain: 'Hesitant' }
 export const FIT_DEF: Record<FitKey, string> = {
-  Matches: 'Nothing in the voice or face contradicted the words.',
-  'Pulls against': 'The voice or face contradicted the words.',
+  Matches: 'Nothing in how they sounded contradicted the words.',
+  'Pulls against': 'How they sounded contradicted the words.',
   Uncertain: 'Nothing contradicted the words, but they hesitated a lot. Never counts toward Gap.',
 }
 export const FIT_COLOUR: Record<FitKey, Chip> = {
@@ -97,9 +104,9 @@ const lower = (xs: readonly string[]) => xs.map((x) => x.toLowerCase())
 
 /** The rule in the five lines the "How it’s decided" popover shows. Built from the numbers above, so the text and the code cannot drift. */
 export const DELIVERY_RULE_LINES: string[] = [
-  'We look at people who spoke in favour or against it and compare how they said it with what they said.',
-  `No match if the voice was ${list(lower(DELIVERY.positive.tones))}, or the face showed ${list(lower(DELIVERY.positive.faces))}. For people who spoke against it, no match if they sounded or looked pleased.`,
+  'We look at people who spoke in favour or against it and compare how they sounded with what they said. Faces play no part.',
+  `No match if they spoke in favour and sounded ${list(lower(DELIVERY.positive.tones))}, or spoke against it and sounded ${list(lower(DELIVERY.negative.tones))}.`,
   `More than half matched: ${VERDICT_LABEL.Consistent}. More than half had no match: ${VERDICT_LABEL.Conflicting}. Otherwise ${VERDICT_LABEL.Mixed}. Under ${DELIVERY.minPeople} people: ${VERDICT_LABEL['Too few to read']}.`,
-  `Long pauses alone never count as no match. They show as ${FIT_LABEL.Uncertain}, and never count toward ${VERDICT_LABEL.Conflicting}.`,
-  'Each person counts once. Speech and face are never added together.',
+  `Hesitating a lot, with nothing else off, shows as ${FIT_LABEL.Uncertain} and never counts toward ${VERDICT_LABEL.Conflicting}.`,
+  'Each person counts once. With several codes in a theme, their positions are counted together.',
 ]

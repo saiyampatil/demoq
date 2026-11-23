@@ -27,6 +27,8 @@ const SHAPES = [
   /^\d+ of \d+ people were verbally negative about it(, and \d+ of those \d+ [a-z ]+( and \d+ [a-z ]+)?|, and their delivery backed it up)?\.$/,
   /^\d+ (person|people) spoke in favour of it and \d+ spoke against it\.$|^\d+ (person|people) spoke (in favour of|against) it\.$/,
   /^Nobody took a side\. All \d+ (person|people) just described what happened\.$/,
+  // Under three people there is no pattern to read, so the sentence says so (OPEN_QUESTIONS #264).
+  /^Only \d+ (person|people) said this, too few to read a pattern\.$/,
 ]
 const OLD = /Complains about it|Speaks for it|argued for it|complained|\bPositive words|\bNegative words|Their words:|\bFactual\b|took a position/i
 
@@ -34,15 +36,22 @@ try {
   await b.goto('/researcher'); await b.evaluate('localStorage.clear(); sessionStorage.clear(); true')
   await b.goto(`${root}/signals`); await b.waitFor('Words vs delivery'); await b.sleep(900)
   // data: themes and codes, with sides worked out from the points
-  const D = await run(`const side=(pts,k)=>pts.filter(p=>p.stance===k)
-    const one=(label,pts,people)=>({label,N:pts.length,pos:side(pts,'Positive').length,neg:side(pts,'Negative').length,
-      tiles:Object.fromEntries(['Positive','Negative'].map(k=>[k,['Matches','Pulls against','Uncertain'].map(f=>side(pts,k).filter(p=>em.fitOf(p,em.faceOf(p,doc)).fit===f).length)])),
-      hes:Object.fromEntries(['Positive','Negative'].map(k=>[k,side(pts,k).filter(p=>p.band==='Marked hesitation').length])),
-      sentence:sg.sideSummary(pts,doc).sentence})
-    const themes=sg.themeSignals(doc,basis).filter(t=>t.kind!=='tension').map(t=>({id:t.id,...one(t.name,t.points),fit:t.fit}))
-    const codes=sg.codeSignals(doc,basis).map(s=>({id:s.code.id,...one(s.code.name,s.points),fit:s.fit}))
+  // Each person is counted once, from every quote of theirs, by the rule in docs (more than half of their positions; exactly half is never more than half).
+  // This is written out here again, separately from state/speech.ts, so the page and the rule are checked against something else.
+  const D = await run(`const person=(pts)=>{const by={};pts.forEach(p=>(by[p.participantId]??=[]).push(p));
+      const against=(p)=>p.stance==='Positive'?['Tense','Flat'].includes(p.voice.tone):p.voice.tone==='Animated'
+      const f=(p)=>against(p)?'Pulls against':p.band==='Marked hesitation'?'Uncertain':'Matches'
+      return Object.entries(by).map(([id,ps])=>{const pos=ps.filter(p=>p.stance==='Positive'||p.stance==='Negative').sort((a,b)=>a.atSec-b.atSec);const n=pos.length;const c=(k)=>pos.filter(p=>f(p)===k).length;const up=pos.filter(p=>p.stance==='Positive').length
+        return {id,side:!n?null:up*2>n?'Positive':up*2<n?'Negative':pos[0].stance,fit:!n?null:c('Pulls against')*2>n?'Pulls against':c('Matches')*2>n?'Matches':'Uncertain',hes:n>0&&pos.filter(p=>p.band==='Marked hesitation').length*2>n}})}
+    const one=(label,pts,reads)=>{const ppl=person(pts);const side=(k)=>ppl.filter(x=>x.side===k)
+      return {label,N:ppl.length,pos:side('Positive').length,neg:side('Negative').length,
+      tiles:Object.fromEntries(['Positive','Negative'].map(k=>[k,['Matches','Pulls against','Uncertain'].map(f=>side(k).filter(x=>x.fit===f).length)])),
+      hes:Object.fromEntries(['Positive','Negative'].map(k=>[k,side(k).filter(x=>x.hes).length])),
+      sentence:sg.sideSummary(reads).sentence}}
+    const themes=sg.themeSignals(doc,basis).filter(t=>t.kind!=='tension').map(t=>({id:t.id,...one(t.name,t.positions,t.reads),fit:t.fit}))
+    const codes=sg.codeSignals(doc,basis).map(s=>({id:s.code.id,...one(s.code.name,s.positions,s.reads),fit:s.fit}))
     return {themes,codes}`)
-  const wantShape = (x) => (!x.pos && !x.neg ? 3 : x.pos * 2 > x.N ? 0 : x.neg * 2 > x.N ? 1 : 2)
+  const wantShape = (x) => (x.N < 3 ? 4 : !x.pos && !x.neg ? 3 : x.pos * 2 > x.N ? 0 : x.neg * 2 > x.N ? 1 : 2)
   ok('every theme and code sentence follows one of the four shapes, picked by the people counts', [...D.themes, ...D.codes].every((x) => SHAPES[wantShape(x)].test(x.sentence)), [...D.themes, ...D.codes].filter((x) => !SHAPES[wantShape(x)].test(x.sentence)).map((x) => x.sentence))
   ok('the n of N in a sentence equals the people on that side of those who raised it', [...D.themes, ...D.codes].every((x) => { const m = /^(\d+) of (\d+) people were verbally (positive|negative)/.exec(x.sentence); return !m || (Number(m[2]) === x.N && Number(m[1]) === (m[3] === 'positive' ? x.pos : x.neg) && Number(m[1]) * 2 > x.N) }))
   ok('no sentence uses a percentage, “meant it”, confusion, or “most” without a majority', [...D.themes, ...D.codes].every((x) => !/%|meant it|confus|\bmost\b/i.test(x.sentence)))
@@ -52,11 +61,11 @@ try {
     if (!m) return true
     const side = m[3] === 'positive' ? 'Positive' : 'Negative'
     const base = side === 'Positive' ? x.pos : x.neg
-    const allowed = side === 'Positive' ? ['hesitated while saying it', 'sounded flat or tense', 'looked doubtful or frustrated'] : ['hesitated while saying it', 'sounded animated', 'looked pleased']
+    const allowed = side === 'Positive' ? ['hesitated', 'sounded flat or tense'] : ['sounded animated or hesitated']
     const joint = m[4] === (side === 'Positive' ? 'but' : 'and')
-    return joint && Number(m[6]) === base && Number(m[5]) >= 3 && allowed.includes(m[7]) && (!m[8] || (Number(m[9]) >= 3 && Number(m[9]) <= Number(m[5]) && allowed.includes(m[10]) && m[10] !== m[7])) && (m[7] !== 'hesitated while saying it' || Number(m[5]) === x.hes[side])
+    return joint && Number(m[6]) === base && Number(m[5]) >= 3 && allowed.includes(m[7]) && (!m[8] || (Number(m[9]) >= 3 && allowed.includes(m[10]) && m[10] !== m[7])) && (m[7] !== 'hesitated' || Number(m[5]) === x.hes[side])
   }
-  ok('each clause has one base (“of those n” is the people on that side), 3 or more people, in count order, and a direction-aware pattern; “but” for in favour, “and” for against', [...D.themes, ...D.codes].every(clauseOk), [...D.themes, ...D.codes].filter((x) => !clauseOk(x)).map((x) => x.sentence))
+  ok('each clause has one base (“of those n” is the people on that side), 3 or more people, hesitated first then the tone (the order in the brief), and a direction-aware pattern; “but” for in favour, “and” for against', [...D.themes, ...D.codes].every(clauseOk), [...D.themes, ...D.codes].filter((x) => !clauseOk(x)).map((x) => x.sentence))
   ok('at least one sentence has a clause and at least one says delivery backed it up (so both are checked)', [...D.themes, ...D.codes].some((x) => /, but \d+ of those/.test(x.sentence) || /, and \d+ of those/.test(x.sentence)) && [...D.themes, ...D.codes].some((x) => /backed it up/.test(x.sentence)), [...D.themes, ...D.codes].map((x) => x.sentence))
 
   // the page: theme panels

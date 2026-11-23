@@ -86,7 +86,7 @@ export function bubblesOf(doc: CodebookDoc, basis: Basis, seg: Segment): Bubble[
     const people = new Set([...d.people].filter((p) => inSegment(seg, p)))
     if (!d.sig) return []
     // Everyone: A2's profile as it is. A segment: A2's roll-up over that segment's people.
-    const rollup: Rollup = seg === 'all' ? d.sig : { ...rollupPoints(d.sig.points.filter((p) => segmentOf(p.participantId) === seg), doc), strengthPoints: d.sig.strengthPoints.filter((p) => segmentOf(p.participantId) === seg) }
+    const rollup: Rollup = seg === 'all' ? d.sig : { ...rollupPoints(d.sig.positions.filter((p) => segmentOf(p.participantId) === seg), doc), strengthPoints: d.sig.strengthPoints.filter((p) => segmentOf(p.participantId) === seg) }
     const read = rollup.strengthPoints.length
     const strong = rollup.strengthPoints.filter((p) => isStrong(p, doc)).length
     const notEnough = read < THEME_MAP.minRead

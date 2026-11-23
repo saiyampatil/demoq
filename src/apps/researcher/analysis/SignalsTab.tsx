@@ -322,7 +322,7 @@ function CodePanel({ s, ctx, tensions, onUse, onOpenTension, back }: { s: CodeSi
             </button>
           </div>
         )}
-        <HesitantNote points={s.points} doc={ctx.doc} of={s.of} />
+        <HesitantNote points={s.positions} doc={ctx.doc} of={s.of} />
         <header className="border-b border-mist px-5 py-4">
           <div className="flex flex-wrap items-center gap-2">
             {s.readable && <FitChip pattern={s.fit.pattern} />}
@@ -346,7 +346,7 @@ function CodePanel({ s, ctx, tensions, onUse, onOpenTension, back }: { s: CodeSi
         <div className="border-b border-mist px-5 py-3" data-testid="channels">
           {s.readable ? (
             <>
-              <DeliveryFigures points={s.points} ctx={ctx} what="code" />
+              <DeliveryFigures reads={s.reads} ctx={ctx} what="code" />
               <dl className="divide-y divide-mist">
                 <ChannelRow label="Words">{stance ? STANCE_LABEL[stance] : '—'}</ChannelRow>
                 <ChannelRow label="Face" bar={<EmotionBar split={e} tall />} testid="channel-face">
@@ -451,7 +451,7 @@ function CodePanel({ s, ctx, tensions, onUse, onOpenTension, back }: { s: CodeSi
 /** The theme in the right panel: what its words claimed, how delivery stood against them, and which codes to look at. Numbers only, no chart. */
 function ThemePanel({ g, prof, ctx, tensions, onCode, onOpenTension, onOpenTensions }: { g: { id: string; name: string; rows: CodeSignal[] }; prof?: ThemeSignal; ctx: CodebookCtx; tensions: Tension[]; onCode: (id: string) => void; onOpenTension: (id: string) => void; onOpenTensions?: () => void }) {
   if (!prof) return null
-  const ins = themeInsight(prof, ctx.doc)
+  const ins = themeInsight(prof)
   const ids = new Set(g.rows.map((r) => r.code.id))
   const mine = tensions.filter((t) => !t.unavailable && t.codeIds.some((id) => ids.has(id)))
   const added = mine.filter((t) => t.status === 'Added as a tension theme')
@@ -469,7 +469,7 @@ function ThemePanel({ g, prof, ctx, tensions, onCode, onOpenTension, onOpenTensi
         </header>
 
         <div className="border-b border-mist px-5 py-3" data-testid="theme-figures">
-          <DeliveryFigures points={prof.points} ctx={ctx} what="theme" />
+          <DeliveryFigures reads={prof.reads} ctx={ctx} what="theme" />
         </div>
 
         <section aria-label="Codes to check" className="border-b border-mist px-5 py-4" data-testid="codes-to-check">

@@ -82,7 +82,7 @@ try {
     ok(`${t.name}: Codes to check lists only Mixed and Gap codes, Gap first`, JSON.stringify(p.chips) === JSON.stringify(want) && JSON.stringify(t.insight.check) === JSON.stringify(want), [p.chips, want])
     ok(`${t.name}: with none to check it says “None. No code is Mixed or Gap.”`, want.length ? p.none === undefined : p.none === 'None. No code is Mixed or Gap.', p.none)
     const described = t.people - claim
-    const wantCov = [described > 0 ? `${described} just described it` : '', t.audioOnly > 0 ? `${t.audioOnly} audio-only, read on speech` : '', `faces read for ${t.faces} of ${t.people}`].filter(Boolean).join(' · ')
+    const wantCov = [described > 0 ? `${described} just described it` : '', t.audioOnly > 0 ? `${t.audioOnly} audio-only, read on speech` : '', ].filter(Boolean).join(' · ')
     ok(`${t.name}: the coverage line says “${wantCov}”`, p.cov === wantCov, p.cov)
     ok(`${t.name}: no bar, chart or proportion graphic in the theme panel`, await b.evaluate(`(()=>{const el=document.querySelector('[data-testid=theme-panel]');return el.querySelectorAll('svg:not([aria-hidden=true]),canvas,img,[role=img],[role=progressbar],meter,progress,[style*="width"]').length===0})()`))
   }
@@ -93,6 +93,8 @@ try {
   await clickIn('[data-testid=theme-row]', '[data-testid=theme-name]', iChip)
   await click('[data-testid=check-chip]')
   const codeId = withChip.insight.check[0]
+  // The row scrolls into view smoothly, and a row far down the page takes longer than a fixed pause. Wait for it to arrive.
+  await b.poll(`(()=>{const r=document.querySelector('[data-code="${codeId}"]')?.getBoundingClientRect();return !!r&&r.top>=0&&r.bottom<=innerHeight})()`)
   const afterChip = await b.evaluate(`({panel:document.querySelector('[data-testid=signal-panel]')?.getAttribute('aria-label'),theme:document.querySelectorAll('[data-testid=theme-panel]').length,current:document.querySelector('[data-testid=signal-row][aria-current=true]')?.dataset.code,back:document.querySelector('[data-testid=back-to-theme]')?.innerText.replace(/\\s+/g,' ').trim(),inView:(()=>{const r=document.querySelector('[data-code="${codeId}"]')?.getBoundingClientRect();return !!r&&r.top>=0&&r.bottom<=innerHeight})()})`)
   const codeName = withChip.codes.find((c) => c.id === codeId).name
   ok('clicking a chip opens that code’s own panel, selects its row and brings it into view', afterChip.panel === `Signals for ${codeName}` && afterChip.theme === 0 && afterChip.current === codeId && afterChip.inView, afterChip)

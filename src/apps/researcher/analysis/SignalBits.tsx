@@ -12,7 +12,7 @@ import { screenById, studyPath } from '@/routes/screens'
 import { band as confidenceBand, correctFace } from '@/state/codebook'
 import { EMOTION_HINT, EMOTIONS, STANCE_LABEL, TONE_HINT, TONES, VALENCE, VALENCE_WORD, VALENCES, faceOf, fitOf, noReading, type Emotion, type EmotionSplit, type Face, type Fit, type FitPattern, type Tone, type ToneSplit } from '@/state/emotion'
 import { DELIVERY_RULE_LINES, FIT_COLOUR, FIT_DEF, FIT_LABEL, FIT_ORDER, VERDICT_COLOUR, VERDICT_DEF, VERDICT_LABEL, VERDICT_ORDER, SIDE_DEF, SIDE_LABEL, describedLine, sideGroupHead, sideGroupLine, RAISED_TIP, verdictLabel, type Chip, type FitKey } from '@/config/delivery'
-import { sideSummary, hesitantDelivery, segmentLabelOf, signsOf, type Band, type Pattern, type Point, type Split } from '@/state/signals'
+import { sideSummary, hesitantDelivery, segmentLabelOf, signsOf, type Band, type Pattern, type PersonRead, type Point, type Split } from '@/state/signals'
 import { BANDS } from '@/state/signals'
 import { mmss } from '../review/reviewUi'
 import type { CodebookCtx } from './codebookCtx'
@@ -311,25 +311,20 @@ export function HowItsDecided() {
   )
 }
 
-/** One word for why a person matched, did not match, or was hesitant: the tone, or the face that did not match, or "Hesitated". */
-const reasonWord = (p: Point, fit: FitKey, doc: CodebookCtx['doc']) => {
-  if (fit === 'Uncertain') return 'Hesitated'
-  const f = fitOf(p, faceOf(p, doc))
-  if (fit === 'Pulls against' && !f.against.includes('Speech')) return faceOf(p, doc)?.emotion ?? 'Face'
-  return p.voice.tone
-}
+/** One word for why a person matched, did not match, or was hesitant: the tone, or "Hesitated". */
+const reasonWord = (p: Point, fit: FitKey) => (fit === 'Uncertain' ? 'Hesitated' : p.voice.tone)
 
 /**
  * What people said, in one sentence, then "Did their delivery match their words?" and the tiles Matched · No match · Hesitant. Two sides
  * stack two groups, each headed by its side and size; one side has one group. Each tile and each group heading opens the people in it.
  * People who just described it are one quiet grey line.
  */
-export function DeliveryFigures({ points, ctx, what }: { points: Point[]; ctx: CodebookCtx; what: 'theme' | 'code' }) {
-  const sum = sideSummary(points, ctx.doc)
+export function DeliveryFigures({ reads, ctx, what }: { reads: PersonRead[]; ctx: CodebookCtx; what: 'theme' | 'code' }) {
+  const sum = sideSummary(reads)
   const [open, setOpen] = useState<{ side: string; fit?: FitKey } | null>(null)
   const [who, setWho] = useState(false)
   const checked = sum.groups.reduce((n, g) => n + g.points.length, 0)
-  const audioOnly = sum.groups.flatMap((g) => g.points).filter((p) => !faceOf(p, ctx.doc)).length
+  const audioOnly = sum.groups.flatMap((g) => g.points).filter((p) => !p.face).length
   const [lead, ...after] = sum.sentence.split(new RegExp(`(?<= of |All )${sum.of}(?= people)`))
   return (
     <div className="mb-2 flex flex-col gap-2.5 rounded-sm border border-mist px-3 py-2.5" data-testid="delivery-breakdown">
@@ -375,12 +370,12 @@ export function DeliveryFigures({ points, ctx, what }: { points: Point[]; ctx: C
             {listed.length > 0 && open?.side === key && (
               <ul className="divide-y divide-mist rounded-sm border border-mist" data-testid="tile-people" data-for={open.fit ?? 'all'}>
                 {listed.map((p) => {
-                  const f = fitOf(p, faceOf(p, ctx.doc)).fit as FitKey
+                  const f = g.fits[p.participantId] as FitKey
                   return (
                     <li key={p.participantId} data-testid="tile-person" className="flex items-center gap-2 px-2.5 py-1.5 text-xs">
                       <span className="font-medium tabular-nums">{p.participantId}</span>
                       <span className="text-graphite">{segmentLabelOf(p.participantId)}</span>
-                      <span className="text-graphite" data-testid="tile-reason">{reasonWord(p, f, ctx.doc)}</span>
+                      <span className="text-graphite" data-testid="tile-reason">{reasonWord(p, f)}</span>
                       <Link to={playHref(ctx.studyId, p.sessionId, p.atSec)} className="ml-auto inline-flex items-center gap-1 rounded-xs font-medium text-iris-700 hover:underline" aria-label={`Play ${p.participantId} at ${mmss(p.atSec)}`}>
                         <PlayIcon size={11} /> Play
                       </Link>

@@ -225,7 +225,7 @@ function signalLines(s: Pick<Rollup, 'pattern' | 'marked' | 'people' | 'emotions
   const tone = TONES.reduce((best, t) => (tones.counts[t] > tones.counts[best] ? t : best), TONES[0])
   if (tones.n >= 3 && tone !== 'Even' && tones.counts[tone] * 2 >= tones.n) lines.push({ channel: 'Speech', text: `Tone mostly ${tone.toLowerCase()} for ${tones.counts[tone]} of ${tones.n}`, emotionVoice: true })
   if (headline) lines.push({ channel: 'Words vs delivery', text: headline, emotionVoice: true })
-  else if (s.fit.pattern === 'Mixed' || s.fit.pattern === 'Conflicting') lines.push({ channel: 'Words vs delivery', text: `${verdictLabel(s.fit.pattern)}: speech or face did not match the words for ${s.fit.against} of ${s.fit.n} people${s.fit.uncertain ? `, ${s.fit.uncertain} hesitant` : ''}`, emotionVoice: true })
+  else if (s.fit.pattern === 'Mixed' || s.fit.pattern === 'Conflicting') lines.push({ channel: 'Words vs delivery', text: `${verdictLabel(s.fit.pattern)}: speech did not match the words for ${s.fit.against} of ${s.fit.n} people${s.fit.uncertain ? `, ${s.fit.uncertain} hesitant` : ''}`, emotionVoice: true })
   return lines
 }
 

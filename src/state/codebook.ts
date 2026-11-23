@@ -18,7 +18,8 @@ import {
   type SeedTensionDecision,
 } from '@/mock/codebook'
 import { segmentsOf } from '@/mock/studyAnalysis'
-import type { Emotion } from '@/mock/emotion'
+import type { Emotion, Stance } from '@/mock/emotion'
+import { hash } from './hash'
 import { now, uid } from './brief'
 
 export type { CodeStatus, Excerpt, LogEntry, Pet } from '@/mock/codebook'
@@ -49,9 +50,38 @@ export type CodebookDoc = {
   themePicks?: Record<string, boolean>
   /** The Researcher's corrections to face readings, by reading key. The original reading is kept beside it. */
   faceFixes?: Record<string, FaceFix>
+  /**
+   * The Researcher's corrections to what the words claim. Keyed "code:{codeId}" for a whole code, or "person:{codeId}|{participantId}"
+   * for one person at a code. The AI's own stance is kept beside each correction.
+   */
+  stanceFixes?: Record<string, StanceFix>
+  /** What the Researcher decided on each theme's insight, by theme. A theme not listed is Suggested. */
+  insights?: Record<string, InsightDecision>
+  /** Counts the times the analysis data changed (codes, themes, corrections, sessions), so a decision can say which version it saw. 1 when unset. */
+  dataVersion?: number
   /** Quotes added from Explore, kept so a refresh finds them. They are put back into EXCERPTS when the codebook loads. */
   addedExcerpts?: Record<string, Excerpt>
   log: LogEntry[]
+}
+
+/** A correction to what the words claim, with the AI's own stance beside it. */
+export type StanceFix = { to: Stance; from: Stance; by: string; at: string; why?: string }
+/** The numbers and words an insight was made from, kept so "Out of date" can show old beside new. */
+export type InsightSnap = { n: number; of: number; verdict: string; text: string }
+/** A decision on a theme's insight sentence. `text` is what is shown (the AI's, or the Researcher's wording). */
+export type InsightDecision = {
+  status: 'Accepted' | 'Edited' | 'Left out'
+  by: string
+  at: string
+  text: string
+  /** The sentence the AI computed when this was decided. */
+  original: string
+  /** Fingerprint of what it was made from. If it changes, the decision is Out of date. */
+  fingerprint: string
+  snap: InsightSnap
+  /** The data version it was decided on. */
+  dataVersion: number
+  why?: string
 }
 
 /** A face reading the Researcher corrected. "No clear expression" takes the reading out of every count. */
@@ -108,10 +138,17 @@ export function seedCodebook(studyId: string, acceptedSessions: string[]): Codeb
   }
 }
 
+/** What counts as the analysis data: the codes and their quotes, who is in each theme, the corrections, and the sessions. */
+const dataSig = (d: CodebookDoc) =>
+  hash(JSON.stringify({ c: d.codes.map((c) => [c.id, c.status, c.excerpts, c.mergedInto]), t: d.themes.map((t) => [t.id, t.codeIds]), f: d.stanceFixes ?? {}, b: d.builtOn }))
+export const dataVersionOf = (d: CodebookDoc) => d.dataVersion ?? 1
+
 export function updateCodebook(studyId: string, fn: (d: CodebookDoc) => CodebookDoc) {
   const doc = store[studyId]
   if (!doc) return
-  store = registerExcerpts({ ...store, [studyId]: fn(doc) })
+  let next = fn(doc)
+  if (next !== doc && dataSig(next) !== dataSig(doc)) next = { ...next, dataVersion: dataVersionOf(doc) + 1 }
+  store = registerExcerpts({ ...store, [studyId]: next })
   save()
   emit()
 }
@@ -138,6 +175,9 @@ export function resetCodebook() {
   save()
   emit()
 }
+
+/** The doc as it stands now, for code that is not a component. */
+export const getCodebook = (studyId: string): CodebookDoc | undefined => store[studyId]
 
 export function useCodebook(studyId: string): CodebookDoc | undefined {
   return useSyncExternalStore(
@@ -545,3 +585,61 @@ export function addIdeaCode(d: CodebookDoc, id: string, input: IdeaCode, { by }:
 
 /** Pet Food's guide questions, kept for callers that predate a second study. Use questionsOfStudy for a study. */
 export { AI_CODER, CODE_QUESTIONS, CODEBOOK_STUDY }
+
+
+// ─── what the words claim: corrections ──────────────────────────────────────
+
+const STANCE_WORD: Record<Stance, string> = { Positive: 'For it', Negative: 'Against it', Neutral: 'Just describes' }
+const stanceEntry = (by: string, kind: 'code' | 'reading', id: string, name: string, action: string, detail: string, why?: string): LogEntry => ({
+  id: uid('cl'),
+  at: now(),
+  by,
+  target: { kind, id, name },
+  action,
+  detail,
+  ...(why?.trim() ? { why: why.trim() } : {}),
+})
+
+/**
+ * Correct what a whole code's words claim: for it, against it, or just describes. `ai` is PulseAI's own stance, so choosing it again
+ * removes the correction. Every count, verdict and insight that uses the code updates, and the change is logged.
+ */
+export function correctCodeStance(d: CodebookDoc, code: Pick<Code, 'id' | 'name'>, ai: Stance, to: Stance, { by }: Who, why?: string): CodebookDoc {
+  const key = `code:${code.id}`
+  const { [key]: old, ...rest } = d.stanceFixes ?? {}
+  const from = old?.to ?? ai
+  if (to === from) return d
+  const stanceFixes = to === ai ? rest : { ...rest, [key]: { to, from: ai, by, at: now(), ...(why?.trim() ? { why: why.trim() } : {}) } }
+  return log({ ...d, stanceFixes }, stanceEntry(by, 'code', code.id, code.name, 'Stance corrected', `From “${STANCE_WORD[from]}” to “${STANCE_WORD[to]}”`, why))
+}
+
+/** The same for one person at one code ("Not right?" in the people list). `current` is the stance the code has now, before this person's own correction. */
+export function correctPersonStance(d: CodebookDoc, code: Pick<Code, 'id' | 'name'>, participantId: string, current: Stance, to: Stance, { by }: Who, why?: string): CodebookDoc {
+  const key = `person:${code.id}|${participantId}`
+  const { [key]: old, ...rest } = d.stanceFixes ?? {}
+  if (to === (old?.to ?? current)) return d
+  const stanceFixes = to === current ? rest : { ...rest, [key]: { to, from: current, by, at: now(), ...(why?.trim() ? { why: why.trim() } : {}) } }
+  return log({ ...d, stanceFixes }, stanceEntry(by, 'reading', key, `${participantId}, ${code.name}`, 'Person’s stance corrected', `From “${STANCE_WORD[old?.to ?? current]}” to “${STANCE_WORD[to]}”`, why))
+}
+
+// ─── theme insights: accept, edit, leave out ────────────────────────────────
+
+type InsightNowArg = { text: string; fingerprint: string; snap: InsightSnap }
+const insightEntry = (by: string, t: Pick<Theme, 'id' | 'name'>, action: string, detail?: string, why?: string) => themeEntry(by, t, action, detail, why)
+
+function decide(d: CodebookDoc, theme: Pick<Theme, 'id' | 'name'>, now_: InsightNowArg, status: InsightDecision['status'], text: string, { by }: Who, why?: string): CodebookDoc {
+  const decision: InsightDecision = { status, by, at: now(), text, original: now_.text, fingerprint: now_.fingerprint, snap: now_.snap, dataVersion: dataVersionOf(d), ...(why?.trim() ? { why: why.trim() } : {}) }
+  return log({ ...d, insights: { ...(d.insights ?? {}), [theme.id]: decision } }, insightEntry(by, theme, `Insight ${status.toLowerCase()}`, status === 'Left out' ? undefined : `“${text}”`, why))
+}
+/** Accept the computed sentence as it is. */
+export const acceptInsight = (d: CodebookDoc, theme: Pick<Theme, 'id' | 'name'>, now_: InsightNowArg, who: Who) => decide(d, theme, now_, 'Accepted', now_.text, who)
+/** Accept the Researcher's wording of it. The caller has already checked it (checkInsightEdit in state/speech.ts). */
+export const editInsight = (d: CodebookDoc, theme: Pick<Theme, 'id' | 'name'>, now_: InsightNowArg, text: string, who: Who) => decide(d, theme, now_, text.trim() === now_.text ? 'Accepted' : 'Edited', text.trim(), who)
+/** Keep the insight out of the report. A reason is optional. */
+export const leaveOutInsight = (d: CodebookDoc, theme: Pick<Theme, 'id' | 'name'>, now_: InsightNowArg, who: Who, why?: string) => decide(d, theme, now_, 'Left out', now_.text, who, why)
+/** Put an insight back to Suggested. */
+export function restoreInsight(d: CodebookDoc, theme: Pick<Theme, 'id' | 'name'>, { by }: Who): CodebookDoc {
+  const { [theme.id]: _gone, ...rest } = d.insights ?? {}
+  void _gone
+  return log({ ...d, insights: rest }, insightEntry(by, theme, 'Insight restored', 'Back to suggested'))
+}

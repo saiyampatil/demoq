@@ -186,9 +186,11 @@ export type Point = {
   voice: VoiceReading
   /** What the words claim, from the code at this quote. Absent at a moment with no coded quote. */
   stance?: Stance
+  /** The code this quote belongs to. Absent at a moment with no coded quote. */
+  codeId?: string
 }
 
-function point(key: string, participantId: string, atSec: number, facts: Facts, band: Band, extra: { excerpt?: Excerpt; face?: FaceReading; stance?: Stance }): Point {
+function point(key: string, participantId: string, atSec: number, facts: Facts, band: Band, extra: { excerpt?: Excerpt; face?: FaceReading; stance?: Stance; codeId?: string }): Point {
   const usual = usualDelay(participantId)
   return {
     key,
@@ -212,7 +214,7 @@ export function excerptPoint(excerptId: string): Point {
   const band = EXCERPT_BAND.get(excerptId) ?? 'Steady'
   const codeId = CODE_OF_EXCERPT.get(excerptId)
   const stance = codeId ? stanceOf(codeId) : undefined
-  return point(`x:${excerptId}`, e.participantId, e.atSec, makeFacts(excerptId, band, usualDelay(e.participantId)), band, { excerpt: e, stance, face: faceAtExcerpt(excerptId, e.participantId, codeId, band) })
+  return point(`x:${excerptId}`, e.participantId, e.atSec, makeFacts(excerptId, band, usualDelay(e.participantId)), band, { excerpt: e, stance, codeId, face: faceAtExcerpt(excerptId, e.participantId, codeId, band) })
 }
 
 const worst = (a: Point, b: Point) => (bandRank(b.band) > bandRank(a.band) ? b : a)

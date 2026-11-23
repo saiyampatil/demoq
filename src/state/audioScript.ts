@@ -1,6 +1,7 @@
 // The audio summary's script: what the lines are, where they come from, how long they take to say, and whether the analysis has
 // moved under them. All of it is worked out from the codebook, the tensions and Review every time. Only the lines the Researcher has
 // kept or changed are stored (state/audioSummary.ts); lengths, start times and out-of-date marks never are.
+import { hash } from './hash'
 import { AUDIO } from '@/config/audioSummary'
 import { clipsOfTheme } from '@/mock/showreel'
 import { questionsOf } from '@/mock/codebook'
@@ -85,7 +86,6 @@ export const outsideBrief = (sec: number) => sec < AUDIO.range.min * 60 || sec >
 
 // ─── sources and fingerprints ───────────────────────────────────────────────
 
-const hash = (s: string) => [...s].reduce((n, c) => ((n * 31 + c.charCodeAt(0)) >>> 0), 7).toString(36)
 /** Who said it, as the line's tag reads: "Cat owner", "Parent". */
 export const segmentLabel = (participantId: string) => {
   const w = segmentWord(participantId)

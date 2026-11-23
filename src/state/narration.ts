@@ -7,7 +7,7 @@ export const words = (text: string) => text.trim().split(/\s+/).filter(Boolean).
 export const figures = (text: string): { n: number; of: number }[] => [...text.matchAll(/(\d+) of (?:the )?(\d+)/g)].map((m) => ({ n: Number(m[1]), of: Number(m[2]) }))
 
 /** How a theme or code says what people said. The only wording a line may use for it (the A2 panels use the same phrases). */
-export const SIDE_PHRASES = ['verbally positive about it', 'verbally negative about it', 'spoke in favour of it', 'spoke against it', 'just described what happened', 'hesitated while saying it', 'sounded flat or tense', 'looked doubtful or frustrated', 'sounded animated', 'looked pleased', 'their delivery backed it up'] as const
+export const SIDE_PHRASES = ['verbally positive about it', 'verbally negative about it', 'spoke in favour of it', 'spoke against it', 'just described what happened', 'hesitated while saying it', 'hesitated', 'sounded animated or hesitated', 'sounded flat or tense', 'looked doubtful or frustrated', 'sounded animated', 'looked pleased', 'their delivery backed it up'] as const
 /** Earlier wording for the same thing. Never used again. */
 export const RETIRED_SIDE_WORDING = ['argued for it', 'complained', 'complains about it', 'speaks for it', 'pulled against', 'positive words', 'negative words']
 
