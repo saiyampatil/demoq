@@ -1,5 +1,5 @@
 // A2 final vocabulary and colour system: one shared map, no old display string on any rendered screen, chip colours, icons and tooltips,
-// no pill for a face reading, "Mixed" only as a verdict, tiles in order, contrast, and the numbers unchanged.
+// "Mixed" only as a verdict, tiles in order, contrast, and the numbers unchanged.
 //   npx vite --port 5199 --strictPort &   then   node tests/a2-vocabulary.mjs
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { launch } from './cdp.mjs'
@@ -33,7 +33,7 @@ const sat = ([r, g, bl]) => { const mx = Math.max(r, g, bl), mn = Math.min(r, g,
 const BANNED = /argued for|complain(ed|s|t|ts)?\b|\bPositive words|\bNegative words|Their words:|\bFactual\b|Complains about it|took a position|spoke for|speaks for|speak for|pulled against|pulls against|uncertain|unsure|\bfits\b|partly fits|doesn.t fit|facts only|no claim|conflicting/i
 try {
   await b.goto('/researcher'); await b.evaluate('localStorage.clear(); sessionStorage.clear(); true')
-  await b.goto(`${root}/signals`); await b.waitFor('Words vs delivery'); await b.sleep(900)
+  await b.goto(`${root}/signals`); await b.waitFor('What stood out'); await b.sleep(900)
 
   // ── one shared map (source) ──
   const walk = (d) => readdirSync(d).flatMap((f) => (statSync(`${d}/${f}`).isDirectory() ? walk(`${d}/${f}`) : [`${d}/${f}`]))
@@ -64,11 +64,16 @@ try {
     const hit = text.match(BANNED)
     ok(`no old display string on ${label}`, !hit, hit && text.slice(Math.max(0, hit.index - 40), hit.index + 40))
   }
-  await scan('A2 Signals')
+  await click('[data-testid=expand-all]')
+  await scan('A2 Themes')
   const nThemes = await b.evaluate(`document.querySelectorAll('[data-testid=theme-row]').length`)
   for (let i = 0; i < nThemes; i++) { await click('[data-testid=theme-name]', i); await scan(`the theme panel ${i + 1}`) }
+  // Clicking the name of Not in a theme folds it, so open everything again.
+  await b.evaluate(`(()=>{const e=document.querySelector('[data-testid=expand-all]');if(/^Expand all/.test(e.innerText))e.click();return true})()`); await b.sleep(300)
   const nCodes = await b.evaluate(`document.querySelectorAll('[data-testid=signal-row]').length`)
   for (let i = 0; i < nCodes; i++) { await click('[data-testid=signal-row]', i); await scan(`the code panel ${i + 1}`) }
+  await click('[data-testid=key]'); await scan('the Key')
+  await b.evaluate(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})); true`); await b.sleep(200)
   await click('[data-testid=how-decided]'); await scan('the “How it’s decided” popover')
   const pop = await b.evaluate(`({lines:document.querySelectorAll('[data-testid=how-decided-line]').length,verdicts:[...document.querySelectorAll('[data-testid=how-decided-verdict]')].map(e=>e.innerText.replace(/\\s+/g,' ').trim()),fits:[...document.querySelectorAll('[data-testid=how-decided-fit]')].map(e=>e.innerText.replace(/\\s+/g,' ').trim()),words:document.querySelectorAll('[data-testid=how-decided-word]').length})`)
   ok('the popover lists all five verdict definitions, the three match labels and the three word labels', pop.lines === 5 && pop.verdicts.length === 5 && pop.verdicts.every((v, i) => v.startsWith(Object.values(cfg.v)[i])) && pop.fits.length === 3 && pop.fits.map((f) => f.split(' ')[0]).join() === ['Matched', 'No', 'Hesitant'].join() && pop.words === 3, pop)
@@ -83,8 +88,10 @@ try {
   await b.goto(`${root}/report/audio`); await b.sleep(1800); await scan('the Audio summary')
 
   // ── the Signals screen: chips, icons, tooltips, colours ──
-  await b.goto(`${root}/signals`); await b.waitFor('Words vs delivery'); await b.sleep(900)
+  await b.goto(`${root}/signals`); await b.waitFor('What stood out'); await b.sleep(900)
+  await click('[data-testid=expand-all]')
   await click('[data-testid=signal-row]', 0)
+  await click('[data-testid=key]')
   const chips = await b.evaluate(`[...document.querySelectorAll('[data-verdict-chip],[data-fit-chip]')].map(e=>{const s=getComputedStyle(e);return {kind:e.dataset.verdictChip??e.dataset.fitChip,text:e.innerText.trim(),icon:e.querySelector('svg[data-icon]')?.dataset.icon??null,title:e.title,bg:s.backgroundColor,fg:s.color,bw:s.borderTopWidth,bs:s.borderTopStyle,bc:s.borderTopColor}})`)
   const kinds = [...new Set(chips.map((c) => c.kind))]
   ok('all five verdicts are on the screen (so each was checked)', ['Consistent', 'Mixed', 'Conflicting', 'No claim', 'Too few to read'].every((k) => kinds.includes(k)), kinds)
@@ -96,18 +103,11 @@ try {
   ok('Too few to read is transparent with a dotted outline', byKind('Too few to read').bs === 'dotted' && /rgba\(0, 0, 0, 0\)|transparent/.test(byKind('Too few to read').bg), byKind('Too few to read'))
   ok('the person-level chips are Matched, No match and Hesitant, with the shared colours', chips.filter((c) => !cfg.vc[c.kind]).length >= 2 && chips.filter((c) => !cfg.vc[c.kind]).every((c) => c.text === cfg.f[c.kind] && c.fg === `rgb(${rgb(cfg.fc[c.kind].fg).join(', ')})`), chips.filter((c) => !cfg.vc[c.kind]).slice(0, 3))
   const chroma = chips.filter((c) => cfg.vc[c.kind] && c.kind !== 'Too few to read' && c.kind !== 'No claim')
-  ok('verdict chips never use a Face or Speech legend colour', await b.evaluate(`(()=>{const used=new Set([...document.querySelectorAll('[data-verdict-chip]')].map(e=>getComputedStyle(e).backgroundColor));const legend=[...document.querySelectorAll('[data-testid=legend] span[aria-hidden=true]')].map(e=>getComputedStyle(e).backgroundColor);return legend.length>10&&![...used].some(u=>legend.includes(u))})()`))
+  // (The Face and Speech colour legends and the face, tone and certainty readings are gone from the page, so the checks that kept their colours apart and drew them as dots are gone with them.)
 
   // ── no pill for a face or speech reading; Mixed only as a verdict ──
-  const readings = await b.evaluate(`[...document.querySelectorAll('[data-reading],[data-testid=face-cell],[data-testid=speech-label]')].map(e=>{const s=getComputedStyle(e);return {k:e.dataset.reading??'cell',bg:s.backgroundColor,bw:s.borderTopWidth,rad:s.borderTopLeftRadius,text:e.innerText.trim()}})`)
-  ok('face, tone and certainty readings are dots and text, never pills: no fill, no border', readings.length > 15 && readings.every((r) => /rgba\(0, 0, 0, 0\)|transparent/.test(r.bg) && r.bw === '0px'), readings.filter((r) => !/rgba\(0, 0, 0, 0\)/.test(r.bg) || r.bw !== '0px').slice(0, 3))
-  await click('[data-testid=signal-row]', 1)
-  const moment = await b.evaluate(`[...document.querySelectorAll('[data-testid=signal-point] [data-reading]')].map(e=>{const s=getComputedStyle(e);return {k:e.dataset.reading,bg:s.backgroundColor,bw:s.borderTopWidth}})`)
-  ok('the same holds on the moment cards in the code panel', moment.length > 3 && moment.every((r) => /rgba\(0, 0, 0, 0\)/.test(r.bg) && r.bw === '0px'), moment.slice(0, 3))
-  const mixed = await b.evaluate(`(()=>{const out=[];const w=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT);let n;while((n=w.nextNode())){if(/\\bMixed\\b/.test(n.textContent)){const e=n.parentElement;if(!e.closest('[data-verdict-chip],[data-testid=how-decided-pop],[data-testid=tick-hint],[data-testid=check-none],[data-testid=legend]'))out.push(n.textContent.trim().slice(0,60))}}return out})()`)
+  const mixed = await b.evaluate(`(()=>{const out=[];const w=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT);let n;while((n=w.nextNode())){if(/\\bMixed\\b/.test(n.textContent)){const e=n.parentElement;if(!e.closest('[data-verdict-chip],[data-testid=how-decided-pop],[data-testid=key-pop],[data-testid=tick-hint],[data-testid=check-none],[data-testid=legend]'))out.push(n.textContent.trim().slice(0,60))}}return out})()`)
   ok('“Mixed” appears only as a verdict (a chip, its definition, or a sentence about the verdict)', mixed.length === 0, mixed)
-  const cert = await b.evaluate(`[...document.querySelectorAll('[data-testid=certainty-tag]')].map(e=>e.innerText.trim())`)
-  ok('the certainty tag reads “Certainty: …”', cert.length >= 1 && cert.every((c) => /^Certainty: /.test(c)), cert)
 
   // ── panels: heading, question, tiles in order, for every code ──
   const panels = []
@@ -116,11 +116,11 @@ try {
     panels.push(await b.evaluate(`(()=>{const p=document.querySelector('[data-testid=signal-panel]');const g=[...p.querySelectorAll('[data-testid=tile-group]')];return {name:p.querySelector('h2').innerText.trim(),words:p.querySelector('[data-testid=summary-sentence]')?.innerText.replace(/\\s+/g,' ').trim(),q:p.querySelector('[data-testid=match-question]')?.innerText.trim(),tiles:g.length?[...g[0].querySelectorAll('[data-testid=match-tiles] > button')].map(d=>d.querySelector('dt').innerText.trim()):[],n:[0,1,2].map(k=>g.reduce((a,x)=>a+Number([...x.querySelectorAll('[data-testid=match-tiles] > button')][k].dataset.n),0))}})()`))
   }
   const shaped = panels.filter((p) => p.tiles.length)
-  ok('every code panel opens with the one-sentence summary, then the question, then the tiles Matched · No match · Hesitant', shaped.length >= 8 && shaped.every((p) => /^\d+ of \d+ people were verbally|^\d+ (person|people) spoke|^Nobody took a side/.test(p.words) && p.q === 'Did their delivery match their words?' && p.tiles.join() === 'Matched,No match,Hesitant'), shaped.slice(0, 2))
+  ok('every code panel opens with the one-sentence summary, then the question, then the tiles Matched · No match · Hesitant', shaped.length >= 8 && shaped.every((p) => /^\d+ of \d+ people were verbally|^\d+ (person|people) spoke|^Nobody took a side|^Only \d+ (person|people) said this, too few to read a pattern/.test(p.words) && p.q === 'Did their delivery match their words?' && p.tiles.join() === 'Matched,No match,Hesitant'), [shaped.length, nCodes, panels.length, ...shaped.slice(0, 2)])
   ok('no code panel opens with a sentence like “4 of 4 complained.”', panels.every((p) => !/complained|argued for/.test(p.words ?? '')))
   const rows = await run(`return sg.codeSignals(doc,basis).map(s=>({name:s.code.name,fits:s.fit.fits,against:s.fit.against,unc:s.fit.uncertain,n:s.fit.n,verdict:s.fit.pattern}))`)
   ok('every code panel’s tiles equal that code’s own counts', shaped.every((p) => { const r = rows.find((x) => x.name === p.name); return r && p.n.join() === [r.fits, r.against, r.unc].join() }), shaped.filter((p) => { const r = rows.find((x) => x.name === p.name); return !(r && p.n.join() === [r.fits, r.against, r.unc].join()) }).slice(0, 2))
-  await b.goto(`${root}/signals`); await b.waitFor('Words vs delivery'); await b.sleep(700)
+  await b.goto(`${root}/signals`); await b.waitFor('What stood out'); await b.sleep(700)
   const rowChips = await b.evaluate(`[...document.querySelectorAll('[data-testid=signal-row]')].map(r=>({name:r.querySelector('.font-medium,.font-semibold').innerText.trim(),kind:r.querySelector('[data-verdict-chip]').dataset.verdictChip}))`)
   ok('every code row’s chip is its own verdict, unchanged', rowChips.every((r) => { const x = rows.find((y) => y.name === r.name); return x && (x.verdict === r.kind || (r.kind === 'Too few to read' && x.n < 3)) }), rowChips.filter((r) => !rows.find((y) => y.name === r.name && y.verdict === r.kind)).slice(0, 3))
   ok('every code panel’s chip rows come from the same split, and the verdict follows the rule (more than half matched: Consistent, more than half no match: Gap)', rows.every((r) => r.n < 3 || r.n === r.fits + r.against + r.unc && (r.against / r.n > 0.5 ? r.verdict === 'Conflicting' : r.fits / r.n > 0.5 ? r.verdict === 'Consistent' : r.verdict === 'Mixed')), rows.filter((r) => r.n >= 3).slice(0, 2))

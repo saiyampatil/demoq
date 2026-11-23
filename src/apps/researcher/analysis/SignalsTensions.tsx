@@ -8,33 +8,35 @@ import { hasAnalysis } from '@/mock/studyAnalysis'
 import { screenById, studyPath } from '@/routes/screens'
 import { signalsReadiness } from '@/state/analysisProgress'
 import { CODEBOOK_STUDY, updateCodebook } from '@/state/codebook'
-import { codeSignals, coverage, plural, tensionCounts, tensionsOf } from '@/state/signals'
+import { coverage, plural, tensionCounts, tensionsOf } from '@/state/signals'
 import { PageHeader } from '../../shared/PageHeader'
 import { ExploreControl } from './explore/ExploreControl'
 import { AnalysisStepper } from './AnalysisStepper'
 import { ContinueBar } from './ContinueBar'
-import { FACES_NOTE, SignalsTab, type SignalFocus } from './SignalsTab'
+import { ThemesTab } from './themes/Themes'
+import { useThemeModel, type SignalFocus } from './themes/model'
 import { TensionsTab, type TensionFilter } from './TensionsTab'
 import type { CodebookCtx } from './codebookCtx'
 import { useAnalysis } from './useAnalysis'
 
 const TABS = [
-  { key: 'signals', label: 'Signals' },
+  { key: 'themes', label: 'Themes' },
   { key: 'tensions', label: 'Tensions' },
 ] as const
 type Tab = (typeof TABS)[number]['key']
 
-/** A2: how they reacted (speech and face), and where that doesn't match what they said. Read on the codes accepted in the codebook. */
+/** A2: how people sounded against what they said, and where that doesn't match. Read on the codes accepted in the codebook. */
 export function SignalsTensions() {
   const { studyId, study, review, me, accepted, doc, basis, stale, ready } = useAnalysis()
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
-  const tab = (TABS.find((t) => t.key === params.get('tab'))?.key ?? 'signals') as Tab
+  const tab = (TABS.find((t) => t.key === params.get('tab'))?.key ?? 'themes') as Tab
   const [loaded, setLoaded] = useState(false)
   const [failed, setFailed] = useState(params.get('demo') === 'error')
   const [filter, setFilter] = useState<TensionFilter>('Suggested')
   const [focus, setFocus] = useState<SignalFocus>({})
   const [focusTension, setFocusTension] = useState<string>()
+  const [reviewStart, setReviewStart] = useState(0)
 
   useEffect(() => {
     setLoaded(false)
@@ -43,28 +45,29 @@ export function SignalsTensions() {
   }, [studyId])
 
   const tensions = useMemo(() => (doc ? tensionsOf(doc, basis) : []), [doc, basis])
+  const model = useThemeModel(doc, basis)
 
   if (!study) return null
   const excluded = review.filter((r) => r.status === 'Excluded').length
-  const go = (t: Tab) => setParams((p) => (t === 'signals' ? p.delete('tab') : p.set('tab', t), p), { replace: true })
+  const go = (t: Tab) => setParams((p) => (t === 'themes' ? p.delete('tab') : p.set('tab', t), p), { replace: true })
   /** Moving between the two tabs or to a card brings the content into view, so the Researcher never has to hunt for it. */
   const toPanel = () => setTimeout(() => document.getElementById('signals-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60)
 
   const header = (
     <>
-      <PageHeader id="A2" title="Emotion & behaviour" description="How people reacted, and where that doesn’t match what they said. Speech and faces are described, never used to exclude a session, and a reading you think is wrong can be corrected." actions={ready && doc && loaded && !failed ? <ExploreControl doc={doc} basis={basis} me={me} studyId={studyId} /> : undefined} />
+      <PageHeader id="A2" title="Emotion & behaviour"  description="How people sounded against what they said, and where that doesn’t match. A reading is described, never used to exclude a session." actions={ready && doc && loaded && !failed ? <ExploreControl doc={doc} basis={basis} me={me} studyId={studyId} /> : undefined} />
       <AnalysisStepper studyId={studyId} current="signals" />
     </>
   )
 
-  if (!ready || !doc)
+  if (!ready || !doc || !model)
     return (
       <div className="flex flex-col gap-6">
         {header}
         <div className="rounded-md border border-dashed border-mist-strong bg-surface">
           <EmptyState
             title={hasAnalysis(studyId) ? 'Accept a code first' : 'No analysis for this study yet'}
-            description={hasAnalysis(studyId) ? 'Signals are measured on the codes you’ve accepted in the codebook.' : 'Results Analysis is built on the finished studies in this prototype: Pet Food Subscription Churn and Ice Cream Flavour Concept Test.'}
+            description={hasAnalysis(studyId) ? 'This is read on the codes you’ve accepted in the codebook.' : 'Results Analysis is built on the finished studies in this prototype: Pet Food Subscription Churn and Ice Cream Flavour Concept Test.'}
             action={<Button to={studyPath(hasAnalysis(studyId) ? studyId : CODEBOOK_STUDY, screenById.A1)}>Go to the codebook</Button>}
           />
         </div>
@@ -76,7 +79,7 @@ export function SignalsTensions() {
       <div className="flex flex-col gap-6">
         {header}
         <div className="rounded-md border border-mist bg-surface">
-          <ErrorState title="The signals didn’t load" description="Your decisions are safe. Try loading them again." onRetry={() => setFailed(false)} />
+          <ErrorState title="The themes didn’t load" description="Your decisions are safe. Try loading them again." onRetry={() => setFailed(false)} />
         </div>
       </div>
     )
@@ -94,8 +97,8 @@ export function SignalsTensions() {
   const ctx: CodebookCtx = { doc, basis, me, studyId, act: (fn) => updateCodebook(studyId, fn) }
   const cov = coverage(accepted, excluded)
   const t = tensionCounts(doc)
-  const codeRows = codeSignals(doc, basis)
-  const used = codeRows.filter((s) => s.use).length
+  const { counts } = model
+  const toReview = counts.toReview.length
 
   const showTensions = (f: TensionFilter) => {
     setFilter(f)
@@ -108,10 +111,14 @@ export function SignalsTensions() {
     go('tensions')
     toPanel()
   }
-  const seeSignals = (codeId?: string) => {
+  const seeThemes = (codeId?: string) => {
     setFocus({ code: codeId })
-    go('signals')
+    go('themes')
     toPanel()
+  }
+  const reviewInsights = () => {
+    go('themes')
+    setReviewStart((n) => n + 1)
   }
   const toReportPath = studyPath(studyId, screenById.A3)
 
@@ -125,13 +132,18 @@ export function SignalsTensions() {
         </Banner>
       )}
 
-      <div className="flex flex-col gap-2">
-        <Progress t={t} tab={tab} filter={filter} onPick={showTensions} />
+      <div className="sticky top-0 z-20 -mx-1 flex flex-col gap-0.5 border-b border-mist bg-paper/95 px-1 py-2 backdrop-blur" data-testid="a2-header">
+        <p className="text-sm text-ink tabular-nums" data-testid="insights-progress">
+          {counts.decided} of {counts.total} insights decided ·{' '}
+          <button type="button" onClick={() => showTensions('Suggested')} data-testid="tensions-link" className="min-h-6 cursor-pointer rounded-xs font-medium text-iris-700 hover:underline">
+            {plural(t.toReview, 'tension')} to review
+          </button>
+        </p>
         <CoverageLine cov={cov} />
       </div>
 
       <div>
-        <div role="tablist" aria-label="Signals and tensions" className="flex gap-1 border-b border-mist">
+        <div role="tablist" aria-label="Themes and tensions" className="flex gap-1 border-b border-mist" onKeyDown={(e) => { if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return; e.preventDefault(); const i = TABS.findIndex((x) => x.key === tab); const n = TABS[(i + (e.key === 'ArrowRight' ? 1 : TABS.length - 1)) % TABS.length]; go(n.key); setTimeout(() => document.getElementById(`sttab-${n.key}`)?.focus(), 0) }}>
           {TABS.map((x) => (
             <button
               key={x.key}
@@ -139,9 +151,10 @@ export function SignalsTensions() {
               type="button"
               id={`sttab-${x.key}`}
               aria-selected={tab === x.key}
+              tabIndex={tab === x.key ? 0 : -1}
               aria-controls="signals-panel"
               onClick={() => go(x.key)}
-              className={cn('-mb-px flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium', tab === x.key ? 'border-ink text-ink' : 'border-transparent text-graphite hover:text-ink')}
+              className={cn('-mb-px flex min-h-11 items-center gap-1.5 border-b-2 px-3 text-sm font-medium', tab === x.key ? 'border-ink text-ink' : 'border-transparent text-graphite hover:text-ink')}
             >
               {x.label}
               {x.key === 'tensions' && t.toReview > 0 && (
@@ -153,17 +166,19 @@ export function SignalsTensions() {
           ))}
         </div>
         <div id="signals-panel" role="tabpanel" aria-labelledby={`sttab-${tab}`} className="scroll-mt-4 pt-5">
-          {tab === 'signals' && (
-            <SignalsTab
+          {tab === 'themes' && (
+            <ThemesTab
               ctx={ctx}
+              model={model}
               focus={focus}
               setFocus={setFocus}
               tensions={tensions}
+              reviewStart={reviewStart}
               onOpenTensions={() => showTensions('Suggested')}
               onOpenTension={openTension}
             />
           )}
-          {tab === 'tensions' && <TensionsTab ctx={ctx} filter={filter} setFilter={setFilter} focusId={focusTension} onSeeSignals={seeSignals} onContinue={() => navigate(toReportPath)} />}
+          {tab === 'tensions' && <TensionsTab ctx={ctx} filter={filter} setFilter={setFilter} focusId={focusTension} onSeeSignals={seeThemes} onContinue={() => navigate(toReportPath)} />}
         </div>
       </div>
 
@@ -173,11 +188,11 @@ export function SignalsTensions() {
         previous={{ screen: 'A1', label: 'Codebook' }}
         next={{ screen: 'A3', label: 'Continue to Report' }}
         stay="Keep working on tensions"
-        lead={tab === 'signals' && t.toReview > 0 ? { label: `Review ${plural(t.toReview, 'tension')}`, onClick: () => showTensions('Suggested') } : undefined}
+        lead={tab === 'themes' && toReview > 0 ? { label: `Review ${plural(toReview, 'insight')}`, onClick: reviewInsights } : undefined}
         message={
           <>
-            <span data-testid="report-footer-count">Goes to the report: {plural(used, 'code')} with signals and {plural(t.themes, 'tension theme')}.</span>
-            {t.toReview > 0 ? <span className="ml-1.5 font-medium text-pending-fg">{plural(t.toReview, 'tension')} still to review.</span> : <span className="ml-1.5 text-positive-fg">Every tension is decided.</span>}
+            <span data-testid="report-footer-count">{counts.decided} of {counts.total} insights decided.</span>
+            {t.toReview > 0 ? <span className="ml-1.5 font-medium text-pending-fg">{plural(t.toReview, 'tension')} to review.</span> : <span className="ml-1.5 text-positive-fg">Every tension is decided.</span>}
           </>
         }
       />
@@ -185,68 +200,13 @@ export function SignalsTensions() {
   )
 }
 
-/** What the readings are measured on, and what isn't, in one quiet line. Always shown, so nobody reads more into them than is there. */
+/** What the readings are measured on, in one quiet line, so nobody reads more into them than is there. */
 function CoverageLine({ cov }: { cov: ReturnType<typeof coverage> }) {
-  const [open, setOpen] = useState(false)
   return (
-    <div className="px-1 text-sm text-graphite" data-testid="coverage">
-      <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
-        <span>
-          Speech (tone and certainty) measured on <span className="font-medium text-ink tabular-nums">{cov.sessions}</span> accepted sessions. Faces read for <span className="font-medium text-ink tabular-nums">{cov.video}</span>
-          {cov.audioOnly > 0 && ` (${cov.audioOnly} audio-only, so no face reading, never counted as neutral)`}. {cov.excluded > 0 && `${cov.excluded} excluded in Review are left out.`}
-        </span>
-        <button type="button" aria-expanded={open} onClick={() => setOpen((x) => !x)} data-testid="how-faces" className="inline-flex h-5 items-center rounded-xs border border-dashed border-mist-strong px-1.5 text-xs font-medium hover:bg-haze">
-          How faces are read
-        </button>
-      </p>
-      {open && (
-        <p className="mt-1.5 max-w-3xl rounded-sm bg-paper px-3 py-2 text-xs" data-testid="how-faces-note">
-          {FACES_NOTE}
-        </p>
-      )}
-    </div>
-  )
-}
-
-/** One strip: how far the tensions are, and each status as a filter. The signals themselves have no decision to count. */
-function Progress({ t, tab, filter, onPick }: { t: ReturnType<typeof tensionCounts>; tab: Tab; filter: TensionFilter; onPick: (f: TensionFilter) => void }) {
-  const items: { key: TensionFilter; label: string; n: number; tone: string }[] = [
-    { key: 'Suggested', label: 'To review', n: t.toReview, tone: 'bg-pending-fg' },
-    { key: 'Added as a tension theme', label: 'Tension themes', n: t.themes, tone: 'bg-positive-fg' },
-    { key: 'Dismissed', label: 'Dismissed', n: t.dismissed, tone: 'bg-held-fg' },
-    ...(t.waiting > 0 ? [{ key: 'Waiting' as TensionFilter, label: 'Waiting on codebook', n: t.waiting, tone: 'bg-mist-strong' }] : []),
-  ]
-  const decided = t.total - t.toReview
-  return (
-    <section aria-label="Tensions at a glance" className="flex flex-wrap items-stretch rounded-md border border-mist bg-surface">
-      <div className="flex min-w-56 flex-1 flex-col justify-center gap-2 px-5 py-3">
-        <p className="text-sm text-graphite">
-          <span className="text-lg font-semibold text-ink tabular-nums">{decided}</span> of <span className="tabular-nums">{t.total}</span> tensions decided
-        </p>
-        <div className="flex h-1.5 overflow-hidden rounded-full bg-haze" aria-hidden="true">
-          {items.slice(1, 3).map((i) => (
-            <span key={i.key} className={cn('h-full', i.tone)} style={{ width: `${t.total ? (i.n / t.total) * 100 : 0}%` }} />
-          ))}
-        </div>
-      </div>
-      <div className="flex flex-wrap border-t border-mist sm:border-t-0 sm:border-l" role="group" aria-label="Show tensions by status">
-        {items.map((i) => (
-          <button
-            key={i.key}
-            type="button"
-            aria-pressed={tab === 'tensions' && filter === i.key}
-            onClick={() => onPick(i.key)}
-            data-testid={`sum-${i.key}`}
-            className={cn('flex min-w-28 flex-col items-start justify-center gap-0.5 border-r border-mist px-4 py-2.5 text-left last:border-r-0 hover:bg-haze', tab === 'tensions' && filter === i.key && 'bg-paper shadow-[inset_0_-2px_0_var(--color-ink)]')}
-          >
-            <span className="flex items-center gap-1.5 text-sm text-graphite">
-              <span aria-hidden="true" className={cn('size-2 rounded-full', i.tone)} />
-              {i.label}
-            </span>
-            <span className="text-lg font-semibold tabular-nums">{i.n}</span>
-          </button>
-        ))}
-      </div>
-    </section>
+    <p className="text-xs text-graphite tabular-nums" data-testid="coverage">
+      Speech read for {cov.sessions} of {cov.sessions}
+      {cov.audioOnly > 0 && ` · ${cov.audioOnly} audio-only, read on speech`}
+      {cov.excluded > 0 && ` · ${cov.excluded} excluded in Review are left out`}
+    </p>
   )
 }

@@ -40,6 +40,10 @@ export function stanceFor(doc: Pick<CodebookDoc, 'stanceFixes'> | undefined, cod
   const f = doc?.stanceFixes
   return f?.[`person:${codeId}|${participantId}`]?.to ?? f?.[`code:${codeId}`]?.to ?? stanceOf(codeId)
 }
+/** What a code's words claim as it stands: the Researcher's correction for the code, else PulseAI's own. */
+export const codeStance = (doc: Pick<CodebookDoc, 'stanceFixes'> | undefined, codeId: string): Stance => doc?.stanceFixes?.[`code:${codeId}`]?.to ?? stanceOf(codeId)
+/** PulseAI's own stance for a code, before any correction. */
+export const aiStance = (codeId: string): Stance => stanceOf(codeId)
 /** The same point with the stance as it stands now, so every later reading uses the corrected words. */
 export const withStance = (p: Point, doc: Pick<CodebookDoc, 'stanceFixes'> | undefined): Point => {
   const stance = stanceFor(doc, p.codeId, p.participantId, p.stance)
@@ -301,3 +305,32 @@ export function checkInsightEdit(text: string, computed: string): string[] {
 
 /** Why Accept is off when there are too few people. */
 export const TOO_FEW_TIP = 'Too few people to read a pattern'
+
+// ─── speech evidence, for a code's panel ────────────────────────────────────
+
+const median = (xs: number[]) => {
+  const v = [...xs].sort((a, b) => a - b)
+  return v.length ? (v.length % 2 ? v[(v.length - 1) / 2] : (v[v.length / 2 - 1] + v[v.length / 2]) / 2) : 0
+}
+const one = (x: number) => (Math.round(x * 10) / 10).toFixed(1)
+
+/**
+ * What was measured for the people who said a code, in plain lines, the delay against their own usual first. Numbers only, each with its base.
+ * Each person counts once (the quote that stands for them), so these lines use the same people as the tiles.
+ */
+export function speechEvidence(reads: PersonRead[]): { key: 'delay' | 'pause' | 'fillers' | 'tone'; text: string }[] {
+  const pts = reads.map((r) => r.point)
+  const n = pts.length
+  if (!n) return []
+  const slow = pts.filter((p) => signsOf(p.facts, p.usual).includes('delay')).length
+  const paused = pts.filter((p) => p.facts.pauseSec >= SIGNAL_RULES.pauseSec).length
+  const fillers = pts.filter((p) => p.facts.fillers >= SIGNAL_RULES.fillers).length
+  const flatTense = pts.filter((p) => p.voice.tone === 'Flat' || p.voice.tone === 'Tense').length
+  const animated = pts.filter((p) => p.voice.tone === 'Animated').length
+  return [
+    { key: 'delay', text: `Answers started a median ${one(median(pts.map((p) => p.facts.delaySec)))} s after the question. Their usual: ${one(median(pts.map((p) => p.usual)))} s. ${slow} of ${n} started well after their usual.` },
+    { key: 'pause', text: `${paused} of ${n} paused ${SIGNAL_RULES.pauseSec} s or longer mid-answer. The longest pause was ${one(Math.max(...pts.map((p) => p.facts.pauseSec)))} s.` },
+    { key: 'fillers', text: `${fillers} of ${n} used ${SIGNAL_RULES.fillers} or more fillers or restarts.` },
+    { key: 'tone', text: `Tone against their own usual: ${flatTense} flat or tense, ${animated} animated, ${n - flatTense - animated} even.` },
+  ]
+}

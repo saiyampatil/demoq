@@ -1,4 +1,4 @@
-// A2 tension themes: they are managed in the Tensions tab, and the Signals tab no longer lists them (only the footer counts them).
+// A2 tension themes: they are managed in the Tensions tab, and the Themes tab does not list them.
 //   the wording, Restore and dismiss, and that nothing about them is left in the Signals table.
 //   npx vite --port 5199 --strictPort &   then   node tests/a2-themes.mjs
 import { launch } from './cdp.mjs'
@@ -30,7 +30,7 @@ const fresh = async () => {
   await b.goto('/researcher')
   await b.evaluate('localStorage.clear(); sessionStorage.clear(); true')
   await b.goto(`${root}/signals`)
-  await b.waitFor('Words vs delivery')
+  await b.waitFor('What stood out')
   await b.sleep(500)
   // The seed has one approved tension (for the audio summary). These checks start with none, so it is put back to review first.
   await b.evaluate(`window.__mod = (path) => import(performance.getEntriesByType('resource').map((r) => r.name).filter((n) => n.includes(path + '.ts')).pop() ?? path + '.ts'); (async()=>{const cb=await window.__mod('/src/state/codebook'); cb.updateCodebook('pet-food-churn', d=>cb.restoreTension(d,{id:'tn-pause-concept',title:'t'},{by:'test'})); return true})()`); await b.sleep(600)
@@ -39,7 +39,7 @@ const acceptAllThemes = async () => {
   await b.goto(`${root}/codebook?tab=themes`); await b.waitFor('New theme'); await b.sleep(500)
   await b.evaluate(`[...document.querySelectorAll('[data-testid=theme-suggestion]')].forEach(s=>s.querySelector('[data-testid=accept-theme]').click()); true`)
   await b.sleep(600)
-  await b.goto(`${root}/signals`); await b.waitFor('Words vs delivery'); await b.sleep(500)
+  await b.goto(`${root}/signals`); await b.waitFor('What stood out'); await b.sleep(500)
 }
 
 try {
@@ -53,8 +53,8 @@ try {
   const tTitle = await b.evaluate(`document.querySelector('[data-testid=tension-card][data-status=Suggested] h3').innerText.trim()`)
   await click('[data-testid=turn-theme]')
   await click('[data-testid=turn-confirm]')
-  await b.goto(`${root}/signals`); await b.waitFor('Words vs delivery'); await b.sleep(600)
-  ok('the Signals table has no Tension themes group or heading; the footer counts the tension theme', (await b.evaluate(`document.querySelectorAll('[data-testid=tension-theme-list],#tension-themes').length`)) === 0 && !(await b.evaluate(`[...document.querySelectorAll('h3')].some(h=>/Tension themes/.test(h.innerText))`)) && /and 1 tension theme\./.test((await text('[data-testid=report-footer-count]')) ?? ''), await text('[data-testid=report-footer-count]'))
+  await b.goto(`${root}/signals`); await b.waitFor('What stood out'); await b.sleep(600)
+  ok('the Themes table has no Tension themes group or heading', (await b.evaluate(`document.querySelectorAll('[data-testid=tension-theme-list],#tension-themes').length`)) === 0 && !(await b.evaluate(`[...document.querySelectorAll('h3')].some(h=>/Tension themes/.test(h.innerText))`)))
   await b.goto(`${root}/codebook?tab=themes`); await b.waitFor('New theme'); await b.sleep(400)
   ok('the Themes tab calls it a tension theme', await b.evaluate(`[...document.querySelectorAll('[data-testid=theme-card][data-from-tension=true]')].every(c=>/Tension theme/.test(c.innerText))&&document.querySelectorAll('[data-testid=theme-card][data-from-tension=true]').length===1`))
   await b.goto(`${root}/signals?tab=tensions`); await b.waitFor('Tensions'); await b.sleep(500)
@@ -63,8 +63,7 @@ try {
   ok('an added tension shows Tension theme … added by, and a Restore button', addedCard.length === 1 && /Tension theme “.+” added by/.test(addedCard[0]) && /Restore/.test(addedCard[0]), addedCard[0])
   await b.evaluate(`document.querySelector('[data-testid=tension-card][data-status="Added as a tension theme"] [data-testid=restore-tension]').click(); true`); await b.sleep(500)
   ok('Restore puts the tension back to review', (await b.evaluate(`document.querySelectorAll('[data-testid=tension-card][data-status="Added as a tension theme"]').length`)) === 0 && (await b.evaluate(`[...document.querySelectorAll('[data-testid=tension-card][data-status=Suggested]')].some(c=>c.innerText.includes(${JSON.stringify(tTitle.slice(0, 30))}))`)))
-  await b.goto(`${root}/signals`); await b.waitFor('Words vs delivery'); await b.sleep(500)
-  ok('and the footer no longer counts it', /and 0 tension themes\./.test((await text('[data-testid=report-footer-count]')) ?? ''), await text('[data-testid=report-footer-count]'))
+  await b.goto(`${root}/signals`); await b.waitFor('What stood out'); await b.sleep(500)
   await b.goto(`${root}/signals?tab=tensions`); await b.waitFor('Tensions'); await b.sleep(500)
   await clickText('[data-testid=tf-Dismissed]', 'Dismissed'); await b.sleep(300)
   const dismissedCard = await b.evaluate(`!!document.querySelector('[data-testid=tension-card][data-status=Dismissed] [data-testid=restore-tension]')`)

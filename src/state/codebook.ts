@@ -57,6 +57,10 @@ export type CodebookDoc = {
   stanceFixes?: Record<string, StanceFix>
   /** What the Researcher decided on each theme's insight, by theme. A theme not listed is Suggested. */
   insights?: Record<string, InsightDecision>
+  /** The Researcher's own note on a theme's insight, by theme. Kept apart from the insight sentence and never part of it. */
+  insightNotes?: Record<string, string>
+  /** A code's own say on whether its moments go in the report, by code. Not set means it follows its theme's decision. */
+  codeOverrides?: Record<string, boolean>
   /** Counts the times the analysis data changed (codes, themes, corrections, sessions), so a decision can say which version it saw. 1 when unset. */
   dataVersion?: number
   /** Quotes added from Explore, kept so a refresh finds them. They are put back into EXCERPTS when the codebook loads. */
@@ -644,4 +648,26 @@ export function restoreInsight(d: CodebookDoc, theme: Pick<Theme, 'id' | 'name'>
   const { [theme.id]: _gone, ...rest } = d.insights ?? {}
   void _gone
   return log({ ...d, insights: rest }, insightEntry(by, theme, 'Insight restored', 'Back to suggested'))
+}
+
+/** The Researcher's note on a theme's insight. Empty removes it. */
+export function setInsightNote(d: CodebookDoc, theme: Pick<Theme, 'id' | 'name'>, note: string, { by }: Who): CodebookDoc {
+  const text = note.trim()
+  const { [theme.id]: old, ...rest } = d.insightNotes ?? {}
+  if ((old ?? '') === text) return d
+  return log({ ...d, insightNotes: text ? { ...rest, [theme.id]: text } : rest }, insightEntry(by, theme, text ? 'Note added' : 'Note removed', text || undefined))
+}
+
+/** Put a decision back as it was (the Undo after Accept or Leave out). `prev` is what was stored before, or nothing. */
+export function undoInsight(d: CodebookDoc, theme: Pick<Theme, 'id' | 'name'>, prev: InsightDecision | undefined, { by }: Who): CodebookDoc {
+  const { [theme.id]: _now, ...rest } = d.insights ?? {}
+  void _now
+  return log({ ...d, insights: prev ? { ...rest, [theme.id]: prev } : rest }, insightEntry(by, theme, 'Insight decision undone', prev ? `Back to “${prev.status}”` : 'Back to suggested'))
+}
+
+/** Whether one code's moments go in the report when that differs from its theme's decision. Choosing what the theme says removes the override. */
+export function setCodeOverride(d: CodebookDoc, code: Pick<Code, 'id' | 'name'>, on: boolean | undefined, { by }: Who): CodebookDoc {
+  const { [code.id]: _old, ...rest } = d.codeOverrides ?? {}
+  void _old
+  return log({ ...d, codeOverrides: on === undefined ? rest : { ...rest, [code.id]: on } }, entry(by, code, on === undefined ? 'Follows its theme again' : on ? 'Moments added to the report' : 'Moments left out of the report'))
 }

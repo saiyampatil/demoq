@@ -1,0 +1,327 @@
+// A2, the Themes tab: one table of themes and their codes, and the one panel beside it.
+// Columns: Name · Said by · What stood out · Verdict · Status. Collapsed on load. No bars, no colour legend: the Key holds every meaning.
+
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Link } from 'react-router'
+import { Button } from '@/components/Button'
+import { cn } from '@/components/cn'
+import { ChevronRightIcon } from '@/components/icons'
+import { EmptyState } from '@/components/States'
+import { useToast } from '@/components/Toast'
+import { screenById, studyPath } from '@/routes/screens'
+import { acceptInsight, editInsight, leaveOutInsight, setInsightNote, undoInsight, type Theme } from '@/state/codebook'
+import { plural, tensionsFor, type CodeSignal, type Tension, type ThemeSignal } from '@/state/signals'
+import type { CodebookCtx } from '../codebookCtx'
+import { FitChip, HowItsDecided } from '../SignalBits'
+import { InsightStatusChip, Key, StanceTag } from './Bits'
+import type { ThemeModel, SignalFocus } from './model'
+import { CodePanel, ThemePanel, type Intent, type Review } from './Panels'
+
+const GRID = 'grid grid-cols-[minmax(0,1fr)_4rem_7.75rem_7.25rem_7.25rem] items-center gap-x-2'
+type Show = 'All' | 'Needs review'
+
+const themeRef = (p: ThemeSignal): Pick<Theme, 'id' | 'name'> => ({ id: p.id, name: p.name })
+const needsReview = (p: ThemeSignal) => p.decision.status === 'Suggested' || p.decision.status === 'Out of date'
+
+export function ThemesTab({
+  ctx,
+  model,
+  focus,
+  setFocus,
+  tensions,
+  reviewStart,
+  onOpenTensions,
+  onOpenTension,
+}: {
+  ctx: CodebookCtx
+  model: ThemeModel
+  focus: SignalFocus
+  setFocus: (f: SignalFocus) => void
+  tensions: Tension[]
+  /** Changes when the footer's "Review n insights" is pressed. */
+  reviewStart: number
+  onOpenTensions: () => void
+  onOpenTension: (id: string) => void
+}) {
+  const { doc, me, studyId } = ctx
+  const toast = useToast()
+  const { signals, profiles } = model
+  const themes = profiles.filter((p) => p.kind === 'theme')
+  const none = profiles.find((p) => p.kind === 'none')
+  const [open, setOpen] = useState<Set<string>>(new Set())
+  const [show, setShow] = useState<Show>('All')
+  const [intent, setIntent] = useState<Intent>()
+  const [queue, setQueue] = useState<string[] | null>(null)
+  const [at, setAt] = useState(0)
+  const root = useRef<HTMLDivElement>(null)
+
+  const shownThemes = show === 'Needs review' ? themes.filter(needsReview) : themes
+  const codesOf = (p: ThemeSignal) => p.codes
+  const themeOfCode = (id: string) => themes.find((t) => t.codes.some((c) => c.code.id === id))
+  const allIds = [...themes.map((t) => t.id), ...(none ? ['none'] : [])]
+  const allOpen = allIds.length > 0 && allIds.every((id) => open.has(id))
+  const toggle = (id: string) => setOpen((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n })
+  const expand = (id: string) => setOpen((s) => new Set(s).add(id))
+
+  const openTheme = (id: string) => setFocus({ theme: id })
+  const openCode = (id: string) => {
+    const t = themeOfCode(id)
+    if (t) expand(t.id)
+    setFocus({ code: id })
+  }
+
+  // ── decisions ──
+  const accept = (p: ThemeSignal, next = false) => {
+    if (!p.decidable) return
+    const prev = doc.insights?.[p.id]
+    ctx.act((d) => acceptInsight(d, themeRef(p), p.now, { by: me }))
+    toast(`Accepted “${p.name}”`, { label: 'Undo', onClick: () => ctx.act((d) => undoInsight(d, themeRef(p), prev, { by: me })) })
+    if (next) goNext(p.id)
+  }
+  const edit = (p: ThemeSignal, text: string) => {
+    ctx.act((d) => editInsight(d, themeRef(p), p.now, text, { by: me }))
+    toast(`Saved your wording for “${p.name}”`)
+  }
+  const leaveOut = (p: ThemeSignal, why: string) => {
+    const prev = doc.insights?.[p.id]
+    ctx.act((d) => leaveOutInsight(d, themeRef(p), p.now, { by: me }, why))
+    toast(`Left out “${p.name}”`, { label: 'Undo', onClick: () => ctx.act((d) => undoInsight(d, themeRef(p), prev, { by: me })) })
+    if (queue) goNext(p.id)
+  }
+
+  // ── review mode: the first insight to decide, then the next one after each Accept ──
+  const startReview = () => {
+    const ids = model.counts.toReview.map((p) => p.id)
+    if (!ids.length) return
+    setQueue(ids)
+    setAt(0)
+    openTheme(ids[0])
+  }
+  const goNext = (currentId: string) => {
+    if (!queue) return
+    const i = queue.indexOf(currentId)
+    // The ones not decided yet, after this one. The current one is being decided now.
+    const rest = queue.slice(i + 1).filter((id) => { const p = profiles.find((x) => x.id === id); return p && needsReview(p) && p.decidable })
+    if (!rest.length) {
+      setQueue(null)
+      toast('Every insight is decided')
+      return
+    }
+    setAt(queue.indexOf(rest[0]))
+    openTheme(rest[0])
+  }
+  // Only a press of the footer's button starts it, never the page opening.
+  const seen = useRef(reviewStart)
+  useEffect(() => {
+    if (reviewStart === seen.current) return
+    seen.current = reviewStart
+    startReview()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reviewStart])
+  const review: Review | undefined = queue ? { index: at, total: queue.length, exit: () => setQueue(null) } : undefined
+
+  // ── keyboard: Up and Down move rows, Enter opens, A accepts, E edits, L leaves out ──
+  const visible = useMemo(() => {
+    const out: string[] = []
+    shownThemes.forEach((t) => { out.push(`t:${t.id}`); if (open.has(t.id)) codesOf(t).forEach((c) => out.push(`c:${c.code.id}`)) })
+    if (none && show === 'All') { out.push('t:none'); if (open.has('none')) none.codes.forEach((c) => out.push(`c:${c.code.id}`)) }
+    return out
+  }, [shownThemes, open, none, show]) // eslint-disable-line react-hooks/exhaustive-deps
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    const t = e.target as HTMLElement
+    if (/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable || e.metaKey || e.ctrlKey || e.altKey) return
+    const row = t.closest<HTMLElement>('[data-row]')
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      if (!row) return
+      e.preventDefault()
+      const i = visible.indexOf(row.dataset.row ?? '')
+      const next = visible[Math.min(visible.length - 1, Math.max(0, i + (e.key === 'ArrowDown' ? 1 : -1)))]
+      root.current?.querySelector<HTMLElement>(`[data-row="${next}"] [data-row-main]`)?.focus()
+      return
+    }
+    const k = e.key.toLowerCase()
+    if (k !== 'a' && k !== 'e' && k !== 'l') return
+    const id = row?.dataset.themeOf ?? focus.theme ?? (focus.code ? themeOfCode(focus.code)?.id : undefined)
+    const p = themes.find((x) => x.id === id)
+    if (!p) return
+    e.preventDefault()
+    openTheme(p.id)
+    if (k === 'a') { if (p.decision.status !== 'Accepted' && p.decision.status !== 'Edited') accept(p, !!queue) }
+    else setIntent({ theme: p.id, kind: k === 'e' ? 'edit' : 'leave', n: Date.now() })
+  }
+
+  if (!signals.length)
+    return (
+      <div className="rounded-md border border-dashed border-mist-strong bg-surface">
+        <EmptyState title="No accepted codes" description="How people sounded is read on the codes you’ve accepted. Accept some in the codebook first." />
+      </div>
+    )
+
+  const selectedTheme = focus.theme ? profiles.find((p) => p.id === focus.theme && p.kind === 'theme') : undefined
+  const selectedCode = focus.code ? signals.find((s) => s.code.id === focus.code) : undefined
+  const codeTheme = selectedCode ? themeOfCode(selectedCode.code.id) : undefined
+  const noneLine = none && (
+    <>
+      {plural(none.codes.length, 'code')} {none.codes.length === 1 ? 'isn’t' : 'aren’t'} in a theme yet.{' '}
+      <Link to={`${studyPath(studyId, screenById.A1)}?tab=themes`} data-testid="group-in-codebook" className="relative z-10 rounded-xs font-medium text-iris-700 hover:underline">
+        Group {none.codes.length === 1 ? 'it' : 'them'} in the codebook.
+      </Link>
+    </>
+  )
+
+  const codeRow = (c: CodeSignal, parent: string) => {
+    const on = focus.code === c.code.id
+    return (
+      <li key={c.code.id} data-row={`c:${c.code.id}`} data-theme-of={parent}>
+        <div
+          data-testid="signal-row"
+          data-code={c.code.id}
+          aria-current={on ? 'true' : undefined}
+          onClick={() => openCode(c.code.id)}
+          className={cn(GRID, 'min-h-11 cursor-pointer border-l-2 py-1 pr-3 pl-11 text-[13px]', on ? 'border-iris-600 bg-iris-50' : 'border-transparent hover:bg-haze')}
+        >
+          <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+            <button type="button" data-row-main data-testid="code-name" className="min-h-6 cursor-pointer rounded-xs text-left font-medium">{c.code.name}</button>
+            <StanceTag ctx={ctx} code={c.code} />
+          </span>
+          <span className="text-right text-xs text-graphite tabular-nums" data-testid="code-said-by">{c.people} of {c.of}</span>
+          <span className="text-xs text-graphite tabular-nums" data-testid="code-stood-out">{c.standout ? c.standout.text : '—'}</span>
+          <span data-testid="fit-cell"><FitChip pattern={c.readable ? c.fit.pattern : 'Too few to read'} /></span>
+          <span />
+        </div>
+      </li>
+    )
+  }
+
+  return (
+    <div ref={root} onKeyDown={onKeyDown} className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_24rem]">
+      <section aria-label="Themes" data-testid="themes-table" className="min-w-0 overflow-x-auto rounded-md border border-mist bg-surface">
+        <div className="min-w-[42rem]">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-mist px-3 py-1">
+            <Key />
+            <HowItsDecided />
+            <Button size="sm" variant="ghost" onClick={() => setOpen(allOpen ? new Set() : new Set(allIds))} data-testid="expand-all">{allOpen ? 'Collapse all' : 'Expand all'}</Button>
+            <span className="flex-1" />
+            <span className="flex items-center gap-1 text-sm text-graphite" role="group" aria-label="Show">
+              Show:
+              {(['All', 'Needs review'] as const).map((s) => (
+                <button key={s} type="button" aria-pressed={show === s} onClick={() => setShow(s)} data-testid={`show-${s === 'All' ? 'all' : 'review'}`} className={cn('min-h-9 cursor-pointer rounded-xs px-2 text-sm', show === s ? 'bg-ink font-medium text-white' : 'hover:bg-haze hover:text-ink')}>{s}</button>
+              ))}
+            </span>
+          </div>
+          <div className={cn(GRID, 'sticky top-14 z-10 border-b border-mist bg-haze px-3 py-1.5 text-xs font-medium text-graphite')} data-testid="signal-head">
+            <span className="pl-11">Name</span>
+            <span className="text-right">Said by</span>
+            <span>What stood out</span>
+            <span>Verdict</span>
+            <span>Status</span>
+          </div>
+          {shownThemes.length === 0 && !(none && show === 'All') ? (
+            <EmptyState title="Nothing needs review" description="Every insight is decided." action={<Button onClick={() => setShow('All')}>Show all</Button>} />
+          ) : (
+            <div>
+              {shownThemes.map((p) => {
+                const isOpen = open.has(p.id)
+                const on = focus.theme === p.id
+                const mine = tensions.filter((t) => !t.unavailable && t.codeIds.some((id) => p.codes.some((c) => c.code.id === id)))
+                const toReview = mine.filter((t) => t.status === 'Suggested').length
+                const status = p.decision.status
+                const decision = doc.insights?.[p.id]
+                const insightLine = (status === 'Accepted' || status === 'Edited') && decision ? decision.text : p.insight?.sentence ?? `Only ${plural(p.people, 'person', 'people')} said this, too few to read a pattern.`
+                return (
+                  <section key={p.id} aria-labelledby={`grp-${p.id}`} data-testid="theme-group" data-group-id={p.id} className="border-b border-mist last:border-0">
+                    <div data-row={`t:${p.id}`} data-theme-of={p.id} data-testid="theme-row" data-selected={on ? 'true' : undefined} className={cn(GRID, 'group relative min-h-14 border-l-2 py-1 pr-3 pl-1', on ? 'border-iris-600 bg-iris-50' : 'border-transparent hover:bg-haze')}>
+                      <div className="flex min-w-0 items-start gap-0.5">
+                        <button type="button" onClick={() => toggle(p.id)} aria-expanded={isOpen} aria-label={`${isOpen ? 'Collapse' : 'Expand'} ${p.name}`} data-testid="theme-chevron" className="relative z-10 inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-xs text-graphite hover:bg-haze">
+                          <ChevronRightIcon size={14} className={cn('transition-transform duration-150', isOpen && 'rotate-90')} />
+                        </button>
+                        <div className="min-w-0 py-1.5">
+                          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                            <h3 id={`grp-${p.id}`} className="text-[15px] font-semibold">
+                              <button type="button" data-row-main onClick={() => openTheme(p.id)} aria-current={on ? 'true' : undefined} data-testid="theme-name" className="min-h-6 cursor-pointer rounded-xs text-left underline-offset-2 after:absolute after:inset-0 after:content-[''] hover:underline">{p.name}</button>
+                            </h3>
+                            <span className="text-xs text-muted tabular-nums" data-testid="group-count">{plural(p.codes.length, 'code')}</span>
+                            {mine.length > 0 && (
+                              <button type="button" onClick={() => (mine.length === 1 ? onOpenTension(mine[0].id) : onOpenTensions())} data-testid="tension-flag" data-to-review={toReview} aria-label={`${plural(mine.length, 'tension')}${toReview ? `, ${toReview} to review` : ''}`} className="relative z-10 inline-flex min-h-6 cursor-pointer items-center gap-1 rounded-xs text-xs text-graphite hover:text-ink">
+                                <span aria-hidden="true" className={cn('size-2 rounded-full', toReview ? 'bg-pending-fg' : 'bg-mist-strong')} />
+                                <span className="tabular-nums">{mine.length}</span>
+                              </button>
+                            )}
+                          </div>
+                          <p className="truncate text-xs text-graphite" title={insightLine} data-testid="theme-insight">{insightLine}</p>
+                        </div>
+                      </div>
+                      <span className="text-right text-xs text-graphite tabular-nums" data-testid="theme-said-by">{p.people} of {p.of}</span>
+                      <span />
+                      <button type="button" onClick={() => openTheme(p.id)} data-testid="theme-verdict" aria-label={`Open ${p.name}`} className="relative z-10 inline-flex min-h-11 cursor-pointer items-center self-center rounded-xs"><FitChip pattern={p.verdict} /></button>
+                      <span className="relative z-10 flex min-h-11 items-center" data-testid="status-cell">
+                        {p.decidable && (status === 'Suggested' || status === 'Out of date' || status === 'Left out') ? (
+                          <>
+                            <span className="group-focus-within:hidden group-hover:hidden"><InsightStatusChip status={status} /></span>
+                            <span className="hidden group-focus-within:inline-flex group-hover:inline-flex">
+                              <Button size="sm" variant="primary" style={{ height: 44 }} onClick={() => { openTheme(p.id); accept(p, !!queue) }} data-testid="row-accept">Accept</Button>
+                            </span>
+                          </>
+                        ) : (
+                          <InsightStatusChip status={status} />
+                        )}
+                      </span>
+                    </div>
+                    {isOpen && <ul className="pb-1">{codesOf(p).map((c) => codeRow(c, p.id))}</ul>}
+                  </section>
+                )
+              })}
+              {none && show === 'All' && (
+                <section aria-labelledby="grp-none" data-testid="theme-group" data-group-id="none" className="border-b border-mist last:border-0">
+                  <div data-row="t:none" data-testid="theme-row" className={cn(GRID, 'relative min-h-14 border-l-2 border-transparent py-1 pr-3 pl-1')}>
+                    <div className="flex min-w-0 items-start gap-0.5">
+                      <button type="button" onClick={() => toggle('none')} aria-expanded={open.has('none')} aria-label={`${open.has('none') ? 'Collapse' : 'Expand'} Not in a theme`} data-testid="theme-chevron" className="relative z-10 inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-xs text-graphite hover:bg-haze">
+                        <ChevronRightIcon size={14} className={cn('transition-transform duration-150', open.has('none') && 'rotate-90')} />
+                      </button>
+                      <div className="min-w-0 py-1.5">
+                        <div className="flex flex-wrap items-baseline gap-x-2">
+                          <h3 id="grp-none" className="text-[15px] font-semibold">
+                            <button type="button" data-row-main onClick={() => toggle('none')} data-testid="theme-name" className="min-h-6 cursor-pointer rounded-xs text-left underline-offset-2 after:absolute after:inset-0 after:content-[''] hover:underline">Not in a theme</button>
+                          </h3>
+                          <span className="text-xs text-muted tabular-nums" data-testid="group-count">{plural(none.codes.length, 'code')}</span>
+                        </div>
+                        <p className="text-xs text-graphite" data-testid="theme-insight">{noneLine}</p>
+                      </div>
+                    </div>
+                    <span /><span /><span /><span />
+                  </div>
+                  {open.has('none') && <ul className="pb-1">{none.codes.map((c) => codeRow(c, 'none'))}</ul>}
+                </section>
+              )}
+            </div>
+          )}
+        </div>
+      </section>
+
+      <div className="lg:sticky lg:top-20">
+        {selectedTheme ? (
+          <ThemePanel
+            key={selectedTheme.id}
+            prof={selectedTheme}
+            ctx={ctx}
+            tensions={tensions}
+            intent={intent}
+            review={review}
+            onAccept={() => accept(selectedTheme, !!queue)}
+            onEdit={(text) => edit(selectedTheme, text)}
+            onLeaveOut={(why) => leaveOut(selectedTheme, why)}
+            onNote={(text) => ctx.act((d) => setInsightNote(d, themeRef(selectedTheme), text, { by: me }))}
+            onCode={openCode}
+            onOpenTension={onOpenTension}
+          />
+        ) : selectedCode ? (
+          <CodePanel key={selectedCode.code.id} s={selectedCode} theme={codeTheme} ctx={ctx} tensions={tensionsFor(tensions, selectedCode.code.id)} onOpenTension={onOpenTension} back={codeTheme ? { name: codeTheme.name, onClick: () => openTheme(codeTheme.id) } : undefined} />
+        ) : (
+          <div className="rounded-md border border-dashed border-mist-strong bg-surface" data-testid="panel-empty">
+            <EmptyState title="Pick a theme" description="Open a theme to see how people sounded against what they said, and the moments that show it." />
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}

@@ -1,7 +1,8 @@
-// A2 Emotion & behaviour: the seven review fixes. Every step waits on state and every expectation is asserted.
-//   1 faces lead with what was seen, then "reads as"      2 ties are said as ties          3 one vocabulary (positive, neutral, negative, unclear)
-//   4 the Conflicting rule is on screen and is the rule   5 dog and cat: one note, not one per row
-//   6 timestamps vary and Play lands on the quoted turn   7 dismiss, correct, excluded and quality-flagged sessions
+// A2 Emotion & behaviour: review fixes that still apply. Every step waits on state and every expectation is asserted.
+//   4 the verdict rule is on screen and is the rule       6 timestamps vary and Play lands on the quoted turn
+//   7 dismiss a tension, excluded and quality-flagged sessions
+// Removed with the speech-only decision: 1 faces lead with what was seen, 3 the face vocabulary, and 7b correcting a face reading. Faces no
+// longer show on the Themes tab and no longer feed a verdict, so there is no face to correct there.
 //   npx vite --port 5199 --strictPort &   then   node tests/a2-review.mjs
 import { launch } from './cdp.mjs'
 const b = await launch()
@@ -32,7 +33,7 @@ const fresh = async () => {
   await b.goto('/researcher')
   await b.evaluate('localStorage.clear(); sessionStorage.clear(); true')
   await b.goto(`${root}/signals?view=code`)
-  await b.waitFor('Words vs delivery')
+  await b.waitFor('What stood out')
   await b.sleep(500)
 }
 
@@ -77,30 +78,15 @@ try {
   ok('a concept’s first reaction is the answer just after its card was shown (never minutes later)', data.concept.length === 0, data.concept.join(', '))
   ok('times are not bunched on :00 and :30', data.clock / data.pts < 0.08, `${data.clock} of ${data.pts}`)
 
-  // ── 1. Faces: what was seen first, then what it reads as ──
-  await clickText('[data-testid=signal-row]', 'Pause would have kept them'); await b.sleep(300)
-  const faceTexts = await all('[data-testid=face-reading]')
-  ok('every face reading leads with Seen at <time> and then says reads as', faceTexts.length >= 3 && faceTexts.every((t) => /^Seen at \d+:\d\d \([\d.]+ s in\): .+ reads as [A-Z]/.test(t)), faceTexts[0])
-  ok('the old wording is gone from the panel', !/Seen: /.test((await text('[data-testid=signal-panel]')) ?? ''))
-  ok('the code panel says how many faces read as the top emotion, never "Doubt in"', /\d+ of \d+ faces read as \w+|tie: \d+ of \d+ faces each/.test((await text('[data-testid=channel-face]')) ?? ''), await text('[data-testid=channel-face]'))
-  await click('[data-testid=how-faces]')
-  ok('"How faces are read" says a reading is an interpretation that can be corrected', /interpretation/.test((await text('[data-testid=how-faces-note]')) ?? '') && /correct/.test((await text('[data-testid=how-faces-note]')) ?? ''))
-  const summaries = await all('[data-testid=face-cell]')
-  ok('rows say “Mostly interest”, “No clear lead” or “Not read”, never a bare emotion name or “Tied at”', summaries.some((r) => /^Mostly [a-z]+$/.test(r)) && summaries.every((r) => /^(Mostly [a-z]+|No clear lead|Not read)$/.test(r)), summaries.slice(0, 4).join(' | '))
-
-  // ── 3. One vocabulary: positive, neutral, negative, unclear; confusion is its own group ──
-  const key = await text('[data-testid=valence-key]')
-  ok('a legend says how each emotion is grouped, with confusion on its own', /positive: Delight, Interest/.test(key ?? '') && /negative: Doubt, Frustration/.test(key ?? '') && /unclear: Confusion/.test(key ?? '') && /neutral: Surprise, Neutral/.test(key ?? ''), key)
-  const emoCounts = await all('[data-testid=valence-counts]')
-  ok('the code panel counts positive, neutral, negative and unclear', emoCounts.length >= 1 && emoCounts.every((t) => /\d+ positive · \d+ neutral · \d+ negative · \d+ unclear/.test(t)), emoCounts.join(' | '))
   // ── 4. Words vs delivery: the rule is behind “How it’s decided”, and it is the rule the code uses ──
   const rl = await withMod(`(async()=>{const e=await window.__mod('/src/state/emotion');return e.FIT_RULE})()`)
   const cfg = await withMod(`(async()=>{const c=await window.__mod('/src/config/delivery');return {lines:c.DELIVERY_RULE_LINES,min:c.DELIVERY.minPeople,majority:c.DELIVERY.majority}})()`)
   await click('[data-testid=how-decided]')
   const popLines = (await all('[data-testid=how-decided-line]')).map((l) => l.replace(/^\d\. /, ''))
-  ok('the rule behind “How it’s decided” is the rule in config: most, speech, face, counted once, uncertain', JSON.stringify(popLines) === JSON.stringify(cfg.lines) && rl.min === cfg.min && rl.majority === 0.5 && /More than half had no match: Gap/.test(popLines[2]) && /Hesitant/.test(popLines[3]), popLines)
+  ok('the rule behind “How it’s decided” is the rule in config: more than half, speech only, counted once, hesitant', JSON.stringify(popLines) === JSON.stringify(cfg.lines) && rl.min === cfg.min && rl.majority === 0.5 && /More than half had no match: Gap/.test(popLines[2]) && /Hesitant/.test(popLines[3]), popLines)
   await b.evaluate(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})); true`); await b.sleep(200)
   const LABEL = { Consistent: 'Consistent', Mixed: 'Mixed', Conflicting: 'Gap', 'Too few to read': 'Too few to read', 'No claim': 'No position' }
+  await click('[data-testid=expand-all]')
   const rowCount = (await all('[data-testid=signal-row]')).length
   let verdicts = 0
   const wrong = []
@@ -108,10 +94,11 @@ try {
     await b.evaluate(`document.querySelectorAll('[data-testid=signal-row]')[${i}].click(); true`)
     await b.sleep(120)
     const chip = (await b.evaluate(`document.querySelectorAll('[data-testid=fit-cell]')[${i}].innerText.trim()`)) ?? ''
-    const fg = await b.evaluate(`(()=>{const g=(k)=>{const e=document.querySelector('[data-testid=signal-panel] [data-testid=fig-'+k+']');return e?+e.dataset.n:null};return {a:g('against'),u:g('uncertain'),m:g('matched')}})()`)
+    const fg = await b.evaluate(`(()=>{const g=(k)=>{const e=document.querySelector('[data-testid=signal-panel] [data-testid=fig-'+k+']');return e?+e.dataset.n:null};const sp=Number(document.querySelector('[data-testid=signal-panel] [data-testid=split-line]')?.innerText.match(/^\\d+/)?.[0]??0);return {a:g('against'),u:g('uncertain'),m:g('matched'),sp}})()`)
     if (fg.a === null) continue
     verdicts++
-    const n = fg.a + fg.u + fg.m
+    // People split across codes are in the base but in no tile.
+    const n = fg.a + fg.u + fg.m + fg.sp
     const against = fg.a
     const unc = fg.u
     const want = n < rl.min ? 'Too few to read' : against / n > rl.majority ? 'Conflicting' : (n - against - unc) / n > rl.majority ? 'Consistent' : 'Mixed'
@@ -123,11 +110,12 @@ try {
   await b.goto(`${root}/codebook?tab=themes`); await b.waitFor('New theme'); await b.sleep(500)
   await b.evaluate(`(()=>{const s=[...document.querySelectorAll('[data-testid=theme-suggestion]')].find(x=>/Wanting control/.test(x.innerText));s.querySelector('[data-testid=accept-theme]').click();return true})()`)
   await b.sleep(500)
-  await b.goto(`${root}/signals?view=code`); await b.waitFor('Words vs delivery'); await b.sleep(500)
+  await b.goto(`${root}/signals?view=code`); await b.waitFor('What stood out'); await b.sleep(500)
   // ── 6 (browser). Play lands on the quoted turn ──
-  await b.goto(`${root}/signals?view=code`); await b.waitFor('Words vs delivery'); await b.sleep(400)
+  await b.goto(`${root}/signals?view=code`); await b.waitFor('What stood out'); await b.sleep(400)
+  await click('[data-testid=expand-all]')
   await clickText('[data-testid=signal-row]', 'Pause would have kept them'); await b.sleep(300)
-  const plays = await b.evaluate(`[...document.querySelectorAll('[data-testid=signal-point]')].filter(li=>li.querySelector('p.font-serif')).slice(0,3).map(li=>({quote:li.querySelector('p.font-serif').innerText.replace(/[“”]/g,'').trim().slice(0,40),href:li.querySelector('a[aria-label^="Play"]').getAttribute('href'),time:li.innerText.match(/\\d+:\\d\\d/)[0]}))`)
+  const plays = await b.evaluate(`[...document.querySelectorAll('[data-testid=moment]')].filter(li=>li.querySelector('p.font-serif')).slice(0,3).map(li=>({quote:li.querySelector('p.font-serif').innerText.replace(/[“”]/g,'').trim().slice(0,40),href:li.querySelector('a[aria-label^="Play"]').getAttribute('href'),time:li.innerText.match(/\\d+:\\d\\d/)[0]}))`)
   ok('there are quotes to play', plays.length === 3)
   for (const p of plays) {
     await b.goto(p.href)
@@ -149,31 +137,6 @@ try {
   const logRow = (await all('[data-testid=change-log] tbody tr')).find((r) => r.includes('Dismissed') && r.includes('Only three people'))
   ok('the log has the tension, the reason, who and when', !!logRow && logRow.includes(title.slice(0, 30)) && /\d{1,2}:\d\d/.test(logRow) && /[A-Z][a-z]+ [A-Z][a-z]+/.test(logRow), logRow)
 
-  // ── 7b. Not right?: the correction reaches every count that depends on it ──
-  await fresh()
-  const tensionSides = async () => {
-    await b.goto(`${root}/signals?tab=tensions`); await b.waitFor('Tensions'); await b.sleep(500)
-    // The two main counts only: the lines under each count (everyone else in the group) are checked in a2-tension-coverage.
-    const t = await b.evaluate(`[...[...document.querySelectorAll('[data-testid=tension-card]')].find(c=>/Said vs emotion/.test(c.innerText)).querySelectorAll('[data-testid=tension-sides] > div:not([aria-hidden])')].map(d=>d.querySelector('p').innerText.replace(/\\s+/g,' '))`)
-    return t.map((x) => x.match(/(\d+) of (\d+)/)).map((m) => [+m[1], +m[2]])
-  }
-  const sidesBefore = await tensionSides()
-  await b.goto(`${root}/signals`); await b.waitFor('Words vs delivery'); await b.sleep(500)
-  await clickText('[data-testid=signal-row]', 'Pause would have kept them'); await b.sleep(300)
-  const fixKey = await b.evaluate(`[...document.querySelectorAll('[data-testid=signal-point]')].find(li=>['Delight','Interest'].includes(li.querySelector('[data-testid=face-reading]')?.dataset.emotion))?.dataset.key`)
-  ok('a code’s moments include a face read as delight or interest to correct', !!fixKey, fixKey)
-  await b.evaluate(`document.querySelector('[data-key="${fixKey}"] [data-testid=fix-face]').click(); true`); await b.sleep(400)
-  await b.evaluate(`[...document.querySelectorAll('[role=dialog] label')].find(l=>l.innerText.trim().startsWith('Neutral')).querySelector('input').click(); true`); await b.sleep(250)
-  await b.evaluate(setText('[role=dialog] textarea', 'A polite smile, not delight.')); await b.sleep(250)
-  await click('[data-testid=fix-confirm]')
-  ok('the corrected face reads as Neutral, marked as corrected, with the original beside it', (await b.evaluate(`document.querySelector('[data-key="${fixKey}"] [data-testid=face-reading]')?.dataset.emotion`)) === 'Neutral' && /Corrected by/.test((await text(`[data-key="${fixKey}"]`)) ?? ''))
-  const sidesAfter = await tensionSides()
-  ok('the tension’s counts follow the correction without moving anything else (the people counted do not change)', sidesAfter[1][0] <= sidesBefore[1][0] && sidesAfter[1][1] === sidesBefore[1][1] && sidesAfter[0][0] === sidesBefore[0][0], `${JSON.stringify(sidesBefore)} -> ${JSON.stringify(sidesAfter)}`)
-  const clipFaces = await b.evaluate(`[...document.querySelectorAll('[data-testid=tension-card]')].find(c=>/Said vs emotion/.test(c.innerText)).querySelector('[data-testid=clip-faces]')?.innerText.replace(/\\s+/g,' ')`)
-  ok('tension clips lead with what was seen and then say reads as', /Seen at \d+:\d\d/.test(clipFaces ?? '') && /reads as/.test(clipFaces ?? ''), clipFaces)
-  await b.goto(`${root}/codebook?tab=log`); await b.waitFor('Change log'); await b.sleep(500)
-  ok('the correction is logged', /Face reading corrected/.test((await text('main')) ?? '') && /polite smile/.test((await text('main')) ?? ''))
-
   // ── 7c. Excluded sessions are in no count; quality-flagged accepted sessions follow the same rule as the codebook ──
   const base = await withMod(`(async()=>{
     const sg = await window.__mod('/src/mock/signals'), ss = await window.__mod('/src/mock/sessions')
@@ -186,7 +149,7 @@ try {
   ok('excluded sessions appear in no by-moment count', base.excluded.length === 2 && base.leaked.length === 0, JSON.stringify(base))
   ok('quality-flagged but accepted sessions are counted, as in the codebook', base.flagged.length >= 3 && base.flaggedIn.length === base.flagged.length, JSON.stringify(base))
   ok('so the by-moment people are exactly the 20 accepted', base.people === 20, String(base.people))
-  await b.goto(`${root}/signals?view=code`); await b.waitFor('Words vs delivery'); await b.sleep(500)
+  await b.goto(`${root}/signals?view=code`); await b.waitFor('What stood out'); await b.sleep(500)
   const cov = await text('[data-testid=coverage]')
   ok('the coverage line says the excluded sessions are left out', /excluded in Review are left out/.test(cov ?? '') && /20/.test(cov ?? ''), cov)
 } catch (e) {

@@ -91,6 +91,22 @@ export const SIDE_DEF: Record<Side, string> = {
   Negative: 'They spoke against it.',
   Neutral: 'They just described what happened. Nothing for delivery to match, so these people are not checked.',
 }
+/** The small tag on a code row: what its words claim. One word each, from the label table. The keys are the internal stance names. */
+export const STANCE_TAG: Record<Side, string> = { Positive: 'For it', Negative: 'Against it', Neutral: 'Just describes' }
+export const STANCE_TAG_DEF: Record<Side, string> = {
+  Positive: 'People who said this code were for it.',
+  Negative: 'People who said this code were against it.',
+  Neutral: 'People who said this code just described what happened. Nothing for delivery to match.',
+}
+/** The insight's status, in words. */
+export const INSIGHT_STATUS_DEF: Record<string, string> = {
+  Suggested: 'PulseAI wrote this. Nothing is decided yet.',
+  Accepted: 'You accepted this insight as written.',
+  Edited: 'You accepted this insight with your own wording. The numbers are PulseAI’s.',
+  'Left out': 'You left this insight out of the report.',
+  'Out of date': 'The data changed after you decided. Look again.',
+  'Nothing to decide': 'Too few people to read a pattern.',
+}
 /** A group of people: "8 people spoke in favour", "1 person spoke against it". */
 export const sideGroupLine = (side: 'Positive' | 'Negative', n: number) => `${n} ${n === 1 ? 'person' : 'people'} ${side === 'Positive' ? 'spoke in favour' : 'spoke against it'}`
 /** The heading of one of two stacked tile groups: "Spoke in favour · 8". */

@@ -34,7 +34,7 @@ const OLD = /Complains about it|Speaks for it|argued for it|complained|\bPositiv
 
 try {
   await b.goto('/researcher'); await b.evaluate('localStorage.clear(); sessionStorage.clear(); true')
-  await b.goto(`${root}/signals`); await b.waitFor('Words vs delivery'); await b.sleep(900)
+  await b.goto(`${root}/signals`); await b.waitFor('What stood out'); await b.sleep(900)
   // data: themes and codes, with sides worked out from the points
   // Each person is counted once, from every quote of theirs, by the rule in docs (more than half of their positions; exactly half is never more than half).
   // This is written out here again, separately from state/speech.ts, so the page and the rule are checked against something else.
@@ -70,15 +70,16 @@ try {
   ok('at least one sentence has a clause and at least one says delivery backed it up (so both are checked)', [...D.themes, ...D.codes].some((x) => /, but \d+ of those/.test(x.sentence) || /, and \d+ of those/.test(x.sentence)) && [...D.themes, ...D.codes].some((x) => /backed it up/.test(x.sentence)), [...D.themes, ...D.codes].map((x) => x.sentence))
 
   // the page: theme panels
+  await click('[data-testid=expand-all]')
   const nThemes = await b.evaluate(`document.querySelectorAll('[data-testid=theme-row]').length`)
   let two = 0
   for (let i = 0; i < nThemes; i++) {
     await click('[data-testid=theme-name]', i)
     const t = D.themes[i]
     if (t.id === 'none') {
-      // Not in a theme: the numbers are computed, but the panel shows no sentence, tiles, verdict, moments or Accept.
-      const n = await b.evaluate(`(()=>{const el=document.querySelector('[data-testid=theme-panel]');return {text:el.innerText.replace(/\\s+/g,' '),tiles:el.querySelectorAll('[data-testid=tile-group],[data-testid=match-tiles],[data-testid=summary-sentence],[data-testid=verdict-pill],[data-testid=moments]').length,accept:[...el.querySelectorAll('button')].some(x=>/^Accept/.test(x.innerText.trim()))}})()`)
-      ok('Not in a theme: the panel only says its codes are not in a theme yet (no sentence, tiles, verdict, moments or Accept)', /codes? (isn’t|aren’t) in a theme yet\. Group (it|them) in the codebook\./.test(n.text) && n.tiles === 0 && !n.accept, n)
+      // Not in a theme: its numbers are computed, but the row only says its codes are not in a theme (no sentence, verdict or panel).
+      const n = await b.evaluate(`(()=>{const r=[...document.querySelectorAll('[data-testid=theme-row]')].find(x=>/Not in a theme/.test(x.innerText));return {text:r.innerText.replace(/\\s+/g,' '),chip:!!r.querySelector('[data-verdict-chip]'),panel:document.querySelectorAll('[data-testid=theme-panel]').length}})()`)
+      ok('Not in a theme: the row says its codes are not in a theme yet, with no verdict chip and no panel', /codes? (isn’t|aren’t) in a theme yet\. Group (it|them) in the codebook\./.test(n.text) && !n.chip, n)
       continue
     }
     const p = await b.evaluate(`(()=>{const el=document.querySelector('[data-testid=theme-panel]');return {sentence:el.querySelector('[data-testid=summary-sentence]')?.innerText.replace(/\\s+/g,' ').trim(),tip:el.querySelector('[data-testid=raised-n]')?.title??null,q:el.querySelector('[data-testid=match-question]')?.innerText.trim()??null,groups:[...el.querySelectorAll('[data-testid=tile-group]')].map(g=>({side:g.dataset.side,n:Number(g.dataset.n),head:g.querySelector('[data-testid=group-head]').innerText.trim(),split:Number(g.querySelector('[data-testid=split-line]')?.innerText.match(/^\\d+/)?.[0]??0),tiles:[...g.querySelectorAll('[data-testid=match-tiles] > button')].map(x=>({label:x.querySelector('dt').innerText.trim(),n:Number(x.dataset.n)}))})),quiet:el.querySelector('[data-testid=fact-only]')?.innerText.replace(/\\s+/g,' ').trim()??null,text:el.innerText}})()`)
@@ -108,7 +109,8 @@ try {
   const all = await b.evaluate(`[...document.querySelectorAll('[data-testid=tile-person]')].length`)
   ok('clicking a group heading lists everyone in that group', all === D.themes[iWithNo].tiles[g0].reduce((a, n) => a + n, 0) + D.themes[iWithNo].spl[g0], all)
 
-  // code panels
+  // code panels (Not in a theme was folded by its own click above, so open everything again)
+  await b.evaluate(`(()=>{const e=document.querySelector('[data-testid=expand-all]');if(/^Expand all/.test(e.innerText))e.click();return true})()`); await b.sleep(300)
   const nCodes = await b.evaluate(`document.querySelectorAll('[data-testid=signal-row]').length`)
   for (let i = 0; i < nCodes; i++) {
     await click('[data-testid=signal-row]', i)
@@ -117,11 +119,9 @@ try {
     if (p.sentence) ok(`${c.label}: sentence, tiles and tooltip`, p.sentence === c.sentence && p.groups.every((g, k) => g.join() === c.tiles[[c.pos ? 'Positive' : 'Negative', c.pos && c.neg ? 'Negative' : ''][k] || 'Positive'].join() || c.pos * c.neg > 0) && (!/\d+ of \d+ people|All \d+ people/.test(c.sentence) || p.tip === 'People who raised this code'), [p, c.sentence])
     ok(`${c.label}: no old display string`, !OLD.test(p.text), p.text.match(OLD)?.[0])
   }
-  // the code panel's Words row
-  await click('[data-testid=signal-row]', 0)
-  const wordsRows = []
-  for (let i = 0; i < nCodes; i++) { await click('[data-testid=signal-row]', i); wordsRows.push(await b.evaluate(`[...document.querySelectorAll('[data-testid=signal-panel] [data-testid=channels] dt,[data-testid=signal-panel] [data-testid=channels] span')].find(e=>e.innerText.trim()==='Words')?.parentElement.innerText.replace(/\\s+/g,' ').trim()??null`)) }
-  ok('the code panel’s Words row says “Spoke in favour”, “Spoke against it” or “Just described it”', wordsRows.filter(Boolean).length >= 8 && wordsRows.filter(Boolean).every((w) => /^Words (Spoke in favour|Spoke against it|Just described it)$/.test(w)) && wordsRows.some((w) => /against/.test(w ?? '')) && wordsRows.some((w) => /favour/.test(w ?? '')), wordsRows)
+  // the stance tag on each code row says “For it”, “Against it” or “Just describes”
+  const tags = await b.evaluate(`[...document.querySelectorAll('[data-testid=signal-row] [data-testid=stance-tag]')].map(e=>e.innerText.trim())`)
+  ok('every code row’s stance tag says “For it”, “Against it” or “Just describes”', tags.length >= 8 && tags.every((w) => /^(For it|Against it|Just describes)$/.test(w)) && tags.some((w) => w === 'Against it') && tags.some((w) => w === 'For it'), tags)
 
   // popover and everywhere else
   await click('[data-testid=how-decided]')
