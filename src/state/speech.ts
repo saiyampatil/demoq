@@ -14,7 +14,7 @@
 // - A row's verdict is the same rule over the people with a position. Thresholds are in src/config/delivery.ts.
 
 import { DELIVERY, VERDICT_LABEL } from '@/config/delivery'
-import { stanceOf, type Stance, type Tone } from '@/mock/emotion'
+import { VOICE_RULES, stanceOf, type Stance, type Tone } from '@/mock/emotion'
 import { SIGNAL_RULES, bandRank, signsOf, type Point } from '@/mock/signals'
 import type { CodebookDoc, InsightDecision, InsightSnap } from './codebook'
 import { hash } from './hash'
@@ -224,6 +224,10 @@ export function standoutOf(reads: PersonRead[]): CodeStandout | null {
   return { key, label: STANDOUT_LABEL[key], n: count[key], of: N, text: `${STANDOUT_LABEL[key]} ${count[key]} of ${N}` }
 }
 
+/** The label on a code row: "Sounded animated · 4 of 9", "Hesitated · 3 of 5". Same pattern and numbers as `text`, in words. */
+export const standoutLabel = (x: CodeStandout): string =>
+  `${{ hesitated: 'Hesitated', flatTense: 'Sounded flat or tense', animated: 'Sounded animated', even: 'Sounded even' }[x.key]} · ${x.n} of ${x.of}`
+
 // ─── moments to watch ───────────────────────────────────────────────────────
 
 export type MomentToWatch = { participantId: string; sessionId: string; atSec: number; quote?: string; /** The measured reason, in numbers. */ reason: string; score: number; contradicts: boolean; point: Point }
@@ -239,15 +243,33 @@ export function momentScore(p: Point, contradicts: boolean): number {
   return Math.round((delay + pause + fillers + tone + (contradicts ? k.contradictBonus : 0)) * 100) / 100
 }
 
-/** The measured reason, in the numbers: "Answered 3.1 s after the question. Usual: 1.2 s." */
-export function measuredReason(p: Point): string {
+/** One measure that crossed its limit at a quote: the sentence that says so, and the numbers that sentence prints. */
+export type Fired = { key: 'delay' | 'pause' | 'fillers' | 'pace' | 'pitch' | 'loudness'; text: string; numbers: number[] }
+
+/**
+ * The measures that crossed a limit at this quote, and only those. Nothing is printed that did not fire.
+ *   Hesitation: delay, pause, fillers or restarts, each only when it is a sign (src/mock/signals.ts SIGNAL_RULES).
+ *   Tone (src/mock/emotion.ts VOICE_RULES): pitch range (how much the voice rises and falls) and loudness against their usual, whichever
+ *   crossed its limit; pace only when pace itself crossed a limit (a tense voice is a quick one).
+ */
+export function firedMeasures(p: Point): Fired[] {
+  const out: Fired[] = []
   const signs = signsOf(p.facts, p.usual)
-  const parts = [`Answered ${p.facts.delaySec.toFixed(1)} s after the question. Usual: ${p.usual.toFixed(1)} s.`]
-  if (signs.includes('pause')) parts.push(`Paused ${p.facts.pauseSec.toFixed(1)} s mid-answer.`)
-  if (signs.includes('fillers')) parts.push(`${p.facts.fillers} fillers or restarts.`)
-  if (p.voice.tone !== 'Even') parts.push(`Sounded ${p.voice.tone.toLowerCase()}: ${p.voice.pace} words a minute. Usual: ${p.voice.usualPace}.`)
-  return parts.join(' ')
+  if (signs.includes('delay')) out.push({ key: 'delay', text: `Answered ${p.facts.delaySec.toFixed(1)} s after the question. Usual: ${p.usual.toFixed(1)} s.`, numbers: [p.facts.delaySec, p.usual] })
+  if (signs.includes('pause')) out.push({ key: 'pause', text: `Paused ${p.facts.pauseSec.toFixed(1)} s mid-answer.`, numbers: [p.facts.pauseSec] })
+  if (signs.includes('fillers')) out.push({ key: 'fillers', text: `${p.facts.fillers} fillers or restarts.`, numbers: [p.facts.fillers] })
+  const v = p.voice
+  const pitchR = v.pitch / v.usualPitch
+  const paceR = v.pace / v.usualPace
+  if (v.tone === 'Tense' && paceR >= VOICE_RULES.tensePace) out.push({ key: 'pace', text: `Spoke faster than usual: ${v.pace} words a minute vs their usual ${v.usualPace}.`, numbers: [v.pace, v.usualPace] })
+  if ((v.tone === 'Tense' && pitchR <= VOICE_RULES.tensePitch) || (v.tone === 'Flat' && pitchR <= VOICE_RULES.flatPitch)) out.push({ key: 'pitch', text: `Voice varied less than usual: pitch range ${v.pitch} vs their usual ${v.usualPitch}.`, numbers: [v.pitch, v.usualPitch] })
+  if (v.tone === 'Animated' && pitchR >= VOICE_RULES.animatedPitch) out.push({ key: 'pitch', text: `Voice varied more than usual: pitch range ${v.pitch} vs their usual ${v.usualPitch}.`, numbers: [v.pitch, v.usualPitch] })
+  if (v.tone === 'Flat' && v.loudness <= VOICE_RULES.flatLoudness) out.push({ key: 'loudness', text: `Quieter than usual by ${Math.abs(v.loudness)} dB.`, numbers: [Math.abs(v.loudness)] })
+  return out
 }
+
+/** Why this quote is worth playing, in the numbers that crossed a limit. Empty when nothing did: then no reason line is shown. */
+export const measuredReason = (p: Point): string => firedMeasures(p).map((f) => f.text).join(' ')
 
 /** The clips most worth playing, one per person, the clearest first. Each carries the measured reason. */
 export function momentsToWatch(reads: PersonRead[], max: number): MomentToWatch[] {
@@ -318,19 +340,35 @@ const one = (x: number) => (Math.round(x * 10) / 10).toFixed(1)
  * What was measured for the people who said a code, in plain lines, the delay against their own usual first. Numbers only, each with its base.
  * Each person counts once (the quote that stands for them), so these lines use the same people as the tiles.
  */
-export function speechEvidence(reads: PersonRead[]): { key: 'delay' | 'pause' | 'fillers' | 'tone'; text: string }[] {
+export type EvidenceRow = {
+  key: 'delay' | 'pause' | 'fillers' | 'tone'
+  /** Label on the left. */
+  label: string
+  /** The bold "n of N people" on the right. */
+  n: number
+  of: number
+  /** One small grey line: what it is measured against. */
+  baseline: string
+  /** The same row as one sentence. */
+  text: string
+}
+
+export function speechEvidence(reads: PersonRead[]): EvidenceRow[] {
   const pts = reads.map((r) => r.point)
-  const n = pts.length
-  if (!n) return []
+  const N = pts.length
+  if (!N) return []
   const slow = pts.filter((p) => signsOf(p.facts, p.usual).includes('delay')).length
   const paused = pts.filter((p) => p.facts.pauseSec >= SIGNAL_RULES.pauseSec).length
   const fillers = pts.filter((p) => p.facts.fillers >= SIGNAL_RULES.fillers).length
   const flatTense = pts.filter((p) => p.voice.tone === 'Flat' || p.voice.tone === 'Tense').length
   const animated = pts.filter((p) => p.voice.tone === 'Animated').length
+  const medDelay = one(median(pts.map((p) => p.facts.delaySec)))
+  const medUsual = one(median(pts.map((p) => p.usual)))
+  const longest = one(Math.max(...pts.map((p) => p.facts.pauseSec)))
   return [
-    { key: 'delay', text: `Answers started a median ${one(median(pts.map((p) => p.facts.delaySec)))} s after the question. Their usual: ${one(median(pts.map((p) => p.usual)))} s. ${slow} of ${n} started well after their usual.` },
-    { key: 'pause', text: `${paused} of ${n} paused ${SIGNAL_RULES.pauseSec} s or longer mid-answer. The longest pause was ${one(Math.max(...pts.map((p) => p.facts.pauseSec)))} s.` },
-    { key: 'fillers', text: `${fillers} of ${n} used ${SIGNAL_RULES.fillers} or more fillers or restarts.` },
-    { key: 'tone', text: `Tone against their own usual: ${flatTense} flat or tense, ${animated} animated, ${n - flatTense - animated} even.` },
+    { key: 'delay', label: 'Delay', n: slow, of: N, baseline: `Started a median ${medDelay} s after the question. Their usual: ${medUsual} s.`, text: `Answers started a median ${medDelay} s after the question. Their usual: ${medUsual} s. ${slow} of ${N} started well after their usual.` },
+    { key: 'pause', label: 'Pauses', n: paused, of: N, baseline: `${SIGNAL_RULES.pauseSec} s or longer counts. The longest was ${longest} s.`, text: `${paused} of ${N} paused ${SIGNAL_RULES.pauseSec} s or longer mid-answer. The longest pause was ${longest} s.` },
+    { key: 'fillers', label: 'Fillers or restarts', n: fillers, of: N, baseline: `${SIGNAL_RULES.fillers} or more counts.`, text: `${fillers} of ${N} used ${SIGNAL_RULES.fillers} or more fillers or restarts.` },
+    { key: 'tone', label: 'Tone', n: flatTense, of: N, baseline: `Flat or tense against their own usual. ${animated} sounded animated, ${N - flatTense - animated} even.`, text: `Tone against their own usual: ${flatTense} flat or tense, ${animated} animated, ${N - flatTense - animated} even.` },
   ]
 }

@@ -124,9 +124,9 @@ try {
   ok('every code row’s stance tag says “For it”, “Against it” or “Just describes”', tags.length >= 8 && tags.every((w) => /^(For it|Against it|Just describes)$/.test(w)) && tags.some((w) => w === 'Against it') && tags.some((w) => w === 'For it'), tags)
 
   // popover and everywhere else
-  await click('[data-testid=how-decided]')
-  const pop = await text('[data-testid=how-decided-pop]')
-  ok('“How it’s decided” says what people said in the new words, with no old string', /Spoke in favour/.test(pop) && /Spoke against it/.test(pop) && /Just described it/.test(pop) && !OLD.test(pop), pop.match(OLD)?.[0])
+  await click('[data-testid=how-to-read]')
+  const pop = await text('[data-testid=read-pop]')
+  ok('“How to read this” says what people said in the new words, with no old string', /spoke in favour/i.test(pop) && /spoke against it/i.test(pop) && /just described/i.test(pop) && !OLD.test(pop), pop.match(OLD)?.[0])
   const rule = await run(`const c=await window.__mod('/src/config/delivery'); return c.DELIVERY_RULE_LINES.join(' ')`)
   ok('the rule lines say “spoke in favour or against it”', /spoke in favour or against it/.test(rule) && !OLD.test(rule), rule)
   await b.evaluate(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})); true`)

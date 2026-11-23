@@ -1,11 +1,10 @@
 // What the A2 pages share: the verdict and match chips, the "How it’s decided" popover, the Play link, and the one face chip the
 // Tensions tab still uses. The Themes tab's own parts are in ./themes.
 
-import { useEffect, useRef, useState } from 'react'
 import { cn } from '@/components/cn'
 import { screenById, studyPath } from '@/routes/screens'
 import { EMOTION_HINT, type Emotion, type Fit, type FitPattern } from '@/state/emotion'
-import { DELIVERY_RULE_LINES, FIT_COLOUR, FIT_DEF, FIT_LABEL, FIT_ORDER, VERDICT_COLOUR, VERDICT_DEF, VERDICT_LABEL, VERDICT_ORDER, SIDE_DEF, SIDE_LABEL, verdictLabel, type Chip, type FitKey } from '@/config/delivery'
+import { FIT_COLOUR, FIT_DEF, FIT_LABEL, VERDICT_COLOUR, VERDICT_DEF, VERDICT_LABEL, verdictLabel, type Chip, type FitKey } from '@/config/delivery'
 
 /** A Face or Speech reading: a dot in its own colour and plain text, never a filled pill. Only a verdict or a match chip is a pill. */
 const readingBase = 'inline-flex shrink-0 items-center gap-1.5 text-xs font-medium whitespace-nowrap text-ink'
@@ -87,67 +86,6 @@ export function OneFitChip({ fit, against }: { fit: Fit; against: string[] }) {
     </span>
   )
 }
-
-/** The rule in five lines, behind a small link, so the table itself stays clear. Closes on Escape or a click elsewhere. */
-export function HowItsDecided() {
-  const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLSpanElement>(null)
-  useEffect(() => {
-    if (!open) return
-    const away = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setOpen(false)
-    const esc = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false)
-    document.addEventListener('mousedown', away)
-    document.addEventListener('keydown', esc)
-    return () => {
-      document.removeEventListener('mousedown', away)
-      document.removeEventListener('keydown', esc)
-    }
-  }, [open])
-  return (
-    <span ref={ref} className="relative inline-block">
-      <button type="button" aria-expanded={open} aria-haspopup="dialog" onClick={() => setOpen((o) => !o)} data-testid="how-decided" className="rounded-xs text-xs font-medium text-iris-700 hover:underline">
-        How it’s decided
-      </button>
-      {open && (
-        <div role="dialog" aria-label="How it’s decided" data-testid="how-decided-pop" className="absolute top-full right-0 z-30 mt-1.5 max-h-[70vh] w-96 overflow-y-auto rounded-sm border border-mist bg-surface p-3 text-left text-xs font-normal text-ink shadow-overlay">
-          <ol className="flex flex-col gap-1.5">
-            {DELIVERY_RULE_LINES.map((l, i) => (
-              <li key={i} data-testid="how-decided-line" className="flex gap-2">
-                <span aria-hidden="true" className="text-graphite tabular-nums">{i + 1}.</span>
-                <span>{l}</span>
-              </li>
-            ))}
-          </ol>
-          <p className="mt-2.5 mb-1 font-semibold">The row verdict</p>
-          <ul className="flex flex-col gap-1.5" data-testid="how-decided-verdicts">
-            {VERDICT_ORDER.map((v) => (
-              <li key={v} data-testid="how-decided-verdict" className="flex items-start gap-2">
-                <span className="w-24 shrink-0"><FitChip pattern={v} /></span>
-                <span>{VERDICT_DEF[v]}</span>
-              </li>
-            ))}
-          </ul>
-          <p className="mt-2.5 mb-1 font-semibold">Did their delivery match their words?</p>
-          <ul className="flex flex-col gap-1.5" data-testid="how-decided-fits">
-            {FIT_ORDER.map((f) => (
-              <li key={f} data-testid="how-decided-fit" className="flex items-start gap-2">
-                <span className="w-24 shrink-0"><OneFitChip fit={f} against={[]} /></span>
-                <span>{FIT_DEF[f]}</span>
-              </li>
-            ))}
-          </ul>
-          <p className="mt-2.5 mb-1 font-semibold">What people said</p>
-          <ul className="flex flex-col gap-1" data-testid="how-decided-words">
-            {(Object.keys(SIDE_LABEL) as (keyof typeof SIDE_LABEL)[]).map((k) => (
-              <li key={k} data-testid="how-decided-word"><span className="font-medium">{SIDE_LABEL[k]}</span>: {SIDE_DEF[k]}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-    </span>
-  )
-}
-
 
 export const playHref = (studyId: string, sessionId: string, atSec: number) =>
   `${studyPath(studyId, { ...screenById.R22, path: screenById.R22.path.replace(':sessionId', sessionId) })}?from=signals&at=${atSec}`

@@ -83,7 +83,7 @@ try {
   ok('every theme row reads: name, “n codes”, Said by n of N, its verdict, its insight and status, all from the logic', real.length === model1.length && real.every((r, i) => r.name === model1[i].name && r.codes === `${model1[i].codes} ${model1[i].codes === 1 ? 'code' : 'codes'}` && r.said === `${model1[i].people} of ${model1[i].of}` && r.chip === LABEL_OF[model1[i].verdict] && r.insight === model1[i].sentence && r.status === 'Suggested'), [real, model1])
   ok('theme names are 15px, numbers are tabular, the row is at least 56px, the chevron and verdict targets at least 44px', rows.every((r) => r.fs === '15px' && r.h >= 56 && r.chev[0] >= 44 && r.chev[1] >= 44) && real.every((r) => /tabular-nums/.test(r.tab) && r.verdictH >= 44), rows)
   const codeRows = await ev(`[...document.querySelectorAll('[data-testid=signal-row]')].map(r=>{const sb=r.querySelector('[data-testid=code-said-by]');return {name:r.querySelector('[data-testid=code-name]').innerText.trim(),fs:getComputedStyle(r).fontSize,h:Math.round(r.getBoundingClientRect().height),said:sb.innerText.trim(),saidRight:Math.round(sb.getBoundingClientRect().right),stood:r.querySelector('[data-testid=code-stood-out]').innerText.trim(),chip:r.querySelector('[data-verdict-chip]').dataset.verdictChip,tag:r.querySelector('[data-testid=stance-tag]').innerText.trim()}})`)
-  const codes1 = await run(`return model().s.map(s=>({name:s.code.name,people:s.people,of:s.of,stood:s.standout?s.standout.text:'—',chip:s.readable?s.fit.pattern:'Too few to read'}))`)
+  const codes1 = await run(`return model().s.map(s=>({name:s.code.name,people:s.people,of:s.of,stood:s.standout?({hesitated:'Hesitated',flatTense:'Sounded flat or tense',animated:'Sounded animated',even:'Sounded even'}[s.standout.key]+' · '+s.standout.n+' of '+s.standout.of):'—',chip:s.readable?s.fit.pattern:'Too few to read'}))`)
   ok('every code row reads: name, a stance tag, Said by n of N, What stood out (or a dash), its verdict', codeRows.every((r) => { const c = codes1.find((x) => x.name === r.name); return c && r.said === `${c.people} of ${c.of}` && r.stood === c.stood && r.chip === c.chip && /^(For it|Against it|Just describes)$/.test(r.tag) }), codeRows.slice(0, 3))
   ok('code names are 13px and the row is at least 44px', codeRows.every((r) => r.fs === '13px' && r.h >= 44))
   const rights = [...new Set([...real.map((r) => r.saidRight), ...codeRows.map((r) => r.saidRight)])]
@@ -94,6 +94,44 @@ try {
   const bare = await ev(`[...document.querySelectorAll('[data-testid=themes-table] [data-verdict-chip],[data-testid=themes-table] [data-testid=status-chip]')].filter(e=>!e.querySelector('svg')||e.innerText.trim().length<3).length`)
   ok('every verdict and status chip has an icon and words (colour is never the only carrier)', bare === 0, bare)
   ok('the table text uses no word the label table retired', !/pulled against|argued for|complained|uncertain|\bfits\b|no claim|conflicting/i.test((await text('[data-testid=themes-table]')) ?? ''))
+
+  // ── polish: the table (A1 to A8) ──
+  const geo = await ev(`(()=>{
+    const R=(e)=>e.getBoundingClientRect(); const mid=(e)=>{const r=R(e);return (r.top+r.bottom)/2}
+    const th=[...document.querySelectorAll('[data-testid=theme-row]')].find(r=>!/^Not in a theme/.test(r.innerText.trim()))
+    const name=th.querySelector('[data-testid=theme-name]'); const ins=th.querySelector('[data-testid=theme-insight]'); const lh=parseFloat(getComputedStyle(ins).lineHeight)
+    const head=[...document.querySelector('[data-testid=signal-head]').children].map(R)
+    const code=document.querySelector('[data-testid=signal-row]'); const cname=code.querySelector('[data-testid=code-name]'); const tag=code.querySelector('[data-testid=stance-tag]'); const ccell=cname.parentElement
+    const group=th.closest('[data-testid=theme-group]')
+    return {
+      insight:{overflow:getComputedStyle(ins).textOverflow,clipped:ins.scrollHeight>ins.clientHeight+1,lines:Math.round(R(ins).height/lh)},
+      topAlign:[th.querySelector('[data-testid=theme-said-by]'),th.querySelector('[data-testid=theme-stood-out]'),th.querySelector('[data-verdict-chip]'),th.querySelector('[data-testid=status-chip]')].map(e=>Math.abs(mid(e)-mid(name))),
+      gapBelowHead:parseFloat(getComputedStyle(th.closest('[data-testid=theme-group]').parentElement).paddingTop),
+      headGaps:head.slice(0,-1).map((r,i)=>Math.round(head[i+1].left-r.right)),
+      indent:Math.round(R(cname).left-R(name).left),
+      tagInside:R(tag).right<=R(ccell).right+1&&R(tag).left>R(cname).left, tagFirstLine:R(tag).top<R(cname).top+lh+4, caret:!!tag.querySelector('svg'),
+      nameLines:Math.round(R(cname).height/20),
+      hairline:getComputedStyle(code.parentElement.nextElementSibling??code.parentElement).borderTopWidth,
+      tint:getComputedStyle(group).backgroundColor,
+      dash:[...document.querySelectorAll('[data-testid=theme-row]')].filter(r=>!/^Not in a theme/.test(r.innerText.trim())).map(r=>r.querySelector('[data-testid=theme-stood-out]')?.innerText.trim()),
+    }})()`)
+  ok('A1 the theme insight is shown in full: no ellipsis, nothing clipped, at most 3 lines', geo.insight.overflow !== 'ellipsis' && !geo.insight.clipped && geo.insight.lines <= 3, geo.insight)
+  ok('A2 every cell lines up with the first line of the name, and there is a gap between the header and the first row', geo.topAlign.every((d) => d <= 4) && geo.gapBelowHead >= 4, [geo.topAlign, geo.gapBelowHead])
+  ok('A3 codes are indented at least 24px more than theme names, the stance tag is right-aligned in the name cell on the first line, names wrap in at most 2 lines', geo.indent >= 24 && geo.tagInside && geo.tagFirstLine && geo.nameLines <= 2, geo)
+  ok('A3 code rows have hairline dividers, and an expanded theme group is lightly tinted', geo.hairline !== '0px' && geo.tint !== 'rgba(0, 0, 0, 0)', [geo.hairline, geo.tint])
+  ok('A4 the header labels never touch: a clear gap between every column', geo.headGaps.every((g) => g >= 8), geo.headGaps)
+  ok('A4 What stood out is spelled out: “Sounded animated · 4 of 9”, “Sounded even · 8 of 11”, “Hesitated · 3 of 5”, or a dash', codeRows.every((r) => r.stood === '—' || /^(Sounded (animated|even|flat or tense)|Hesitated) · \d+ of \d+$/.test(r.stood)), codeRows.map((r) => r.stood))
+  ok('A5 a theme row has a muted dash in What stood out', geo.dash.length >= 2 && geo.dash.every((d) => d === '—'), geo.dash)
+  ok('A8 the stance chip has a caret to show it is clickable', geo.caret)
+  const flags = await ev(`[...document.querySelectorAll('[data-testid=tension-flag]')].map(f=>({text:f.innerText.trim(),icon:!!f.querySelector('svg'),title:f.title,toReview:+f.dataset.toReview,color:getComputedStyle(f).color}))`)
+  ok('A6 the tension flag is an amber icon and “n tensions” (“1 tension” when one), with a tooltip, not a dot', flags.length >= 1 && flags.every((f) => /^\d+ tensions?$/.test(f.text) && f.icon && f.title.length > 20 && (f.text === '1 tension' || /^[2-9]|^\d\d/.test(f.text))) && !(await count('[data-testid=tension-flag] .rounded-full')), flags)
+  const amber = flags.filter((f) => f.toReview > 0)
+  const quiet = flags.filter((f) => f.toReview === 0)
+  ok('A6 it is amber while any tension is still to review, and grey when none is', amber.length === 0 || quiet.length === 0 || amber[0].color !== quiet[0].color, flags)
+  await click('[data-testid=tension-flag]')
+  ok('A6 clicking it goes to the Tensions tab', (await ev(`document.getElementById('sttab-tensions').getAttribute('aria-selected')`)) === 'true')
+  await ev(`document.getElementById('sttab-themes').click(); true`); await b.sleep(400)
+  await expandAll()
 
   // ── Not in a theme ──
   const none = await ev(`(()=>{const r=[...document.querySelectorAll('[data-testid=theme-row]')].find(x=>/^Not in a theme/.test(x.innerText.trim()));return {text:r.innerText.replace(/\\s+/g,' '),chips:r.querySelectorAll('[data-verdict-chip],[data-testid=status-chip],[data-testid=row-accept],[data-testid=tension-flag]').length,href:r.querySelector('[data-testid=group-in-codebook]')?.getAttribute('href')}})()`)
@@ -126,17 +164,38 @@ try {
   // ── the theme panel: one anatomy, top to bottom ──
   await openTheme('Price creep')
   ok('opening a theme opens one panel, and its row is selected', (await count('[data-testid=theme-panel]')) === 1 && (await ev(`document.querySelector('[data-testid=theme-row][data-selected=true] [data-testid=theme-name]').innerText.trim()`)) === 'Price creep')
-  const order = await ev(`['insight','theme-figures','moments-section','codes-to-check','tensions-section','decision','note-section'].map(id=>{const e=document.querySelector('[data-testid=theme-panel] [data-testid='+id+']');return e?Math.round(e.getBoundingClientRect().top+document.querySelector('[data-testid=theme-panel] .overflow-y-auto').scrollTop):-1})`)
-  ok('the panel sections run: insight, tiles, moments to watch, codes to check, tensions, decision, your note, and the approval line is the panel’s footer', order.every((y, i) => y >= 0 && (i === 0 || y >= order[i - 1])) && (await ev(`document.querySelector('[data-testid=theme-panel]').lastElementChild.dataset.testid`)) === 'approval-line', order)
+  const order = await ev(`['insight','theme-figures','moments-section','codes-to-check','tensions-section','note-section'].map(id=>{const e=document.querySelector('[data-testid=theme-panel] [data-testid='+id+']');return e?Math.round(e.getBoundingClientRect().top+document.querySelector('[data-testid=theme-panel] .overflow-y-auto').scrollTop):-1})`)
+  ok('the panel sections run: insight, tiles, moments to watch, codes to check, tensions, your note; the approval line is the panel’s footer', order.every((y, i) => y >= 0 && (i === 0 || y >= order[i - 1])) && (await ev(`document.querySelector('[data-testid=theme-panel]').lastElementChild.dataset.testid`)) === 'approval-line', order)
+  // Polish B2: the action bar is outside the scrolling part, stays at the bottom of the panel, and the scrolling part leaves room under its last line.
+  const bar = await ev(`(()=>{const p=document.querySelector('[data-testid=theme-panel]');const d=p.querySelector('[data-testid=decision]');const sc=p.querySelector('.overflow-y-auto');const pr=p.getBoundingClientRect(),dr=d.getBoundingClientRect(),sr=sc.getBoundingClientRect();return {outside:!sc.contains(d),buttons:[...d.querySelectorAll('[data-testid=actions] button')].map(x=>x.innerText.trim()),primary:getComputedStyle(d.querySelector('[data-testid=accept]')).backgroundColor,belowScroll:Math.round(dr.top)>=Math.round(sr.bottom)-1,insidePanel:dr.bottom<=pr.bottom+1,pad:parseFloat(getComputedStyle(sc).paddingBottom)}})()`)
+  ok('the Accept · Edit · Leave out bar sits below the scrolling part, inside the panel, with room under the last line', bar.outside && bar.belowScroll && bar.insidePanel && bar.buttons.join() === 'Accept,Edit,Leave out' && bar.pad >= 16, bar)
+  ok('Accept is the primary button (filled indigo)', /rgb\(\d+, \d+, \d+\)/.test(bar.primary) && bar.primary !== 'rgba(0, 0, 0, 0)', bar.primary)
   const pHead = await text('[data-testid=theme-panel] header')
   ok('the panel header has the verdict chip, the name and “Said by n of N”, and the status sits on the Insight heading, apart from the verdict', /Consistent|Mixed|Gap|No position|Too few to read/.test(pHead) && !/Suggested/.test(pHead) && /Price creep/.test(pHead) && /Said by \d+ of \d+/.test(pHead) && (await ev(`document.querySelector('[data-testid=theme-panel] [data-testid=insight] [data-testid=status-chip]')?.dataset.status`)) === 'Suggested', pHead)
   ok('the AI-generated tag appears once in the panel', (await ev(`[...document.querySelectorAll('[data-testid=theme-panel] *')].filter(e=>[...e.childNodes].some(n=>n.nodeType===3&&n.textContent.trim()==='AI-generated')).length`)) === 1)
   const sentence = await text('[data-testid=theme-panel] [data-testid=summary-sentence]')
   ok('the sentence is the logic’s insight sentence', sentence === (await run(`return model().p.find(t=>t.name==='Price creep').insight.sentence`)), sentence)
-  const moments = await ev(`[...document.querySelectorAll('[data-testid=theme-panel] [data-testid=moment]')].map(m=>({who:m.dataset.person,reason:m.querySelector('[data-testid=moment-reason]').innerText,play:!!m.querySelector('a[aria-label^=Play]')}))`)
-  ok('moments to watch: 3 to 5 clips, one per person, each with Play and the measured reason (“Answered x s after the question. Usual: y s.”)', moments.length >= 3 && moments.length <= 5 && new Set(moments.map((m) => m.who)).size === moments.length && moments.every((m) => m.play && /^Answered \d+\.\d s after the question\. Usual: \d+\.\d s\./.test(m.reason)), moments)
+  const moments = await ev(`[...document.querySelectorAll('[data-testid=theme-panel] [data-testid=moment]')].map(m=>({who:m.dataset.person,reason:m.querySelector('[data-testid=moment-reason]')?.innerText??null,play:!!m.querySelector('a[aria-label^=Play]')}))`)
+  // Changed from “every reason starts with Answered x s…”: a reason prints only the measures that fired, so it may be empty, and then no reason line is shown.
+  ok('moments to watch: 3 to 5 clips, one per person, each with Play; a reason line only when a measure fired', moments.length >= 3 && moments.length <= 5 && new Set(moments.map((m) => m.who)).size === moments.length && moments.every((m) => m.play && (m.reason === null || /^(Answered \d+\.\d s after the question\. Usual: \d+\.\d s\.|Paused \d+\.\d s mid-answer\.|\d+ fillers or restarts\.|Spoke faster than usual: |Voice varied (less|more) than usual: pitch range |Quieter than usual by |\s)+/.test(m.reason))), moments)
+  const chipsOnClips = await ev(`[...document.querySelectorAll('[data-testid=theme-panel] [data-testid=moment]')].map(m=>({who:m.dataset.person,chip:m.querySelector('[data-fit-chip]')?.innerText.trim()??null}))`)
+  const fitsWant = await run(`const t=model().p.find(t=>t.name==='Price creep'); return Object.fromEntries(t.reads.map(r=>[r.participantId,r.fit]))`)
+  const FITW = { Matches: 'Matched', 'Pulls against': 'No match', Uncertain: 'Hesitant' }
+  ok('each moment has a small chip with that person’s own result (Matched, No match or Hesitant), from the logic', chipsOnClips.length >= 3 && chipsOnClips.every((m) => fitsWant[m.who] === 'Split' || fitsWant[m.who] === undefined ? m.chip === null : m.chip === FITW[fitsWant[m.who]]), [chipsOnClips, fitsWant])
   const mm = await run(`return model().p.find(t=>t.name==='Price creep').moments.map(m=>m.participantId)`)
   ok('they are the logic’s clips, in the logic’s order (the clearest first)', JSON.stringify(moments.map((m) => m.who)) === JSON.stringify(mm), [moments.map((m) => m.who), mm])
+
+  // ── polish: the panel (B1, B3, B4) ──
+  const typo = await ev(`(()=>{const p=document.querySelector('[data-testid=theme-panel]');const f=(e)=>{const c=getComputedStyle(e);return {size:parseFloat(c.fontSize),weight:+c.fontWeight,color:c.color}};
+    const heads=['insight','theme-figures','moments-section'].map(id=>{const e=p.querySelector('[data-testid='+id+']');const h=e.querySelector('h3');return f(h)});
+    const sent=f(p.querySelector('[data-testid=summary-sentence]')); const title=f(p.querySelector('h2'));
+    const others=[...p.querySelectorAll('p,li,span,button,h3')].filter(e=>!e.closest('h2')&&e.dataset.testid!=='summary-sentence'&&!e.closest('[data-testid=summary-sentence]')).map(e=>parseFloat(getComputedStyle(e).fontSize));
+    const gh=f(p.querySelector('[data-testid=group-head]'));const tag=p.querySelector('[data-testid=insight] .border-dashed');
+    return {heads,sent,title,maxOther:Math.max(...others),gh,tagSize:tag?parseFloat(getComputedStyle(tag).fontSize):null}})()`)
+  ok('B1 the insight sentence is the largest text under the title, with a small AI-generated tag', typo.sent.size >= 16 && typo.sent.size > typo.maxOther && typo.sent.size < typo.title.size && typo.tagSize !== null && typo.tagSize <= 12, typo)
+  ok('B3 “Did their delivery match their words?” has the same heading style as Insight and Moments to watch', typo.heads.every((h) => h.size === typo.heads[0].size && h.weight === typo.heads[0].weight && h.color === typo.heads[0].color), typo.heads)
+  ok('B3 “n people spoke in favour” is a lighter subline than those headings', typo.gh.weight < typo.heads[0].weight || typo.gh.color !== typo.heads[0].color, [typo.gh, typo.heads[0]])
+  ok('B4 the header says “Said by n of N people”', /^Said by \d+ of \d+ people$/.test((await text('[data-testid=theme-panel-said-by]')) ?? ''), await text('[data-testid=theme-panel-said-by]'))
 
   // tiles filter people
   const tiles = await ev(`[...document.querySelectorAll('[data-testid=theme-panel] [data-testid=tile-group]')].map(g=>({side:g.dataset.side,tiles:[...g.querySelectorAll('[data-testid=match-tiles] > button')].map(x=>({fit:x.dataset.fit,n:+x.dataset.n,label:x.innerText.replace(/\\s+/g,' ').trim()}))}))`)
@@ -169,7 +228,9 @@ try {
   ok('a chip opens that code’s panel, with “← theme” at the top and its row selected and open', (await text('[data-testid=back-to-theme]')) === `← ${chipTheme.name}` && (await ev(`document.querySelector('[data-testid=signal-row][aria-current=true]')?.dataset.code`)) === chipTheme.check[0])
   const cp = await ev(`(()=>{const p=document.querySelector('[data-testid=signal-panel]');const y=(id)=>{const e=p.querySelector('[data-testid='+id+']');return e?Math.round(e.getBoundingClientRect().top+p.querySelector('.overflow-y-auto').scrollTop):-1};return {order:['speech-evidence','insight','code-figures','moments-section','tensions-section','customise'].map(y),evidence:[...p.querySelectorAll('[data-testid=evidence-lines] li')].map(l=>l.innerText),notRight:p.querySelectorAll('[data-testid=not-right]').length,accept:[...p.querySelectorAll('button')].some(x=>/^Accept/.test(x.innerText.trim()))}})()`)
   ok('the code panel runs: speech evidence first, then the insight, tiles, moments, tensions, Customise', cp.order.every((y, i) => y >= 0 && (i === 0 || y >= cp.order[i - 1])), cp.order)
-  ok('speech evidence gives delay against usual, pauses, fillers and tone, with n of N', cp.evidence.length === 4 && /median \d+\.\d s after the question\. Their usual: \d+\.\d s/.test(cp.evidence[0]) && /\d+ of \d+ paused/.test(cp.evidence[1]) && /\d+ of \d+ used/.test(cp.evidence[2]) && /Tone against their own usual/.test(cp.evidence[3]), cp.evidence)
+  const evWant = await run(`const c=model().s.find(s=>s.code.id===${q(chipTheme.check[0])}); return sp.speechEvidence(c.reads).map(e=>[e.label,e.n,e.of])`)
+  const evGot = await ev(`[...document.querySelectorAll('[data-testid=evidence-lines] li')].map(li=>({label:li.querySelector('.text-sm span').innerText.trim(),count:li.querySelector('[data-testid=evidence-count]').innerText.trim(),weight:getComputedStyle(li.querySelector('[data-testid=evidence-count]')).fontWeight,baseline:li.querySelector('[data-testid=evidence-baseline]').innerText.trim()}))`)
+  ok('speech evidence is four compact rows (Delay, Pauses, Fillers or restarts, Tone): the label on the left, a bold “n of N people” on the right, one grey baseline line, the numbers from the logic', evGot.length === 4 && evGot.map((e) => e.label).join() === 'Delay,Pauses,Fillers or restarts,Tone' && evGot.every((e, i) => e.count === `${evWant[i][1]} of ${evWant[i][2]} people` && +e.weight >= 600 && e.baseline.length > 10), [evGot, evWant])
   ok('the code panel has no Accept (decisions are on the theme)', !cp.accept)
   await click('[data-testid=back-to-theme]')
   ok('the “← theme” link returns to the theme panel', (await text('[data-testid=theme-panel-name]')) === chipTheme.name && (await count('[data-testid=signal-panel]')) === 0)
@@ -278,9 +339,14 @@ try {
   await fresh()
   const box = await ev(`(()=>{const r=document.querySelectorAll('[data-testid=theme-row]')[0].getBoundingClientRect();return {x:r.left+r.width/2,y:r.top+r.height/2}})()`)
   const vis = (sel) => ev(`(()=>{const e=document.querySelectorAll('[data-testid=theme-row]')[0].querySelector(${q(sel)});return !!e&&e.getBoundingClientRect().width>0})()`)
-  ok('at rest the row shows the status chip, not Accept', (await vis('[data-testid=status-chip]')) && !(await vis('[data-testid=row-accept]')))
-  await b.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: box.x, y: box.y }); await b.sleep(300)
-  ok('on hover a primary Accept replaces the status chip', !(await vis('[data-testid=status-chip]')) && (await vis('[data-testid=row-accept]')) && (await ev(`document.querySelectorAll('[data-testid=theme-row]')[0].querySelector('[data-testid=row-accept]').getBoundingClientRect().height`)) >= 44)
+  const accState = () => ev(`(()=>{const r=document.querySelectorAll('[data-testid=theme-row]')[0];const a=r.querySelector('[data-testid=row-accept]');const s=r.querySelector('[data-testid=status-chip]');const cs=getComputedStyle(a);return {op:+cs.opacity,bg:cs.backgroundColor,border:cs.borderTopWidth,chip:s.getBoundingClientRect().width>0&&getComputedStyle(s).opacity==='1',tab:a.tabIndex,disp:cs.display,overlap:(()=>{const x=a.getBoundingClientRect(),y=s.getBoundingClientRect();return !(x.bottom<=y.top||x.top>=y.bottom||x.right<=y.left||x.left>=y.right)})()}})()`)
+  const rest = await accState()
+  ok('at rest the status chip shows and Accept is hidden (but still in the page, so the keyboard can reach it)', rest.chip && rest.op === 0 && rest.tab >= 0 && rest.disp !== 'none', rest)
+  await b.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: box.x, y: box.y }); await b.sleep(400)
+  const hov = await accState()
+  ok('on hover an outlined Accept appears beside the status, which stays: it is not filled and does not cover the pill', hov.op === 1 && hov.chip && hov.border !== '0px' && !/rgb\(\d+, \d+, \d+\)/.test(hov.bg.replace('rgb(255, 255, 255)', '')) && !hov.overlap, hov)
+  await ev(`document.querySelectorAll('[data-testid=theme-row]')[0].querySelector('[data-testid=row-accept]').focus(); true`); await b.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 5, y: 5 }); await b.sleep(300)
+  ok('keyboard focus shows it too', (await accState()).op === 1)
   await b.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 5, y: 5 })
 
   // ── review mode ──
@@ -297,15 +363,21 @@ try {
 
   // ── the Key and How it’s decided ──
   await fresh()
-  await click('[data-testid=key]')
+  await click('[data-testid=how-to-read]')
   const key = await ev(`({verdicts:[...document.querySelectorAll('[data-testid=key-verdicts] li')].map(e=>e.innerText.replace(/\\s+/g,' ').trim()),fits:[...document.querySelectorAll('[data-testid=key-fits] li')].map(e=>e.innerText.replace(/\\s+/g,' ').trim()),words:[...document.querySelectorAll('[data-testid=key-words] li')].map(e=>e.innerText.replace(/\\s+/g,' ').trim()),statuses:[...document.querySelectorAll('[data-testid=key-statuses] li')].map(e=>e.innerText.replace(/\\s+/g,' ').trim()),grouping:document.querySelector('[data-testid=key-grouping]')?.innerText,rules:[...document.querySelectorAll('[data-testid=key-rules] li')].map(e=>e.innerText.replace(/\\s+/g,' ').replace(/^\\d\\. /,'').trim())})`)
   const cfgLines = await run('return cfg.DELIVERY_RULE_LINES')
-  ok('the Key lists the five verdicts, the three results and split across codes, the three words, the six statuses, the grouping note and the five rules', key.verdicts.map((v) => v.split(' ')[0]).join() === 'Consistent,Mixed,Gap,No,Too' && key.fits.length === 4 && /^Matched/.test(key.fits[0]) && /^No match/.test(key.fits[1]) && /^Hesitant/.test(key.fits[2]) && /^Split across codes/.test(key.fits[3]) && key.words.length === 3 && key.statuses.length === 6 && /not in a theme yet/.test(key.grouping ?? '') && JSON.stringify(key.rules) === JSON.stringify(cfgLines), key)
+  ok('How to read this lists the five verdicts, the three results and split across codes, the three words, the six statuses, the grouping note and the five rules (“How it’s decided”)', key.verdicts.map((v) => v.split(' ')[0]).join() === 'Consistent,Mixed,Gap,No,Too' && key.fits.length === 4 && /^Matched/.test(key.fits[0]) && /^No match/.test(key.fits[1]) && /^Hesitant/.test(key.fits[2]) && /^Split across codes/.test(key.fits[3]) && key.words.length === 3 && key.statuses.length === 6 && /not in a theme yet/.test(key.grouping ?? '') && JSON.stringify(key.rules) === JSON.stringify(cfgLines), key)
+  const readTxt = (await text('[data-testid=read-pop]')) ?? ''
+  ok('the popover has two short sections, “What the labels mean” and “How it’s decided”, and nothing is said twice', /What the labels mean/.test(readTxt) && /How it’s decided/.test(readTxt) && cfgLines.every((l) => readTxt.split(l).length === 2) && Object.values(await run('return cfg.VERDICT_DEF')).every((d) => readTxt.split(d).length === 2), readTxt.slice(0, 120))
+  ok('there is no separate Key and no separate How it’s decided button', (await count('[data-testid=key],[data-testid=how-decided]')) === 0)
   await ev(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})); true`); await b.sleep(250)
-  ok('Escape closes the Key', (await count('[data-testid=key-pop]')) === 0)
-  await click('[data-testid=how-decided]')
-  ok('“How it’s decided” shows the five rule lines', JSON.stringify((await ev(`[...document.querySelectorAll('[data-testid=how-decided-line]')].map(e=>e.innerText.replace(/\\s+/g,' ').replace(/^\\d\\. /,'').trim())`))) === JSON.stringify(cfgLines))
-  await ev(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})); true`)
+  ok('Escape closes it', (await count('[data-testid=read-pop]')) === 0)
+  // toolbar and footer
+  const tb = await ev(`(()=>{const c=(sel)=>getComputedStyle(document.querySelector(sel));const all=document.querySelector('[data-testid=show-all]');return {read:c('[data-testid=how-to-read]').color,expand:c('[data-testid=expand-all]').color,readW:c('[data-testid=how-to-read]').fontWeight,expandW:c('[data-testid=expand-all]').fontWeight,allBg:getComputedStyle(all).backgroundColor,ink:getComputedStyle(document.body).getPropertyValue('--color-ink'),count:document.querySelector('[data-testid=show-review-count]').innerText.trim(),prev:[...document.querySelectorAll('a')].find(a=>/^Back to /.test(a.innerText.trim()))?.innerText.trim()}})()`)
+  const needs = await run('return model().c.toReview.length')
+  ok('Expand all is styled like How to read this (same colour and weight)', tb.read === tb.expand && tb.readW === tb.expandW, tb)
+  ok('the selected “All” uses the indigo accent, not black, and “Needs review” shows its count', tb.allBg !== 'rgb(0, 0, 0)' && !/^rgb\((2\d|1\d|\d), (2\d|1\d|\d), (4\d|3\d|2\d|1\d|\d)\)$/.test(tb.allBg) && tb.count === String(needs), [tb, needs])
+  ok('the footer’s Previous is labelled by where it goes: “Back to Codebook”', tb.prev === 'Back to Codebook', tb.prev)
 
   // ── one label map, no retired wording, on every part of the tab ──
   const BANNED = /pulled against|pulls against|argued for|complained|complains|\buncertain\b|\bfits\b|partly fits|no claim|conflicting/i

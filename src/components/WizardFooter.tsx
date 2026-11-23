@@ -6,7 +6,7 @@ import { ChevronLeftIcon } from './icons'
  * Previous on the left, what this screen needs in the middle, the way forward on the right.
  * `sticky={false}` keeps it at the end of the page, for long dashboards where a floating bar would cover content.
  */
-export function WizardFooter({ previous, children, message, sticky = true }: { previous?: { to: string; label: string }; message?: ReactNode; children?: ReactNode; sticky?: boolean }) {
+export function WizardFooter({ previous, children, message, sticky = true }: { previous?: { to: string; label: string; /** What the button says. Defaults to "Previous". */ text?: string }; message?: ReactNode; children?: ReactNode; sticky?: boolean }) {
   return (
     <div
       className={
@@ -17,7 +17,7 @@ export function WizardFooter({ previous, children, message, sticky = true }: { p
     >
       {previous && (
         <Button variant="ghost" to={previous.to} icon={<ChevronLeftIcon />}>
-          Previous<span className="sr-only">: {previous.label}</span>
+          {previous.text ?? 'Previous'}{!previous.text && <span className="sr-only">: {previous.label}</span>}
         </Button>
       )}
       <div className="min-w-0 flex-1 basis-48 text-sm text-graphite">{message}</div>

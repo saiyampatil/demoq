@@ -72,11 +72,10 @@ try {
   await b.evaluate(`(()=>{const e=document.querySelector('[data-testid=expand-all]');if(/^Expand all/.test(e.innerText))e.click();return true})()`); await b.sleep(300)
   const nCodes = await b.evaluate(`document.querySelectorAll('[data-testid=signal-row]').length`)
   for (let i = 0; i < nCodes; i++) { await click('[data-testid=signal-row]', i); await scan(`the code panel ${i + 1}`) }
-  await click('[data-testid=key]'); await scan('the Key')
+  await click('[data-testid=how-to-read]'); await scan('How to read this')
+  const pop = await b.evaluate(`({lines:document.querySelectorAll('[data-testid=key-rules] li').length,verdicts:[...document.querySelectorAll('[data-testid=key-verdicts] li')].map(e=>e.innerText.replace(/\\s+/g,' ').trim()),fits:[...document.querySelectorAll('[data-testid=key-fits] li')].map(e=>e.innerText.replace(/\\s+/g,' ').trim())})`)
+  ok('the popover lists all five verdict definitions, the three match labels (and split across codes) and the five rule lines, each once', pop.lines === 5 && pop.verdicts.length === 5 && pop.verdicts.every((v, i) => v.startsWith(Object.values(cfg.v)[i])) && pop.fits.length === 4 && pop.fits.slice(0, 3).map((f) => f.split(' ')[0]).join() === ['Matched', 'No', 'Hesitant'].join(), pop)
   await b.evaluate(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})); true`); await b.sleep(200)
-  await click('[data-testid=how-decided]'); await scan('the “How it’s decided” popover')
-  const pop = await b.evaluate(`({lines:document.querySelectorAll('[data-testid=how-decided-line]').length,verdicts:[...document.querySelectorAll('[data-testid=how-decided-verdict]')].map(e=>e.innerText.replace(/\\s+/g,' ').trim()),fits:[...document.querySelectorAll('[data-testid=how-decided-fit]')].map(e=>e.innerText.replace(/\\s+/g,' ').trim()),words:document.querySelectorAll('[data-testid=how-decided-word]').length})`)
-  ok('the popover lists all five verdict definitions, the three match labels and the three word labels', pop.lines === 5 && pop.verdicts.length === 5 && pop.verdicts.every((v, i) => v.startsWith(Object.values(cfg.v)[i])) && pop.fits.length === 3 && pop.fits.map((f) => f.split(' ')[0]).join() === ['Matched', 'No', 'Hesitant'].join() && pop.words === 3, pop)
   await b.evaluate(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})); true`)
   await b.goto(`${root}/signals?tab=tensions`); await b.waitFor('Tensions'); await b.sleep(700); await scan('A2 Tensions')
   await b.goto(`${root}/report`); await b.waitFor('EXECUTIVE SUMMARY'); await b.sleep(1500); await scan('A3 Report')
@@ -91,7 +90,7 @@ try {
   await b.goto(`${root}/signals`); await b.waitFor('What stood out'); await b.sleep(900)
   await click('[data-testid=expand-all]')
   await click('[data-testid=signal-row]', 0)
-  await click('[data-testid=key]')
+  await click('[data-testid=how-to-read]')
   const chips = await b.evaluate(`[...document.querySelectorAll('[data-verdict-chip],[data-fit-chip]')].map(e=>{const s=getComputedStyle(e);return {kind:e.dataset.verdictChip??e.dataset.fitChip,text:e.innerText.trim(),icon:e.querySelector('svg[data-icon]')?.dataset.icon??null,title:e.title,bg:s.backgroundColor,fg:s.color,bw:s.borderTopWidth,bs:s.borderTopStyle,bc:s.borderTopColor}})`)
   const kinds = [...new Set(chips.map((c) => c.kind))]
   ok('all five verdicts are on the screen (so each was checked)', ['Consistent', 'Mixed', 'Conflicting', 'No claim', 'Too few to read'].every((k) => kinds.includes(k)), kinds)
@@ -106,7 +105,7 @@ try {
   // (The Face and Speech colour legends and the face, tone and certainty readings are gone from the page, so the checks that kept their colours apart and drew them as dots are gone with them.)
 
   // ── no pill for a face or speech reading; Mixed only as a verdict ──
-  const mixed = await b.evaluate(`(()=>{const out=[];const w=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT);let n;while((n=w.nextNode())){if(/\\bMixed\\b/.test(n.textContent)){const e=n.parentElement;if(!e.closest('[data-verdict-chip],[data-testid=how-decided-pop],[data-testid=key-pop],[data-testid=tick-hint],[data-testid=check-none],[data-testid=legend]'))out.push(n.textContent.trim().slice(0,60))}}return out})()`)
+  const mixed = await b.evaluate(`(()=>{const out=[];const w=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT);let n;while((n=w.nextNode())){if(/\\bMixed\\b/.test(n.textContent)){const e=n.parentElement;if(!e.closest('[data-verdict-chip],[data-testid=how-decided-pop],[data-testid=read-pop],[data-testid=tick-hint],[data-testid=check-none],[data-testid=legend]'))out.push(n.textContent.trim().slice(0,60))}}return out})()`)
   ok('“Mixed” appears only as a verdict (a chip, its definition, or a sentence about the verdict)', mixed.length === 0, mixed)
 
   // ── panels: heading, question, tiles in order, for every code ──

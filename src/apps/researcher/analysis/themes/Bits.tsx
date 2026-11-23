@@ -30,6 +30,7 @@ import { correctCodeStance, correctPersonStance, type Code } from '@/state/codeb
 import type { Stance } from '@/state/emotion'
 import { aiStance, codeStance } from '@/state/speech'
 import { segmentLabelOf, sideSummary, type InsightStatus, type MomentToWatch, type PersonRead, type Point } from '@/state/signals'
+import type { Fit, PersonFit } from '@/state/speech'
 import { mmss } from '../../review/reviewUi'
 import type { CodebookCtx } from '../codebookCtx'
 import { FitChip, OneFitChip, playHref } from '../SignalBits'
@@ -113,12 +114,13 @@ export function StanceTag({ ctx, code, className }: { ctx: CodebookCtx; code: Pi
         data-testid="stance-tag"
         data-stance={now}
         title={fix ? `Corrected from “${STANCE_TAG[fix.from]}” by ${fix.by}. ${STANCE_TAG_DEF[now]}` : `${STANCE_TAG_DEF[now]} Click to change.`}
-        className={cn('inline-flex min-h-6 cursor-pointer items-center rounded-xs border px-1.5 text-xs whitespace-nowrap text-graphite hover:bg-haze', fix ? 'border-dashed border-iris-600' : 'border-mist-strong')}
+        className={cn('inline-flex min-h-6 cursor-pointer items-center rounded-xs border bg-surface px-1.5 text-xs whitespace-nowrap text-graphite hover:bg-haze', fix ? 'border-dashed border-iris-600' : 'border-mist-strong')}
       >
         {STANCE_TAG[now]}
+        <svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="ml-1 shrink-0"><path d="m1.5 3 2.5 2.5L6.5 3" /></svg>
       </button>
       {open && (
-        <ul role="menu" aria-label={`What “${code.name}” claims`} data-testid="stance-menu" className="absolute top-full left-0 z-30 mt-1 w-44 rounded-sm border border-mist bg-surface py-1 text-sm shadow-overlay">
+        <ul role="menu" aria-label={`What “${code.name}” claims`} data-testid="stance-menu" className="absolute top-full right-0 z-30 mt-1 w-44 rounded-sm border border-mist bg-surface py-1 text-sm shadow-overlay">
           {STANCES.map((s) => (
             <li key={s} role="none">
               <button type="button" role="menuitemradio" aria-checked={s === now} onClick={() => pick(s)} data-stance-option={s} className="flex min-h-9 w-full cursor-pointer items-center justify-between px-3 text-left hover:bg-haze">
@@ -133,19 +135,23 @@ export function StanceTag({ ctx, code, className }: { ctx: CodebookCtx; code: Pi
   )
 }
 
-// ─── the Key ────────────────────────────────────────────────────────────────
+// ─── how to read this ───────────────────────────────────────────────────────
 
-/** Every meaning on the page, in one popover: verdicts, the three results, the words, the statuses, how codes are grouped, and the rules. */
-export function Key() {
+/**
+ * One popover holding everything the page does not spell out, in two short sections: what the labels mean, and how a verdict is decided.
+ * Each meaning is written once. Closes on Escape or a click elsewhere.
+ */
+export function HowToRead() {
   const { open, setOpen, ref } = usePopover()
   return (
     <span ref={ref} className="relative inline-block">
-      <button type="button" aria-expanded={open} aria-haspopup="dialog" onClick={() => setOpen((o) => !o)} data-testid="key" className="min-h-9 cursor-pointer rounded-xs px-1 text-sm font-medium text-iris-700 hover:underline">
-        Key
+      <button type="button" aria-expanded={open} aria-haspopup="dialog" onClick={() => setOpen((o) => !o)} data-testid="how-to-read" className="min-h-9 cursor-pointer rounded-xs px-1 text-sm font-medium text-iris-700 hover:underline">
+        How to read this
       </button>
       {open && (
-        <div role="dialog" aria-label="Key" data-testid="key-pop" className="absolute top-full left-0 z-30 mt-1.5 max-h-[70vh] w-[26rem] overflow-y-auto rounded-sm border border-mist bg-surface p-4 text-sm font-normal text-ink shadow-overlay">
-          <p className="mb-1.5 text-xs font-semibold">Verdict</p>
+        <div role="dialog" aria-label="How to read this" data-testid="read-pop" className="absolute top-full left-0 z-30 mt-1.5 max-h-[70vh] w-[26rem] overflow-y-auto rounded-sm border border-mist bg-surface p-4 text-sm font-normal text-ink shadow-overlay">
+          <h3 className="mb-2 text-xs font-semibold">What the labels mean</h3>
+          <p className="mb-1 text-xs text-graphite">Verdict</p>
           <ul className="flex flex-col gap-1.5" data-testid="key-verdicts">
             {VERDICT_ORDER.map((v) => (
               <li key={v} className="flex items-start gap-2 text-xs">
@@ -154,7 +160,7 @@ export function Key() {
               </li>
             ))}
           </ul>
-          <p className="mt-3 mb-1.5 text-xs font-semibold">Did their delivery match their words?</p>
+          <p className="mt-3 mb-1 text-xs text-graphite">Did their delivery match their words?</p>
           <ul className="flex flex-col gap-1.5" data-testid="key-fits">
             {FIT_ORDER.map((f) => (
               <li key={f} className="flex items-start gap-2 text-xs">
@@ -167,13 +173,13 @@ export function Key() {
               <span>Their positions across codes point both ways and neither side is ahead. In the base, in no tile.</span>
             </li>
           </ul>
-          <p className="mt-3 mb-1.5 text-xs font-semibold">What people said</p>
+          <p className="mt-3 mb-1 text-xs text-graphite">What people said</p>
           <ul className="flex flex-col gap-1.5" data-testid="key-words">
             {(['Positive', 'Negative', 'Neutral'] as const).map((k) => (
               <li key={k} className="text-xs"><span className="font-medium">{STANCE_TAG[k]}</span> ({SIDE_LABEL[k].toLowerCase()}): {SIDE_DEF[k]}</li>
             ))}
           </ul>
-          <p className="mt-3 mb-1.5 text-xs font-semibold">Status</p>
+          <p className="mt-3 mb-1 text-xs text-graphite">Status</p>
           <ul className="flex flex-col gap-1.5" data-testid="key-statuses">
             {(['Suggested', 'Accepted', 'Edited', 'Left out', 'Out of date', 'Nothing to decide'] as const).map((s) => (
               <li key={s} className="flex items-start gap-2 text-xs">
@@ -182,9 +188,8 @@ export function Key() {
               </li>
             ))}
           </ul>
-          <p className="mt-3 mb-1.5 text-xs font-semibold">How the table is grouped</p>
-          <p className="text-xs" data-testid="key-grouping">Codes sit under the themes you made in the codebook. Codes that are not in a theme yet are listed last, with no verdict.</p>
-          <p className="mt-3 mb-1.5 text-xs font-semibold">The rules</p>
+          <p className="mt-3 text-xs" data-testid="key-grouping">Codes sit under the themes you made in the codebook. Codes that are not in a theme yet are listed last, with no verdict.</p>
+          <h3 className="mt-4 mb-2 text-xs font-semibold">How it’s decided</h3>
           <ol className="flex flex-col gap-1.5 text-xs" data-testid="key-rules">
             {DELIVERY_RULE_LINES.map((l, i) => (
               <li key={i} className="flex gap-2"><span aria-hidden="true" className="text-graphite tabular-nums">{i + 1}.</span><span>{l}</span></li>
@@ -249,18 +254,13 @@ export function Tiles({ reads, ctx, code }: { reads: PersonRead[]; ctx: Codebook
   )
   return (
     <div className="flex flex-col gap-2.5" data-testid="delivery-breakdown">
-      {sum.groups.length > 0 && (
-        <p className="text-xs text-graphite" data-testid="match-question">
-          Did their delivery match their words?
-        </p>
-      )}
       {sum.groups.map((g) => {
         const both = sum.groups.length > 1
         const key = g.side
         const listed = open?.side === key ? (open.fit ? g.tiles[open.fit] : g.points) : []
         return (
           <section key={key} aria-label={SIDE_LABEL[g.side]} data-testid="tile-group" data-side={g.side} data-n={g.points.length} className="flex flex-col gap-1.5">
-            <button type="button" onClick={() => setOpen(open?.side === key && !open.fit ? null : { side: key })} aria-expanded={open?.side === key && !open.fit} data-testid="group-head" className="min-h-6 cursor-pointer self-start rounded-xs text-left text-xs font-semibold hover:underline">
+            <button type="button" onClick={() => setOpen(open?.side === key && !open.fit ? null : { side: key })} aria-expanded={open?.side === key && !open.fit} data-testid="group-head" className="min-h-6 cursor-pointer self-start rounded-xs text-left text-xs text-graphite hover:text-ink hover:underline">
               {both ? sideGroupHead(g.side, g.points.length) : sideGroupLine(g.side, g.points.length)}
             </button>
             <dl className="grid grid-cols-3 gap-2" data-testid="match-tiles">
@@ -326,7 +326,7 @@ export function SentenceWithN({ sentence, of, what }: { sentence: string; of: nu
 // ─── clips to watch ─────────────────────────────────────────────────────────
 
 /** The clips most worth playing, one per person, the clearest first, each with the numbers that make it stand out. */
-export function Moments({ moments, studyId }: { moments: MomentToWatch[]; studyId: string }) {
+export function Moments({ moments, studyId, fits }: { moments: MomentToWatch[]; studyId: string; /** Each person's one result, for the small chip on their clip. */ fits: Record<string, PersonFit | undefined> }) {
   if (!moments.length) return <p className="text-sm text-graphite" data-testid="moments-none">No clips to show.</p>
   return (
     <ol className="flex flex-col divide-y divide-mist" data-testid="moments">
@@ -336,12 +336,14 @@ export function Moments({ moments, studyId }: { moments: MomentToWatch[]; studyI
             <span className="font-medium text-ink tabular-nums">{m.participantId}</span>
             <span>{segmentLabelOf(m.participantId)}</span>
             <span className="tabular-nums">{mmss(m.atSec)}</span>
+            {fits[m.participantId] && fits[m.participantId] !== 'Split' && <OneFitChip fit={fits[m.participantId] as Fit} against={[]} />}
+            {fits[m.participantId] === 'Split' && <span className="text-xs text-graphite" data-testid="moment-split">Split across codes</span>}
             <Link to={playHref(studyId, m.sessionId, m.atSec)} className="ml-auto inline-flex min-h-6 items-center gap-1 rounded-xs font-medium text-iris-700 hover:underline" aria-label={`Play ${m.participantId} at ${mmss(m.atSec)}`}>
               <PlayIcon size={11} /> Play
             </Link>
           </div>
           {m.quote && <p className="font-serif text-quote leading-snug text-ink">“{m.quote}”</p>}
-          <p className="text-xs text-graphite" data-testid="moment-reason">{m.reason}</p>
+          {m.reason && <p className="text-xs text-graphite" data-testid="moment-reason">{m.reason}</p>}
         </li>
       ))}
     </ol>

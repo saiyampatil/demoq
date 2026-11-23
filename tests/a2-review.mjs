@@ -81,9 +81,9 @@ try {
   // ── 4. Words vs delivery: the rule is behind “How it’s decided”, and it is the rule the code uses ──
   const rl = await withMod(`(async()=>{const e=await window.__mod('/src/state/emotion');return e.FIT_RULE})()`)
   const cfg = await withMod(`(async()=>{const c=await window.__mod('/src/config/delivery');return {lines:c.DELIVERY_RULE_LINES,min:c.DELIVERY.minPeople,majority:c.DELIVERY.majority}})()`)
-  await click('[data-testid=how-decided]')
-  const popLines = (await all('[data-testid=how-decided-line]')).map((l) => l.replace(/^\d\. /, ''))
-  ok('the rule behind “How it’s decided” is the rule in config: more than half, speech only, counted once, hesitant', JSON.stringify(popLines) === JSON.stringify(cfg.lines) && rl.min === cfg.min && rl.majority === 0.5 && /More than half had no match: Gap/.test(popLines[2]) && /Hesitant/.test(popLines[3]), popLines)
+  await click('[data-testid=how-to-read]')
+  const popLines = (await all('[data-testid=key-rules] li')).map((l) => l.replace(/^\d\. /, ''))
+  ok('the rule behind “How to read this” is the rule in config: more than half, speech only, counted once, hesitant', JSON.stringify(popLines) === JSON.stringify(cfg.lines) && rl.min === cfg.min && rl.majority === 0.5 && /More than half had no match: Gap/.test(popLines[2]) && /Hesitant/.test(popLines[3]), popLines)
   await b.evaluate(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})); true`); await b.sleep(200)
   const LABEL = { Consistent: 'Consistent', Mixed: 'Mixed', Conflicting: 'Gap', 'Too few to read': 'Too few to read', 'No claim': 'No position' }
   await click('[data-testid=expand-all]')

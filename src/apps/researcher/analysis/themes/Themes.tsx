@@ -5,19 +5,21 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router'
 import { Button } from '@/components/Button'
 import { cn } from '@/components/cn'
-import { ChevronRightIcon } from '@/components/icons'
+import { AlertIcon, ChevronRightIcon } from '@/components/icons'
 import { EmptyState } from '@/components/States'
 import { useToast } from '@/components/Toast'
 import { screenById, studyPath } from '@/routes/screens'
 import { acceptInsight, editInsight, leaveOutInsight, setInsightNote, undoInsight, type Theme } from '@/state/codebook'
+import { standoutLabel } from '@/state/speech'
 import { plural, tensionsFor, type CodeSignal, type Tension, type ThemeSignal } from '@/state/signals'
 import type { CodebookCtx } from '../codebookCtx'
-import { FitChip, HowItsDecided } from '../SignalBits'
-import { InsightStatusChip, Key, StanceTag } from './Bits'
+import { FitChip } from '../SignalBits'
+import { HowToRead, InsightStatusChip, StanceTag } from './Bits'
 import type { ThemeModel, SignalFocus } from './model'
 import { CodePanel, ThemePanel, type Intent, type Review } from './Panels'
 
-const GRID = 'grid grid-cols-[minmax(0,1fr)_4rem_7.75rem_7.25rem_7.25rem] items-center gap-x-2'
+// Fixed widths and a clear gap, so no header label touches the next. Cells line up on the first line of the name.
+const GRID = 'grid grid-cols-[minmax(0,1fr)_4.5rem_9.5rem_7.25rem_7.25rem] items-start gap-x-3'
 type Show = 'All' | 'Needs review'
 
 const themeRef = (p: ThemeSignal): Pick<Theme, 'id' | 'name'> => ({ id: p.id, name: p.name })
@@ -172,21 +174,21 @@ export function ThemesTab({
   const codeRow = (c: CodeSignal, parent: string) => {
     const on = focus.code === c.code.id
     return (
-      <li key={c.code.id} data-row={`c:${c.code.id}`} data-theme-of={parent}>
+      <li key={c.code.id} data-row={`c:${c.code.id}`} data-theme-of={parent} className="border-t border-mist/70 first:border-t-0">
         <div
           data-testid="signal-row"
           data-code={c.code.id}
           aria-current={on ? 'true' : undefined}
           onClick={() => openCode(c.code.id)}
-          className={cn(GRID, 'min-h-11 cursor-pointer border-l-2 py-1 pr-3 pl-11 text-[13px]', on ? 'border-iris-600 bg-iris-50' : 'border-transparent hover:bg-haze')}
+          className={cn(GRID, 'min-h-11 cursor-pointer border-l-2 py-2.5 pr-3 pl-20 text-[13px] leading-5', on ? 'border-iris-600 bg-iris-50' : 'border-transparent hover:bg-haze')}
         >
-          <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-            <button type="button" data-row-main data-testid="code-name" className="min-h-6 cursor-pointer rounded-xs text-left font-medium">{c.code.name}</button>
-            <StanceTag ctx={ctx} code={c.code} />
+          <span className="flex min-w-0 items-start gap-2">
+            <button type="button" data-row-main data-testid="code-name" className="line-clamp-2 min-w-0 flex-1 cursor-pointer rounded-xs text-left font-medium">{c.code.name}</button>
+            <StanceTag ctx={ctx} code={c.code} className="shrink-0" />
           </span>
-          <span className="text-right text-xs text-graphite tabular-nums" data-testid="code-said-by">{c.people} of {c.of}</span>
-          <span className="text-xs text-graphite tabular-nums" data-testid="code-stood-out">{c.standout ? c.standout.text : '—'}</span>
-          <span data-testid="fit-cell"><FitChip pattern={c.readable ? c.fit.pattern : 'Too few to read'} /></span>
+          <span className="text-right text-xs whitespace-nowrap text-graphite tabular-nums" data-testid="code-said-by">{c.people} of {c.of}</span>
+          <span className="text-xs text-graphite tabular-nums" data-testid="code-stood-out">{c.standout ? standoutLabel(c.standout) : '—'}</span>
+          <span data-testid="fit-cell" className="pt-px"><FitChip pattern={c.readable ? c.fit.pattern : 'Too few to read'} /></span>
           <span />
         </div>
       </li>
@@ -194,23 +196,25 @@ export function ThemesTab({
   }
 
   return (
-    <div ref={root} onKeyDown={onKeyDown} className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_24rem]">
+    <div ref={root} onKeyDown={onKeyDown} className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]">
       <section aria-label="Themes" data-testid="themes-table" className="min-w-0 overflow-x-auto rounded-md border border-mist bg-surface">
         <div className="min-w-[42rem]">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-mist px-3 py-1">
-            <Key />
-            <HowItsDecided />
-            <Button size="sm" variant="ghost" onClick={() => setOpen(allOpen ? new Set() : new Set(allIds))} data-testid="expand-all">{allOpen ? 'Collapse all' : 'Expand all'}</Button>
+            <HowToRead />
+            <button type="button" onClick={() => setOpen(allOpen ? new Set() : new Set(allIds))} data-testid="expand-all" className="min-h-9 cursor-pointer rounded-xs px-1 text-sm font-medium text-iris-700 hover:underline">{allOpen ? 'Collapse all' : 'Expand all'}</button>
             <span className="flex-1" />
             <span className="flex items-center gap-1 text-sm text-graphite" role="group" aria-label="Show">
               Show:
               {(['All', 'Needs review'] as const).map((s) => (
-                <button key={s} type="button" aria-pressed={show === s} onClick={() => setShow(s)} data-testid={`show-${s === 'All' ? 'all' : 'review'}`} className={cn('min-h-9 cursor-pointer rounded-xs px-2 text-sm', show === s ? 'bg-ink font-medium text-white' : 'hover:bg-haze hover:text-ink')}>{s}</button>
+                <button key={s} type="button" aria-pressed={show === s} onClick={() => setShow(s)} data-testid={`show-${s === 'All' ? 'all' : 'review'}`} className={cn('inline-flex min-h-9 cursor-pointer items-center gap-1.5 rounded-xs px-2 text-sm', show === s ? 'bg-iris-600 font-medium text-white' : 'hover:bg-haze hover:text-ink')}>
+                  {s}
+                  {s === 'Needs review' && <span className={cn('tabular-nums', show === s ? 'text-white/80' : 'text-muted')} data-testid="show-review-count">{model.counts.toReview.length}</span>}
+                </button>
               ))}
             </span>
           </div>
-          <div className={cn(GRID, 'sticky top-14 z-10 border-b border-mist bg-haze px-3 py-1.5 text-xs font-medium text-graphite')} data-testid="signal-head">
-            <span className="pl-11">Name</span>
+          <div className={cn(GRID, 'sticky top-14 z-10 border-b border-mist bg-haze py-2 pr-3 pl-3 text-xs font-medium text-graphite')} data-testid="signal-head">
+            <span className="pl-12">Name</span>
             <span className="text-right">Said by</span>
             <span>What stood out</span>
             <span>Verdict</span>
@@ -219,7 +223,7 @@ export function ThemesTab({
           {shownThemes.length === 0 && !(none && show === 'All') ? (
             <EmptyState title="Nothing needs review" description="Every insight is decided." action={<Button onClick={() => setShow('All')}>Show all</Button>} />
           ) : (
-            <div>
+            <div className="pt-1">
               {shownThemes.map((p) => {
                 const isOpen = open.has(p.id)
                 const on = focus.theme === p.id
@@ -228,64 +232,58 @@ export function ThemesTab({
                 const status = p.decision.status
                 const decision = doc.insights?.[p.id]
                 const insightLine = (status === 'Accepted' || status === 'Edited') && decision ? decision.text : p.insight?.sentence ?? `Only ${plural(p.people, 'person', 'people')} said this, too few to read a pattern.`
+                const canAccept = p.decidable && (status === 'Suggested' || status === 'Out of date' || status === 'Left out')
+                const flagTip = `${plural(mine.length, 'tension')} draw on this theme${toReview ? `, ${toReview} still to review` : ''}. Open the Tensions tab.`
                 return (
-                  <section key={p.id} aria-labelledby={`grp-${p.id}`} data-testid="theme-group" data-group-id={p.id} className="border-b border-mist last:border-0">
-                    <div data-row={`t:${p.id}`} data-theme-of={p.id} data-testid="theme-row" data-selected={on ? 'true' : undefined} className={cn(GRID, 'group relative min-h-14 border-l-2 py-1 pr-3 pl-1', on ? 'border-iris-600 bg-iris-50' : 'border-transparent hover:bg-haze')}>
+                  <section key={p.id} aria-labelledby={`grp-${p.id}`} data-testid="theme-group" data-group-id={p.id} data-open={isOpen ? 'true' : undefined} className={cn('border-b border-mist last:border-0', isOpen && 'bg-haze/60')}>
+                    <div data-row={`t:${p.id}`} data-theme-of={p.id} data-testid="theme-row" data-selected={on ? 'true' : undefined} className={cn(GRID, 'group relative min-h-[4.5rem] border-l-2 py-3 pr-3 pl-1', on ? 'border-iris-600 bg-iris-50' : 'border-transparent hover:bg-haze')}>
                       <div className="flex min-w-0 items-start gap-0.5">
-                        <button type="button" onClick={() => toggle(p.id)} aria-expanded={isOpen} aria-label={`${isOpen ? 'Collapse' : 'Expand'} ${p.name}`} data-testid="theme-chevron" className="relative z-10 inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-xs text-graphite hover:bg-haze">
-                          <ChevronRightIcon size={14} className={cn('transition-transform duration-150', isOpen && 'rotate-90')} />
+                        <button type="button" onClick={() => toggle(p.id)} aria-expanded={isOpen} aria-label={`${isOpen ? 'Collapse' : 'Expand'} ${p.name}`} data-testid="theme-chevron" className="relative z-10 -my-3 inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-xs text-graphite hover:bg-haze">
+                          <ChevronRightIcon size={14} className={cn('transition-transform duration-150 motion-reduce:transition-none', isOpen && 'rotate-90')} />
                         </button>
-                        <div className="min-w-0 py-1.5">
-                          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 leading-5">
                             <h3 id={`grp-${p.id}`} className="text-[15px] font-semibold">
-                              <button type="button" data-row-main onClick={() => openTheme(p.id)} aria-current={on ? 'true' : undefined} data-testid="theme-name" className="min-h-6 cursor-pointer rounded-xs text-left underline-offset-2 after:absolute after:inset-0 after:content-[''] hover:underline">{p.name}</button>
+                              <button type="button" data-row-main onClick={() => openTheme(p.id)} aria-current={on ? 'true' : undefined} data-testid="theme-name" className="cursor-pointer rounded-xs text-left underline-offset-2 after:absolute after:inset-0 after:content-[''] hover:underline">{p.name}</button>
                             </h3>
                             <span className="text-xs text-muted tabular-nums" data-testid="group-count">{plural(p.codes.length, 'code')}</span>
                             {mine.length > 0 && (
-                              <button type="button" onClick={() => (mine.length === 1 ? onOpenTension(mine[0].id) : onOpenTensions())} data-testid="tension-flag" data-to-review={toReview} aria-label={`${plural(mine.length, 'tension')}${toReview ? `, ${toReview} to review` : ''}`} className="relative z-10 inline-flex min-h-6 cursor-pointer items-center gap-1 rounded-xs text-xs text-graphite hover:text-ink">
-                                <span aria-hidden="true" className={cn('size-2 rounded-full', toReview ? 'bg-pending-fg' : 'bg-mist-strong')} />
-                                <span className="tabular-nums">{mine.length}</span>
+                              <button type="button" onClick={() => (mine.length === 1 ? onOpenTension(mine[0].id) : onOpenTensions())} data-testid="tension-flag" data-to-review={toReview} title={flagTip} aria-label={flagTip} className={cn('relative z-10 inline-flex min-h-6 cursor-pointer items-center gap-1 rounded-xs text-xs font-medium hover:underline', toReview ? 'text-pending-fg' : 'text-graphite')}>
+                                <AlertIcon size={12} />
+                                <span className="tabular-nums">{plural(mine.length, 'tension')}</span>
                               </button>
                             )}
                           </div>
-                          <p className="truncate text-xs text-graphite" title={insightLine} data-testid="theme-insight">{insightLine}</p>
+                          <p className="mt-0.5 text-xs leading-4 text-graphite" data-testid="theme-insight">{insightLine}</p>
                         </div>
                       </div>
-                      <span className="text-right text-xs text-graphite tabular-nums" data-testid="theme-said-by">{p.people} of {p.of}</span>
-                      <span />
-                      <button type="button" onClick={() => openTheme(p.id)} data-testid="theme-verdict" aria-label={`Open ${p.name}`} className="relative z-10 inline-flex min-h-11 cursor-pointer items-center self-center rounded-xs"><FitChip pattern={p.verdict} /></button>
-                      <span className="relative z-10 flex min-h-11 items-center" data-testid="status-cell">
-                        {p.decidable && (status === 'Suggested' || status === 'Out of date' || status === 'Left out') ? (
-                          <>
-                            <span className="group-focus-within:hidden group-hover:hidden"><InsightStatusChip status={status} /></span>
-                            <span className="hidden group-focus-within:inline-flex group-hover:inline-flex">
-                              <Button size="sm" variant="primary" style={{ height: 44 }} onClick={() => { openTheme(p.id); accept(p, !!queue) }} data-testid="row-accept">Accept</Button>
-                            </span>
-                          </>
-                        ) : (
-                          <InsightStatusChip status={status} />
-                        )}
-                      </span>
+                      <span className="text-right text-xs leading-5 whitespace-nowrap text-graphite tabular-nums" data-testid="theme-said-by">{p.people} of {p.of}</span>
+                      <span className="text-xs leading-5 text-muted" data-testid="theme-stood-out" aria-label="Nothing for a theme here">—</span>
+                      <button type="button" onClick={() => openTheme(p.id)} data-testid="theme-verdict" aria-label={`Open ${p.name}`} className="relative z-10 -my-3 inline-flex min-h-11 cursor-pointer items-center self-start rounded-xs"><FitChip pattern={p.verdict} /></button>
+                      <span className="relative z-10 -my-3 flex min-h-11 items-center" data-testid="status-cell"><InsightStatusChip status={status} /></span>
+                      {canAccept && (
+                        <Button size="sm" variant="secondary" className="absolute right-3 bottom-2.5 z-10 w-[7.25rem] opacity-0 transition-opacity duration-150 group-focus-within:opacity-100 group-hover:opacity-100 focus:opacity-100 motion-reduce:transition-none" onClick={() => { openTheme(p.id); accept(p, !!queue) }} data-testid="row-accept" aria-label={`Accept ${p.name}`}>Accept</Button>
+                      )}
                     </div>
                     {isOpen && <ul className="pb-1">{codesOf(p).map((c) => codeRow(c, p.id))}</ul>}
                   </section>
                 )
               })}
               {none && show === 'All' && (
-                <section aria-labelledby="grp-none" data-testid="theme-group" data-group-id="none" className="border-b border-mist last:border-0">
-                  <div data-row="t:none" data-testid="theme-row" className={cn(GRID, 'relative min-h-14 border-l-2 border-transparent py-1 pr-3 pl-1')}>
+                <section aria-labelledby="grp-none" data-testid="theme-group" data-group-id="none" data-open={open.has('none') ? 'true' : undefined} className={cn('border-b border-mist last:border-0', open.has('none') && 'bg-haze/60')}>
+                  <div data-row="t:none" data-testid="theme-row" className={cn(GRID, 'relative min-h-[4.5rem] border-l-2 border-transparent py-3 pr-3 pl-1')}>
                     <div className="flex min-w-0 items-start gap-0.5">
-                      <button type="button" onClick={() => toggle('none')} aria-expanded={open.has('none')} aria-label={`${open.has('none') ? 'Collapse' : 'Expand'} Not in a theme`} data-testid="theme-chevron" className="relative z-10 inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-xs text-graphite hover:bg-haze">
-                        <ChevronRightIcon size={14} className={cn('transition-transform duration-150', open.has('none') && 'rotate-90')} />
+                      <button type="button" onClick={() => toggle('none')} aria-expanded={open.has('none')} aria-label={`${open.has('none') ? 'Collapse' : 'Expand'} Not in a theme`} data-testid="theme-chevron" className="relative z-10 -my-3 inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-xs text-graphite hover:bg-haze">
+                        <ChevronRightIcon size={14} className={cn('transition-transform duration-150 motion-reduce:transition-none', open.has('none') && 'rotate-90')} />
                       </button>
-                      <div className="min-w-0 py-1.5">
-                        <div className="flex flex-wrap items-baseline gap-x-2">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-baseline gap-x-2 leading-5">
                           <h3 id="grp-none" className="text-[15px] font-semibold">
                             <button type="button" data-row-main onClick={() => toggle('none')} data-testid="theme-name" className="min-h-6 cursor-pointer rounded-xs text-left underline-offset-2 after:absolute after:inset-0 after:content-[''] hover:underline">Not in a theme</button>
                           </h3>
                           <span className="text-xs text-muted tabular-nums" data-testid="group-count">{plural(none.codes.length, 'code')}</span>
                         </div>
-                        <p className="text-xs text-graphite" data-testid="theme-insight">{noneLine}</p>
+                        <p className="mt-0.5 text-xs leading-4 text-graphite" data-testid="theme-insight">{noneLine}</p>
                       </div>
                     </div>
                     <span /><span /><span /><span />

@@ -22,7 +22,7 @@ export function ContinueBar({ studyId, readiness, message, next, previous, stay,
 
   return (
     <>
-      <WizardFooter message={message} previous={previous ? { to: studyPath(studyId, screenById[previous.screen]), label: previous.label } : undefined}>
+      <WizardFooter message={message} previous={previous ? { to: studyPath(studyId, screenById[previous.screen]), label: previous.label, text: `Back to ${previous.label}` } : undefined}>
         {lead && (
           <Button variant="primary" onClick={lead.onClick} data-testid="lead-action">
             {lead.label}

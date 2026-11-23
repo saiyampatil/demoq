@@ -31,7 +31,7 @@ const pt = (who, o = {}) => ({
   usual: o.usual ?? 1,
   band: o.band ?? 'Steady',
   reason: 'r',
-  voice: { tone: o.tone ?? 'Even', pace: o.pace ?? 100, usualPace: 100, pitch: o.pitch ?? 5, usualPitch: 5, loudness: 0, reason: 'v' },
+  voice: { tone: o.tone ?? 'Even', pace: o.pace ?? 100, usualPace: 100, pitch: o.pitch ?? 5, usualPitch: 5, loudness: o.loudness ?? 0, reason: 'v' },
   stance: o.stance ?? 'Positive',
   face: o.face === undefined ? { emotion: 'Neutral', intensity: 'Low', confidence: 0.9, cue: 'c', onsetSec: 1 } : o.face === null ? undefined : { emotion: o.face, intensity: 'High', confidence: 0.95, cue: 'c', onsetSec: 1 },
   excerpt: { text: `quote ${who}` },
@@ -171,11 +171,55 @@ const split = (points) => sp.fitSplit(points, {})
   ok('at most the requested number of clips', list.length === 5 && sp.momentsToWatch(reads, 3).length === 3)
   ok('one clip per person', new Set(list.map((x) => x.participantId)).size === list.length)
   ok('the first is the clearest (highest score), then in order', list.every((x, i) => i === 0 || list[i - 1].score >= x.score))
-  ok('each clip carries the measured reason in numbers', list.every((x) => /^Answered \d+\.\d s after the question\. Usual: \d+\.\d s\./.test(x.reason)), list.map((x) => x.reason))
+  // Changed from “every clip starts with Answered x s…”: a reason now prints only the measures that crossed a limit (see the block below).
+  ok('each clip’s reason is made only of measures that fired, and may be empty', list.every((x) => x.reason === sp.measuredReason(x.point)), list.map((x) => x.reason))
   const one = sp.readPeople([pt(1, { at: 10, tone: 'Flat', pace: 80, pitch: 3 }), pt(1, { at: 20, facts: { delaySec: 1, pauseSec: 0, fillers: 0 } })])
   ok('a person with two quotes gives the one that is furthest from their baseline and contradicts their words', sp.momentsToWatch(one, 5)[0].atSec === 10 && sp.momentsToWatch(one, 5).length === 1)
   ok('contradicting the words scores higher than the same distance without', sp.momentScore(pt(1), true) > sp.momentScore(pt(1), false))
-  ok('the reason names the tone when it is not even', /Sounded flat: \d+ words a minute\. Usual: \d+\./.test(sp.measuredReason(pt(1, { tone: 'Flat' }))))
+  ok('a flat voice is explained by its pitch range and loudness, not by pace', (() => { const r = sp.measuredReason(pt(1, { tone: 'Flat', pitch: 2.7, loudness: -2.7 })); return /Voice varied less than usual: pitch range 2\.7 vs their usual 5\./.test(r) && /Quieter than usual by 2\.7 dB\./.test(r) && !/words a minute/.test(r) })())
+}
+
+// ── moment reasons: every number printed maps to a measure that fired ──
+{
+  const R = { delaySec: 2, delayRatio: 1.5, pauseSec: 1.5, fillers: 2 }
+  const V = { tensePace: 1.2, tensePitch: 0.9, flatPitch: 0.75, flatLoudness: -2, animatedPitch: 1.25 }
+  // Written out here again from the thresholds, separately from state/speech.ts: the numbers that SHOULD be printed for a quote.
+  const expectedNumbers = (p) => {
+    const n = []
+    if (p.facts.delaySec >= R.delaySec && p.facts.delaySec >= R.delayRatio * p.usual) n.push(p.facts.delaySec.toFixed(1), p.usual.toFixed(1))
+    if (p.facts.pauseSec >= R.pauseSec) n.push(p.facts.pauseSec.toFixed(1))
+    if (p.facts.fillers >= R.fillers) n.push(String(p.facts.fillers))
+    const v = p.voice
+    const pitchR = v.pitch / v.usualPitch
+    if (v.tone === 'Tense' && v.pace / v.usualPace >= V.tensePace) n.push(String(v.pace), String(v.usualPace))
+    if ((v.tone === 'Tense' && pitchR <= V.tensePitch) || (v.tone === 'Flat' && pitchR <= V.flatPitch) || (v.tone === 'Animated' && pitchR >= V.animatedPitch)) n.push(String(v.pitch), String(v.usualPitch))
+    if (v.tone === 'Flat' && v.loudness <= V.flatLoudness) n.push(String(Math.abs(v.loudness)))
+    return n
+  }
+  const printed = (r) => (r.match(/\d+(?:\.\d+)?/g) ?? [])
+  let moments = 0
+  let empty = 0
+  const bad = []
+  for (const study of ['pet-food-churn', 'ice-cream-flavours']) {
+    const people = ms.acceptedParticipants(study)
+    const doc = cb.seedCodebook(study, people.map(ms.sessionOfParticipant))
+    const basis = cb.basisOf(people.map((p) => ({ id: ms.sessionOfParticipant(p), participantId: p })))
+    const codes = sg.codeSignals(doc, basis)
+    for (const m of [...sg.themeSignals(doc, basis, codes).flatMap((t) => t.moments), ...codes.flatMap((c) => c.moments)]) {
+      moments++
+      const want = expectedNumbers(m.point).sort().join()
+      const got = printed(m.reason).sort().join()
+      if (want !== got) bad.push(`${study} ${m.participantId}: printed ${got || '—'}, fired ${want || '—'}`)
+      if ((m.reason === '') !== (want === '')) bad.push(`${study} ${m.participantId}: empty reason mismatch`)
+      if (m.reason === '') empty++
+    }
+  }
+  ok('every number printed in a moment reason is a measure that fired, and every measure that fired is printed', moments > 50 && bad.length === 0, bad.slice(0, 4))
+  ok('a moment with no measure that fired has no reason line (some do)', empty >= 1, empty)
+  const quiet = pt(1, { facts: { delaySec: 1, pauseSec: 0.2, fillers: 0 } })
+  ok('a calm, even quote has an empty reason', sp.measuredReason(quiet) === '')
+  ok('hesitation signs are printed only when they are signs: delay needs 2 s and 1.5 times usual', sp.measuredReason(pt(1, { facts: { delaySec: 2.4, pauseSec: 0, fillers: 0 }, usual: 1.0 })) === 'Answered 2.4 s after the question. Usual: 1.0 s.' && sp.measuredReason(pt(1, { facts: { delaySec: 2.4, pauseSec: 0, fillers: 0 }, usual: 1.8 })) === '')
+  ok('pace is printed only for a tense voice, where pace itself crossed a limit', /Spoke faster than usual: 140 words a minute vs their usual 100\./.test(sp.measuredReason(pt(1, { tone: 'Tense', pace: 140, pitch: 4 }))) && !/words a minute/.test(sp.measuredReason(pt(1, { tone: 'Flat', pace: 90, pitch: 3, loudness: -3 }))))
 }
 
 // ── the real studies ──
@@ -200,7 +244,7 @@ for (const id of studies) {
   const real = themes.filter((t) => t.kind !== 'none' && t.insight)
   ok(`${id}: every theme insight passes the validator`, real.every((t) => nr.checkNarration(t.insight.sentence).ok), real.map((t) => nr.checkNarration(t.insight.sentence).problems))
   ok(`${id}: the insight and the row use the same N (everyone who raised the theme)`, real.every((t) => t.insight.of === t.people))
-  ok(`${id}: moments are one per person with a measured reason`, themes.every((t) => t.moments.length <= 5 && new Set(t.moments.map((x) => x.participantId)).size === t.moments.length && t.moments.every((x) => x.reason.startsWith('Answered '))))
+  ok(`${id}: moments are one per person with a measured reason`, themes.every((t) => t.moments.length <= 5 && new Set(t.moments.map((x) => x.participantId)).size === t.moments.length && t.moments.every((x) => x.reason === '' || /^[A-Z0-9]/.test(x.reason))))
   ok(`${id}: a code’s “What stood out” is a dash or has at least three people`, codes.every((c) => !c.standout || c.standout.n >= 3))
 }
 
