@@ -35,6 +35,7 @@ import {
 import { plural, renderTemplate, reportModel } from '@/state/reportLogic'
 import { AnalysisStepper } from './AnalysisStepper'
 import { ExecCard, SectionRow, ThemeRows } from './report/Centre'
+import { ConceptRows } from './report/Concepts'
 import { ReviewStudio } from './report/ReviewStudio'
 import { CompareStudio, ComingStudio, ExcludedDialog, ReleaseStudio } from './report/OtherStudios'
 import { Selected } from './report/Side'
@@ -57,6 +58,7 @@ export function Report() {
   const [studio, setStudio] = useState<ToolKey | null>(null)
   const [openSections, setOpenSections] = useState<Set<string> | null>(null)
   const [themesOpen, setThemesOpen] = useState(false)
+  const [conceptsOpen, setConceptsOpen] = useState(false)
   const [excludedOpen, setExcludedOpen] = useState(false)
   const [regenerating, setRegenerating] = useState<string | null>(null)
   const timer = useRef<number | undefined>(undefined)
@@ -255,6 +257,7 @@ export function Report() {
               <SectionRow key={s.id} label={s.label} findings={s.findings} open={sectionsOpen.has(s.id)} onToggle={() => toggle(s.id)} />
             ))}
             <ThemeRows themes={model.themes} open={themesOpen} onToggle={() => setThemesOpen((o) => !o)} />
+            {doc && <ConceptRows doc={doc} basis={basis} studyId={studyId} open={conceptsOpen} onToggle={() => setConceptsOpen((o) => !o)} />}
           </main>
 
           {sel && (

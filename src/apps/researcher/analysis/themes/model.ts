@@ -19,4 +19,6 @@ export type SignalFocus = {
   code?: string
   /** The theme open in the panel (instead of a code). */
   theme?: string
+  /** The concept open in the Concepts tab. */
+  concept?: string
 }

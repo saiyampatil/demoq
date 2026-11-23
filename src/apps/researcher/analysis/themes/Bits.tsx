@@ -227,7 +227,7 @@ export function Tiles({ reads, ctx, code }: { reads: PersonRead[]; ctx: Codebook
   }
   const person = (p: Point, f: FitKey | 'Split') => (
     <li key={p.participantId} data-testid="tile-person" className="flex flex-wrap items-center gap-x-2 gap-y-1 px-2.5 py-1.5 text-xs">
-      <span className="font-medium tabular-nums">{p.participantId}</span>
+      <span className="font-medium whitespace-nowrap tabular-nums">{p.participantId}</span>
       <span className="text-graphite">{segmentLabelOf(p.participantId)}</span>
       <span className="text-graphite" data-testid="tile-reason">{reasonWord(p, f)}</span>
       <span className="ml-auto flex items-center gap-2">
@@ -296,7 +296,7 @@ export function Tiles({ reads, ctx, code }: { reads: PersonRead[]; ctx: Codebook
         <ul className="divide-y divide-mist rounded-sm border border-mist" data-testid="fact-only-people">
           {[...sum.described].sort((a, b) => a.participantId.localeCompare(b.participantId)).map((p) => (
             <li key={p.participantId} data-testid="tile-person" className="flex items-center gap-2 px-2.5 py-1.5 text-xs">
-              <span className="font-medium tabular-nums">{p.participantId}</span>
+              <span className="font-medium whitespace-nowrap tabular-nums">{p.participantId}</span>
               <span className="text-graphite">{segmentLabelOf(p.participantId)}</span>
               <span className="text-graphite">Just described it</span>
               <Link to={playHref(ctx.studyId, p.sessionId, p.atSec)} className="ml-auto inline-flex min-h-6 items-center gap-1 rounded-xs font-medium text-iris-700 hover:underline" aria-label={`Play ${p.participantId} at ${mmss(p.atSec)}`}>
@@ -333,7 +333,7 @@ export function Moments({ moments, studyId, fits }: { moments: MomentToWatch[]; 
       {moments.map((m) => (
         <li key={m.participantId} data-testid="moment" data-person={m.participantId} className="flex flex-col gap-1 py-2.5 first:pt-0 last:pb-0">
           <div className="flex flex-wrap items-center gap-x-2 text-xs text-graphite">
-            <span className="font-medium text-ink tabular-nums">{m.participantId}</span>
+            <span className="font-medium whitespace-nowrap text-ink tabular-nums">{m.participantId}</span>
             <span>{segmentLabelOf(m.participantId)}</span>
             <span className="tabular-nums">{mmss(m.atSec)}</span>
             {fits[m.participantId] && fits[m.participantId] !== 'Split' && <OneFitChip fit={fits[m.participantId] as Fit} against={[]} />}

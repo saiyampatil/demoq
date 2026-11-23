@@ -55,7 +55,8 @@ try {
   // ── the tabs and the header ──
   await fresh()
   const tabs = await ev(`[...document.querySelectorAll('[role=tab]')].map(t=>t.innerText.replace(/\\s+/g,' ').trim().replace(/ \\d+$/,''))`)
-  ok('the tabs are Themes and Tensions, and nothing is called Signals', JSON.stringify(tabs) === JSON.stringify(['Themes', 'Tensions']) && !/\bSignals\b/.test((await ev('document.body.innerText')) ?? ''), tabs)
+  // Changed with the Concepts tab (commit 2B): a study that showed concepts has Themes, Concepts, Tensions.
+  ok('the tabs are Themes, Concepts and Tensions, and nothing is called Signals', JSON.stringify(tabs) === JSON.stringify(['Themes', 'Concepts', 'Tensions']) && !/\bSignals\b/.test((await ev('document.body.innerText')) ?? ''), tabs)
   const head = await text('[data-testid=a2-header]')
   const want = await run(`const m=model(); const t=sg.tensionCounts(m.d); return {a:m.c.decided,b:m.c.total,t:t.toReview}`)
   ok('the header says “{a} of {b} insights decided · {t} tensions to review” from the logic', (await text('[data-testid=insights-progress]')) === `${want.a} of ${want.b} insights decided · ${want.t} ${want.t === 1 ? 'tension' : 'tensions'} to review`, [await text('[data-testid=insights-progress]'), want])
@@ -331,7 +332,10 @@ try {
   ok('L opens the reason to leave it out', (await count('[data-testid=leave-form]')) === 1)
   await ev(`document.getElementById('sttab-themes').focus(); true`)
   await press('ArrowRight')
-  ok('the arrow keys move between the tabs', (await ev(`document.getElementById('sttab-tensions').getAttribute('aria-selected')`)) === 'true')
+  ok('the arrow keys move between the tabs: Right goes to Concepts, then to Tensions', (await ev(`document.getElementById('sttab-concepts').getAttribute('aria-selected')`)) === 'true')
+  await press('ArrowRight')
+  ok('and on to Tensions', (await ev(`document.getElementById('sttab-tensions').getAttribute('aria-selected')`)) === 'true')
+  await press('ArrowLeft')
   await press('ArrowLeft')
   ok('and back', (await ev(`document.getElementById('sttab-themes').getAttribute('aria-selected')`)) === 'true')
 

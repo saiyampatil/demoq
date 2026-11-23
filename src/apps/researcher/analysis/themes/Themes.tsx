@@ -19,7 +19,7 @@ import type { ThemeModel, SignalFocus } from './model'
 import { CodePanel, ThemePanel, type Intent, type Review } from './Panels'
 
 // Fixed widths and a clear gap, so no header label touches the next. Cells line up on the first line of the name.
-const GRID = 'grid grid-cols-[minmax(0,1fr)_4.5rem_9.5rem_7.25rem_7.25rem] items-start gap-x-3'
+const GRID = 'grid grid-cols-[minmax(0,1fr)_4.5rem_9.5rem_7.25rem_8.25rem] items-start gap-x-3'
 type Show = 'All' | 'Needs review'
 
 const themeRef = (p: ThemeSignal): Pick<Theme, 'id' | 'name'> => ({ id: p.id, name: p.name })
@@ -197,7 +197,7 @@ export function ThemesTab({
 
   return (
     <div ref={root} onKeyDown={onKeyDown} className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]">
-      <section aria-label="Themes" data-testid="themes-table" className="min-w-0 overflow-x-auto rounded-md border border-mist bg-surface">
+      <section aria-label="Themes" data-testid="themes-table" className="min-w-0 overflow-x-clip rounded-md border border-mist bg-surface">
         <div className="min-w-[42rem]">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-mist px-3 py-1">
             <HowToRead />
@@ -262,7 +262,7 @@ export function ThemesTab({
                       <button type="button" onClick={() => openTheme(p.id)} data-testid="theme-verdict" aria-label={`Open ${p.name}`} className="relative z-10 -my-3 inline-flex min-h-11 cursor-pointer items-center self-start rounded-xs"><FitChip pattern={p.verdict} /></button>
                       <span className="relative z-10 -my-3 flex min-h-11 items-center" data-testid="status-cell"><InsightStatusChip status={status} /></span>
                       {canAccept && (
-                        <Button size="sm" variant="secondary" className="absolute right-3 bottom-2.5 z-10 w-[7.25rem] opacity-0 transition-opacity duration-150 group-focus-within:opacity-100 group-hover:opacity-100 focus:opacity-100 motion-reduce:transition-none" onClick={() => { openTheme(p.id); accept(p, !!queue) }} data-testid="row-accept" aria-label={`Accept ${p.name}`}>Accept</Button>
+                        <Button size="sm" variant="secondary" className="absolute right-3 bottom-2.5 z-10 w-[8.25rem] opacity-0 transition-opacity duration-150 group-focus-within:opacity-100 group-hover:opacity-100 focus:opacity-100 motion-reduce:transition-none" onClick={() => { openTheme(p.id); accept(p, !!queue) }} data-testid="row-accept" aria-label={`Accept ${p.name}`}>Accept</Button>
                       )}
                     </div>
                     {isOpen && <ul className="pb-1">{codesOf(p).map((c) => codeRow(c, p.id))}</ul>}

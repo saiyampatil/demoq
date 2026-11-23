@@ -9,28 +9,30 @@ import { screenById, studyPath } from '@/routes/screens'
 import { signalsReadiness } from '@/state/analysisProgress'
 import { CODEBOOK_STUDY, updateCodebook } from '@/state/codebook'
 import { coverage, plural, tensionCounts, tensionsOf } from '@/state/signals'
+import { conceptRows } from '@/state/concepts'
 import { PageHeader } from '../../shared/PageHeader'
 import { ExploreControl } from './explore/ExploreControl'
 import { AnalysisStepper } from './AnalysisStepper'
 import { ContinueBar } from './ContinueBar'
+import { ConceptsTab } from './concepts/Concepts'
 import { ThemesTab } from './themes/Themes'
 import { useThemeModel, type SignalFocus } from './themes/model'
 import { TensionsTab, type TensionFilter } from './TensionsTab'
 import type { CodebookCtx } from './codebookCtx'
 import { useAnalysis } from './useAnalysis'
 
-const TABS = [
+const ALL_TABS = [
   { key: 'themes', label: 'Themes' },
+  { key: 'concepts', label: 'Concepts' },
   { key: 'tensions', label: 'Tensions' },
 ] as const
-type Tab = (typeof TABS)[number]['key']
+type Tab = (typeof ALL_TABS)[number]['key']
 
 /** A2: how people sounded against what they said, and where that doesn't match. Read on the codes accepted in the codebook. */
 export function SignalsTensions() {
   const { studyId, study, review, me, accepted, doc, basis, stale, ready } = useAnalysis()
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
-  const tab = (TABS.find((t) => t.key === params.get('tab'))?.key ?? 'themes') as Tab
   const [loaded, setLoaded] = useState(false)
   const [failed, setFailed] = useState(params.get('demo') === 'error')
   const [filter, setFilter] = useState<TensionFilter>('Suggested')
@@ -46,6 +48,10 @@ export function SignalsTensions() {
 
   const tensions = useMemo(() => (doc ? tensionsOf(doc, basis) : []), [doc, basis])
   const model = useThemeModel(doc, basis)
+  const concepts = useMemo(() => (doc ? conceptRows(doc, basis) : undefined), [doc, basis])
+  // The Concepts tab only exists when the study showed concepts.
+  const TABS = ALL_TABS.filter((t) => t.key !== 'concepts' || !!concepts)
+  const tab = (TABS.find((t) => t.key === params.get('tab'))?.key ?? 'themes') as Tab
 
   if (!study) return null
   const excluded = review.filter((r) => r.status === 'Excluded').length
@@ -139,7 +145,7 @@ export function SignalsTensions() {
             {plural(t.toReview, 'tension')} to review
           </button>
         </p>
-        <CoverageLine cov={cov} />
+        <CoverageLine cov={cov} concepts={concepts?.coverage} />
       </div>
 
       <div>
@@ -157,6 +163,11 @@ export function SignalsTensions() {
               className={cn('-mb-px flex min-h-11 items-center gap-1.5 border-b-2 px-3 text-sm font-medium', tab === x.key ? 'border-ink text-ink' : 'border-transparent text-graphite hover:text-ink')}
             >
               {x.label}
+              {x.key === 'concepts' && concepts && concepts.rows.filter((r) => r.line && (r.decision.status === 'Suggested' || r.decision.status === 'Out of date')).length > 0 && (
+                <span className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-pending-bg px-1 text-[11px] font-semibold text-pending-fg" aria-label="concept lines to decide" data-testid="concepts-badge">
+                  {concepts.rows.filter((r) => r.line && (r.decision.status === 'Suggested' || r.decision.status === 'Out of date')).length}
+                </span>
+              )}
               {x.key === 'tensions' && t.toReview > 0 && (
                 <span className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-pending-bg px-1 text-[11px] font-semibold text-pending-fg" aria-label={`${t.toReview} to review`} data-testid="tensions-badge">
                   {t.toReview}
@@ -178,6 +189,7 @@ export function SignalsTensions() {
               onOpenTension={openTension}
             />
           )}
+          {tab === 'concepts' && concepts && <ConceptsTab ctx={ctx} model={concepts} selected={focus.concept} setSelected={(id) => setFocus({ concept: id })} tensions={tensions} onOpenTension={openTension} />}
           {tab === 'tensions' && <TensionsTab ctx={ctx} filter={filter} setFilter={setFilter} focusId={focusTension} onSeeSignals={seeThemes} onContinue={() => navigate(toReportPath)} />}
         </div>
       </div>
@@ -201,11 +213,12 @@ export function SignalsTensions() {
 }
 
 /** What the readings are measured on, in one quiet line, so nobody reads more into them than is there. */
-function CoverageLine({ cov }: { cov: ReturnType<typeof coverage> }) {
+function CoverageLine({ cov, concepts }: { cov: ReturnType<typeof coverage>; concepts?: { read: number; people: number; audioOnly: number } }) {
   return (
     <p className="text-xs text-graphite tabular-nums" data-testid="coverage">
       Speech read for {cov.sessions} of {cov.sessions}
       {cov.audioOnly > 0 && ` · ${cov.audioOnly} audio-only, read on speech`}
+      {concepts && <span data-testid="concept-coverage-line"> · Faces read at concept reveals for {concepts.read} of {concepts.people} ({concepts.audioOnly} audio-only)</span>}
       {cov.excluded > 0 && ` · ${cov.excluded} excluded in Review are left out`}
     </p>
   )

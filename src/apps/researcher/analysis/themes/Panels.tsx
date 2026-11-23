@@ -13,7 +13,8 @@ import { verdictLabel } from '@/config/delivery'
 import { formatDate } from '@/lib/format'
 import { dataVersionOf, setCodeOverride, type CodebookDoc } from '@/state/codebook'
 import { TOO_FEW_TIP, type PersonFit, checkInsightEdit, codeStance, insightOf, speechEvidence } from '@/state/speech'
-import { plural, themeInsight, type CodeSignal, type Tension, type ThemeSignal } from '@/state/signals'
+import { textSignalsOf } from '@/state/concepts'
+import { plural, themeInsight, type CodeSignal, type InsightStatus, type Tension, type ThemeSignal } from '@/state/signals'
 import type { CodebookCtx } from '../codebookCtx'
 import { FitChip } from '../SignalBits'
 import { InsightStatusChip, Moments, SentenceWithN, StanceTag, Tiles } from './Bits'
@@ -24,8 +25,8 @@ const fitsOf = (reads: { participantId: string; fit?: PersonFit }[]) => Object.f
 /** What a keyboard shortcut or a button asked a panel to start. `n` changes every time, so asking twice works. */
 export type Intent = { theme: string; kind: 'edit' | 'leave'; n: number }
 
-const H = ({ children }: { children: React.ReactNode }) => <h3 className="text-xs font-semibold text-ink">{children}</h3>
-const Section = ({ label, testid, aside, children }: { label: string; testid: string; aside?: React.ReactNode; children: React.ReactNode }) => (
+export const H = ({ children }: { children: React.ReactNode }) => <h3 className="text-xs font-semibold text-ink">{children}</h3>
+export const Section = ({ label, testid, aside, children }: { label: string; testid: string; aside?: React.ReactNode; children: React.ReactNode }) => (
   <section aria-label={label} data-testid={testid} className="flex flex-col gap-2 border-b border-mist px-5 py-4">
     <div className="flex items-center justify-between gap-2">
       <H>{label}</H>
@@ -36,22 +37,23 @@ const Section = ({ label, testid, aside, children }: { label: string; testid: st
 )
 
 /** "Accepted by Maya Ortiz · Oct 22, 2026 · data v2", or what is true instead. */
-function approvalLine(prof: ThemeSignal, doc: CodebookDoc): string {
-  const d = doc.insights?.[prof.id]
-  const s = prof.decision.status
+export function approvalFor(id: string, s: InsightStatus, doc: CodebookDoc): string {
+  const d = doc.insights?.[id]
   if (s === 'Nothing to decide') return d?.status === 'Left out' ? `Left out by ${d.by} · ${formatDate(d.at)} · data v${d.dataVersion}` : TOO_FEW_TIP
   if (!d || s === 'Suggested') return 'Not decided yet'
   const verb = d.status === 'Left out' ? 'Left out' : d.status === 'Edited' ? 'Edited and accepted' : 'Accepted'
   return `${verb} by ${d.by} · ${formatDate(d.at)} · data v${d.dataVersion}${s === 'Out of date' ? ' · out of date' : ''}`
 }
 
+const approvalLine = (prof: ThemeSignal, doc: CodebookDoc) => approvalFor(prof.id, prof.decision.status, doc)
+
 /** The tensions that draw on a theme's codes: accepted first, then those still to review. Each is a link to its card. */
-function tensionsOn(tensions: Tension[], codeIds: Set<string>) {
+export function tensionsOn(tensions: Tension[], codeIds: Set<string>) {
   const mine = tensions.filter((t) => !t.unavailable && t.codeIds.some((id) => codeIds.has(id)))
   return [...mine.filter((t) => t.status === 'Added as a tension theme'), ...mine.filter((t) => t.status === 'Suggested')]
 }
 
-function TensionLinks({ list, onOpenTension }: { list: Tension[]; onOpenTension: (id: string) => void }) {
+export function TensionLinks({ list, onOpenTension }: { list: Tension[]; onOpenTension: (id: string) => void }) {
   if (!list.length) return <p className="text-sm text-graphite" data-testid="tensions-none">No tensions on this.</p>
   return (
     <ul className="flex flex-col gap-1.5" data-testid="theme-tensions">
@@ -62,6 +64,72 @@ function TensionLinks({ list, onOpenTension }: { list: Tension[]; onOpenTension:
         </li>
       ))}
     </ul>
+  )
+}
+
+/** The sticky bar at the bottom of a panel: Accept (primary), Edit and Leave out, the reason form for leaving out, and why it was left out. */
+export function DecisionBar({
+  status,
+  tooFew,
+  accepted,
+  acceptLabel,
+  mode,
+  why,
+  setWhy,
+  leftOutWhy,
+  onAccept,
+  onEdit,
+  onLeave,
+  onLeaveConfirm,
+  onCancel,
+  blockedTip = TOO_FEW_TIP,
+}: {
+  status: InsightStatus
+  tooFew: boolean
+  accepted: boolean
+  acceptLabel: string
+  mode: 'view' | 'edit' | 'leave'
+  why: string
+  setWhy: (v: string) => void
+  leftOutWhy?: string
+  onAccept: () => void
+  onEdit: () => void
+  onLeave: () => void
+  onLeaveConfirm: () => void
+  onCancel: () => void
+  /** Why Accept and Edit are off when there is nothing to decide. */
+  blockedTip?: string
+}) {
+  return (
+    <div aria-label="Decision" role="group" data-testid="decision" className="flex flex-col gap-3 border-t border-mist bg-surface px-5 py-3">
+      <div className="flex flex-wrap items-center gap-2" data-testid="actions">
+        {tooFew ? (
+          <Tooltip content={blockedTip} focusable align="left">
+            <Button size="sm" variant="primary" disabled data-testid="accept">{acceptLabel}</Button>
+          </Tooltip>
+        ) : (
+          <Button size="sm" variant="primary" disabled={accepted} onClick={onAccept} data-testid="accept">{accepted ? 'Accepted' : acceptLabel}</Button>
+        )}
+        {tooFew ? (
+          <Tooltip content={blockedTip} focusable align="left">
+            <Button size="sm" disabled data-testid="edit">Edit</Button>
+          </Tooltip>
+        ) : (
+          <Button size="sm" onClick={onEdit} data-testid="edit">Edit</Button>
+        )}
+        <Button size="sm" onClick={onLeave} disabled={status === 'Left out'} data-testid="leave-out">Leave out</Button>
+      </div>
+      {mode === 'leave' && (
+        <div className="flex flex-col gap-2" data-testid="leave-form">
+          <TextArea aria-label="Reason for leaving it out" value={why} onChange={(e) => setWhy(e.target.value)} rows={2} data-testid="leave-why" autoFocus hint={tooFew ? 'A reason is needed when there is nothing to decide.' : 'A reason is optional.'} />
+          <div className="flex gap-2">
+            <Button size="sm" variant="primary" disabled={tooFew && !why.trim()} onClick={onLeaveConfirm} data-testid="leave-confirm">Leave out</Button>
+            <Button size="sm" variant="ghost" onClick={onCancel}>Cancel</Button>
+          </div>
+        </div>
+      )}
+      {status === 'Left out' && leftOutWhy && <p className="text-xs text-graphite" data-testid="left-out-why">Reason: {leftOutWhy}</p>}
+    </div>
   )
 }
 
@@ -108,6 +176,12 @@ export function ThemePanel({
   const problems = mode === 'edit' && computed ? checkInsightEdit(text, computed) : []
 
   // A shortcut or a button elsewhere asked for this.
+  // Reset first, so a request made as the panel opens (a shortcut on another row) is not undone by it.
+  useEffect(() => {
+    setNote(doc.insightNotes?.[prof.id] ?? '')
+    setMode('view')
+  }, [prof.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     if (!intent || intent.theme !== prof.id) return
     if (intent.kind === 'edit' && !tooFew) {
@@ -119,10 +193,6 @@ export function ThemePanel({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [intent?.n])
-  useEffect(() => {
-    setNote(doc.insightNotes?.[prof.id] ?? '')
-    setMode('view')
-  }, [prof.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const codeIds = new Set(prof.codes.map((c) => c.code.id))
   const accepted = status === 'Accepted' || status === 'Edited'
@@ -216,35 +286,7 @@ export function ThemePanel({
           <TextArea aria-label="Your note on this theme" value={note} onChange={(e) => setNote(e.target.value)} onBlur={() => onNote(note)} rows={2} data-testid="note" hint="Kept apart from the insight. It is never part of the sentence." />
         </section>
       </div>
-    <div aria-label="Decision" role="group" data-testid="decision" className="flex flex-col gap-3 border-t border-mist bg-surface px-5 py-3">
-      <div className="flex flex-wrap items-center gap-2" data-testid="actions">
-        {tooFew ? (
-          <Tooltip content={TOO_FEW_TIP} focusable align="left">
-            <Button size="sm" variant="primary" disabled data-testid="accept">{acceptLabel}</Button>
-          </Tooltip>
-        ) : (
-          <Button size="sm" variant="primary" disabled={accepted} onClick={onAccept} data-testid="accept">{accepted ? 'Accepted' : acceptLabel}</Button>
-        )}
-        {tooFew ? (
-          <Tooltip content={TOO_FEW_TIP} focusable align="left">
-            <Button size="sm" disabled data-testid="edit">Edit</Button>
-          </Tooltip>
-        ) : (
-          <Button size="sm" onClick={() => { setText(shown ?? ''); setMode('edit') }} data-testid="edit">Edit</Button>
-        )}
-        <Button size="sm" onClick={() => { setWhy(''); setMode('leave') }} disabled={status === 'Left out'} data-testid="leave-out">Leave out</Button>
-      </div>
-      {mode === 'leave' && (
-        <div className="flex flex-col gap-2" data-testid="leave-form">
-          <TextArea aria-label="Reason for leaving it out" value={why} onChange={(e) => setWhy(e.target.value)} rows={2} data-testid="leave-why" autoFocus hint={tooFew ? 'A reason is needed when there are too few people.' : 'A reason is optional.'} />
-          <div className="flex gap-2">
-            <Button size="sm" variant="primary" disabled={tooFew && !why.trim()} onClick={() => { onLeaveOut(why); setMode('view') }} data-testid="leave-confirm">Leave out</Button>
-            <Button size="sm" variant="ghost" onClick={() => setMode('view')}>Cancel</Button>
-          </div>
-        </div>
-      )}
-      {status === 'Left out' && decision?.why && <p className="text-xs text-graphite" data-testid="left-out-why">Reason: {decision.why}</p>}
-    </div>
+      <DecisionBar status={status} tooFew={tooFew} accepted={accepted} acceptLabel={acceptLabel} mode={mode} why={why} setWhy={setWhy} leftOutWhy={decision?.why} onAccept={onAccept} onEdit={() => { setText(shown ?? ''); setMode('edit') }} onLeave={() => { setWhy(''); setMode('leave') }} onLeaveConfirm={() => { onLeaveOut(why); setMode('view') }} onCancel={() => setMode('view')} />
       <footer className="border-t border-mist bg-paper px-5 py-3 text-xs text-graphite tabular-nums" data-testid="approval-line">{approvalLine(prof, doc)}</footer>
     </section>
   )
@@ -270,6 +312,7 @@ export function CodePanel({
   const { doc } = ctx
   const insight = insightOf(s.reads)
   const evidence = speechEvidence(s.reads)
+  const signals = textSignalsOf(s.code, doc, ctx.basis)
   const mine = tensionsOn(tensions, new Set([s.code.id]))
   const themeAccepted = theme?.decision.status === 'Accepted' || theme?.decision.status === 'Edited'
   const override = doc.codeOverrides?.[s.code.id]
@@ -301,6 +344,23 @@ export function CodePanel({
                   <span className="font-semibold tabular-nums" data-testid="evidence-count">{e.n} of {e.of} people</span>
                 </div>
                 <p className="text-xs text-graphite" data-testid="evidence-baseline">{e.baseline}</p>
+              </li>
+            ))}
+          </ul>
+        </Section>
+
+        <Section label="What the transcripts show" testid="observations">
+          <ul className="flex flex-col divide-y divide-mist" data-testid="observation-lines">
+            {([
+              { key: 'hedged', label: 'Hedged', m: signals.hedged, baseline: 'Said with words like “maybe” or “I think”.' },
+              { key: 'raised', label: 'Raised before asked', m: signals.raised, baseline: 'Brought up before the guide asked about it.' },
+            ] as const).map((o) => (
+              <li key={o.key} data-testid={`observation-${o.key}`} data-n={o.m.n} data-of={o.m.of} className="flex flex-col gap-0.5 py-2 first:pt-0 last:pb-0">
+                <div className="flex items-baseline justify-between gap-3 text-sm">
+                  <span>{o.label}</span>
+                  <span className="font-semibold tabular-nums" data-testid="observation-count">{o.m.n} of {o.m.of} people</span>
+                </div>
+                <p className="text-xs text-graphite">{o.baseline} Never part of the verdict.</p>
               </li>
             ))}
           </ul>

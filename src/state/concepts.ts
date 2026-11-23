@@ -191,7 +191,7 @@ export function conceptNow(r: ConceptResult, sentence: string | null): InsightNo
 export type ConceptRow = ConceptResult & { key: string; line: string | null; now: InsightNow; decision: ReturnType<typeof insightStatus> }
 
 /** Every concept of a study with its line and where the Researcher's decision on it stands. */
-export function conceptRows(doc: CodebookDoc, basis: Basis): { rows: ConceptRow[]; coverage: Coverage; input: ConceptInput; hasChoiceTask: boolean } | undefined {
+export function conceptRows(doc: CodebookDoc, basis: Basis): { rows: ConceptRow[]; coverage: Coverage; input: ConceptInput; hasChoiceTask: boolean; defs: ConceptDef[] } | undefined {
   const input = conceptInputOf(doc, basis)
   if (!input) return undefined
   const rows = computeConcepts(input).map((r): ConceptRow => {
@@ -200,7 +200,7 @@ export function conceptRows(doc: CodebookDoc, basis: Basis): { rows: ConceptRow[
     const key = `concept:${r.id}`
     return { ...r, key, line, now, decision: insightStatus(doc.insights?.[key], now) }
   })
-  return { rows, coverage: coverageOf(input), input, hasChoiceTask: input.hasChoiceTask }
+  return { rows, coverage: coverageOf(input), input, hasChoiceTask: input.hasChoiceTask, defs: conceptStudyOf(doc.studyId)!.concepts }
 }
 
 // ─── the clips ──────────────────────────────────────────────────────────────
