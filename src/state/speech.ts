@@ -314,12 +314,12 @@ export function insightStatus(decision: InsightDecision | undefined, now: Insigh
  * An edit changes the wording only. The numbers are locked to the computed sentence, and the wording must pass the same rules as
  * every narrated line (one base, no percentages, plain words). Returns what is wrong, or nothing.
  */
-export function checkInsightEdit(text: string, computed: string): string[] {
+export function checkInsightEdit(text: string, computed: string, opts: { figuresAllowed?: number; maxWords?: number } = {}): string[] {
   const digits = (t: string) => (t.match(/\d+/g) ?? []).sort().join(',')
   const problems: string[] = []
   if (!text.trim()) return ['Write a sentence']
   if (digits(text) !== digits(computed)) problems.push('The numbers are locked. Change the wording, not the figures')
-  problems.push(...checkNarration(text).problems)
+  problems.push(...checkNarration(text, opts).problems)
   const f = figures(text)
   if (f.length === 0 && /\d/.test(computed) && figures(computed).length > 0) problems.push('Keep the “n of N” figure')
   return problems
