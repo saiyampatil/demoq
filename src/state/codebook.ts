@@ -628,6 +628,8 @@ type InsightNowArg = { text: string; fingerprint: string; snap: InsightSnap }
 const insightEntry = (by: string, t: Pick<Theme, 'id' | 'name'>, action: string, detail?: string, why?: string) => themeEntry(by, t, action, detail, why)
 
 function decide(d: CodebookDoc, theme: Pick<Theme, 'id' | 'name'>, now_: InsightNowArg, status: InsightDecision['status'], text: string, { by }: Who, why?: string): CodebookDoc {
+  // Too few people to read a pattern (no sentence): nothing to accept or edit, and leaving it out needs a reason.
+  if (!now_.text && (status !== 'Left out' || !why?.trim())) return d
   const decision: InsightDecision = { status, by, at: now(), text, original: now_.text, fingerprint: now_.fingerprint, snap: now_.snap, dataVersion: dataVersionOf(d), ...(why?.trim() ? { why: why.trim() } : {}) }
   return log({ ...d, insights: { ...(d.insights ?? {}), [theme.id]: decision } }, insightEntry(by, theme, `Insight ${status.toLowerCase()}`, status === 'Left out' ? undefined : `“${text}”`, why))
 }

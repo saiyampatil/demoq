@@ -9,7 +9,8 @@
 //   For it: a Flat or Tense voice is No match. Against it: an Animated voice is No match. Marked hesitation with nothing
 //   else off is Hesitant, never No match. Otherwise Matched.
 // - A person counts once per theme or code. With several positions, more than half No match is No match, more than half
-//   Matched is Matched, otherwise Hesitant. Exactly half is never "more than half".
+//   Matched is Matched. Otherwise, with nothing contradicting, they are Hesitant; with some positions contradicting and no side
+//   ahead, they are Split across codes: in the base, never Matched, No match or Hesitant. Exactly half is never "more than half".
 // - A row's verdict is the same rule over the people with a position. Thresholds are in src/config/delivery.ts.
 
 import { DELIVERY, VERDICT_LABEL } from '@/config/delivery'
@@ -20,6 +21,8 @@ import { hash } from './hash'
 import { checkNarration, figures } from './narration'
 
 export type Fit = 'Matches' | 'Pulls against' | 'Uncertain'
+/** A person's one result. "Split" is only for a person whose positions across codes point both ways and neither side is ahead. */
+export type PersonFit = Fit | 'Split'
 export type Side = 'Positive' | 'Negative'
 /** Delivery has one channel now. Kept as a type so a result still says where a "no match" came from. */
 export type Channel = 'Speech'
@@ -70,7 +73,7 @@ export type PersonRead = {
   /** Which side they spoke on (the larger number of positions; a tie takes their earliest). Absent when they just described it. */
   side?: Side
   /** Did their delivery match, once for the person. Absent when they just described it. */
-  fit?: Fit
+  fit?: PersonFit
   /** More than half of their positions showed marked hesitation. */
   hesitated: boolean
   /** More than half of their positions sounded wrong for their words: flat or tense for it, animated against. */
@@ -96,7 +99,8 @@ export function readPeople(points: Point[], doc?: Pick<CodebookDoc, 'stanceFixes
     const count = (f: Fit) => positions.filter((x) => x.fit === f).length
     const pos = positions.filter((x) => x.stance === 'Positive').length
     const side: Side | undefined = !n ? undefined : pos * 2 > n ? 'Positive' : pos * 2 < n ? 'Negative' : positions[0].stance
-    const fit: Fit | undefined = !n ? undefined : more(count('Pulls against'), n) ? 'Pulls against' : more(count('Matches'), n) ? 'Matches' : 'Uncertain'
+    // Neither side ahead: with nothing contradicting, hesitation is what is left (Hesitant); with something contradicting, they split.
+    const fit: PersonFit | undefined = !n ? undefined : more(count('Pulls against'), n) ? 'Pulls against' : more(count('Matches'), n) ? 'Matches' : count('Pulls against') === 0 ? 'Uncertain' : 'Split'
     // The quote that stands for them: delivery matched least, then hesitated most, then earliest.
     const rankOf = (p: Point) => (n ? FIT_RANK[fitOf(p).fit ?? 'Matches'] : 0)
     const clearest = [...(n ? positions.map((x) => x.point) : all)].sort((a, b) => rankOf(b) - rankOf(a) || bandRank(b.band) - bandRank(a.band) || a.atSec - b.atSec)[0]
@@ -112,15 +116,18 @@ export function readPeople(points: Point[], doc?: Pick<CodebookDoc, 'stanceFixes
       tone: clearest.voice.tone,
     }
   })
-  const rank = (r: PersonRead) => (r.fit ? FIT_RANK[r.fit] : 0)
+  const rank = (r: PersonRead) => (r.fit ? FIT_RANK[r.fit === 'Split' ? 'Uncertain' : r.fit] : 0)
   return reads.sort((a, b) => rank(b) - rank(a) || bandRank(b.point.band) - bandRank(a.point.band) || a.participantId.localeCompare(b.participantId))
 }
 
 // ─── a verdict ──────────────────────────────────────────────────────────────
 
 export type FitPattern = 'Consistent' | 'Mixed' | 'Conflicting' | 'Too few to read' | 'No claim'
-/** `fits` is the Matched people, `uncertain` the Hesitant, `against` the No match; `n` is everyone with a position. */
-export type FitSplit = { fits: number; uncertain: number; against: number; n: number; pattern: FitPattern }
+/**
+ * `fits` is the Matched people, `uncertain` the Hesitant, `against` the No match, `split` the people split across codes;
+ * `n` is everyone with a position, split people included, so they can only make a verdict Mixed, never Consistent or Gap.
+ */
+export type FitSplit = { fits: number; uncertain: number; against: number; split: number; n: number; pattern: FitPattern }
 /** The rule for a verdict, from config. */
 export const FIT_RULE = { min: DELIVERY.minPeople, majority: DELIVERY.majority }
 
@@ -129,9 +136,10 @@ export function fitSplitOf(reads: PersonRead[]): FitSplit {
   const n = claim.length
   const against = claim.filter((r) => r.fit === 'Pulls against').length
   const uncertain = claim.filter((r) => r.fit === 'Uncertain').length
-  const matches = n - against - uncertain
+  const split = claim.filter((r) => r.fit === 'Split').length
+  const matches = n - against - uncertain - split
   const pattern: FitPattern = reads.length < FIT_RULE.min ? 'Too few to read' : !n ? 'No claim' : n < FIT_RULE.min ? 'Too few to read' : more(against, n) ? 'Conflicting' : more(matches, n) ? 'Consistent' : 'Mixed'
-  return { fits: matches, uncertain, against, n, pattern }
+  return { fits: matches, uncertain, against, split, n, pattern }
 }
 /** The verdict over a set of quotes, from everyone's one reading. */
 export const fitSplit = (points: Point[], doc?: Pick<CodebookDoc, 'stanceFixes'>): FitSplit => fitSplitOf(readPeople(points, doc))
@@ -254,7 +262,7 @@ export function momentsToWatch(reads: PersonRead[], max: number): MomentToWatch[
 
 // ─── decisions on an insight ────────────────────────────────────────────────
 
-export type InsightStatus = 'Suggested' | 'Accepted' | 'Edited' | 'Left out' | 'Out of date'
+export type InsightStatus = 'Suggested' | 'Accepted' | 'Edited' | 'Left out' | 'Out of date' | 'Nothing to decide'
 /** What a theme's insight is made from right now, for a decision to be compared against later. */
 export type InsightNow = { text: string; fingerprint: string; snap: InsightSnap }
 
@@ -266,10 +274,12 @@ export function insightNow(codeIds: string[], reads: PersonRead[], insight: Insi
   return { text, fingerprint: hash(JSON.stringify({ c: [...codeIds].sort(), r: rows, t: text })), snap: { n, of: reads.length, verdict: VERDICT_LABEL[verdict], text } }
 }
 
-/** Where a decision stands: Out of date when what it was made from has moved since it was accepted or edited. A left-out insight stays left out. */
+/** Where a decision stands: Out of date when what it was made from has moved since it was accepted or edited. A left-out insight stays left out. Under 3 people: Nothing to decide. */
 export function insightStatus(decision: InsightDecision | undefined, now: InsightNow): { status: InsightStatus; was?: InsightSnap; now?: InsightSnap } {
+  if (decision?.status === 'Left out') return { status: 'Left out' }
+  // Too few people to read a pattern: nothing to accept. It can still be left out, with a reason.
+  if (!now.text) return { status: 'Nothing to decide' }
   if (!decision) return { status: 'Suggested' }
-  if (decision.status === 'Left out') return { status: 'Left out' }
   if (decision.fingerprint !== now.fingerprint) return { status: 'Out of date', was: decision.snap, now: now.snap }
   return { status: decision.status }
 }
@@ -288,3 +298,6 @@ export function checkInsightEdit(text: string, computed: string): string[] {
   if (f.length === 0 && /\d/.test(computed) && figures(computed).length > 0) problems.push('Keep the “n of N” figure')
   return problems
 }
+
+/** Why Accept is off when there are too few people. */
+export const TOO_FEW_TIP = 'Too few people to read a pattern'

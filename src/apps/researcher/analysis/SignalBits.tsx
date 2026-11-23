@@ -312,7 +312,7 @@ export function HowItsDecided() {
 }
 
 /** One word for why a person matched, did not match, or was hesitant: the tone, or "Hesitated". */
-const reasonWord = (p: Point, fit: FitKey) => (fit === 'Uncertain' ? 'Hesitated' : p.voice.tone)
+const reasonWord = (p: Point, fit: FitKey | 'Split') => (fit === 'Split' ? 'Split across codes' : fit === 'Uncertain' ? 'Hesitated' : p.voice.tone)
 
 /**
  * What people said, in one sentence, then "Did their delivery match their words?" and the tiles Matched · No match · Hesitant. Two sides
@@ -367,10 +367,15 @@ export function DeliveryFigures({ reads, ctx, what }: { reads: PersonRead[]; ctx
                 </button>
               ))}
             </dl>
+            {g.split.length > 0 && (
+              <p className="text-xs text-graphite" data-testid="split-line">
+                {g.split.length} split across codes
+              </p>
+            )}
             {listed.length > 0 && open?.side === key && (
               <ul className="divide-y divide-mist rounded-sm border border-mist" data-testid="tile-people" data-for={open.fit ?? 'all'}>
                 {listed.map((p) => {
-                  const f = g.fits[p.participantId] as FitKey
+                  const f = g.fits[p.participantId] as FitKey | 'Split'
                   return (
                     <li key={p.participantId} data-testid="tile-person" className="flex items-center gap-2 px-2.5 py-1.5 text-xs">
                       <span className="font-medium tabular-nums">{p.participantId}</span>

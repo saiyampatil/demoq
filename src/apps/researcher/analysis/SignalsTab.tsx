@@ -219,9 +219,9 @@ function ByCode({ ctx, signals, focus, setFocus, tensions, onOpenTension, onOpen
                     </span>
                     {prof && (
                       <>
-                        <button type="button" onClick={() => setFocus({ theme: g.id })} data-testid="theme-verdict" aria-label={`Open ${g.name}: ${verdictLabel(prof.verdict)}`} className="cursor-pointer self-center rounded-xs">
+                        {g.id !== 'none' && <button type="button" onClick={() => setFocus({ theme: g.id })} data-testid="theme-verdict" aria-label={`Open ${g.name}: ${verdictLabel(prof.verdict)}`} className="cursor-pointer self-center rounded-xs">
                           <FitChip pattern={prof.verdict} />
-                        </button>
+                        </button>}
                         <span className="text-xs text-graphite tabular-nums" data-testid="theme-said-by">
                           Said by {prof.people} of {prof.of}
                         </span>
@@ -456,6 +456,19 @@ function ThemePanel({ g, prof, ctx, tensions, onCode, onOpenTension, onOpenTensi
   const mine = tensions.filter((t) => !t.unavailable && t.codeIds.some((id) => ids.has(id)))
   const added = mine.filter((t) => t.status === 'Added as a tension theme')
   const review = mine.filter((t) => t.status === 'Suggested')
+  // Accepted codes in no theme: their numbers are worked out (the Theme map reads them) but no verdict, insight, moments or Accept is shown.
+  if (g.id === 'none')
+    return (
+      <section aria-label={`Signals for the theme ${g.name}`} data-testid="theme-panel" data-theme={g.id} className="flex flex-col rounded-md border border-mist bg-surface">
+        <header className="px-5 py-4">
+          <h2 className="text-lg leading-snug font-semibold" data-testid="theme-panel-name">{g.name}</h2>
+          <p className="mt-1 text-sm text-graphite" data-testid="theme-panel-none">
+            {plural(g.rows.length, 'code')} {g.rows.length === 1 ? 'isn’t' : 'aren’t'} in a theme yet. Group {g.rows.length === 1 ? 'it' : 'them'} in the codebook.
+          </p>
+        </header>
+        <PanelFooter />
+      </section>
+    )
   return (
     <section aria-label={`Signals for the theme ${g.name}`} data-testid="theme-panel" data-theme={g.id} className="flex max-h-[calc(100vh-8rem)] flex-col rounded-md border border-mist bg-surface">
       <div className="flex-1 overflow-y-auto">

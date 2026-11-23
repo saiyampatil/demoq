@@ -32,6 +32,15 @@ const LABEL_OF = { Consistent: 'Consistent', Mixed: 'Mixed', Conflicting: 'Gap',
 
 try {
   await b.goto('/researcher'); await b.evaluate('localStorage.clear(); sessionStorage.clear(); true')
+  // With the speech-only verdict neither seed theme has a code to check, so accept the AI's theme suggestions first: that groups the
+  // Mixed and Gap codes (flexibility, pause, schedule) into themes, which is what “Codes to check” and the “← theme” link need.
+  await b.goto(`${root}/codebook?tab=themes`); await b.waitFor('New theme'); await b.sleep(600)
+  // One at a time, stopping as soon as some theme has a code to check, so the “Not in a theme” group is still there to test.
+  for (let k = 0; k < 8; k++) {
+    if (await run(`return themes.some(t=>t.kind==='theme'&&sg.themeInsight(t).check.length>0)`)) break
+    if (!(await b.evaluate(`(()=>{const e=document.querySelector('[data-testid=theme-suggestion] [data-testid=accept-theme]');if(!e)return false;e.click();return true})()`))) break
+    await b.sleep(700)
+  }
   await b.goto(`${root}/signals`); await b.waitFor('Words vs delivery'); await b.sleep(900)
 
   // ── the data the page should show, worked out here from the theme profiles ──
@@ -51,8 +60,8 @@ try {
   ok('no theme panel is open on load (the code panel is, as before)', (await count('[data-testid=theme-panel]')) === 0 && (await count('[data-testid=signal-panel]')) === 1)
 
   // ── the row: verdict chip and Said by, from the theme-level numbers ──
-  const rows = await b.evaluate(`[...document.querySelectorAll('[data-testid=theme-row]')].map(r=>({name:r.querySelector('[data-testid=theme-name]').innerText.trim(),count:r.querySelector('[data-testid=group-count]').innerText.trim(),chip:r.querySelector('[data-testid=theme-verdict]').innerText.trim(),said:r.querySelector('[data-testid=theme-said-by]').innerText.trim()}))`)
-  ok('each theme row reads: name, “n codes”, its verdict chip, “Said by n of 20”, all from the theme profile', rows.every((r, i) => r.name === T[i].name && r.count === `${T[i].codes.length} code${T[i].codes.length === 1 ? '' : 's'}` && r.chip === LABEL_OF[T[i].verdict] && r.said === `Said by ${T[i].people} of ${T[i].of}`), rows)
+  const rows = await b.evaluate(`[...document.querySelectorAll('[data-testid=theme-row]')].map(r=>({name:r.querySelector('[data-testid=theme-name]').innerText.trim(),count:r.querySelector('[data-testid=group-count]').innerText.trim(),chip:r.querySelector('[data-testid=theme-verdict]')?.innerText.trim()??null,said:r.querySelector('[data-testid=theme-said-by]').innerText.trim()}))`)
+  ok('each theme row reads: name, “n codes”, its verdict chip (none on Not in a theme), “Said by n of 20”, all from the theme profile', rows.every((r, i) => r.name === T[i].name && r.count === `${T[i].codes.length} code${T[i].codes.length === 1 ? '' : 's'}` && r.chip === (T[i].id === 'none' ? null : LABEL_OF[T[i].verdict]) && r.said === `Said by ${T[i].people} of ${T[i].of}`), rows)
   ok('the “of” is 20 on every row', rows.every((r) => /of 20$/.test(r.said)), rows.map((r) => r.said))
 
   // ── clicking the name: opens the panel, never the chevron or the switch ──
@@ -72,6 +81,12 @@ try {
   for (let i = 0; i < T.length; i++) {
     const t = T[i]
     await clickIn('[data-testid=theme-row]', '[data-testid=theme-name]', i)
+    if (t.id === 'none') {
+      // Not in a theme: the numbers are computed, but no verdict chip, insight, moments or Accept is shown for it.
+      const n = await b.evaluate(`(()=>{const el=document.querySelector('[data-testid=theme-panel]');return {pill:el.querySelectorAll('[data-testid=verdict-pill]').length,figures:el.querySelectorAll('[data-testid=theme-figures],[data-testid=codes-to-check],[data-testid=moments]').length,accept:[...el.querySelectorAll('button')].some(x=>/^Accept/.test(x.innerText.trim())),name:el.querySelector('[data-testid=theme-panel-name]').innerText.trim()}})()`)
+      ok('Not in a theme: its panel has a name and no verdict chip, figures, codes to check, moments or Accept', n.name === t.name && n.pill === 0 && n.figures === 0 && !n.accept, n)
+      continue
+    }
     const p = await b.evaluate(`(()=>{const el=document.querySelector('[data-testid=theme-panel]');return {name:el.querySelector('[data-testid=theme-panel-name]').innerText.trim(),said:el.querySelector('[data-testid=theme-panel-said-by]').innerText.trim(),chip:el.querySelector('header [data-testid=verdict-pill]').innerText.trim(),tag:/AI-generated/.test(el.querySelector('[data-testid=theme-figures]').innerText),sentence:el.querySelector('[data-testid=summary-sentence]')?.innerText.trim(),chips:[...el.querySelectorAll('[data-testid=check-chip]')].map(c=>c.dataset.codeId),none:el.querySelector('[data-testid=check-none]')?.innerText.trim(),cov:el.querySelector('[data-testid=theme-coverage]').innerText.trim()}})()`)
     const claim = t.stances.Positive + t.stances.Negative
     ok(`${t.name}: name, “Said by n of N” and verdict chip match the row`, p.name === t.name && p.said === `Said by ${t.people} of ${t.of}` && p.chip === LABEL_OF[t.verdict], p)

@@ -63,8 +63,12 @@ const split = (points) => sp.fitSplit(points, {})
   const person = (fits) => sp.readPeople(codes(fits))[0].fit
   ok('more than half of a person’s positions No match: No match', person(['no', 'no', 'yes']) === 'Pulls against')
   ok('more than half Matched: Matched', person(['yes', 'yes', 'no']) === 'Matches')
-  ok('exactly half is never more than half: one No match, one Matched is Hesitant', person(['no', 'yes']) === 'Uncertain')
-  ok('two and two is Hesitant too', person(['no', 'no', 'yes', 'yes']) === 'Uncertain')
+  // A person whose positions point both ways with neither side ahead is "Split across codes": not Matched, not No match, not Hesitant.
+  // (Replaces the 1A rule that called them Hesitant. Hesitant is reserved for hesitation.)
+  ok('exactly half is never more than half: one No match, one Matched is Split across codes', person(['no', 'yes']) === 'Split')
+  ok('two and two is Split too', person(['no', 'no', 'yes', 'yes']) === 'Split')
+  ok('a mix with hesitation and a No match and no side ahead is Split', person(['yes', 'yes', 'hes', 'no', 'no']) === 'Split' && person(['hes', 'no']) === 'Split')
+  ok('hesitation with nothing contradicting is Hesitant, never Split', person(['hes', 'yes']) === 'Uncertain' && person(['hes', 'hes']) === 'Uncertain' && person(['hes', 'yes', 'yes', 'hes']) === 'Uncertain')
   ok('a person with one position takes that position', person(['hes']) === 'Uncertain' && person(['no']) === 'Pulls against' && person(['yes']) === 'Matches')
   const one = sp.readPeople([...codes(['no', 'yes', 'yes']), pt(2, {})])
   ok('every person is one reading, however many quotes they have', one.length === 2 && one.filter((r) => r.participantId === 'P-1').length === 1)
@@ -92,6 +96,31 @@ const split = (points) => sp.fitSplit(points, {})
   ok('people who just described it are not in the base', split(make(1, 0, 3, 6)).n === 4)
   const cfgHolds = cfg.DELIVERY.minPeople === 3 && cfg.DELIVERY.majority === 0.5 && cfg.DELIVERY.clauseMin === 3
   ok('the thresholds are in config', cfgHolds)
+}
+
+// ── Split across codes ──
+{
+  const who = (id, fits) => fits.map((f, i) => pt(id, { at: id * 10 + i, tone: f === 'no' ? 'Flat' : 'Even' }))
+  const splitter = (id) => who(id, ['no', 'yes'])
+  const matched = (id) => who(id, ['yes'])
+  const against = (id) => who(id, ['no'])
+  const verdict = (people) => split(people.flat())
+  const a = verdict([matched(1), matched(2), matched(3)])
+  const b = verdict([matched(1), matched(2), matched(3), splitter(4), splitter(5), splitter(6)])
+  ok('without anyone split, three matched is Consistent', a.pattern === 'Consistent' && a.n === 3, a)
+  ok('three split people are in the base, so three matched is no longer more than half: Mixed (the tie changes the outcome)', b.pattern === 'Mixed' && b.n === 6 && b.split === 3 && b.fits === 3, b)
+  const c = verdict([against(1), against(2), against(3), splitter(4), splitter(5), splitter(6)])
+  ok('the same for a Gap: three No match and three split is Mixed, not a Gap', c.pattern === 'Mixed' && c.against === 3 && c.split === 3, c)
+  ok('split people are in no tile: matched, no match and hesitant never include them', b.fits + b.against + b.uncertain === 3 && b.fits + b.against + b.uncertain + b.split === b.n)
+  const d = verdict([matched(1), matched(2), matched(3), matched(4), splitter(5)])
+  ok('one split person among five matched does not stop Consistent (4 of 5 is more than half)', d.pattern === 'Consistent' && d.split === 1)
+  const e = verdict([splitter(1), splitter(2), splitter(3)])
+  ok('split people can only make a verdict Mixed: three split alone is Mixed', e.pattern === 'Mixed')
+  const reads = sp.readPeople([...splitter(1), ...matched(2), ...matched(3)])
+  const ins = sp.insightOf(reads)
+  ok('a split person still has a side, so the insight sentence counts them', ins.positive === 3 && /^3 of 3 people were verbally positive/.test(ins.sentence), ins.sentence)
+  const g = sg.sideSummary(reads)
+  ok('the side group lists them apart from the tiles', g.groups[0].split.length === 1 && g.groups[0].tiles.Matches.length === 2 && g.groups[0].fits['P-1'] === 'Split')
 }
 
 // ── the insight sentence ──
@@ -167,7 +196,7 @@ for (const id of studies) {
     const faceless = codes.map((c) => sp.fitSplit(c.positions.map((p) => ({ ...p, face: undefined })), doc).pattern)
     return codes.every((c, i) => c.fit.pattern === faceless[i])
   })())
-  ok(`${id}: row and tiles agree (matched + no match + hesitant = people with a position)`, themes.every((t) => t.fit.fits + t.fit.uncertain + t.fit.against === t.fit.n && t.reads.filter((r) => r.fit).length === t.fit.n))
+  ok(`${id}: row and tiles agree (matched + no match + hesitant + split = people with a position)`, themes.every((t) => t.fit.fits + t.fit.uncertain + t.fit.against + t.fit.split === t.fit.n && t.reads.filter((r) => r.fit).length === t.fit.n))
   const real = themes.filter((t) => t.kind !== 'none' && t.insight)
   ok(`${id}: every theme insight passes the validator`, real.every((t) => nr.checkNarration(t.insight.sentence).ok), real.map((t) => nr.checkNarration(t.insight.sentence).problems))
   ok(`${id}: the insight and the row use the same N (everyone who raised the theme)`, real.every((t) => t.insight.of === t.people))
@@ -237,13 +266,47 @@ for (const id of studies) {
   cb.resetCodebook()
 }
 
+// ── too few people: Nothing to decide ──
+{
+  const id = 'pet-food-churn'
+  const { doc, basis } = docOf(id)
+  const who = { by: 'Maya Ortiz' }
+  const tooFew = doc.codes.find((c) => c.id === 'c-nothing')
+  const made = cb.createTheme(doc, 'Nothing would have kept them', 'Nobody could have kept them.', [tooFew.id], who)
+  const themeId = made.themes[made.themes.length - 1].id
+  const get = (d) => sg.themeSignals(d, basis, sg.codeSignals(d, basis)).find((t) => t.id === themeId)
+  const t = get(made)
+  const cur = { text: t.now.text, fingerprint: t.now.fingerprint, snap: t.now.snap }
+  ok('under three people: no insight, status Nothing to decide, not decidable', t.people < 3 && t.insight === null && t.decidable === false && t.decision.status === 'Nothing to decide' && t.verdict === 'Too few to read', [t.people, t.decision.status])
+  ok('Accept and Edit do nothing for it', cb.acceptInsight(made, t, cur, who) === made && cb.editInsight(made, t, cur, 'Anything', who) === made)
+  ok('it can still be left out, but only with a reason', cb.leaveOutInsight(made, t, cur, who) === made && cb.leaveOutInsight(made, t, cur, who, '   ') === made)
+  const left = cb.leaveOutInsight(made, t, cur, who, 'Only two people, and not the brief')
+  ok('left out with a reason, it is Left out and the reason is kept', get(left).decision.status === 'Left out' && left.insights[themeId].why === 'Only two people, and not the brief')
+  ok('the tip is “Too few people to read a pattern”', sp.TOO_FEW_TIP === 'Too few people to read a pattern')
+  const before = sg.insightCounts(sg.themeSignals(doc, basis, sg.codeSignals(doc, basis)))
+  const after = sg.insightCounts(sg.themeSignals(made, basis, sg.codeSignals(made, basis)))
+  ok('it is not in the progress counts or Review mode', after.total === before.total && after.toReview.length === before.toReview.length && !after.toReview.some((x) => x.id === themeId) && after.nothingToDecide === before.nothingToDecide + 1, [before.total, after.total])
+  ok('a code with too few people is not decidable either', sg.codeSignals(doc, basis).find((c) => c.code.id === 'c-nothing').decidable === false)
+}
+
+// ── Not in a theme: numbers kept, nothing shown ──
+for (const id of studies) {
+  const { doc, basis } = docOf(id)
+  const themes = sg.themeSignals(doc, basis, sg.codeSignals(doc, basis))
+  const none = themes.find((t) => t.kind === 'none')
+  ok(`${id}: Not in a theme still has its numbers (people, fit and verdict are computed for the Theme map)`, !!none && none.people > 0 && none.fit.n > 0 && !!none.verdict)
+  ok(`${id}: it has no insight, no moments, and nothing to decide or accept`, none.insight === null && none.moments.length === 0 && none.decidable === false)
+  const counts = sg.insightCounts(themes)
+  ok(`${id}: it is not in the progress counts or Review mode`, !counts.toReview.some((t) => t.id === 'none') && counts.total === themes.filter((t) => t.kind === 'theme' && t.decidable).length)
+}
+
 // ── report ticks are never read for insights ──
 {
   const { doc, basis } = docOf('pet-food-churn')
   const a = sg.themeSignals(doc, basis).map((t) => t.decision.status)
   const withTicks = { ...doc, themePicks: { 't-price': true, 't-pet': true }, signalPicks: { 'c-runout': true } }
   const b = sg.themeSignals(withTicks, basis).map((t) => t.decision.status)
-  ok('an old per-theme or per-code tick does not make an insight accepted', a.every((x) => x === 'Suggested') && b.every((x) => x === 'Suggested'))
+  ok('an old per-theme or per-code tick does not make an insight accepted or change any status', JSON.stringify(a) === JSON.stringify(b) && b.every((x) => x !== 'Accepted' && x !== 'Edited'), [a, b])
 }
 
 await vite.close()

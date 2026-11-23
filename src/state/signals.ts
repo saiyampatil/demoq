@@ -22,7 +22,7 @@ import { DELIVERY, FIT_LABEL, SIDE_LABEL, describedLine } from '@/config/deliver
 import { segmentOf, segmentsOf, segmentWord } from '@/mock/studyAnalysis'
 import { emotionSplit, faceOf, hasVideo, toneSplit, FIT_RULE_TEXT, type Emotion, type EmotionSplit, type Stance, type ToneSplit } from './emotion'
 import { DELIVERY as RULES } from '@/config/delivery'
-import { fitSplitOf, insightNow, insightOf, insightStatus, momentsToWatch, readPeople, speechAgainst, standoutOf, withStance, type Fit, type FitPattern, type FitSplit, type Insight, type InsightNow, type InsightStatus, type MomentToWatch, type PersonRead, type CodeStandout } from './speech'
+import { fitSplitOf, insightNow, insightOf, insightStatus, momentsToWatch, readPeople, speechAgainst, standoutOf, withStance, type Fit, type PersonFit, type FitPattern, type FitSplit, type Insight, type InsightNow, type InsightStatus, type MomentToWatch, type PersonRead, type CodeStandout } from './speech'
 export { checkInsightEdit } from './speech'
 export type { CodeStandout, Insight, InsightNow, InsightStatus, MomentToWatch, PersonRead } from './speech'
 
@@ -77,6 +77,8 @@ export type CodeSignal = {
   positions: Point[]
   /** Each person's one reading: their side, whether their delivery matched, whether they hesitated. The verdict is counted from these. */
   reads: PersonRead[]
+  /** Enough people to read a pattern. Under three the status is "Nothing to decide". */
+  decidable: boolean
   /** The strongest speech pattern among the people who said it, or null when fewer than three share one. */
   standout: CodeStandout | null
   /** The clips most worth playing for this code, one per person, the clearest first, each with its measured reason. */
@@ -117,6 +119,7 @@ export function codeSignals(doc: CodebookDoc, basis: Basis): CodeSignal[] {
         points,
         positions: raw,
         reads,
+        decidable: readable,
         standout: readable ? standoutOf(reads) : null,
         moments: momentsToWatch(reads, RULES.moments.code),
       }
@@ -492,6 +495,8 @@ export type Breakdown = {
   against: number
   uncertain: number
   matched: number
+  /** People whose positions across codes point both ways with neither side ahead: in the base, in no tile. */
+  split: number
   /** Those who only described it, so there is nothing to check. */
   factOnly: Point[]
 }
@@ -507,6 +512,7 @@ export function breakdownOf(all: Point[], doc: CodebookDoc): Breakdown {
     against: claim.filter((r) => r.fit === 'Pulls against').length,
     uncertain: claim.filter((r) => r.fit === 'Uncertain').length,
     matched: claim.filter((r) => r.fit === 'Matches').length,
+    split: claim.filter((r) => r.fit === 'Split').length,
     factOnly: reads.filter((r) => !r.fit).map((r) => r.point).sort((a, b) => a.participantId.localeCompare(b.participantId)),
   }
 }
@@ -675,6 +681,8 @@ export type ThemeSignal = Rollup & {
   play?: Point
   /** The one-sentence insight, computed. Null for "Not in a theme" and under three people. */
   insight: Insight | null
+  /** There is an insight to accept, edit or leave out. False under three people ("Nothing to decide") and for "Not in a theme". */
+  decidable: boolean
   /** The clips most worth playing for this theme, one per person, the clearest first, each with its measured reason. */
   moments: MomentToWatch[]
   /** What the insight is made from now, for a decision to be compared against. */
@@ -711,7 +719,9 @@ function profile(base: { id: string; name: string; definition?: string; kind: Th
     use: tickable && readable && (doc.themePicks?.[base.id] ?? notable),
     play: r.points[0],
     insight,
-    moments: momentsToWatch(r.reads, RULES.moments.theme),
+    // "Not in a theme" keeps its numbers (the Theme map reads them) but shows no insight, moments, verdict or Accept.
+    moments: base.kind === 'none' ? [] : momentsToWatch(r.reads, RULES.moments.theme),
+    decidable: base.kind !== 'none' && !!insight,
     now,
     decision: insightStatus(doc.insights?.[base.id], now),
   }
@@ -737,6 +747,24 @@ export function themeSignals(doc: CodebookDoc, basis: Basis, signals: CodeSignal
   return [...own, ...none, ...tension]
 }
 
+/**
+ * How the insights stand, for the progress line, the footer and Review mode. Only themes with an insight to decide are counted:
+ * "Not in a theme", tension themes and themes with too few people ("Nothing to decide") are not.
+ */
+export function insightCounts(themes: ThemeSignal[]) {
+  const mine = themes.filter((t) => t.kind === 'theme' && t.decidable)
+  const decided = mine.filter((t) => ['Accepted', 'Edited', 'Left out'].includes(t.decision.status))
+  return {
+    total: mine.length,
+    decided: decided.length,
+    /** Suggested or Out of date: the ones Review mode steps through. */
+    toReview: mine.filter((t) => t.decision.status === 'Suggested' || t.decision.status === 'Out of date'),
+    accepted: mine.filter((t) => t.decision.status === 'Accepted' || t.decision.status === 'Edited'),
+    outOfDate: mine.filter((t) => t.decision.status === 'Out of date').length,
+    nothingToDecide: themes.filter((t) => t.kind === 'theme' && !t.decidable).length,
+  }
+}
+
 // ─── a theme, read in words ─────────────────────────────────────────────────
 
 /** One way delivery stood apart from the words, counted among the people on the side it applies to. */
@@ -749,8 +777,10 @@ export type SideGroup = {
   points: Point[]
   reads: PersonRead[]
   tiles: Record<Fit, Point[]>
+  /** People split across codes: in this side's base, in no tile. */
+  split: Point[]
   /** Each person's one verdict, so a list of people shows the same one as the tile. */
-  fits: Record<string, Fit>
+  fits: Record<string, PersonFit>
   patterns: DeliveryPattern[]
 }
 
@@ -780,7 +810,8 @@ export function sideSummary(reads: PersonRead[]): SideSummary {
       points: mine.map((r) => r.point),
       reads: mine,
       tiles: { Matches: of('Matches'), 'Pulls against': of('Pulls against'), Uncertain: of('Uncertain') },
-      fits: Object.fromEntries(mine.map((r) => [r.participantId, r.fit as Fit])),
+      split: mine.filter((r) => r.fit === 'Split').map((r) => r.point),
+      fits: Object.fromEntries(mine.map((r) => [r.participantId, r.fit as PersonFit])),
       patterns: all.filter((x) => x.n >= RULES.clauseMin).sort((a, b) => b.n - a.n),
     }
   }

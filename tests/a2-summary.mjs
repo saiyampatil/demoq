@@ -42,11 +42,12 @@ try {
       const against=(p)=>p.stance==='Positive'?['Tense','Flat'].includes(p.voice.tone):p.voice.tone==='Animated'
       const f=(p)=>against(p)?'Pulls against':p.band==='Marked hesitation'?'Uncertain':'Matches'
       return Object.entries(by).map(([id,ps])=>{const pos=ps.filter(p=>p.stance==='Positive'||p.stance==='Negative').sort((a,b)=>a.atSec-b.atSec);const n=pos.length;const c=(k)=>pos.filter(p=>f(p)===k).length;const up=pos.filter(p=>p.stance==='Positive').length
-        return {id,side:!n?null:up*2>n?'Positive':up*2<n?'Negative':pos[0].stance,fit:!n?null:c('Pulls against')*2>n?'Pulls against':c('Matches')*2>n?'Matches':'Uncertain',hes:n>0&&pos.filter(p=>p.band==='Marked hesitation').length*2>n}})}
+        return {id,side:!n?null:up*2>n?'Positive':up*2<n?'Negative':pos[0].stance,fit:!n?null:c('Pulls against')*2>n?'Pulls against':c('Matches')*2>n?'Matches':c('Pulls against')===0?'Uncertain':'Split',hes:n>0&&pos.filter(p=>p.band==='Marked hesitation').length*2>n}})}
     const one=(label,pts,reads)=>{const ppl=person(pts);const side=(k)=>ppl.filter(x=>x.side===k)
       return {label,N:ppl.length,pos:side('Positive').length,neg:side('Negative').length,
       tiles:Object.fromEntries(['Positive','Negative'].map(k=>[k,['Matches','Pulls against','Uncertain'].map(f=>side(k).filter(x=>x.fit===f).length)])),
       hes:Object.fromEntries(['Positive','Negative'].map(k=>[k,side(k).filter(x=>x.hes).length])),
+      spl:Object.fromEntries(['Positive','Negative'].map(k=>[k,side(k).filter(x=>x.fit==='Split').length])),
       sentence:sg.sideSummary(reads).sentence}}
     const themes=sg.themeSignals(doc,basis).filter(t=>t.kind!=='tension').map(t=>({id:t.id,...one(t.name,t.positions,t.reads),fit:t.fit}))
     const codes=sg.codeSignals(doc,basis).map(s=>({id:s.code.id,...one(s.code.name,s.positions,s.reads),fit:s.fit}))
@@ -74,13 +75,19 @@ try {
   for (let i = 0; i < nThemes; i++) {
     await click('[data-testid=theme-name]', i)
     const t = D.themes[i]
-    const p = await b.evaluate(`(()=>{const el=document.querySelector('[data-testid=theme-panel]');return {sentence:el.querySelector('[data-testid=summary-sentence]')?.innerText.replace(/\\s+/g,' ').trim(),tip:el.querySelector('[data-testid=raised-n]')?.title??null,q:el.querySelector('[data-testid=match-question]')?.innerText.trim()??null,groups:[...el.querySelectorAll('[data-testid=tile-group]')].map(g=>({side:g.dataset.side,n:Number(g.dataset.n),head:g.querySelector('[data-testid=group-head]').innerText.trim(),tiles:[...g.querySelectorAll('[data-testid=match-tiles] > button')].map(x=>({label:x.querySelector('dt').innerText.trim(),n:Number(x.dataset.n)}))})),quiet:el.querySelector('[data-testid=fact-only]')?.innerText.replace(/\\s+/g,' ').trim()??null,text:el.innerText}})()`)
+    if (t.id === 'none') {
+      // Not in a theme: the numbers are computed, but the panel shows no sentence, tiles, verdict, moments or Accept.
+      const n = await b.evaluate(`(()=>{const el=document.querySelector('[data-testid=theme-panel]');return {text:el.innerText.replace(/\\s+/g,' '),tiles:el.querySelectorAll('[data-testid=tile-group],[data-testid=match-tiles],[data-testid=summary-sentence],[data-testid=verdict-pill],[data-testid=moments]').length,accept:[...el.querySelectorAll('button')].some(x=>/^Accept/.test(x.innerText.trim()))}})()`)
+      ok('Not in a theme: the panel only says its codes are not in a theme yet (no sentence, tiles, verdict, moments or Accept)', /codes? (isn’t|aren’t) in a theme yet\. Group (it|them) in the codebook\./.test(n.text) && n.tiles === 0 && !n.accept, n)
+      continue
+    }
+    const p = await b.evaluate(`(()=>{const el=document.querySelector('[data-testid=theme-panel]');return {sentence:el.querySelector('[data-testid=summary-sentence]')?.innerText.replace(/\\s+/g,' ').trim(),tip:el.querySelector('[data-testid=raised-n]')?.title??null,q:el.querySelector('[data-testid=match-question]')?.innerText.trim()??null,groups:[...el.querySelectorAll('[data-testid=tile-group]')].map(g=>({side:g.dataset.side,n:Number(g.dataset.n),head:g.querySelector('[data-testid=group-head]').innerText.trim(),split:Number(g.querySelector('[data-testid=split-line]')?.innerText.match(/^\\d+/)?.[0]??0),tiles:[...g.querySelectorAll('[data-testid=match-tiles] > button')].map(x=>({label:x.querySelector('dt').innerText.trim(),n:Number(x.dataset.n)}))})),quiet:el.querySelector('[data-testid=fact-only]')?.innerText.replace(/\\s+/g,' ').trim()??null,text:el.innerText}})()`)
     ok(`${t.label}: the panel shows the computed sentence`, p.sentence === t.sentence, [p.sentence, t.sentence])
     ok(`${t.label}: the number N has the tooltip “People who raised this theme” (where the sentence has an N)`, /\d+ of \d+ people|All \d+ people/.test(t.sentence) ? p.tip === 'People who raised this theme' : true, p.tip)
     ok(`${t.label}: the question line comes under the sentence, then the tiles in the order Matched · No match · Hesitant`, p.q === 'Did their delivery match their words?' && p.groups.every((g) => g.tiles.map((x) => x.label).join() === 'Matched,No match,Hesitant'), p)
     const sides = ['Positive', 'Negative'].filter((k) => t[k === 'Positive' ? 'pos' : 'neg'] > 0)
     ok(`${t.label}: ${sides.length === 2 ? 'two stacked groups' : sides.length === 1 ? 'one group' : 'no group'}, headed by side and size`, p.groups.length === sides.length && p.groups.every((g) => g.head === (sides.length === 2 ? `${g.side === 'Positive' ? 'Spoke in favour' : 'Spoke against it'} · ${g.n}` : `${g.n} ${g.n === 1 ? 'person' : 'people'} ${g.side === 'Positive' ? 'spoke in favour' : 'spoke against it'}`)), p.groups)
-    ok(`${t.label}: each group’s tiles sum to its size and equal the people counts (${sides.map((k) => t.tiles[k].join('·')).join(' | ')})`, p.groups.every((g) => g.tiles.reduce((a, x) => a + x.n, 0) === g.n && g.tiles.map((x) => x.n).join() === t.tiles[g.side].join()), p.groups)
+    ok(`${t.label}: each group’s tiles plus its split-across-codes line sum to its size, and equal the people counts (${sides.map((k) => t.tiles[k].join('·')).join(' | ')})`, p.groups.every((g) => g.tiles.reduce((a, x) => a + x.n, 0) + g.split === g.n && g.split === t.spl[g.side] && g.tiles.map((x) => x.n).join() === t.tiles[g.side].join()), p.groups)
     ok(`${t.label}: the groups together equal the theme’s fit split (${t.fit.fits} · ${t.fit.against} · ${t.fit.uncertain})`, [0, 1, 2].every((k) => p.groups.reduce((a, g) => a + g.tiles[k].n, 0) === [t.fit.fits, t.fit.against, t.fit.uncertain][k]), p.groups)
     const described = t.N - t.pos - t.neg
     ok(`${t.label}: people who just described it are one quiet line, only when there are some`, described > 0 ? p.quiet?.startsWith(`${described} just described what happened, not checked`) : p.quiet === null, p.quiet)
@@ -90,7 +97,7 @@ try {
   ok('at least one theme has people on both sides (two stacked groups were checked)', two >= 1 || true)
 
   // clicking a tile or a group lists the people
-  const iWithNo = D.themes.findIndex((t) => t.tiles.Positive[1] + t.tiles.Negative[1] > 0)
+  const iWithNo = D.themes.findIndex((t) => t.id !== 'none' && t.tiles.Positive[1] + t.tiles.Negative[1] > 0)
   await click('[data-testid=theme-name]', iWithNo)
   const g0 = await b.evaluate(`(()=>{const g=[...document.querySelectorAll('[data-testid=tile-group]')].find(g=>Number([...g.querySelectorAll('[data-testid=match-tiles] > button')][1].dataset.n)>0);return g.dataset.side})()`)
   await b.evaluate(`[...document.querySelectorAll('[data-testid=tile-group]')].find(g=>g.dataset.side===${q(g0)}).querySelectorAll('[data-testid=match-tiles] > button')[1].click(); true`); await b.sleep(300)
@@ -99,7 +106,7 @@ try {
   ok('clicking a tile lists its people: ID, segment, one word, Play', list.length === wantN && list.every((x) => /^P-/.test(x.id) && /owner$/.test(x.seg) && /^[A-Za-z]+$/.test(x.reason) && x.play), list)
   await b.evaluate(`[...document.querySelectorAll('[data-testid=tile-group]')].find(g=>g.dataset.side===${q(g0)}).querySelector('[data-testid=group-head]').click(); true`); await b.sleep(300)
   const all = await b.evaluate(`[...document.querySelectorAll('[data-testid=tile-person]')].length`)
-  ok('clicking a group heading lists everyone in that group', all === D.themes[iWithNo].tiles[g0].reduce((a, n) => a + n, 0), all)
+  ok('clicking a group heading lists everyone in that group', all === D.themes[iWithNo].tiles[g0].reduce((a, n) => a + n, 0) + D.themes[iWithNo].spl[g0], all)
 
   // code panels
   const nCodes = await b.evaluate(`document.querySelectorAll('[data-testid=signal-row]').length`)
