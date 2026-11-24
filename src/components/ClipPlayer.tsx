@@ -9,7 +9,7 @@ const mmss = (sec: number) => `${Math.floor(sec / 60)}:${String(Math.floor(sec %
  * behind it: the clock runs, the scrubber works, and the quote shows as a caption while it plays. Theme videos, the showreel and
  * the audio summary use this same player.
  */
-export function ClipPlayer({ label, startSec, lengthSec = 20, caption, audioOnly, className }: { label: string; startSec: number; lengthSec?: number; caption?: string; audioOnly?: boolean; className?: string }) {
+export function ClipPlayer({ label, startSec, lengthSec = 20, caption, audioOnly, className, markerSec, markerLabel, captionBar }: { label: string; startSec: number; lengthSec?: number; caption?: string; audioOnly?: boolean; className?: string; /** A mark on the timeline, seconds from the start of the clip (A2: the reveal). */ markerSec?: number; markerLabel?: string; /** A bar under the video that is always shown (A2: what was seen and what it reads as). */ captionBar?: React.ReactNode }) {
   const [t, setT] = useState(0)
   const [playing, setPlaying] = useState(false)
 
@@ -60,9 +60,10 @@ export function ClipPlayer({ label, startSec, lengthSec = 20, caption, audioOnly
         {playing && caption && <p className="absolute right-3 bottom-3 left-3 line-clamp-2 rounded-sm bg-black/70 px-2 py-1 text-center text-xs">{caption}</p>}
       </div>
       <div className="flex items-center gap-2 px-3 py-2 text-xs">
-        <input type="range" min={0} max={lengthSec} step={1} value={Math.floor(t)} onChange={(e) => setT(Number(e.target.value))} aria-label="Seek" aria-valuetext={`${mmss(startSec + t)}`} className="h-1 min-w-0 flex-1 cursor-pointer accent-[var(--color-iris-600)]" />
+        <span className="relative flex flex-1 items-center"><input type="range" min={0} max={lengthSec} step={1} value={Math.floor(t)} onChange={(e) => setT(Number(e.target.value))} aria-label="Seek" aria-valuetext={`${mmss(startSec + t)}`} className="h-1 min-w-0 flex-1 cursor-pointer accent-[var(--color-iris-600)]" />{markerSec !== undefined && <span aria-label={markerLabel ?? 'Marker'} title={markerLabel} className="pointer-events-none absolute top-1/2 h-3.5 w-0.5 -translate-y-1/2 rounded-full bg-face-accent" style={{ left: `${Math.min(100, (markerSec / lengthSec) * 100)}%` }} />}</span>
         <span className="tabular-nums text-graphite">{mmss(startSec + t)}</span>
       </div>
+          {captionBar && <div className="border-t border-mist bg-paper px-3 py-2 text-xs" data-testid="clip-caption-bar">{captionBar}</div>}
     </section>
   )
 }

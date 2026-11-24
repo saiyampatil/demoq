@@ -21,6 +21,7 @@ import { AudioSummaryPage } from '@/apps/researcher/analysis/AudioSummary'
 import { ThemeMapPage } from '@/apps/researcher/analysis/ThemeMap'
 import { WordCloudPage } from '@/apps/researcher/analysis/WordCloud'
 import { SignalsTensions } from '@/apps/researcher/analysis/SignalsTensions'
+import { A2Gallery } from '@/apps/researcher/analysis/a2/Gallery'
 import { ReviewQueue } from '@/apps/researcher/review/ReviewQueue'
 import { LaunchReadiness } from '@/apps/researcher/launch/LaunchReadiness'
 import { PreflightLaunch } from '@/apps/researcher/launch/PreflightLaunch'
@@ -140,6 +141,7 @@ const router = createBrowserRouter([
         ],
       },
       { path: '/design', element: <DesignPage /> },
+      { path: '/design/a2', element: <A2Gallery /> },
       { path: '*', element: <NotFound /> },
     ],
   },

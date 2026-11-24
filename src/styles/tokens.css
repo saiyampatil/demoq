@@ -84,10 +84,29 @@
   --color-tone-tense-fg: #14406b;
   --color-tone-tense-line: #a3b6cb;
 
+  /* A2 faces: ONE teal family, used only for what a face read ("reads as ..."). Cyan-teal (hue ~190), far from the success green (~145) and from the
+     emotion dots above. Contrast: face-fg on face-bg is 8.4:1. */
+  --color-face-bg: #e3f3f6;
+  --color-face-fg: #0b5563;
+  --color-face-line: #a6d4dc;
+  --color-face-accent: #0e7490;
+  /* A2 concept letters A, B and C: three tints that mean nothing else. */
+  --color-concept-a-bg: #fdf1d8;
+  --color-concept-a-fg: #7a5200;
+  --color-concept-a-line: #ecd3a0;
+  --color-concept-b-bg: #fbe8f2;
+  --color-concept-b-fg: #8c2a62;
+  --color-concept-b-line: #efbfd9;
+  --color-concept-c-bg: #e8edf9;
+  --color-concept-c-fg: #2f4a8a;
+  --color-concept-c-line: #bccaec;
+
   /* Type */
   --font-*: initial;
   --font-sans: 'Public Sans Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-serif: 'Source Serif 4 Variable', Georgia, 'Times New Roman', serif;
+  /* Respondents' own words in A2: Newsreader italic, and nothing else uses it. */
+  --font-quote: 'Newsreader Variable', 'Source Serif 4 Variable', Georgia, serif;
 
   --text-*: initial;
   --text-xs: 12px;
