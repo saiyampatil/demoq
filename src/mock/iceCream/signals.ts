@@ -19,19 +19,9 @@ const concept = (letter: 'A' | 'B' | 'C', name: string, fraction: number): Momen
 /** The first reaction to each flavour, shown between about 38% and 54% of the way through the interview. */
 const CONCEPTS: Moment[] = [concept('A', 'Salted Caramel Swirl', 0.38), concept('B', 'Mango Lassi', 0.46), concept('C', 'Cookie Dough Crunch', 0.54)]
 
-// Who hesitated at each flavour's first reaction. The rest were steady. P-4106 never saw Concept B (the card failed to load, which
-// counts as not seen), so there is no reaction to measure.
-//   A, the familiar one: only two people hesitated hard, and they are the ones who did not know what to make of a safe flavour.
-//   B, the lassi: the most hesitation, from anyone who did not know what a lassi is, including three who then chose it.
-//   C, cookie dough: steady for parents, a little hesitation from adults who worry about sweetness.
-addReactions(
-  {
-    'm-concept-a': { marked: ['P-4116', 'P-4120'], some: ['P-4108', 'P-4113'] },
-    'm-concept-b': { marked: ['P-4103', 'P-4113', 'P-4120', 'P-4111', 'P-4117', 'P-4105'], some: ['P-4108', 'P-4107', 'P-4114', 'P-4118', 'P-4101'] },
-    'm-concept-c': { marked: ['P-4118'], some: ['P-4101', 'P-4115', 'P-4116'] },
-  },
-  { 'm-concept-b': ['P-4106'] },
-)
+// Who hesitated at each flavour's first reaction: nobody. Each person's first reaction is set by hand in ./target.ts, and the reveal
+// moment starts just after their face first moved, so the face is always read before they speak. Everyone saw every card.
+addReactions({ 'm-concept-a': { marked: [], some: [] }, 'm-concept-b': { marked: [], some: [] }, 'm-concept-c': { marked: [], some: [] } })
 
 // [marked, some] among the people who said each code. Codes not listed are all steady.
 Object.assign(PLAN, {
@@ -52,47 +42,46 @@ Object.assign(PLAN, {
   'ic-when-hot-day': [0, 1],
 } satisfies Record<string, [number, number]>)
 
-/** What the system suggests. The numbers on each are worked out from the data when the screen opens. */
+/** What the system suggests. The numbers on each are worked out from the data when the screen opens. In the order of the design data's cards. */
 export const ICE_TENSION_DEFS: TensionDef[] = [
-  {
-    id: 'tn-caramel-survey',
-    kind: 'Said vs survey',
-    title: 'Called Salted Caramel Swirl the one they would buy first, but some then said they probably wouldn’t buy it',
-    summary: 'In the interview these people picked caramel. In the locked survey right after, some chose a no.',
-    themeName: 'Caramel: said yes, answered no',
-    codeIds: ['ic-pick-caramel'],
-  },
-  {
-    id: 'tn-caramel-mango-face',
-    kind: 'Said vs emotion',
-    title: 'Picked caramel in words, but their faces lit up most at Mango Lassi',
-    summary: 'Asked which flavour they would buy first, these people said Salted Caramel Swirl. On video, their warmest first reaction was not to caramel but to a different flavour, Mango Lassi. This sets a choice against a face at another concept.',
-    themeName: 'Caramel in words, mango in the face',
-    codeIds: ['ic-pick-caramel'],
-    momentId: 'm-concept-b',
-  },
   {
     id: 'tn-segments',
     kind: 'Between segments',
-    title: 'Parents lean to Cookie Dough; adults without children lean to Mango Lassi',
+    title: 'Cookie is a parents’ flavour; caramel and mango are the adults’',
     summary: 'The same question, with different answers in each group. Not everyone in either group gave a clear answer. Directional: the groups are small.',
-    themeName: 'Parents and cookie dough, adults and mango',
+    themeName: 'Parents and cookie dough, adults and caramel or mango',
     codeIds: ['ic-pick-cookie', 'ic-pick-mango'],
     answers: ['Would buy Cookie Dough Crunch first', 'Would buy Mango Lassi first'],
   },
   {
-    id: 'tn-mango-concept',
-    kind: 'Between concepts',
-    title: 'Chose Mango Lassi in the end, but hesitated when first shown it',
-    summary: 'These people chose mango in the end. When they were first shown Mango Lassi (Concept B), they hesitated. This sets a choice against how they sounded at the same concept.',
-    themeName: 'Mango: a slow first reaction',
+    id: 'tn-cookie-locked',
+    kind: 'Said vs survey',
+    title: 'Said Cookie Dough Crunch first, but some then said they probably wouldn’t buy it',
+    summary: 'In the interview these people picked cookie dough. In the locked survey right after, some chose a no.',
+    themeName: 'Cookie dough: said first, then wouldn’t buy',
+    codeIds: ['ic-pick-cookie'],
+  },
+  {
+    id: 'tn-mango-did',
+    kind: 'Said vs did',
+    title: 'Said Mango Lassi first, but fewer took it home',
+    summary: 'These people said they would buy Mango Lassi first. In the choice task, fewer chose it to take home.',
+    themeName: 'Mango: said first, not taken home',
     codeIds: ['ic-pick-mango'],
+  },
+  {
+    id: 'tn-caramel-mango-face',
+    kind: 'Said vs emotion',
+    title: 'Said Salted Caramel first, but their warmest first reaction was somewhere else',
+    summary: 'Asked which flavour they would buy first, these people said Salted Caramel Swirl. On video, their warmest first reaction was not to caramel but to a different flavour. This sets a choice against a face at another concept.',
+    themeName: 'Caramel in words, another flavour in the face',
+    codeIds: ['ic-pick-caramel'],
     momentId: 'm-concept-b',
   },
   {
     id: 'tn-price-survey',
     kind: 'Said vs survey',
-    title: 'Said a high price would stop them, but answered “probably would” in the survey',
+    title: 'Said a high price would stop them, but answered positively in the locked survey',
     summary: 'In conversation these people said a price over about six dollars would stop them. In the locked survey, most still said they would buy their favourite flavour.',
     themeName: 'Price limit or still a yes',
     codeIds: ['ic-price-limit'],

@@ -1,3 +1,4 @@
+import '@/state/seedEpoch'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import '@fontsource-variable/public-sans'

@@ -57,6 +57,10 @@ export type CodebookDoc = {
   stanceFixes?: Record<string, StanceFix>
   /** What the Researcher decided on each theme's insight, by theme. A theme not listed is Suggested. */
   insights?: Record<string, InsightDecision>
+  /** The seed's own decisions on insights have been put in place, once. */
+  decisionsSeeded?: boolean
+  /** Which version of the study's seed this was made from. */
+  seedVersion?: number
   /** The Researcher's own note on a theme's insight, by theme. Kept apart from the insight sentence and never part of it. */
   insightNotes?: Record<string, string>
   /** A code's own say on whether its moments go in the report, by code. Not set means it follows its theme's decision. */
@@ -130,6 +134,7 @@ export function seedCodebook(studyId: string, acceptedSessions: string[]): Codeb
   return {
     studyId,
     codedAt: pack.codedAt,
+    seedVersion: pack.seedVersion,
     builtOn: acceptedSessions,
     codes: structuredClone(pack.codes),
     themes: structuredClone(pack.themes),
@@ -159,6 +164,13 @@ export function updateCodebook(studyId: string, fn: (d: CodebookDoc) => Codebook
 
 /** Puts the seed in place the first time a study's codebook is opened. */
 export function ensureCodebook(studyId: string, acceptedSessions: string[]) {
+  // A codebook saved from an older seed points at quotes that are gone. It starts again from the current seed.
+  const wanted = CODEBOOK_PACKS[studyId]?.seedVersion
+  if (store[studyId] && wanted !== undefined && (store[studyId].seedVersion ?? 1) !== wanted) {
+    const { [studyId]: _old, ...rest } = store
+    void _old
+    store = rest
+  }
   if (store[studyId]) {
     // An older theme-level tick becomes code-level ticks, once. Nothing else is touched.
     const moved = migrateThemePicks(store[studyId])

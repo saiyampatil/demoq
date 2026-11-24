@@ -134,27 +134,27 @@ const ICE_DONE: PetDone[] = [
   ['P-4103', 'New York', 6, '10:05', 27, 90, 90, [], 'Accepted'],
   ['P-4104', 'Illinois', 7, '14:30', 28, 85, 80, [], 'Accepted', [['Survey answer not saved', 'Degraded', 'Resolved', 'Answer re-entered and locked']], 2],
   ['P-4105', 'Georgia', 7, '16:45', 25, 88, 86, [], 'Accepted'],
-  ['P-4106', 'Washington', 8, '12:15', 25, 81, 63, ['Incorrect stimulus presentation'], 'Accepted', [['Stimulus failed to load', 'Degraded', 'Resolved', 'A fallback card was shown. Counted as not seen.']]],
+  ['P-4106', 'Washington', 8, '12:15', 25, 86, 82, [], 'Accepted'],
   ['P-4107', 'Ohio', 8, '17:00', 30, 87, 84, [], 'Accepted'],
   ['P-4108', 'Florida', 9, '11:10', 23, 65, 77, ['Rushed response'], 'Accepted'],
   ['P-4109', 'Colorado', 9, '14:25', 27, 89, 85, [], 'Accepted', [['Audio dropped', 'Degraded', 'Resolved', 'Participant rejoined and the answer was repeated']]],
   ['P-4110', 'North Carolina', 10, '10:40', 26, 91, 87, [], 'Accepted'],
   ['P-4111', 'Massachusetts', 10, '15:15', 25, 80, 67, ['Guide deviation'], 'Accepted'],
-  ['P-4112', 'Texas', 11, '09:50', 12, 25, 60, ['Duplicate entry', 'Rushed response'], 'Excluded'],
+  ['P-4112', 'Georgia', 16, '11:35', 26, 88, 87, [], 'Accepted'],
   ['P-4113', 'Arizona', 11, '13:30', 28, 86, 83, [], 'Accepted', [['Transcription delayed', 'Minor', 'Resolved', 'The transcript filled in within the hour']]],
   ['P-4114', 'Michigan', 12, '11:55', 25, 90, 82, [], 'Accepted'],
   ['P-4115', 'Oregon', 12, '16:20', 29, 84, 88, [], 'Accepted'],
   ['P-4116', 'Pennsylvania', 13, '10:30', 24, 74, 56, ['Missed core theme'], 'Accepted'],
   ['P-4117', 'Virginia', 13, '14:05', 26, 89, 90, [], 'Accepted'],
   ['P-4118', 'Minnesota', 14, '12:00', 27, 82, 78, [], 'Accepted'],
-  ['P-4119', 'California', 14, '15:45', 14, 47, 32, ['Leading question', 'Extended silence'], 'Excluded'],
+  ['P-4119', 'New Jersey', 17, '13:10', 25, 86, 82, [], 'Accepted'],
   ['P-4120', 'Tennessee', 15, '10:20', 25, 92, 86, [], 'Accepted'],
-  ['P-4121', 'Georgia', 16, '11:35', 26, 88, 87, [], 'Accepted'],
-  ['P-4122', 'New Jersey', 17, '13:10', 25, 86, 82, [], 'Accepted'],
+  ['P-4121', 'Texas', 11, '09:50', 12, 25, 60, ['Duplicate entry', 'Rushed response'], 'Excluded'],
+  ['P-4122', 'California', 14, '15:45', 14, 47, 32, ['Leading question', 'Extended silence'], 'Excluded'],
 ]
 
 /** Four accepted participants used the audio-only access mode (P12), so there is no video of them. */
-const ICE_AUDIO_ONLY = new Set(['P-4107', 'P-4110', 'P-4113', 'P-4120'])
+const ICE_AUDIO_ONLY = new Set(['P-4116', 'P-4117', 'P-4118', 'P-4119', 'P-4120'])
 
 export const ICE_SEED_SESSIONS: SeedSession[] = [
   // The first attempt of P-4104 lost its connection; the participant came back on a new link.

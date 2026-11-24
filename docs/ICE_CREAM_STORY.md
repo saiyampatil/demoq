@@ -1,5 +1,8 @@
 # Ice Cream Flavour Concept Test: the story every file must agree on
 
+> **Superseded for the people and the numbers.** The roster, segments, audio-only people, choice task, first reactions, themes and tensions were re-seeded to `docs/stitch/ICE_CREAM_MOCK_DATA.md` (phase 0 of the A2 redesign; `tests/ice-seed.mjs` checks it). Where this file and that one disagree, that one wins. The brief, the guide, the fieldwork dates and the people's roles below still hold. Section by section, the old roster below (who is a parent, who is audio-only, P-4121 and P-4122 as accepted, P-4106's failed card) is out of date.
+
+
 Study ID `ice-cream-flavours`. Client Scoop & Co (contact Leah Brandt, Head of Product Development). Researcher Maya Ortiz.
 AI-led, English (US), 25 minutes, target 20. Fieldwork Oct 5 to 19, 2026 (Eastern daylight time), closed Oct 20.
 Codebook drafted Oct 22, 2026 10:00 ET by PulseAI; Maya's decisions are Oct 22 to 23.

@@ -67,6 +67,10 @@ export type PackConfig = {
   themes: SeedTheme[]
   themeSuggestions: Omit<SeedTheme, 'by' | 'at'>[]
   tensions: Record<string, SeedTensionDecision>
+  /** Bumped when a study's seed is rewritten, so a browser still holding the old seed's codebook starts again from the new one. */
+  seedVersion?: number
+  /** Insights the Researcher had already accepted when the analysis opens: a theme by its ID, a concept by "concept:" and its moment ID. */
+  insightDecisions?: { key: string; by: string; at: string }[]
   /** What the log says the AI did first, e.g. "20 codes from 20 accepted sessions". */
   suggestedDetail: string
   /** Log entries for decisions that are not a code's accept, reject or merge (a rename, a dismissed tension). */
@@ -82,6 +86,8 @@ export type CodebookPack = {
   themes: SeedTheme[]
   themeSuggestions: Omit<SeedTheme, 'by' | 'at'>[]
   tensions: Record<string, SeedTensionDecision>
+  insightDecisions: NonNullable<PackConfig['insightDecisions']>
+  seedVersion: number
   log: LogEntry[]
 }
 
@@ -149,7 +155,7 @@ export function buildPack(cfg: PackConfig): CodebookPack {
   cfg.themes.forEach((t) => log.push({ id: `l-${t.id}`, at: t.at, by: t.by, target: { kind: 'theme', id: t.id, name: t.name }, action: 'Created theme', detail: `${t.codeIds.length} codes` }))
   log.sort((a, b) => b.at.localeCompare(a.at))
 
-  return { studyId: cfg.studyId, coder: cfg.coder, codedAt: cfg.codedAt, questions: cfg.questions, codes, themes: cfg.themes, themeSuggestions: cfg.themeSuggestions, tensions: cfg.tensions, log }
+  return { studyId: cfg.studyId, coder: cfg.coder, codedAt: cfg.codedAt, questions: cfg.questions, codes, themes: cfg.themes, themeSuggestions: cfg.themeSuggestions, tensions: cfg.tensions, insightDecisions: cfg.insightDecisions ?? [], seedVersion: cfg.seedVersion ?? 1, log }
 }
 
 /** Every study's codebook pack, by study ID. Each study registers its own. */

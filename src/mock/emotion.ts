@@ -11,6 +11,7 @@ import type { Band } from './signals'
 import { r1, seeded } from './seed'
 import { STUDY_SEEDS } from './sessions'
 import { addConceptFaces, CONCEPT_FACES, QUOTE_FACES, STANCE, VOICE_OVERRIDES, type Set2 } from './emotionKit'
+import { ICE_READINGS } from './iceCream/target'
 import './iceCream/emotion'
 
 // ─── the vocabulary ─────────────────────────────────────────────────────────
@@ -141,6 +142,12 @@ function targetTone(key: string, band: Band, stance?: Stance): Tone {
   if (stance === 'Positive') return x < 0.45 ? 'Animated' : x < 0.95 ? 'Even' : 'Flat'
   if (stance === 'Negative') return x < 0.2 ? 'Tense' : x < 0.3 ? 'Animated' : 'Even'
   return x < 0.15 ? 'Animated' : x < 0.9 ? 'Even' : 'Flat'
+}
+
+/** A voice reading from measured numbers, for quotes whose numbers are set by hand. */
+export function voiceFrom(v: Pick<VoiceReading, 'pace' | 'usualPace' | 'pitch' | 'usualPitch' | 'loudness'>): VoiceReading {
+  const louder = v.loudness === 0 ? 'as loud as usual' : `${Math.abs(v.loudness)} dB ${v.loudness > 0 ? 'louder' : 'quieter'} than usual`
+  return { ...v, tone: toneOf(v), reason: `${v.pace} words a minute against their usual ${v.usualPace}, a pitch range of ${v.pitch} semitones against ${v.usualPitch}, ${louder}.` }
 }
 
 export function voiceAt(key: string, participantId: string, band: Band, stance?: Stance): VoiceReading {
@@ -317,6 +324,9 @@ export function faceAtExcerpt(excerptId: string, participantId: string, codeId: 
 export function faceAtMoment(momentId: string, participantId: string, band: Band): FaceReading | undefined {
   if (!hasVideo(participantId)) return undefined
   const key = `m:${momentId}:${participantId}`
+  // Ice Cream's first reactions are set by hand, cue and all.
+  const fixed = ICE_READINGS[`${participantId}:${momentId}`]
+  if (fixed) return { emotion: fixed.label, intensity: fixed.intensity, confidence: fixed.confidence, cue: fixed.cue, onsetSec: fixed.onsetSec }
   const set = CONCEPT_FACES[momentId]?.[participantId] ?? drawn(key, 'Neutral', band)
   return reading(key, set[0], set[1])
 }

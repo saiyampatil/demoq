@@ -137,7 +137,7 @@ const PET_ANSWERS: Record<string, { keep: string; appeal: string; reason: string
  */
 const ICE_ANSWERS: Record<string, { keep: string; appeal: string; main: string; others: string[] }> = {
   'P-4101': { keep: 'Probably would', appeal: '4', main: 'As a treat for myself', others: ['After dinner at home'] },
-  'P-4102': { keep: 'Definitely would', appeal: '5', main: 'With the family at the weekend', others: ['After dinner at home'] },
+  'P-4102': { keep: 'Probably would', appeal: '5', main: 'With the family at the weekend', others: ['After dinner at home'] },
   'P-4103': { keep: 'Probably would', appeal: '4', main: 'On a hot day', others: ['As a treat for myself'] },
   'P-4104': { keep: 'Definitely would', appeal: '5', main: 'With the family at the weekend', others: ['At a party or get-together'] },
   'P-4105': { keep: 'Probably would', appeal: '4', main: 'After dinner at home', others: ['With the family at the weekend'] },
@@ -146,16 +146,17 @@ const ICE_ANSWERS: Record<string, { keep: string; appeal: string; main: string; 
   'P-4108': { keep: 'Probably would', appeal: '4', main: 'On a hot day', others: ['At a party or get-together'] },
   'P-4109': { keep: 'Probably would', appeal: '4', main: 'With the family at the weekend', others: ['On a hot day'] },
   'P-4110': { keep: 'Probably would', appeal: '4', main: 'As a treat for myself', others: ['After dinner at home'] },
-  'P-4111': { keep: 'Might or might not', appeal: '3', main: 'After dinner at home', others: ['Something else'] },
-  'P-4113': { keep: 'Definitely would', appeal: '5', main: 'On a hot day', others: ['At a party or get-together'] },
-  'P-4114': { keep: 'Definitely would', appeal: '5', main: 'With the family at the weekend', others: ['As a treat for myself'] },
+  'P-4111': { keep: 'Probably would', appeal: '4', main: 'After dinner at home', others: ['Something else'] },
+  'P-4112': { keep: 'Probably would', appeal: '4', main: 'As a treat for myself', others: ['After dinner at home'] },
+  'P-4113': { keep: 'Probably would not', appeal: '3', main: 'On a hot day', others: ['At a party or get-together'] },
+  'P-4114': { keep: 'Probably would not', appeal: '3', main: 'With the family at the weekend', others: ['As a treat for myself'] },
   'P-4115': { keep: 'Probably would', appeal: '4', main: 'As a treat for myself', others: ['At a party or get-together'] },
   'P-4116': { keep: 'Might or might not', appeal: '3', main: 'At a party or get-together', others: ['On a hot day'] },
   'P-4117': { keep: 'Probably would', appeal: '4', main: 'With the family at the weekend', others: ['After dinner at home'] },
   'P-4118': { keep: 'Probably would not', appeal: '3', main: 'After dinner at home', others: ['As a treat for myself'] },
-  'P-4120': { keep: 'Probably would', appeal: '4', main: 'On a hot day', others: ['As a treat for myself'] },
-  'P-4121': { keep: 'Probably would not', appeal: '3', main: 'After dinner at home', others: ['With the family at the weekend'] },
-  'P-4122': { keep: 'Probably would', appeal: '4', main: 'As a treat for myself', others: ['After dinner at home'] },
+  'P-4119': { keep: 'Probably would not', appeal: '3', main: 'With the family at the weekend', others: ['After dinner at home'] },
+  // The locked answer to "how likely" was left empty: no answer (the design data's one person with none).
+  'P-4120': { keep: '', appeal: '4', main: 'On a hot day', others: ['As a treat for myself'] },
 }
 
 /** A participant's locked answer to one survey question. Pet Food and Ice Cream answers are authored above; other studies get a deterministic one. */

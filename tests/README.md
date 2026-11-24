@@ -12,6 +12,8 @@ This is not the old test chain. It is only the driver and the probes that have b
 
 These end with `... OK` or `... FAILED: <reasons>` and exit 1 on a failure: `counts`, `bridge`, `emotion`, `a2-review`, `a2-themes`, `a2-themes-tab`, `a2-tension-coverage`, `a2-speech-face`, `a2-summary`, `a2-vocabulary`, `a3-exec-summary`, `a3-showreel`, `a3-wordcloud`, `a3-thememap`, `a3-audio-summary`, `moderator-requests`, `moderator-m1`, `moderator-seed`, `stimulus-plans`, `moderator-brief`, `escalation`, `gap-loop`, `issues`, `needs-you-s2`, `needs-you-s3`, `needs-you-s4`, `session-nav`, `stage2`, and the `moderators`, `highlights` and `report` scenarios (`node tests/setup-flow.mjs <prefix> moderators`, `node tests/setup-flow.mjs hl highlights`, `node tests/setup-flow.mjs rp report`). The rest (`pet`, `journey`, `needs-you`, the `*-shots` probes, and the `pool`, `reward`, `screening` scenarios) print what they see and fail only if the page breaks.
 
+`ice-seed` is not a browser probe either (`node tests/ice-seed.mjs`): it reads the people, themes, codes and tension tables out of `docs/stitch/ICE_CREAM_MOCK_DATA.md` and checks the real modules against them, with the few known differences listed in the test and in `docs/OPEN_QUESTIONS.md` (#279 to #288).
+
 `a2-verdict` is not a browser probe: it runs the real modules through Vite's SSR loader (`node tests/a2-verdict.mjs`, no dev server needed) and checks the speech-only verdict, insight sentences, moments to watch and decisions.
 
 Things the probes had wrong, so they don't drift again:

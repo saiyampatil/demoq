@@ -260,12 +260,11 @@ export const ICE_CONTENT: FieldworkContent = { seeds: ICE_SEED_SESSIONS, lines: 
 
 const NOTES: Record<string, string> = {
   'P-4102': 'The vague answer about choosing a flavour was probed on the next turn. Usable.',
-  'P-4106': 'The failed Mango Lassi card was counted as not seen, as the guide says. The rest is usable.',
   'P-4108': 'A short run of quick answers early on, then fully engaged. Usable.',
   'P-4111': 'The agent asked about household income, which is outside the guide. The flavour answers are unaffected.',
-  'P-4112': 'Same device and near-identical answers as P-4103. Excluded as a duplicate.',
+  'P-4121': 'Same device and near-identical answers as P-4103. Excluded as a duplicate.',
   'P-4116': 'The agent never asked what they would expect to pay, so that theme is missing here. The flavour story is complete, so it is kept.',
-  'P-4119': 'The agent led the answers and the participant went quiet for long stretches. Not usable.',
+  'P-4122': 'The agent led the answers and the participant went quiet for long stretches. Not usable.',
 }
 
 /** Every completed interview was decided the day after it ended. */
@@ -277,7 +276,7 @@ const decisions: Record<string, Decision> = Object.fromEntries(
   }),
 )
 
-const REPLACEMENTS = { 'P-4112': 'P-4121', 'P-4119': 'P-4122' }
+const REPLACEMENTS = { 'P-4121': 'P-4112', 'P-4122': 'P-4119' }
 
 const ICE_PACK: ReviewPack = {
   seeds: ICE_SEED_SESSIONS,
@@ -464,10 +463,10 @@ export function seedIceCream(): IceSeed {
   const entry = (when: string, by: string, text: string) => ({ id: uid('fl'), at: when, by, text })
   const fieldwork: FieldworkDoc = {
     ...base,
-    reserve: [invited('P-4121', 'Georgia', '2026-10-12T10:30:00-04:00'), invited('P-4122', 'New Jersey', '2026-10-16T09:45:00-04:00')],
+    reserve: [invited('P-4112', 'Georgia', '2026-10-12T10:30:00-04:00'), invited('P-4119', 'New Jersey', '2026-10-16T09:45:00-04:00')],
     log: [
-      entry('2026-10-12T10:30:00-04:00', maya, 'Invited 1 from the reserve: A-4121 as P-4121'),
-      entry('2026-10-16T09:45:00-04:00', maya, 'Invited 1 from the reserve: A-4122 as P-4122'),
+      entry('2026-10-12T10:30:00-04:00', maya, 'Invited 1 from the reserve: A-4112 as P-4112'),
+      entry('2026-10-16T09:45:00-04:00', maya, 'Invited 1 from the reserve: A-4119 as P-4119'),
       entry('2026-10-20T10:00:00-04:00', maya, 'Closed fieldwork'),
     ],
     closed: { by: maya, at: '2026-10-20T10:00:00-04:00' },

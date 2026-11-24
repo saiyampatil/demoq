@@ -20,6 +20,7 @@ import {
 import { askedOf, codeThemes, denominator, peopleOf, tensionDecisions, themeCodes, unthemed, type Basis, type Code, type CodebookDoc, type TensionDecision, type Theme } from './codebook'
 import { DELIVERY, FIT_LABEL, SIDE_LABEL, describedLine } from '@/config/delivery'
 import { segmentOf, segmentsOf, segmentWord } from '@/mock/studyAnalysis'
+import { conceptStudyOf } from '@/mock/concepts'
 import { emotionSplit, faceOf, hasVideo, toneSplit, FIT_RULE_TEXT, type Emotion, type EmotionSplit, type Stance, type ToneSplit } from './emotion'
 import { DELIVERY as RULES } from '@/config/delivery'
 import { fitSplitOf, insightNow, insightOf, insightStatus, momentsToWatch, readPeople, speechAgainst, standoutOf, withStance, type Fit, type PersonFit, type FitPattern, type FitSplit, type Insight, type InsightNow, type InsightStatus, type MomentToWatch, type PersonRead, type CodeStandout } from './speech'
@@ -261,6 +262,30 @@ function wordsThenNo(c: Ctx, o: { codeId: string; survey: string; question: RegE
   }
 }
 
+/** "Said vs did": people who said one concept first, and which one each then chose in the choice task. Everyone in the group is on exactly one line: chose it, chose another, or did not choose. */
+function wordsThenChose(c: Ctx, o: { codeId: string; said: string; conceptId: string }): Evidence {
+  const said = c.people(o.codeId)
+  const study = conceptStudyOf(c.studyId)
+  const pick = (p: string) => study?.choice?.picks[p]
+  const same = said.filter((p) => pick(p) === o.conceptId)
+  const other = said.filter((p) => !!pick(p) && pick(p) !== o.conceptId)
+  const none = said.length - same.length - other.length
+  const name = (id: string) => study?.concepts.find((x) => x.id === id)?.name ?? id
+  const others = [...new Set(other.map((p) => pick(p)!))].map((id) => ({ label: `Chose ${name(id)}`, n: other.filter((p) => pick(p) === id).length, of: said.length }))
+  return {
+    sides: [
+      { label: o.said, n: said.length, of: c.N },
+      { label: `Of those, chose ${name(o.conceptId)} to take home`, n: same.length, of: said.length, rest: lines(...others, { label: 'Did not choose', n: none, of: said.length, missing: true }) },
+    ],
+    coverage: thin(none, said.length) ? [basedOn(none, said.length)] : undefined,
+    clips: other.map((p) => {
+      const ex = quoteOf(c, o.codeId, p)
+      return { participantId: p, sessionId: ex.sessionId, atSec: ex.atSec, quote: ex.excerpt?.text, note: `Chose ${name(pick(p)!)} in the choice task` }
+    }),
+    caution: said.length < SMALL_GROUP ? 'Only a few people. Read it as a prompt to look, not a result.' : undefined,
+  }
+}
+
 /** "Said vs survey", the second shape: people who said one thing, and how many of them locked a survey answer that `differs` from it. */
 function wordsThenOther(c: Ctx, o: { codeId: string; survey: string; question: RegExp; said: string; other: string; same: string; differs: (answer: string) => boolean }): Evidence {
   const said = c.people(o.codeId)
@@ -411,8 +436,10 @@ function evidence(def: TensionDef, doc: CodebookDoc, basis: Basis): Evidence {
         differs: (a) => !/vet or store brand/i.test(a),
       })
     // ── Ice Cream Flavour Concept Test ──
-    case 'tn-caramel-survey':
-      return wordsThenNo(c, { codeId: 'ic-pick-caramel', survey: 'Flavour reaction', question: /how likely/i, said: 'Picked Salted Caramel Swirl as the one they would buy first', no: 'Of those, answered “probably” or “definitely would not” in the locked survey' })
+    case 'tn-cookie-locked':
+      return wordsThenNo(c, { codeId: 'ic-pick-cookie', survey: 'Flavour reaction', question: /how likely/i, said: 'Picked Cookie Dough Crunch as the one they would buy first', no: 'Of those, answered “probably” or “definitely would not” in the locked survey' })
+    case 'tn-mango-did':
+      return wordsThenChose(c, { codeId: 'ic-pick-mango', said: 'Picked Mango Lassi as the one they would buy first', conceptId: 'm-concept-b' })
     case 'tn-caramel-mango-face':
       return wordsThenFace(c, {
         codeId: 'ic-pick-caramel',
@@ -426,8 +453,6 @@ function evidence(def: TensionDef, doc: CodebookDoc, basis: Basis): Evidence {
       })
     case 'tn-segments':
       return acrossSegments(c, { a: 'ic-pick-cookie', b: 'ic-pick-mango', answers: def.answers! })
-    case 'tn-mango-concept':
-      return chosenThenHesitated(c, { codeId: 'ic-pick-mango', momentId: 'm-concept-b', chose: 'Would buy Mango Lassi first', slow: 'Of those, marked hesitation at first sight of Concept B', where: 'First sight of Concept B' })
     case 'tn-price-survey':
       return wordsThenOther(c, {
         codeId: 'ic-price-limit',

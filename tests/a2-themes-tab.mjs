@@ -402,7 +402,8 @@ try {
   const iceCols = await ev(`[...document.querySelector('[data-testid=signal-head]').children].map(e=>e.innerText.trim())`)
   ok('Ice Cream has the same five columns and a collapsed table', JSON.stringify(iceCols) === JSON.stringify(['Name', 'Said by', 'What stood out', 'Verdict', 'Status']) && (await count('[data-testid=signal-row]')) === 0)
   const iceHead = await text('[data-testid=insights-progress]')
-  ok('and the header counts its own insights', /^0 of 2 insights decided · \d+ tensions? to review$/.test(iceHead ?? ''), iceHead)
+  // The seed holds one accepted theme (The safe choice wins the shelf) out of three: 1 of 3. Three tensions are to review; the waiting one is not counted.
+  ok('and the header counts its own insights', /^1 of 3 insights decided · 3 tensions to review$/.test(iceHead ?? ''), iceHead)
 } catch (e) {
   failures.push(`stopped: ${e.message}`)
 } finally {

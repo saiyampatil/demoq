@@ -16,7 +16,7 @@ How to use it: design each tab from its section. Where a line is in quotes it is
 | Method | AI-led interviews, English (US), 25 minutes, fieldwork 5 to 19 Oct 2026 |
 | People | 20 accepted. 15 on video (P-4101 to P-4115), 5 audio-only (P-4116 to P-4120) |
 | Segments | Parent 8, Adult without children 12 |
-| Researcher | PM |
+| Researcher | Maya Ortiz |
 
 **The three concepts**
 
@@ -26,21 +26,21 @@ How to use it: design each tab from its section. Where a line is in quotes it is
 | B | Mango Lassi | Mango |
 | C | Cookie Dough Crunch | Cookie |
 
-**The people.** "Said first" is the flavour they said they would buy first. "Warmest first reaction" is the concept their face first read warmest at, in the first five seconds after the reveal (video only). "Chose in task" is the flavour they chose in the choice task. "Locked answer" is the locked survey answer, asked only of those who said Cookie first.
+**The people.** "Said first" is the flavour they said they would buy first. "Warmest first reaction" is the concept their face first read warmest at, in the first five seconds after the reveal (video only). "Chose in task" is the flavour they chose in the choice task. "Locked answer" is the locked survey answer ("Probably would" or "Probably would not"), asked only of those who said Cookie first.
 
 | ID | Segment | Media | Said first | Warmest first reaction | Chose in task | Locked answer |
 |---|---|---|---|---|---|---|
 | P-4101 | Adult without children | Video | Caramel | Mango | Mango | — |
-| P-4102 | Parent | Video | Cookie | Cookie | Cookie | Would |
+| P-4102 | Parent | Video | Cookie | Cookie | Cookie | Probably would |
 | P-4103 | Parent | Video | Mango | Mango | Mango | — |
 | P-4104 | Adult without children | Video | Caramel | Mango | Caramel | — |
-| P-4105 | Parent | Video | Cookie | Cookie | Cookie | Would |
+| P-4105 | Parent | Video | Cookie | Cookie | Cookie | Probably would |
 | P-4106 | Adult without children | Video | Caramel | Mango | Caramel | — |
 | P-4107 | Adult without children | Video | Caramel | Mango | Caramel | — |
 | P-4108 | Parent | Video | Caramel | Caramel | Caramel | — |
 | P-4109 | Adult without children | Video | Mango | Mango | Mango | — |
 | P-4110 | Adult without children | Video | Mango | Mango | Caramel | — |
-| P-4111 | Parent | Video | Cookie | Cookie | Cookie | Would |
+| P-4111 | Parent | Video | Cookie | Cookie | Cookie | Probably would |
 | P-4112 | Adult without children | Video | Mango | Mango | Cookie | — |
 | P-4113 | Parent | Video | Cookie | Cookie | Cookie | Probably would not |
 | P-4114 | Adult without children | Video | Cookie | Mango | Cookie | Probably would not |
@@ -61,7 +61,7 @@ How to use it: design each tab from its section. Where a line is in quotes it is
 
 ## 1. Themes tab
 
-Tab strip: **Themes** · **Concepts** (badge 2) · **Tensions** (badge 3). The Themes tab itself carries no badge: its undecided insights are in the progress line.
+Tab strip: **Themes** (badge 2) · **Concepts** (badge 2) · **Tensions** (badge 3). Each badge is the items still to review: two theme insights, two concept lines, three tensions.
 
 Header, sticky: "2 of 6 insights decided · 3 tensions to review". Under it: "Speech read for 20 of 20 people · 5 audio-only, read on speech · Faces read at concept reveals for 15 of 20 people (5 audio-only)".
 
@@ -71,10 +71,10 @@ Columns: Name · Said by · What stood out · Verdict · Status. Collapsed on lo
 
 | Theme | Codes | Said by | What stood out | Verdict | Status | Insight line |
 |---|---|---|---|---|---|---|
-| The safe choice wins the shelf | 4 codes | 14 of 20 people | — | Consistent | Accepted | 12 of 14 people were verbally positive about it, and their delivery backed it up. |
-| Parents choose for the whole family | 4 codes | 9 of 20 people | — | Mixed | Suggested | 7 of 9 people were verbally positive about it, but 3 of those 7 sounded flat or tense. |
+| The safe choice wins the shelf | 4 codes | 14 of 20 people | — | Consistent | Suggested | 12 of 14 people were verbally positive about it, and their delivery backed it up. |
+| Parents choose for the whole family | 4 codes | 10 of 20 people | — | Mixed | Suggested | 8 of 10 people were verbally positive about it, but 3 of those 8 sounded flat or tense. |
 | Curious about something different | 4 codes | 10 of 20 people | — | Gap | Suggested | 6 of 10 people were verbally positive about it, but 4 of those 6 sounded flat or tense. |
-| Not in a theme | 4 codes | — | — | (none) | (none) | "4 codes aren’t in a theme yet. Group them in the codebook." |
+| Not in a theme | 5 codes | — | — | (none) | (none) | "5 codes aren’t in a theme yet. Group them in the codebook." |
 
 The "Not in a theme" row shows no verdict, no insight, no Accept. Open, it lists its codes like any other.
 
@@ -82,17 +82,17 @@ The "Not in a theme" row shows no verdict, no insight, no Accept. Open, it lists
 
 | Code | Stance tag | Said by | What stood out | Verdict | Status |
 |---|---|---|---|---|---|
+| Buys a tub every week | For it | 4 of 20 people | — | Mixed | — |
+| Goes back to the usual flavour | Just describes | 6 of 20 people | Sounded even · 5 of 6 | No position | — |
 | Would buy Salted Caramel Swirl first | For it | 8 of 20 people | Sounded even · 5 of 8 | Consistent | — |
 | Caramel feels like the safe choice | For it | 6 of 20 people | Sounded even · 6 of 6 | Consistent | — |
-| Goes back to the usual flavour | Just describes | 6 of 20 people | Sounded even · 5 of 6 | No position | — |
-| Buys a tub every week | For it | 4 of 20 people | — | Mixed | — |
 
 **Codes in “Parents choose for the whole family”**
 
 | Code | Stance tag | Said by | What stood out | Verdict | Status |
 |---|---|---|---|---|---|
 | The kids pick the flavour | Just describes | 6 of 20 people | Sounded even · 4 of 6 | No position | — |
-| Would buy Cookie Dough Crunch first | For it | 6 of 20 people | Sounded flat or tense · 3 of 6 | Mixed | — |
+| Would buy Cookie Dough Crunch first | For it | 7 of 20 people | Sounded flat or tense · 3 of 7 | Consistent | — |
 | Cookie dough is one everyone will eat | For it | 4 of 20 people | Sounded even · 3 of 4 | Consistent | — |
 | The kids wouldn’t eat it | Against it | 2 of 20 people | — | Too few to read | Nothing to decide |
 
@@ -100,8 +100,8 @@ The "Not in a theme" row shows no verdict, no insight, no Accept. Open, it lists
 
 | Code | Stance tag | Said by | What stood out | Verdict | Status |
 |---|---|---|---|---|---|
-| Mango is the one that’s different | For it | 5 of 20 people | Sounded flat or tense · 4 of 5 | Gap | — |
 | Likes to try something new | For it | 4 of 20 people | — | Mixed | — |
+| Mango is the one that’s different | For it | 5 of 20 people | Sounded flat or tense · 4 of 5 | Gap | — |
 | Didn’t know what a lassi is | Against it | 3 of 20 people | — | Consistent | — |
 | Explain what a lassi is on the tub | Just describes | 3 of 20 people | — | No position | — |
 
@@ -109,10 +109,11 @@ The "Not in a theme" row shows no verdict, no insight, no Accept. Open, it lists
 
 | Code | Stance tag | Said by | What stood out | Verdict | Status |
 |---|---|---|---|---|---|
+| Would buy Mango Lassi first | For it | 5 of 20 people | Sounded even · 4 of 5 | Consistent | — |
 | Worried it would be too sweet | Against it | 6 of 20 people | Sounded even · 4 of 6 | Consistent | — |
 | Expects to pay about five to six dollars | Just describes | 7 of 20 people | Sounded even · 7 of 7 | No position | — |
-| A smaller kid-size tub | For it | 2 of 20 people | — | Too few to read | Nothing to decide |
 | More of the best part | For it | 5 of 20 people | — | Mixed | — |
+| A smaller kid-size tub | For it | 2 of 20 people | — | Too few to read | Nothing to decide |
 
 ### 1.2 Theme panels
 
@@ -120,7 +121,7 @@ One right panel. Same order every time: header · Insight · Did their delivery 
 
 #### The safe choice wins the shelf
 
-- Chips: verdict **Consistent**; status **Accepted** (on the Insight heading)
+- Chips: verdict **Consistent**; status **Suggested** (on the Insight heading)
 - Title: The safe choice wins the shelf
 - Header line: "Said by 14 of 20 people"
 - Insight (AI-generated tag, once): "12 of 14 people were verbally positive about it, and their delivery backed it up."
@@ -132,7 +133,7 @@ One right panel. Same order every time: header · Insight · Did their delivery 
 
 | Tile | Count | Show who (ID · segment · one word) |
 |---|---|---|
-| Matched | 10 | P-4106 · Adult without children · Animated; P-4101 · Adult without children · Even; P-4104 · Adult without children · Animated; P-4107 · Adult without children · Even; P-4110 · Adult without children · Even; P-4113 · Parent · Even; P-4114 · Adult without children · Even; P-4116 · Parent · Even; P-4117 · Adult without children · Even; P-4118 · Adult without children · Even |
+| Matched | 10 | P-4106 · Adult without children · Animated; P-4101 · Adult without children · Even; P-4104 · Adult without children · Animated; P-4107 · Adult without children · Even; P-4110 · Adult without children · Animated; P-4113 · Parent · Even; P-4114 · Adult without children · Even; P-4116 · Parent · Even; P-4117 · Adult without children · Even; P-4118 · Adult without children · Even |
 | No match | 1 | P-4115 · Adult without children · Flat |
 | Hesitant | 1 | P-4108 · Parent · Hesitated |
 
@@ -144,37 +145,37 @@ Coverage line: "2 just described it · 5 audio-only, read on speech"
 
 | ID | Segment | Time | What they said | Result | Reason (only measures that crossed a limit) |
 |---|---|---|---|---|---|
-| P-4115 | Adult without children | 09:04 | “Caramel’s fine. It’s the safe one, I suppose.” | No match | Voice varied less than usual: pitch range 2.3 vs their usual 3.6. Quieter than usual by 2.8 dB. |
-| P-4106 | Adult without children | 17:00 | “Caramel is what I’d put in the trolley without thinking.” | Matched | Paused 2.1 s mid-answer. Voice varied more than usual: pitch range 5.7 vs their usual 4.1. |
-| P-4108 | Parent | 11:45 | “I guess caramel, maybe. It’s the one nobody argues about.” | Hesitant | Answered 2.4 s after the question. Usual: 1.3 s. 2 fillers or restarts. |
-| P-4114 | Adult without children | 15:47 | “At the shop I end up with the usual, even when I liked something new.” | Matched | Voice varied more than usual: pitch range 7.8 vs their usual 5.6. |
-| P-4104 | Adult without children | 07:16 | “I go back to caramel every time. New flavours are fun for a week.” | Matched | Voice varied more than usual: pitch range 7.8 vs their usual 5.6. |
+| P-4115 | Adult without children | 19:00 | “Caramel’s fine. It’s the safe one, I suppose.” | No match | Voice varied less than usual: pitch range 2.3 vs their usual 3.6. Quieter than usual by 2.8 dB. |
+| P-4106 | Adult without children | 15:16 | “Caramel is what I’d put in the trolley without thinking.” | Matched | Paused 2.1 s mid-answer. Voice varied more than usual: pitch range 5.7 vs their usual 4.1. |
+| P-4108 | Parent | 02:57 | “One tub a week for us. It’s usually gone by Friday.” | Hesitant | Answered 2.4 s after the question. Usual: 1.3 s. 2 fillers or restarts. |
+| P-4114 | Adult without children | 07:01 | “It’s chocolate chip for us, mostly. A new one every now and then.” | Matched | Voice varied more than usual: pitch range 7.8 vs their usual 5.6. |
+| P-4104 | Adult without children | 03:56 | “A tub a week, sometimes two if it’s a hot week.” | Matched | Voice varied more than usual: pitch range 7.8 vs their usual 5.6. |
 
 **Codes to check:** Buys a tub every week (Mixed)
 
-**Tensions on this theme:** No tensions on this.
+**Tensions on this theme:** Said vs showed, Caramel (card 4)
 
-**Decision bar:** [Accepted] (disabled) · [Edit] · [Leave out]
+**Decision bar:** [Accept] (primary) · [Edit] · [Leave out]
 
 **Your note:** (empty. Kept apart from the insight. It is never part of the sentence.)
 
-**Approval footer:** Accepted by PM · 21 Nov 2026 · data v1
+**Approval footer:** Not decided yet
 
 #### Parents choose for the whole family
 
 - Chips: verdict **Mixed**; status **Suggested** (on the Insight heading)
 - Title: Parents choose for the whole family
-- Header line: "Said by 9 of 20 people"
-- Insight (AI-generated tag, once): "7 of 9 people were verbally positive about it, but 3 of those 7 sounded flat or tense."
+- Header line: "Said by 10 of 20 people"
+- Insight (AI-generated tag, once): "8 of 10 people were verbally positive about it, but 3 of those 8 sounded flat or tense."
 - Theme definition (from the codebook, not shown in the panel): With children at home the flavour has to be one everyone will eat.
 
 **Did their delivery match their words?**
 
-**Spoke in favour · 7**
+**Spoke in favour · 8**
 
 | Tile | Count | Show who (ID · segment · one word) |
 |---|---|---|
-| Matched | 3 | P-4111 · Parent · Animated; P-4102 · Parent · Even; P-4105 · Parent · Even |
+| Matched | 4 | P-4111 · Parent · Animated; P-4102 · Parent · Even; P-4105 · Parent · Even; P-4120 · Adult without children · Even |
 | No match | 3 | P-4113 · Parent · Tense; P-4114 · Adult without children · Flat; P-4119 · Parent · Flat |
 | Hesitant | 1 | P-4103 · Parent · Hesitated |
 
@@ -186,21 +187,21 @@ Coverage line: "2 just described it · 5 audio-only, read on speech"
 | No match | 1 | P-4116 · Parent · Animated |
 | Hesitant | 0 | — |
 
-Coverage line: "2 audio-only, read on speech"
+Coverage line: "3 audio-only, read on speech"
 
 **Moments to watch** (one per person, the clearest first; Play on each)
 
 | ID | Segment | Time | What they said | Result | Reason (only measures that crossed a limit) |
 |---|---|---|---|---|---|
-| P-4114 | Adult without children | 13:03 | “My nephews would go for cookie dough, so I’d buy that when they visit.” | No match | Voice varied less than usual: pitch range 3.6 vs their usual 5.6. Quieter than usual by 2.8 dB. |
-| P-4116 | Parent | 16:46 | “No, the kids wouldn’t touch the mango one!” | No match | Voice varied more than usual: pitch range 5.7 vs their usual 4.1. |
-| P-4113 | Parent | 16:07 | “The kids pick. That’s it. Cookie dough, every time.” | No match | Spoke faster than usual: 179 words a minute vs their usual 138. Voice varied less than usual: pitch range 4.1 vs their usual 5.1. |
-| P-4119 | Parent | 09:52 | “The kids ask for cookie dough, so that’s what goes in the freezer.” | No match | Voice varied less than usual: pitch range 3.6 vs their usual 5.6. Quieter than usual by 2.8 dB. |
-| P-4103 | Parent | 13:19 | “I’d love the mango one, but the kids decide, so cookie dough, probably.” | Hesitant | Answered 3.4 s after the question. Usual: 1.6 s. 3 fillers or restarts. |
+| P-4114 | Adult without children | 16:33 | “My nephews would go for cookie dough, so I’d buy that when they visit.” | No match | Voice varied less than usual: pitch range 3.6 vs their usual 5.6. Quieter than usual by 2.8 dB. |
+| P-4116 | Parent | 17:48 | “No, the kids wouldn’t touch the mango one!” | No match | Voice varied more than usual: pitch range 5.7 vs their usual 4.1. |
+| P-4113 | Parent | 18:13 | “The kids pick. That’s it. Cookie dough, every time.” | No match | Spoke faster than usual: 179 words a minute vs their usual 138. Voice varied less than usual: pitch range 4.1 vs their usual 5.1. |
+| P-4119 | Parent | 16:16 | “The kids ask for cookie dough, so that’s what goes in the freezer.” | No match | Voice varied less than usual: pitch range 3.6 vs their usual 5.6. Quieter than usual by 2.8 dB. |
+| P-4103 | Parent | 03:21 | “My son picks the flavour. I just say yes or no.” | Hesitant | Answered 3.4 s after the question. Usual: 1.6 s. 3 fillers or restarts. |
 
-**Codes to check:** Would buy Cookie Dough Crunch first (Mixed)
+**Codes to check:** None. No code is Mixed or Gap.
 
-**Tensions on this theme:** Between segments, Cookie (card 1)
+**Tensions on this theme:** Between segments, Cookie (card 1); Said vs locked answer, Cookie (card 2)
 
 **Decision bar:** [Accept] (primary) · [Edit] · [Leave out]
 
@@ -242,11 +243,11 @@ Coverage line: "1 just described it · 2 audio-only, read on speech"
 
 | ID | Segment | Time | What they said | Result | Reason (only measures that crossed a limit) |
 |---|---|---|---|---|---|
-| P-4112 | Adult without children | 19:10 | “It’s a nice idea, mango. Cookie dough is what I’d actually carry home.” | No match | Spoke faster than usual: 173 words a minute vs their usual 133. Voice varied less than usual: pitch range 3.7 vs their usual 4.6. |
-| P-4117 | Adult without children | 14:33 | “I don’t even know what a lassi is! Is it a yoghurt?” | No match | Voice varied more than usual: pitch range 6.4 vs their usual 4.6. |
-| P-4118 | Adult without children | 07:05 | “Mango sounds different. I’d probably go back to my usual.” | No match | Voice varied less than usual: pitch range 3.3 vs their usual 5.1. Quieter than usual by 2.8 dB. |
-| P-4101 | Adult without children | 13:48 | “Mango is interesting, I’d try it. I just don’t think I’d buy a whole tub.” | No match | Voice varied less than usual: pitch range 2.6 vs their usual 4.1. Quieter than usual by 2.8 dB. |
-| P-4110 | Adult without children | 12:06 | “Mango’s different, sure. I’d still pick the caramel at the checkout.” | No match | Voice varied less than usual: pitch range 2.3 vs their usual 3.6. Quieter than usual by 2.8 dB. |
+| P-4112 | Adult without children | 05:43 | “Something different is the whole reason I’d pick a new tub.” | No match | Spoke faster than usual: 173 words a minute vs their usual 133. Voice varied less than usual: pitch range 3.7 vs their usual 4.6. |
+| P-4117 | Adult without children | 19:56 | “I don’t even know what a lassi is! Is it a yoghurt?” | No match | Voice varied more than usual: pitch range 6.4 vs their usual 4.6. |
+| P-4118 | Adult without children | 19:27 | “Mango sounds different. I’d probably go back to my usual.” | No match | Voice varied less than usual: pitch range 3.3 vs their usual 5.1. Quieter than usual by 2.8 dB. |
+| P-4101 | Adult without children | 18:45 | “Mango is interesting, I’d try it. I just don’t think I’d buy a whole tub.” | No match | Voice varied less than usual: pitch range 2.6 vs their usual 4.1. Quieter than usual by 2.8 dB. |
+| P-4110 | Adult without children | 05:44 | “If there’s a weird flavour on the shelf, I’ll grab it once.” | No match | Voice varied less than usual: pitch range 2.3 vs their usual 3.6. Quieter than usual by 2.8 dB. |
 
 **Codes to check:** Mango is the one that’s different (Gap) · Likes to try something new (Mixed)
 
@@ -296,15 +297,15 @@ Coverage line: "2 audio-only, read on speech"
 
 | ID | Segment | Time | What they said | Result | Reason (only measures that crossed a limit) |
 |---|---|---|---|---|---|
-| P-4115 | Adult without children | 09:04 | “Caramel’s fine. It’s the safe one, I suppose.” | No match | Voice varied less than usual: pitch range 2.3 vs their usual 3.6. Quieter than usual by 2.8 dB. |
-| P-4106 | Adult without children | 17:00 | “Caramel is what I’d put in the trolley without thinking.” | Matched | Paused 2.1 s mid-answer. Voice varied more than usual: pitch range 5.7 vs their usual 4.1. |
-| P-4108 | Parent | 11:45 | “I guess caramel, maybe. It’s the one nobody argues about.” | Hesitant | Answered 2.4 s after the question. Usual: 1.3 s. 2 fillers or restarts. |
-| P-4104 | Adult without children | 07:16 | “I go back to caramel every time. New flavours are fun for a week.” | Matched | Voice varied more than usual: pitch range 7.8 vs their usual 5.6. |
-| P-4117 | Adult without children | 18:48 | “I’d stick with caramel. I know it.” | Matched | (no reason line: nothing crossed a limit) |
+| P-4115 | Adult without children | 19:00 | “Caramel’s fine. It’s the safe one, I suppose.” | No match | Voice varied less than usual: pitch range 2.3 vs their usual 3.6. Quieter than usual by 2.8 dB. |
+| P-4106 | Adult without children | 15:16 | “Caramel is what I’d put in the trolley without thinking.” | Matched | Paused 2.1 s mid-answer. Voice varied more than usual: pitch range 5.7 vs their usual 4.1. |
+| P-4108 | Parent | 15:07 | “I guess caramel, maybe. It’s the one nobody argues about.” | Hesitant | Answered 2.4 s after the question. Usual: 1.3 s. 2 fillers or restarts. |
+| P-4104 | Adult without children | 17:45 | “I go back to caramel every time. New flavours are fun for a week.” | Matched | Voice varied more than usual: pitch range 7.8 vs their usual 5.6. |
+| P-4117 | Adult without children | 19:11 | “I’d stick with caramel. I know it.” | Matched | (no reason line: nothing crossed a limit) |
 
 **Tensions on this code:** Said vs showed, Caramel (card 4)
 
-**Approval footer** (the theme’s decision): Theme “The safe choice wins the shelf”: Accepted by PM · 21 Nov 2026 · data v1
+**Approval footer** (the theme’s decision): Theme “The safe choice wins the shelf”: Not decided yet
 
 #### A Gap code: Mango is the one that’s different
 
@@ -340,11 +341,11 @@ Coverage line: "1 audio-only, read on speech"
 
 | ID | Segment | Time | What they said | Result | Reason (only measures that crossed a limit) |
 |---|---|---|---|---|---|
-| P-4118 | Adult without children | 07:05 | “Mango sounds different. I’d probably go back to my usual.” | No match | Voice varied less than usual: pitch range 3.3 vs their usual 5.1. Quieter than usual by 2.8 dB. |
-| P-4101 | Adult without children | 13:48 | “Mango is interesting, I’d try it. I just don’t think I’d buy a whole tub.” | No match | Voice varied less than usual: pitch range 2.6 vs their usual 4.1. Quieter than usual by 2.8 dB. |
-| P-4112 | Adult without children | 11:57 | “It’s a nice idea, mango. Cookie dough is what I’d actually carry home.” | No match | Spoke faster than usual: 173 words a minute vs their usual 133. Voice varied less than usual: pitch range 3.7 vs their usual 4.6. |
-| P-4110 | Adult without children | 08:34 | “Mango’s different, sure. I’d still pick the caramel at the checkout.” | No match | Voice varied less than usual: pitch range 2.3 vs their usual 3.6. Quieter than usual by 2.8 dB. |
-| P-4109 | Adult without children | 12:19 | “Mango Lassi, yes. I want the one that tastes like nothing else.” | Matched | (no reason line: nothing crossed a limit) |
+| P-4118 | Adult without children | 19:27 | “Mango sounds different. I’d probably go back to my usual.” | No match | Voice varied less than usual: pitch range 3.3 vs their usual 5.1. Quieter than usual by 2.8 dB. |
+| P-4101 | Adult without children | 18:45 | “Mango is interesting, I’d try it. I just don’t think I’d buy a whole tub.” | No match | Voice varied less than usual: pitch range 2.6 vs their usual 4.1. Quieter than usual by 2.8 dB. |
+| P-4112 | Adult without children | 17:26 | “It’s a nice idea, mango. Cookie dough is what I’d actually carry home.” | No match | Spoke faster than usual: 173 words a minute vs their usual 133. Voice varied less than usual: pitch range 3.7 vs their usual 4.6. |
+| P-4110 | Adult without children | 19:23 | “Mango’s different, sure. I’d still pick the caramel at the checkout.” | No match | Voice varied less than usual: pitch range 2.3 vs their usual 3.6. Quieter than usual by 2.8 dB. |
+| P-4109 | Adult without children | 16:49 | “Mango Lassi, yes. I want the one that tastes like nothing else.” | Matched | (no reason line: nothing crossed a limit) |
 
 **Tensions on this code:** No tensions on this.
 
@@ -358,7 +359,7 @@ Coverage line: "1 audio-only, read on speech"
 > Was: 12 of 14 people were verbally positive about it, and their delivery backed it up.
 > Now: 11 of 14 people were verbally positive about it, and their delivery backed it up.
 
-Footer reads "Accepted by PM · 21 Nov 2026 · data v1 · out of date". Accept stays available (to accept the new sentence).
+Footer reads "Accepted by Maya Ortiz · Oct 23, 2026 · data v1 · out of date". Accept stays available (to accept the new sentence).
 
 **Edit mode.** Insight becomes a text box. Hint: "You can change the wording. The numbers are locked to PulseAI’s." Buttons [Save wording] [Cancel].
 
@@ -366,7 +367,7 @@ Footer reads "Accepted by PM · 21 Nov 2026 · data v1 · out of date". Accept s
 
 If the numbers are changed, Save is off and a red line says: "The numbers are locked. Change the wording, not the figures." A figure shown as a share of 100 is refused by the same rule.
 
-**Left out.** Status chip **Left out**; the sticky bar shows a grey line "Reason: Not what the brief asked." Footer "Left out by PM · 21 Nov 2026 · data v1". The reason is optional, except for a theme or concept with nothing to decide, where it is required.
+**Left out.** Status chip **Left out**; the sticky bar shows a grey line "Reason: Not what the brief asked." Footer "Left out by Maya Ortiz · Oct 23, 2026 · data v1". The reason is optional, except for a theme or concept with nothing to decide, where it is required.
 
 **Nothing to decide** (a code with fewer than 3 people, e.g. “The kids wouldn’t eat it”, 2 people). Status chip grey **Nothing to decide**; Accept and Edit are off with the tip "Too few people to read a pattern"; Leave out needs a reason.
 
@@ -436,11 +437,11 @@ Coverage line: "Faces read at the reveal for 15 of 20 people · 5 audio-only, no
 
 | Rank | ID | Segment | Time | Visible cue | Reads as | After the reveal | |
 |---|---|---|---|---|---|---|---|
-| 1 | P-4108 | Parent | 08:22 | Grin spread slowly across the face | reads as Delight · High confidence | 0.6 s | Not right? |
-| 2 | P-4113 | Parent | 09:20 | Eyes widened a little and stayed on the photo | reads as Interest · High confidence | 1.4 s | Not right? |
-| 3 | P-4101 | Adult without children | 08:56 | Leaned in, brows lifted, eyes on the card | reads as Interest · High confidence | 1.1 s | Not right? |
-| 4 | P-4110 | Adult without children | 08:05 | Chin lifted to read the card | reads as Interest · Medium confidence | 0.4 s | Not right? |
-| 5 | P-4104 | Adult without children | 09:05 | Brows shot up and eyes widened for a moment | reads as Surprise · High confidence | 1.2 s | Not right? |
+| 1 | P-4108 | Parent | 06:40 | Grin spread slowly across the face | reads as Delight · High confidence | 0.6 s | Not right? |
+| 2 | P-4113 | Parent | 08:40 | Eyes widened a little and stayed on the photo | reads as Interest · High confidence | 1.4 s | Not right? |
+| 3 | P-4101 | Adult without children | 08:17 | Leaned in, brows lifted, eyes on the card | reads as Interest · High confidence | 1.1 s | Not right? |
+| 4 | P-4110 | Adult without children | 07:01 | Chin lifted to read the card | reads as Interest · Medium confidence | 0.4 s | Not right? |
+| 5 | P-4104 | Adult without children | 08:53 | Brows shot up and eyes widened for a moment | reads as Surprise · High confidence | 1.2 s | Not right? |
 
 Footer text: "Showing 5 of 15 first reactions."
 
@@ -496,15 +497,15 @@ Coverage line: "Faces read at the reveal for 15 of 20 people · 5 audio-only, no
 
 | Rank | ID | Segment | Time | Visible cue | Reads as | After the reveal | |
 |---|---|---|---|---|---|---|---|
-| 1 | P-4109 | Adult without children | 14:39 | Leaned in with a wide smile | reads as Delight · High confidence | 1.5 s | Not right? |
-| 2 | P-4106 | Adult without children | 14:29 | Cheeks raised in a clear smile | reads as Delight · High confidence | 1.3 s | Not right? |
-| 3 | P-4104 | Adult without children | 14:17 | A short laugh and a lean toward the card | reads as Delight · High confidence | 1.2 s | Not right? |
-| 4 | P-4101 | Adult without children | 14:09 | Broad smile that reached the eyes | reads as Delight · High confidence | 1.1 s | Not right? |
-| 5 | P-4107 | Adult without children | 14:02 | Eyebrows up with a pleased half-smile | reads as Delight · High confidence | 1.0 s | Not right? |
+| 1 | P-4109 | Adult without children | 11:13 | Leaned in with a wide smile | reads as Delight · High confidence | 1.5 s | Not right? |
+| 2 | P-4106 | Adult without children | 10:58 | Cheeks raised in a clear smile | reads as Delight · High confidence | 1.3 s | Not right? |
+| 3 | P-4104 | Adult without children | 13:48 | A short laugh and a lean toward the card | reads as Delight · High confidence | 1.2 s | Not right? |
+| 4 | P-4101 | Adult without children | 13:52 | Broad smile that reached the eyes | reads as Delight · High confidence | 1.1 s | Not right? |
+| 5 | P-4107 | Adult without children | 14:53 | Eyebrows up with a pleased half-smile | reads as Delight · High confidence | 1.0 s | Not right? |
 
 Footer text: "Showing 5 of 15 first reactions."
 
-**Tensions on this concept:** Said vs did, Mango (card 3)
+**Tensions on this concept:** Between segments, Cookie (card 1); Said vs did, Mango (card 3)
 
 **Decision bar:** [Accept] (primary) · [Edit] · [Leave out]
 
@@ -556,19 +557,19 @@ Coverage line: "Faces read at the reveal for 15 of 20 people · 5 audio-only, no
 
 | Rank | ID | Segment | Time | Visible cue | Reads as | After the reveal | |
 |---|---|---|---|---|---|---|---|
-| 1 | P-4113 | Parent | 20:01 | Cheeks lifted and eyes crinkled | reads as Delight · High confidence | 1.4 s | Not right? |
-| 2 | P-4111 | Parent | 19:49 | Nodded twice with a bright smile | reads as Delight · High confidence | 1.2 s | Not right? |
-| 3 | P-4102 | Parent | 19:10 | Quick grin, then a nod | reads as Delight · High confidence | 0.7 s | Not right? |
-| 4 | P-4115 | Adult without children | 19:07 | Sat forward with a big smile | reads as Delight · High confidence | 0.7 s | Not right? |
-| 5 | P-4105 | Parent | 18:54 | Smile widened as the card came up | reads as Delight · High confidence | 0.5 s | Not right? |
+| 1 | P-4113 | Parent | 18:53 | Cheeks lifted and eyes crinkled | reads as Delight · High confidence | 1.4 s | Not right? |
+| 2 | P-4111 | Parent | 18:41 | Nodded twice with a bright smile | reads as Delight · High confidence | 1.2 s | Not right? |
+| 3 | P-4102 | Parent | 16:34 | Quick grin, then a nod | reads as Delight · High confidence | 0.7 s | Not right? |
+| 4 | P-4115 | Adult without children | 19:49 | Sat forward with a big smile | reads as Delight · High confidence | 0.7 s | Not right? |
+| 5 | P-4105 | Parent | 18:02 | Smile widened as the card came up | reads as Delight · High confidence | 0.5 s | Not right? |
 
 Footer text: "Showing 5 of 15 first reactions."
 
-**Tensions on this concept:** Said vs locked answer, Cookie (card 2, added)
+**Tensions on this concept:** Between segments, Cookie (card 1); Said vs locked answer, Cookie (card 2, added)
 
 **Decision bar:** [Accepted] (disabled) · [Edit] · [Leave out]
 
-**Approval footer:** Accepted by PM · 21 Nov 2026 · data v1
+**Approval footer:** Accepted by Maya Ortiz · Oct 23, 2026 · data v1
 
 ## 3. Tensions tab
 
@@ -591,21 +592,21 @@ Supporting moments:
 
 | ID | Segment | Time | What they said |
 |---|---|---|---|
-| P-4113 | Parent | 10:12 | “Whatever I pick, the kids have to eat it. Cookie dough.” |
-| P-4119 | Parent | 15:34 | “With the kids at home it’s cookie dough or nothing.” |
-| P-4106 | Adult without children | 11:44 | “I’m buying for myself, so caramel.” |
-| P-4110 | Adult without children | 17:21 | “Mango, because I don’t have to share it with anybody’s kids.” |
+| P-4102 | Parent | 15:56 | “Cookie dough, because the kids will actually finish the tub.” |
+| P-4105 | Parent | 16:57 | “Cookie Dough Crunch, because I know it’ll get finished.” |
+| P-4109 | Adult without children | 16:21 | “The mango lassi, no contest. I like different.” |
+| P-4110 | Adult without children | 18:14 | “Mango first, I suppose. It sounds like the interesting one.” |
 
 ### Card 2 · Said vs locked answer · Added (accepted)
 
 - Title: "Said Cookie Dough Crunch first, but some then said they probably wouldn’t buy it"
 - Affects: [Concept C: Cookie Dough Crunch](#23-concept-c-cookie-dough-crunch)
-- Status line: "Added as a tension theme · PM · 21 Nov 2026" and [Restore]
+- Status line: "Added as a tension theme · Maya Ortiz · Oct 23, 2026" and [Restore]
 
 | Row | People |
 |---|---|
 | Said Cookie first | 7 of 20 people |
-| Of those, locked answer “Would” | 3 of 7 people |
+| Of those, locked answer “Probably would” | 3 of 7 people |
 | Of those, locked answer “Probably would not” | 3 of 7 people |
 | Unaccounted: gave no locked answer | 1 of 7 people (P-4120) |
 
@@ -613,9 +614,9 @@ Supporting moments:
 
 | ID | Segment | Time | What they said | Locked answer |
 |---|---|---|---|---|
-| P-4113 | Parent | 11:41 | “Cookie dough is what I’d say first, but I wouldn’t buy it for myself.” | Probably would not |
-| P-4114 | Adult without children | 14:26 | “I said it first, but when I think about paying for a tub, I’m less sure.” | Probably would not |
-| P-4119 | Parent | 16:52 | “The kids love it, but I’m not sure I’d buy it every week.” | Probably would not |
+| P-4113 | Parent | 18:13 | “The kids pick. That’s it. Cookie dough, every time.” | Probably would not |
+| P-4114 | Adult without children | 16:33 | “My nephews would go for cookie dough, so I’d buy that when they visit.” | Probably would not |
+| P-4119 | Parent | 16:16 | “The kids ask for cookie dough, so that’s what goes in the freezer.” | Probably would not |
 
 ### Card 3 · Said vs did · To review
 
@@ -634,9 +635,9 @@ Supporting moments:
 
 | ID | Segment | Time | What they said | Chose in task |
 |---|---|---|---|---|
-| P-4110 | Adult without children | 10:55 | “I love the idea of mango, but my hand goes to the caramel.” | Caramel |
-| P-4118 | Adult without children | 12:28 | “I said mango, and then I picked caramel. That’s probably what I’d really do.” | Caramel |
-| P-4112 | Adult without children | 15:03 | “Mango is the one I’m curious about, but I took the cookie dough.” | Cookie |
+| P-4110 | Adult without children | 18:14 | “Mango first, I suppose. It sounds like the interesting one.” | Caramel |
+| P-4112 | Adult without children | 17:09 | “Mango is more interesting, though cookie dough is what I’d carry home.” | Cookie |
+| P-4118 | Adult without children | 18:39 | “Mango, I guess, if I’m being adventurous.” | Caramel |
 
 ### Card 4 · Said vs showed · To review
 
@@ -656,10 +657,10 @@ Supporting moments (the cue comes first):
 
 | ID | Segment | Time | Visible cue | Reads as | What they said |
 |---|---|---|---|---|---|
-| P-4101 | Adult without children | 14:09 | Broad smile that reached the eyes | reads as Delight · High confidence at Mango | “Caramel is my safe pick. The mango one is the one that made me smile.” |
-| P-4104 | Adult without children | 14:17 | A short laugh and a lean toward the card | reads as Delight · High confidence at Mango | “Caramel is what I’d say, but I was curious about the mango.” |
-| P-4106 | Adult without children | 14:29 | Cheeks raised in a clear smile | reads as Delight · High confidence at Mango | “I’d buy caramel, though the mango card did catch my eye.” |
-| P-4108 | Parent | 08:22 | Grin spread slowly across the face | reads as Delight · High confidence at Caramel | “Caramel for all of us. That’s easy.” |
+| P-4101 | Adult without children | 13:52 | Broad smile that reached the eyes | reads as Delight · High confidence at Mango | “Caramel is the one I always end up with. It never lets me down.” |
+| P-4104 | Adult without children | 13:48 | A short laugh and a lean toward the card | reads as Delight · High confidence at Mango | “I go back to caramel every time. New flavours are fun for a week.” |
+| P-4106 | Adult without children | 10:58 | Cheeks raised in a clear smile | reads as Delight · High confidence at Mango | “Caramel is what I’d put in the trolley without thinking.” |
+| P-4108 | Parent | 06:40 | Grin spread slowly across the face | reads as Delight · High confidence at Caramel | “I guess caramel, maybe. It’s the one nobody argues about.” |
 
 ### Card 5 · Said vs locked answer · Waiting on codebook (locked)
 
@@ -678,15 +679,15 @@ Supporting moments (the cue comes first):
 - Coverage: "Speech read for 20 of 20 people"
 - Second coverage line: "5 audio-only, read on speech · Faces read at concept reveals for 15 of 20 people (5 audio-only)"
 
-**Tab badges** (items still to review): Themes none · Concepts 2 · Tensions 3.
+**Tab badges** (items still to review): Themes 2 · Concepts 2 · Tensions 3.
 
-**Footer, left** (progress): "2 of 6 insights decided". Insights are the 3 theme insights and the 3 concept lines. ("Nothing to decide" items and "Not in a theme" are not counted.) Note for later: the prototype's header counts theme insights only today; this file counts concept lines too.
+**Footer, left** (progress): "2 of 6 insights decided". Insights are the 3 theme insights and the 3 concept lines. ("Nothing to decide" items and "Not in a theme" are not counted.) One counter feeds the footer, the Review button and the tab badges: theme insights plus concept lines. (Decided; the Themes header label is fixed in phase 2.)
 
 **Footer, report line:** "Goes to the report: 1 theme insight, 1 concept line and 1 tension theme · 4 insights and 3 tensions still to review"
 
 Worked out as: accepted theme insights 1 (Safe); accepted concept lines 1 (Cookie); tension themes 1 (card 2, added); insights to review 2 theme + 2 concept = 4; tensions to review 3 (cards 1, 3, 4; card 5 is waiting and not counted).
 
-Buttons: [Back to Codebook] on the left; "Review 2 insights" and [Continue to Report] on the right.
+Buttons: [Back to Codebook] on the left; "Review 4 insights" and [Continue to Report] on the right.
 
 **How to read this** (one popover next to "Expand all"; two short sections)
 

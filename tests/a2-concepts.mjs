@@ -120,7 +120,8 @@ const docOf = (id) => {
   const { doc, basis, ppl } = docOf('ice-cream-flavours')
   const r = cn.conceptRows(doc, basis)
   const figs = r.rows.map((x) => [x.name, `${x.said.n}/${x.said.of}`, `${x.did.n}/${x.did.of}`, `${x.showed.n}/${x.showed.of}`, x.match])
-  ok('Ice Cream: Said 8 of 20, 5 of 19, 7 of 20; Did 3 of 20, 5 of 19, 12 of 20; Showed 5 of 15, 3 of 14, 7 of 15', JSON.stringify(figs) === JSON.stringify([['Salted Caramel Swirl', '8/20', '3/20', '5/15', 'Differs'], ['Mango Lassi', '5/19', '5/19', '3/14', 'Agrees'], ['Cookie Dough Crunch', '7/20', '12/20', '7/15', 'Agrees']]), figs)
+  // From the design data (docs/stitch/ICE_CREAM_MOCK_DATA.md, section 0): Said 8/5/7 of 20, Did 10/3/7 of 20, Showed 1/9/5 of the 15 on video.
+  ok('Ice Cream: Said 8, 5, 7 of 20; Did 10, 3, 7 of 20; Showed 1, 9, 5 of 15', JSON.stringify(figs) === JSON.stringify([['Salted Caramel Swirl', '8/20', '10/20', '1/15', 'Differs'], ['Mango Lassi', '5/20', '3/20', '9/15', 'Differs'], ['Cookie Dough Crunch', '7/20', '7/20', '5/15', 'Agrees']]), figs)
   // Showed, written out again here from the raw readings, separately from state/concepts.ts
   const study = mc.conceptStudyOf('ice-cream-flavours')
   const rank = { Delight: 20, Interest: 10 }, lvl = { Low: 1, Medium: 2, High: 3 }
@@ -133,14 +134,14 @@ const docOf = (id) => {
     if (warm.length && (warm.length === 1 || warm[0][0] !== warm[1][0])) tally[warm[0][1]]++
   }
   ok('Showed matches an independent count from the raw first reactions, with its own base per concept', r.rows.every((x) => x.showed.n === tally[x.id] && x.showed.of === pool[x.id]), [tally, pool])
-  ok('coverage: 15 of 20 read at a reveal, 4 audio-only, 1 without consent', r.coverage.read === 15 && r.coverage.audioOnly === 4 && r.coverage.noConsent === 1 && r.coverage.onVideo === 15, r.coverage)
-  ok('the person who did not consent has no reading at any reveal, and neither do the audio-only people', ['P-4116', 'P-4107', 'P-4110', 'P-4113', 'P-4120'].every((p) => study.concepts.every((c) => !mc.revealReading('ice-cream-flavours', p, c.id))))
-  ok('P-4106 never saw Concept B, so has no reading there and is in no base for it', !mc.revealReading('ice-cream-flavours', 'P-4106', B) && !r.input.people.find((p) => p.participantId === 'P-4106').saw.includes(B) && by(r.rows, B).saw === 19)
-  ok('Ice Cream has a choice task, so Did is there; Caramel is the one that differs', r.hasChoiceTask && r.rows.filter((x) => x.match === 'Differs').map((x) => x.name).join() === 'Salted Caramel Swirl')
+  ok('coverage: 15 of 20 read at a reveal, 5 audio-only, none without consent', r.coverage.read === 15 && r.coverage.audioOnly === 5 && r.coverage.noConsent === 0 && r.coverage.onVideo === 15, r.coverage)
+  ok('the audio-only people (P-4116 to P-4120) have no reading at any reveal, and every person on video has three', ['P-4116', 'P-4117', 'P-4118', 'P-4119', 'P-4120'].every((p) => study.concepts.every((c) => !mc.revealReading('ice-cream-flavours', p, c.id))) && ppl.filter((p) => em.hasVideo(p)).every((p) => study.concepts.every((c) => !!mc.revealReading('ice-cream-flavours', p, c.id))))
+  ok('everyone saw every concept, so each concept is seen by 20 of 20 (a failed card is tested on Pet Food)', [A, B, C].every((c) => by(r.rows, c).saw === 20))
+  ok('Ice Cream has a choice task, so Did is there; Caramel is the one that differs', r.hasChoiceTask && r.rows.filter((x) => x.match === 'Differs').map((x) => x.name).join() === 'Salted Caramel Swirl,Mango Lassi')
   const lines = r.rows.map((x) => x.line)
   ok('every line passes the shared validator, with one claim and two figures', lines.every((l) => l && cn.checkConceptLine(l).ok && /\d+ of \d+/.test(l)), lines.map((l) => cn.checkConceptLine(l).problems))
-  ok('Caramel’s line is the brief’s: warmest first reaction for 5 of 15 on video, but only 3 of 20 chose it to take home', lines[0] === 'Salted Caramel Swirl drew the warmest first reaction for 5 of 15 on video, but only 3 of 20 chose it to take home.', lines[0])
-  ok('two shares within 0.1 are said with “and”, not “but only”', /, and 5 of 19 chose it to take home\.$/.test(lines[1]), lines[1])
+  ok('the three lines are the design data’s, one sentence each with two figures', lines[0] === '10 of 20 chose Salted Caramel Swirl to take home, but it drew the warmest first reaction for only 1 of 15 on video.' && lines[1] === 'Mango Lassi drew the warmest first reaction for 9 of 15 on video, but only 3 of 20 chose it to take home.' && lines[2] === 'Cookie Dough Crunch drew the warmest first reaction for 5 of 15 on video, and 7 of 20 chose it to take home.', lines)
+  ok('two shares within 0.1 are said with “and”, not “but only”', /, and 7 of 20 chose it to take home\.$/.test(lines[2]), lines[2])
 }
 {
   const { doc, basis } = docOf('pet-food-churn')
@@ -184,7 +185,7 @@ const docOf = (id) => {
   const d1 = accepted.insights['concept:m-concept-a']
   ok('accepting records who, when, the fingerprint and the data version, under the concept’s own key', d1.status === 'Accepted' && d1.by === 'Maya Ortiz' && d1.fingerprint === caramel.now.fingerprint && d1.dataVersion === 1 && rows(accepted)[0].decision.status === 'Accepted')
   const wording = caramel.line.replace('drew the warmest first reaction', 'got the warmest first reaction')
-  ok('an edit may change the wording but not the numbers, and may carry two figures', sp.checkInsightEdit(wording, caramel.line, { figuresAllowed: 2 }).length === 0 && sp.checkInsightEdit(caramel.line.replace('5 of 15', '6 of 15'), caramel.line, { figuresAllowed: 2 }).some((p) => /numbers are locked/i.test(p)) && sp.checkInsightEdit(caramel.line, caramel.line).some((p) => /More than one/.test(p)))
+  ok('an edit may change the wording but not the numbers, and may carry two figures', sp.checkInsightEdit(wording, caramel.line, { figuresAllowed: 2 }).length === 0 && sp.checkInsightEdit(caramel.line.replace('1 of 15', '2 of 15'), caramel.line, { figuresAllowed: 2 }).some((p) => /numbers are locked/i.test(p)) && sp.checkInsightEdit(caramel.line, caramel.line).some((p) => /More than one/.test(p)))
   const edited = cb.editInsight(accepted, ref(caramel), cur(caramel), wording, who)
   ok('an edit is Edited and keeps the same fingerprint, so it stays current', rows(edited)[0].decision.status === 'Edited' && edited.insights['concept:m-concept-a'].fingerprint === d1.fingerprint)
   // change the data under it: one person who chose Cookie now chose Caramel
@@ -205,10 +206,10 @@ const docOf = (id) => {
   const { doc, basis } = docOf('ice-cream-flavours')
   const r = cn.conceptRows(doc, basis)
   const { clips, total } = cn.clipsOf(r.input, B)
-  ok('a concept lists at most five first reactions, warmest first, each “reads as” a label with a cue and a time', clips.length === 5 && total === 14 && clips.every((c, i) => c.rank === i + 1 && c.reading.cue && c.reading.label && c.reading.revealAtSec > 0), clips.map((c) => [c.participantId, c.reading.label, c.reading.intensity]))
+  ok('a concept lists at most five first reactions, warmest first, each “reads as” a label with a cue and a time', clips.length === 5 && total === 15 && clips.every((c, i) => c.rank === i + 1 && c.reading.cue && c.reading.label && c.reading.revealAtSec > 0), clips.map((c) => [c.participantId, c.reading.label, c.reading.intensity]))
   const order = { Delight: 7, Interest: 6, Surprise: 5, Neutral: 4, Confusion: 3, Doubt: 2, Frustration: 1 }
   ok('they are ranked warmest first: Delight above Interest, then by intensity', clips.every((c, i) => i === 0 || order[clips[i - 1].reading.label] >= order[c.reading.label]))
-  ok('audio-only people and people without consent are in no list', !clips.some((c) => ['P-4113', 'P-4120', 'P-4116'].includes(c.participantId)) && cn.clipsOf(r.input, A, 99).clips.every((c) => em.hasVideo(c.participantId) && c.participantId !== 'P-4116'))
+  ok('audio-only people and people without consent are in no list', !clips.some((c) => ['P-4116', 'P-4117', 'P-4118', 'P-4119', 'P-4120'].includes(c.participantId)) && cn.clipsOf(r.input, A, 99).clips.every((c) => em.hasVideo(c.participantId)))
   const who = cn.peopleBehind(r.input, C, 'did')
   ok('the people behind a measure are the ones counted in it', who.length === by(r.rows, C).did.n && cn.peopleBehind(r.input, A, 'said').length === 8 && cn.peopleBehind(r.input, B, 'showed').length === by(r.rows, B).showed.n)
 }

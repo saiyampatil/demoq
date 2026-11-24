@@ -15,6 +15,7 @@ import { findReviewRecord } from './review'
 import { r1 } from './seed'
 import { momentPoints, sessionOfParticipant } from './signals'
 import { NOT_SEEN } from './signalKit'
+import { ICE_ROSTER } from './iceCream/target'
 
 export type ConceptDef = {
   /** The moment ID of its first reaction: m-concept-a, m-concept-b, m-concept-c. */
@@ -73,14 +74,10 @@ registerConceptStudy({
   ],
   choice: {
     question: 'Which tub would you take home today?',
-    picks: {
-      'P-4101': 'm-concept-a', 'P-4102': 'm-concept-c', 'P-4103': 'm-concept-b', 'P-4104': 'm-concept-c', 'P-4105': 'm-concept-c',
-      'P-4106': 'm-concept-c', 'P-4107': 'm-concept-c', 'P-4108': 'm-concept-b', 'P-4109': 'm-concept-c', 'P-4110': 'm-concept-a',
-      'P-4111': 'm-concept-c', 'P-4113': 'm-concept-b', 'P-4114': 'm-concept-c', 'P-4115': 'm-concept-b', 'P-4116': 'm-concept-c',
-      'P-4117': 'm-concept-c', 'P-4118': 'm-concept-a', 'P-4120': 'm-concept-b', 'P-4121': 'm-concept-c', 'P-4122': 'm-concept-c',
-    },
+    // Set in iceCream/target.ts, from the design data: Caramel 10, Mango 3, Cookie 7.
+    picks: Object.fromEntries(Object.entries(ICE_ROSTER).map(([id, p]) => [id, p.did])),
   },
-  noFaceConsent: ['P-4116'],
+  noFaceConsent: [],
 })
 
 // ─── the first reaction at a reveal ─────────────────────────────────────────
@@ -146,7 +143,7 @@ export const EARLY_MENTION: Record<string, number> = {
   'P-3101|c-price-rise': 140, 'P-3103|c-price-rise': 95, 'P-3110|c-price-rise': 210,
   'P-3104|c-piling-up': 120, 'P-3121|c-piling-up': 75,
   'P-3103|c-hard-cancel': 180, 'P-3122|c-hard-cancel': 100,
-  'P-4103|ic-lassi-unclear': 60, 'P-4113|ic-lassi-unclear': 85, 'P-4120|ic-lassi-unclear': 45,
+  'P-4106|ic-lassi-unclear': 60, 'P-4117|ic-lassi-unclear': 85, 'P-4107|ic-lassi-unclear': 45,
   'P-4101|ic-sweet-worry': 130, 'P-4115|ic-sweet-worry': 90,
   'P-4110|ic-price-limit': 150, 'P-4118|ic-price-limit': 110,
 }

@@ -264,7 +264,7 @@ for (const id of studies) {
   ok('accepting is in the log', accepted.log[0].action.startsWith('Insight accepted') && accepted.log[0].target.id === 't-family')
   ok('an accepted insight is current while nothing changed', theme(accepted).decision.status === 'Accepted')
 
-  ok('an edit may not change the numbers', sp.checkInsightEdit(t0.insight.sentence.replace('7 of 9', '8 of 9'), t0.insight.sentence).some((p) => /numbers are locked/i.test(p)))
+  ok('an edit may not change the numbers', sp.checkInsightEdit(t0.insight.sentence.replace('8 of 10', '9 of 10'), t0.insight.sentence).some((p) => /numbers are locked/i.test(p)))
   ok('an edit may not use a percentage', sp.checkInsightEdit('7 of 9 people (78%) were verbally positive about it.', t0.insight.sentence).length > 0)
   const wording = t0.insight.sentence.replace('were verbally positive about it', 'said good things about it')
   ok('an edit that only changes the wording passes', sp.checkInsightEdit(wording, t0.insight.sentence).length === 0, sp.checkInsightEdit(wording, t0.insight.sentence))

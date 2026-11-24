@@ -7,11 +7,12 @@
 
 import { CODEBOOK_PACKS, CODEBOOK_STUDY, CODE_QUESTIONS, EXCERPTS, petOf, questionsOf, type Excerpt } from './codebook'
 import { findReviewRecord, turnAtSec, turnIndexAtSec } from './review'
-import { faceAtExcerpt, faceAtMoment, stanceOf, voiceAt, type FaceReading, type Stance, type VoiceReading } from './emotion'
+import { faceAtExcerpt, faceAtMoment, stanceOf, voiceAt, voiceFrom, type FaceReading, type Stance, type VoiceReading } from './emotion'
 import { r1, seeded } from './seed'
 import { STUDY_SEEDS, sessionIdOf } from './sessions'
 import { segmentOf } from './studyAnalysis'
 import { addReactions, PLAN, REACTIONS, NOT_SEEN, registerSignalPack, SIGNAL_PACKS } from './signalKit'
+import { ICE_POINTS, ICE_READINGS } from './iceCream/target'
 import './iceCream/signals'
 
 export { petOf, segmentOf }
@@ -190,8 +191,8 @@ export type Point = {
   codeId?: string
 }
 
-function point(key: string, participantId: string, atSec: number, facts: Facts, band: Band, extra: { excerpt?: Excerpt; face?: FaceReading; stance?: Stance; codeId?: string }): Point {
-  const usual = usualDelay(participantId)
+function point(key: string, participantId: string, atSec: number, facts: Facts, band: Band, extra: { excerpt?: Excerpt; face?: FaceReading; stance?: Stance; codeId?: string; usual?: number; voice?: VoiceReading }): Point {
+  const usual = extra.usual ?? usualDelay(participantId)
   return {
     key,
     participantId,
@@ -202,7 +203,7 @@ function point(key: string, participantId: string, atSec: number, facts: Facts, 
     usual,
     band: bandOf(facts, usual),
     reason: reasonOf(facts, usual),
-    voice: voiceAt(key, participantId, band, extra.stance),
+    voice: extra.voice ?? voiceAt(key, participantId, band, extra.stance),
     ...extra,
   }
 }
@@ -214,6 +215,12 @@ export function excerptPoint(excerptId: string): Point {
   const band = EXCERPT_BAND.get(excerptId) ?? 'Steady'
   const codeId = CODE_OF_EXCERPT.get(excerptId)
   const stance = codeId ? stanceOf(codeId) : undefined
+  // Ice Cream's coded quotes are set by hand (iceCream/target.ts), so the study tells the story in the design data.
+  const fixed = codeId ? ICE_POINTS[`${codeId}:${e.participantId}`] : undefined
+  if (fixed) {
+    const fixedBand = bandOf(fixed.facts, fixed.usual)
+    return point(`x:${excerptId}`, e.participantId, e.atSec, fixed.facts, fixedBand, { excerpt: e, stance, codeId, usual: fixed.usual, voice: voiceFrom(fixed.voice), face: faceAtExcerpt(excerptId, e.participantId, codeId, fixedBand) })
+  }
   return point(`x:${excerptId}`, e.participantId, e.atSec, makeFacts(excerptId, band, usualDelay(e.participantId)), band, { excerpt: e, stance, codeId, face: faceAtExcerpt(excerptId, e.participantId, codeId, band) })
 }
 
@@ -257,7 +264,10 @@ export function momentPoints(momentId: string, studyId: string): Point[] {
     if (m.kind === 'stimulus') {
       const r = REACTIONS[m.id] ?? { marked: [], some: [] }
       const band: Band = r.marked.includes(p) ? 'Marked hesitation' : r.some.includes(p) ? 'Some hesitation' : 'Steady'
-      return point(key, p, at, makeFacts(`${m.id}${p}`, band, usualDelay(p)), band, { face: faceAtMoment(m.id, p, band) })
+      // Ice Cream's reveal readings are set by hand: they started a little after the face first moved, so the face is always read before they speak.
+      const shown = ICE_READINGS[`${p}:${m.id}`]
+      const facts = shown ? { delaySec: r1(shown.onsetSec + 0.35), pauseSec: 0.5, fillers: 0 } : makeFacts(`${m.id}${p}`, band, usualDelay(p))
+      return point(key, p, at, facts, shown ? 'Steady' : band, { face: faceAtMoment(m.id, p, shown ? 'Steady' : band) })
     }
     const x = u(`${m.id}${p}`)
     const band: Band = x < 0.08 ? 'Marked hesitation' : x < 0.25 ? 'Some hesitation' : 'Steady'
@@ -267,8 +277,8 @@ export function momentPoints(momentId: string, studyId: string): Point[] {
 
 // ─── tensions: what the product would suggest ───────────────────────────────
 
-export type TensionKind = 'Said vs emotion' | 'Said vs survey' | 'Between segments' | 'Between concepts'
-export const TENSION_KINDS: TensionKind[] = ['Said vs emotion', 'Said vs survey', 'Between segments', 'Between concepts']
+export type TensionKind = 'Said vs emotion' | 'Said vs survey' | 'Said vs did' | 'Between segments' | 'Between concepts'
+export const TENSION_KINDS: TensionKind[] = ['Said vs emotion', 'Said vs survey', 'Said vs did', 'Between segments', 'Between concepts']
 /**
  * What each type is called on screen. "Said vs emotion" and "Between concepts" both set a choice against a first reaction, but they are
  * not the same comparison, so the name says what differs: the first reads the face at a DIFFERENT concept, the second reads hesitation
@@ -277,6 +287,7 @@ export const TENSION_KINDS: TensionKind[] = ['Said vs emotion', 'Said vs survey'
 export const TENSION_KIND_LABEL: Record<TensionKind, string> = {
   'Said vs emotion': 'Said vs emotion · face at another concept',
   'Said vs survey': 'Said vs survey',
+  'Said vs did': 'Said vs did',
   'Between segments': 'Between segments',
   'Between concepts': 'Between concepts · hesitation at the chosen concept',
 }
@@ -284,6 +295,7 @@ export const TENSION_KIND_LABEL: Record<TensionKind, string> = {
 export const TENSION_KIND_HINT: Record<TensionKind, string> = {
   'Said vs emotion': 'Their choice in words, against the face they showed at a different concept (not the one they chose)',
   'Said vs survey': 'What they said in conversation, against what they locked in the survey',
+  'Said vs did': 'Which flavour they said they would buy first, against the one they chose in the choice task',
   'Between segments': 'The same question, answered differently by two groups',
   'Between concepts': 'Their choice in words, against how hesitant they sounded when first shown that same concept',
 }
