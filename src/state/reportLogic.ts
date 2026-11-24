@@ -1,7 +1,6 @@
-// What the Report means, worked out from the codebook, the signals and Review every time: live numbers, what a citation points
-// at, where a sentence stands, how strong a finding is, and whether the report can be published. Nothing here is stored.
+// What the Report's numbers mean, worked out from the codebook, the signals and Review every time: live numbers, what a citation
+// points at, and how strong a finding is. Nothing here is stored. (The blocks the report is made of are in state/reportBlocks.ts.)
 // Counts are distinct people, "n of N", never percentages or quote counts, and they come from the same functions as A1 and A2.
-import { reportSectionsOf } from '@/mock/report'
 import { analysedStudies } from '@/mock/studyAnalysis'
 import { questionsOf } from '@/mock/codebook'
 import {
@@ -9,10 +8,8 @@ import {
   excerpt,
   liveExcerpts,
   peopleOf,
-  codeThemes,
   themeCodes,
   themePeople,
-  tensionDecisions,
   WEAK_MATCH,
   type Basis,
   type Code,
@@ -20,10 +17,8 @@ import {
   type Excerpt,
   type Theme,
 } from './codebook'
-import { verdictLabel } from '@/config/delivery'
-import { toneSplit, topEmotions, TONES } from './emotion'
-import { codeSignals, tensionHeadline, tensionsFor, tensionsOf, themeSignals, type Rollup, type Tension } from './signals'
-import { citesKey, draftOf, type Approval, type Citation, type DraftKind, type ReportDoc, type Sentence, type Strength } from './report'
+import { tensionHeadline, tensionsOf, type Tension } from './signals'
+import type { Citation, Strength } from './report'
 
 export type Ctx = { doc: CodebookDoc; basis: Basis }
 export const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
@@ -141,42 +136,6 @@ export function quotesOf(r: Resolved): Excerpt[] {
   return []
 }
 
-// ─── a sentence ─────────────────────────────────────────────────────────────
-
-export type SentenceState = 'Approved' | 'Approved without citation' | 'Needs update' | 'No citation' | 'To review'
-
-export type SentenceInfo = {
-  sentence: Sentence
-  /** The wording with today's numbers. Differs from `sentence.text` when the numbers have moved. */
-  live: string
-  numbersChanged: boolean
-  cites: { cit: Citation; resolved: Resolved }[]
-  cited: boolean
-  /** Only an approval of exactly this wording and these citations counts. */
-  approval?: Approval
-  state: SentenceState
-  /** Blocks publishing. */
-  open: boolean
-  /** In the Researcher's own draft, with wording that is not one of PulseAI's sentences: written or changed by the Researcher. */
-  edited?: boolean
-}
-
-export function sentenceInfo(s: Sentence, approvals: Record<string, Approval>, ctx: Ctx): SentenceInfo {
-  const live = s.template ? renderTemplate(s.template, ctx) : s.text
-  const cites = s.cites.map((cit) => ({ cit, resolved: resolveCitation(cit, ctx) }))
-  // A number whose code or theme no longer counts can't be recalculated, so the sentence has lost its source: it reads as uncited.
-  const cited = cites.some((x) => x.resolved.kind !== 'broken') && !live.includes('[?]')
-  const a = approvals[s.id]
-  const approval = a && a.text === s.text && a.cites === citesKey(s.cites) ? a : undefined
-  const numbersChanged = !!s.template && live !== s.text && !live.includes('[?]') && !approval?.keptNumbers
-  let state: SentenceState
-  if (numbersChanged) state = 'Needs update'
-  else if (approval && (cited || approval.reason)) state = cited ? 'Approved' : 'Approved without citation'
-  else if (!cited) state = 'No citation'
-  else state = 'To review'
-  return { sentence: s, live, numbersChanged, cites, cited, approval, state, open: state !== 'Approved' && state !== 'Approved without citation' }
-}
-
 // ─── a finding ──────────────────────────────────────────────────────────────
 
 export type Quote = { excerpt: Excerpt; codeName: string }
@@ -205,159 +164,3 @@ export function strengthFor(people: number, someNotAsked: boolean): Strength {
   if (people < STRENGTH.strongPeople || someNotAsked) return 'Weak'
   return 'Strong'
 }
-
-/** One A2 signal ticked for a finding, per channel. */
-export type SignalLine = { channel: 'Speech' | 'Face' | 'Words vs delivery'; text: string; /** Emotion and voice are off in the client version until cleared. */ emotionVoice: boolean }
-/** What "How people sounded" shows for a finding: a theme's profile from A2, or a code's signals ticked at code level (older data). */
-export type FindingSignal = { id: string; name: string; kind: 'theme' | 'code'; /** The theme the code sits under, or "Not in a theme". Ticked codes are grouped by it. */ group: string; lines: SignalLine[] }
-
-/** The channel lines for a theme or a code. The words-vs-delivery line is the theme's headline sentence when there is one. */
-function signalLines(s: Pick<Rollup, 'pattern' | 'marked' | 'people' | 'emotions' | 'points' | 'fit'>, headline?: string): SignalLine[] {
-  const lines: SignalLine[] = [{ channel: 'Speech', text: `Certainty, ${s.pattern.toLowerCase()}: marked hesitation in ${s.marked} of ${s.people} people`, emotionVoice: false }]
-  const tops = topEmotions(s.emotions)
-  if (tops.length && s.emotions.read >= 3) {
-    const n = s.emotions.counts[tops[0]]
-    const read = `Faces read for ${s.emotions.read} of ${s.people}`
-    const text = n < 2 ? `${read}: no one reading stands out` : tops.length === 1 ? `${read}: ${n} read as ${tops[0].toLowerCase()}` : `${read}: ${tops.map((e) => e.toLowerCase()).join(' and ')} tie at ${n} each`
-    lines.push({ channel: 'Face', text, emotionVoice: true })
-  }
-  const tones = toneSplit(s.points)
-  const tone = TONES.reduce((best, t) => (tones.counts[t] > tones.counts[best] ? t : best), TONES[0])
-  if (tones.n >= 3 && tone !== 'Even' && tones.counts[tone] * 2 >= tones.n) lines.push({ channel: 'Speech', text: `Tone mostly ${tone.toLowerCase()} for ${tones.counts[tone]} of ${tones.n}`, emotionVoice: true })
-  if (headline) lines.push({ channel: 'Words vs delivery', text: headline, emotionVoice: true })
-  else if (s.fit.pattern === 'Mixed' || s.fit.pattern === 'Conflicting') lines.push({ channel: 'Words vs delivery', text: `${verdictLabel(s.fit.pattern)}: speech did not match the words for ${s.fit.against} of ${s.fit.n} people${s.fit.uncertain ? `, ${s.fit.uncertain} hesitant` : ''}`, emotionVoice: true })
-  return lines
-}
-
-export type FindingModel = {
-  questionId: string
-  label: string
-  text: string
-  section: string
-  strength: Strength
-  /** Distinct people under this question's accepted codes. */
-  people: number
-  asked: number
-  notAsked: number
-  codes: Code[]
-  quotes: Quote[]
-  signals: FindingSignal[]
-  /** Tensions from A2 that touch this finding's codes, not dismissed. */
-  tensions: Tension[]
-  active: DraftKind
-  sentences: SentenceInfo[]
-  omitted?: { by: string; at: string; why: string }
-  /** A sentence of this finding's other draft exists (for the switch). */
-  hasMine: boolean
-}
-
-export type ThemeModel = { theme: Theme; numbers?: Numbers; fromTension: boolean; codes: Code[]; note?: string }
-
-export type SectionModel = { id: string; label: string; findings: FindingModel[] }
-
-export type ReportModel = {
-  exec: { active: DraftKind; sentences: SentenceInfo[]; hasMine: boolean }
-  sections: SectionModel[]
-  findings: FindingModel[]
-  themes: ThemeModel[]
-  /** Every sentence of the report as it will be published: the executive summary and the active draft of every finding left in. */
-  all: SentenceInfo[]
-  open: SentenceInfo[]
-  /** Tensions dismissed in A2: never in the report. */
-  dismissedTensions: number
-  tensionsToDecide: number
-}
-
-export function reportModel(report: ReportDoc, doc: CodebookDoc, basis: Basis): ReportModel {
-  const ctx = { doc, basis }
-  const info = (list: Sentence[]) => list.map((s) => sentenceInfo(s, report.approvals, ctx))
-  /** Marks the sentences of the Researcher's own draft that PulseAI did not write, so the dot can say Edited. */
-  const withEdited = (list: SentenceInfo[], t: { active: DraftKind; aiDraft: Sentence[] }) => {
-    if (t.active !== 'researcher') return list
-    const ai = new Set(t.aiDraft.flatMap((a) => [a.text, a.template ?? a.text]))
-    return list.map((i) => ({ ...i, edited: !ai.has(i.sentence.text) && !ai.has(i.sentence.template ?? i.sentence.text) }))
-  }
-  const signals = codeSignals(doc, basis)
-  // A theme's note in the report still reads its A2 headline; only the report tick is per code now.
-  const profiles = themeSignals(doc, basis, signals)
-  // Where each code sits, for grouping ticked codes under their theme.
-  const groupOf = new Map(codeThemes(doc).flatMap((t) => themeCodes(doc, t).map((c) => [c.id, t.name] as const)))
-  const groupRank = (g: string) => (g === 'Not in a theme' ? 1 : 0)
-  const tensions = tensionsOf(doc, basis)
-  const decisions = tensionDecisions(doc)
-
-  const findings: FindingModel[] = report.findings.map((f) => {
-    const q = questionById(f.questionId)!
-    const codes = doc.codes.filter((c) => c.questionId === q.id && c.status === 'Accepted')
-    const people = new Set(codes.flatMap((c) => [...peopleOf(c, basis)])).size
-    const notAsked = q.skipped.filter((s) => basis.participants.has(s.participantId)).length
-    const codeIds = new Set(codes.map((c) => c.id))
-    // The codes ticked in A2 that this question's codes include, grouped under their themes. Theme-level profiles are no longer a report option.
-    const ticked = signals.filter((s) => codeIds.has(s.code.id) && s.use)
-    const related = new Map<string, Tension>()
-    codes.forEach((c) => tensionsFor(tensions, c.id).forEach((t) => related.set(t.id, t)))
-    return {
-      questionId: q.id,
-      label: q.label,
-      text: q.text,
-      section: q.section,
-      strength: strengthFor(people, notAsked > 0),
-      people,
-      asked: basis.participants.size - notAsked,
-      notAsked,
-      codes,
-      quotes: representativeQuotes(codes, basis),
-      signals: [
-        ...ticked.map((s): FindingSignal => ({ id: s.code.id, name: s.code.name, kind: 'code', group: groupOf.get(s.code.id) ?? 'Not in a theme', lines: signalLines(s) })).sort((a, b) => groupRank(a.group) - groupRank(b.group) || a.group.localeCompare(b.group)),
-      ],
-      tensions: [...related.values()].filter((t) => decisions[t.id]?.status !== 'Dismissed'),
-      active: f.active,
-      sentences: withEdited(info(draftOf(f)), f),
-      omitted: f.omitted,
-      hasMine: f.researcherDraft.length > 0,
-    }
-  })
-
-  const exec = { active: report.execSummary.active, sentences: withEdited(info(draftOf(report.execSummary)), report.execSummary), hasMine: report.execSummary.researcherDraft.length > 0 }
-  const sections = reportSectionsOf(report.studyId).map((s) => ({ id: s.id, label: s.label, findings: s.questionIds.flatMap((id) => findings.filter((f) => f.questionId === id)) }))
-  const themes: ThemeModel[] = doc.themes
-    .map((theme) => {
-      const codes = themeCodes(doc, theme)
-      const profile = theme.tensionId ? undefined : profiles.find((p) => p.id === theme.id)
-      // A code theme's note is its A2 headline, only when delivery pulled against the words or hesitation shows.
-      return { theme, numbers: numbersOf(theme.id, ctx), fromTension: !!theme.tensionId, codes, note: profile?.notable ? profile.headline : undefined }
-    })
-    .filter((t) => t.numbers)
-  const all = [...exec.sentences, ...findings.filter((f) => !f.omitted).flatMap((f) => f.sentences)]
-  return {
-    exec,
-    sections,
-    findings,
-    themes,
-    all,
-    open: all.filter((s) => s.open),
-    dismissedTensions: tensions.filter((t) => decisions[t.id]?.status === 'Dismissed').length,
-    tensionsToDecide: tensions.filter((t) => !t.unavailable && t.status === 'Suggested').length,
-  }
-}
-
-// ─── can it be published ────────────────────────────────────────────────────
-
-export type Check = { key: string; label: string; detail: string; ok: boolean; /** A blocker stops publishing; an advisory only warns. */ blocks: boolean; to?: 'review' | 'A1' | 'A2' | 'Review' }
-
-export function releaseChecks(m: ReportModel, o: { stale: boolean; excluded: number }): Check[] {
-  const noCite = m.all.filter((s) => s.state === 'No citation').length
-  const update = m.all.filter((s) => s.state === 'Needs update').length
-  const toReview = m.all.filter((s) => s.state === 'To review').length
-  const empty = m.findings.filter((f) => !f.omitted && f.sentences.length === 0)
-  return [
-    { key: 'approved', label: 'Every sentence approved', detail: toReview ? `${plural(toReview, 'sentence')} still to review` : `All ${m.all.length} approved`, ok: toReview === 0, blocks: true, to: 'review' },
-    { key: 'cited', label: 'Every sentence cited, or a reason logged', detail: noCite ? `${plural(noCite, 'sentence')} without a citation. Add one, or approve with a reason.` : 'Every sentence traces to a quote, session and timestamp', ok: noCite === 0, blocks: true, to: 'review' },
-    { key: 'numbers', label: 'Numbers up to date', detail: update ? `${plural(update, 'sentence')} with a suggested update` : 'Every number matches the codebook', ok: update === 0, blocks: true, to: 'review' },
-    { key: 'empty', label: 'No empty findings', detail: empty.length ? `${empty.map((f) => f.label).join(', ')}: write it, or leave it out of the report` : 'Every finding has a sentence or is left out', ok: empty.length === 0, blocks: false },
-    { key: 'tensions', label: 'Tensions decided in Emotion & behaviour', detail: m.tensionsToDecide ? `${plural(m.tensionsToDecide, 'tension')} still to decide. Undecided ones stay out of the report.` : 'Every tension has a decision', ok: m.tensionsToDecide === 0, blocks: false, to: 'A2' },
-    { key: 'review', label: 'Built on the sessions accepted in Review', detail: o.stale ? 'Review changed after the codebook was built. Update the codebook so the counts match.' : `${plural(o.excluded, 'excluded session')} left out of every count`, ok: !o.stale, blocks: false, to: o.stale ? 'A1' : 'Review' },
-  ]
-}
-
-export const blockers = (checks: Check[]) => checks.filter((c) => c.blocks && !c.ok)

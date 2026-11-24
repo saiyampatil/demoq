@@ -1,175 +1,25 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router'
-import { Banner } from '@/components/Banner'
 import { Button } from '@/components/Button'
-import { EmptyState, ErrorState, LoadingState } from '@/components/States'
-import { StatusChip } from '@/components/StatusChip'
-import { WizardFooter } from '@/components/WizardFooter'
+import { EmptyState, LoadingState } from '@/components/States'
 import { PageHeader } from '../../shared/PageHeader'
 import { hasAnalysis } from '@/mock/studyAnalysis'
 import { screenById, studyPath } from '@/routes/screens'
-import { CODEBOOK_STUDY, dismissTension, updateCodebook } from '@/state/codebook'
-import { uid } from '@/state/brief'
-import { findingDraftsOf, questionIdsOf, type SeedSentence } from '@/mock/report'
-import { execDraft } from '@/state/execSummary'
-import {
-  REPORT_USER,
-  applyUpdate,
-  approveSentence,
-  copyAIToResearcher,
-  deleteSentence,
-  ensureReport,
-  includeFinding,
-  omitFinding,
-  replaceAIDraft,
-  syncAIDraft,
-  saveSentence,
-  setActive,
-  isCurrentReport,
-  useReport,
-  updateReport,
-  withdrawApproval,
-  type Sentence,
-  type Target,
-} from '@/state/report'
-import { plural, renderTemplate, reportModel } from '@/state/reportLogic'
+import { CODEBOOK_STUDY } from '@/state/codebook'
+import { plural } from '@/state/reportLogic'
 import { AnalysisStepper } from './AnalysisStepper'
-import { ExecCard, SectionRow, ThemeRows } from './report/Centre'
-import { ConceptRows } from './report/Concepts'
-import { ReviewStudio } from './report/ReviewStudio'
-import { CompareStudio, ComingStudio, ExcludedDialog, ReleaseStudio } from './report/OtherStudios'
-import { Selected } from './report/Side'
-import { Tools } from './report/Tools'
-import { WsProvider, type Act, type Selection, type ToolKey, type Ws } from './report/ws'
-import { useAnalysis } from './useAnalysis'
+import { useReportModel } from './useReportModel'
 
-
-/** A3: the report the client will receive, as one workspace. Everything in it comes from what was approved earlier in Analysis. */
+/**
+ * A3, the report page, is being rebuilt to the new design (docs/stitch/A3_revamp). Phase 0 built the model underneath it (state/reportBlocks.ts)
+ * and removed the old page. Until Phase 1 puts the new page here, this holds the place: the way to the other outputs, and in development a plain
+ * readout of the model so it can be checked. Nothing on it can be approved.
+ */
 export function Report() {
-  const { studyId, study, review, me, accepted, doc, basis, stale, ready } = useAnalysis()
-  const saved = useReport(studyId)
-  // A report saved by an older version has a different shape. It is treated as missing and replaced in the effect below.
-  const report = isCurrentReport(saved) ? saved : undefined
-  const [params] = useSearchParams()
-  const navigate = useNavigate()
-  const [loaded, setLoaded] = useState(false)
-  const [failed, setFailed] = useState(params.get('demo') === 'error')
-  const [sel, setSel] = useState<Selection>(null)
-  const [studio, setStudio] = useState<ToolKey | null>(null)
-  const [openSections, setOpenSections] = useState<Set<string> | null>(null)
-  const [themesOpen, setThemesOpen] = useState(false)
-  const [conceptsOpen, setConceptsOpen] = useState(false)
-  const [excludedOpen, setExcludedOpen] = useState(false)
-  const [regenerating, setRegenerating] = useState<string | null>(null)
-  const timer = useRef<number | undefined>(undefined)
-  useEffect(() => () => window.clearTimeout(timer.current), [])
-
-  useEffect(() => {
-    setLoaded(false)
-    const t = setTimeout(() => setLoaded(true), 450)
-    return () => clearTimeout(t)
-  }, [studyId])
-
-  const ctx = useMemo(() => (doc ? { doc, basis } : undefined), [doc, basis])
-  const rendered = useCallback((list: SeedSentence[]): Sentence[] => list.map((s) => ({ id: s.id, template: s.template, cites: [...s.cites], text: ctx ? renderTemplate(s.template, ctx) : s.template })), [ctx])
-
-  // First visit: make the report from the pre-written AI drafts, with today's numbers filled in. In an effect, never in render.
-  useEffect(() => {
-    if (ready && doc && ctx && !report) {
-      ensureReport(studyId, doc.builtOn, questionIdsOf(studyId), { exec: rendered(execDraft(ctx)), findings: Object.fromEntries(Object.entries(findingDraftsOf(studyId)).map(([k, v]) => [k, rendered(v)])) })
-    }
-  }, [ready, doc, ctx, report, studyId, rendered])
-
-  // The summary's AI draft follows the data: a tension added as a theme gains its sentence, a dismissed or restored one loses or regains it.
-  const wantedExec = useMemo(() => (ctx ? rendered(execDraft(ctx)) : undefined), [ctx, rendered])
-  useEffect(() => {
-    // Only write when something would change: a write always stamps the report as updated, which would run this again.
-    if (report && wantedExec && syncAIDraft(report, 'exec', wantedExec) !== report) updateReport(studyId, (r) => syncAIDraft(r, 'exec', wantedExec))
-  }, [report, wantedExec, studyId])
-
-  const model = useMemo(() => (report && doc ? reportModel(report, doc, basis) : undefined), [report, doc, basis])
-
-  // Sections: the first one with something to approve is open to begin with.
-  const sectionsOpen = useMemo(() => {
-    if (openSections) return openSections
-    const first = model?.sections.find((s) => s.findings.some((f) => f.sentences.some((x) => x.open))) ?? model?.sections[0]
-    return new Set(first ? [first.id] : [])
-  }, [openSections, model])
-  const toggle = (id: string) => setOpenSections((prev) => {
-    const next = new Set(prev ?? sectionsOpen)
-    if (next.has(id)) next.delete(id)
-    else next.add(id)
-    return next
-  })
-
-  const excludedSessions = useMemo(() => review.filter((x) => x.status === 'Excluded'), [review])
-
-  const update = useCallback((fn: Parameters<typeof updateReport>[1]) => updateReport(studyId, fn), [studyId])
-
-  const act: Act = useMemo(() => {
-    const by = REPORT_USER
-    const seedFor = (t: Target) => rendered(t === 'exec' ? (ctx ? execDraft(ctx) : []) : (findingDraftsOf(studyId)[t.questionId] ?? []))
-    return {
-      approve: (id, opts) => update((r) => approveSentence(r, id, { by }, opts)),
-      withdraw: (id) => update((r) => withdrawApproval(r, id, { by })),
-      applyUpdate: (target, id, live) => update((r) => applyUpdate(r, target, id, live, { by })),
-      setActive: (target, kind) => update((r) => setActive(r, target, kind, { by })),
-      startFromAI: (target) => update((r) => copyAIToResearcher(r, target, { by })),
-      regenerate: (target) => {
-        const key = target === 'exec' ? 'exec' : target.questionId
-        setRegenerating(key)
-        timer.current = window.setTimeout(() => {
-          update((r) => replaceAIDraft(r, target, seedFor(target).map((s) => ({ ...s, id: uid('s') })), { by }))
-          setRegenerating(null)
-        }, 900)
-      },
-      save: (target, id, value) => update((r) => saveSentence(r, target, id, value, { by })),
-      remove: (target, id) => update((r) => deleteSentence(r, target, id, { by })),
-      omit: (q, why) => update((r) => omitFinding(r, q, why, { by })),
-      include: (q) => update((r) => includeFinding(r, q, { by })),
-      dismissTension: (t, why) => updateCodebook(studyId, (d) => dismissTension(d, t, { by }, why)),
-      regenerating,
-    }
-  }, [update, rendered, studyId, regenerating, ctx])
-
-  const goTo = useCallback(
-    (s: Selection) => {
-      setSel(s)
-      if (!s || !model) return
-      let el = 'exec-card'
-      if (s.kind === 'sentence') {
-        const f = model.findings.find((x) => x.sentences.some((i) => i.sentence.id === s.id))
-        if (f) {
-          const sec = model.sections.find((x) => x.findings.includes(f))
-          if (sec) setOpenSections((prev) => new Set([...(prev ?? sectionsOpen), sec.id]))
-          el = `sentence-${s.id}`
-        } else el = `sentence-${s.id}`
-      }
-      window.setTimeout(() => document.getElementById(el)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 80)
-    },
-    [model, sectionsOpen],
-  )
-
+  const { studyId, study, accepted, ready, doc, model } = useReportModel()
   if (!study) return null
-  const excluded = excludedSessions.length
 
   const header = (
     <>
-      <PageHeader
-        id="A3"
-        title="Report"
-        titleAside={model && ready ? <StatusChip status={model.all.length === 0 ? 'Draft' : model.open.length === 0 ? 'Approved' : model.all.some((s) => !s.open) ? 'In Review' : 'Draft'} /> : undefined}
-        description="The report the client will receive. Everything in it comes from what you approved in the codebook and Emotion & behaviour. Nothing reaches the client until you publish."
-        actions={
-          ready && doc && model ? (
-            <>
-              <Button onClick={() => setStudio('release')} data-testid="client-preview">
-                Client preview
-              </Button>
-            </>
-          ) : undefined
-        }
-      />
+      <PageHeader id="A3" title="Report" description="The report the client will receive. It is being rebuilt, so nothing can be approved on this page yet." />
       <AnalysisStepper studyId={studyId} current="report" />
     </>
   )
@@ -188,110 +38,58 @@ export function Report() {
       </div>
     )
 
-  if (failed)
-    return (
-      <div className="flex flex-col gap-6">
-        {header}
-        <div className="rounded-md border border-mist bg-surface">
-          <ErrorState title="The report didn’t load" description="Your drafts and approvals are safe. Try loading it again." onRetry={() => setFailed(false)} />
-        </div>
-      </div>
-    )
-
-  if (!loaded || !report || !model)
+  if (!model)
     return (
       <div className="flex flex-col gap-6">
         {header}
         <div className="rounded-md border border-mist bg-surface p-5" role="status">
-          <LoadingState label={`Building the report from ${plural(accepted.length, 'accepted session')}`} rows={6} />
+          <LoadingState label={`Building the report from ${plural(accepted.length, 'accepted session')}`} rows={4} />
         </div>
       </div>
     )
 
-  // Theme videos and Showreel are their own page, opened only when clicked. Everything else opens a pop-up over the report.
-  const openStudio = (k: ToolKey | null) => (k === 'theme-videos' || k === 'showreel' ? navigate(`${studyPath(studyId, screenById.A3V)}${k === 'showreel' ? '?tab=showreel' : ''}`) : k === 'word-cloud' ? navigate(studyPath(studyId, screenById.A3W)) : k === 'theme-map' ? navigate(studyPath(studyId, screenById.A3M)) : k === 'audio-summary' ? navigate(studyPath(studyId, screenById.A3P)) : setStudio(k))
-  const ws: Ws = { goTo, studyId, me, doc, basis, ctx: { doc, basis }, report, model, accepted: accepted.length, excluded, sel, select: setSel, openStudio, act }
-  const total = model.all.length
-  const open = model.open.length
-  const approved = total - open
-
+  const c = model.counts
   return (
-    <WsProvider value={ws}>
-      <div className="flex flex-col gap-5">
-        {header}
+    <div className="flex flex-col gap-5" data-testid="report-holding">
+      {header}
+      <section aria-label="Outputs" className="flex flex-wrap items-center gap-2 rounded-md border border-mist bg-surface p-4">
+        <h2 className="mr-2 text-sm font-semibold text-ink">Outputs</h2>
+        <Button to={`${studyPath(studyId, screenById.A3V)}`} data-testid="tool-theme-videos">Theme videos</Button>
+        <Button to={`${studyPath(studyId, screenById.A3V)}?tab=showreel`} data-testid="tool-showreel">Showreel</Button>
+        <Button to={studyPath(studyId, screenById.A3W)} data-testid="tool-word-cloud">Word cloud</Button>
+        <Button to={studyPath(studyId, screenById.A3M)} data-testid="tool-theme-map">Theme map</Button>
+        <Button to={studyPath(studyId, screenById.A3P)} data-testid="tool-audio-summary">Audio summary</Button>
+      </section>
 
-        {stale && (
-          <Banner tone="warning" title="Review changed after the codebook was built" actions={<Button size="sm" to={studyPath(studyId, screenById.A1)}>Update the codebook</Button>}>
-            The counts below follow Review. Update the codebook so they match.
-          </Banner>
-        )}
-
-        <p className="text-sm text-graphite" data-testid="built-on">
-          <span className="font-medium text-ink">Built on {plural(accepted.length, 'accepted session')}</span>
-          {' · '}
-          {excluded > 0 ? (
-            <button type="button" onClick={() => setExcludedOpen(true)} className="rounded-xs underline underline-offset-2 hover:text-ink" data-testid="excluded-open">
-              {excluded} excluded left out
-            </button>
-          ) : (
-            'none excluded'
-          )}
-          {study.releaseVersion && <> · {study.releaseVersion}</>}
-        </p>
-
-        {/* The right column opens only when something is selected: a sentence, a source mark or a finding. */}
-        <div className={sel ? 'grid items-start gap-5 lg:grid-cols-[224px_minmax(0,1fr)_320px]' : 'grid items-start gap-5 lg:grid-cols-[224px_minmax(0,1fr)]'}>
-          <div className="order-2 lg:sticky lg:top-4 lg:order-1 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto">
-            <Tools />
-          </div>
-
-          <main className="order-1 flex min-w-0 flex-col gap-3 lg:order-2" aria-label="Report" data-testid="report">
-            <ExecCard />
-            <div className="flex items-center justify-between pt-1">
-              <h2 className="text-xs font-semibold tracking-wide text-graphite uppercase">Findings by guide section</h2>
-              <button type="button" className="text-xs text-graphite underline-offset-2 hover:underline" onClick={() => setOpenSections(sectionsOpen.size === model.sections.length ? new Set() : new Set(model.sections.map((s) => s.id)))} data-testid="toggle-all-sections">
-                {sectionsOpen.size === model.sections.length ? 'Collapse all' : 'Expand all'}
-              </button>
-            </div>
-            {model.sections.map((s) => (
-              <SectionRow key={s.id} label={s.label} findings={s.findings} open={sectionsOpen.has(s.id)} onToggle={() => toggle(s.id)} />
+      {import.meta.env.DEV && (
+        <section aria-label="Report model" className="rounded-md border border-dashed border-mist-strong bg-surface p-4 text-sm" data-testid="model-readout">
+          <h2 className="font-semibold text-ink">Report model (temporary, Phase 0)</h2>
+          <p className="text-graphite" data-testid="model-counts">
+            {c.approved} of {c.total} blocks approved · {c.undecided} to review · {c.outOfDate} out of date · {c.leftOut} left out
+          </p>
+          <ol className="mt-3 flex flex-col gap-3">
+            {model.blocks.map((b) => (
+              <li key={b.id} data-testid="model-block" data-id={b.id} data-status={b.status} data-fingerprint={b.fingerprint}>
+                <p className="font-medium text-ink">
+                  {b.number ? `${b.number}. ` : ''}
+                  {b.title} <span className="text-graphite">· {b.status}{b.strength ? ` · ${b.strength.label}, ${b.strength.n} of ${b.strength.of} people` : ''}</span>
+                </p>
+                <ul className="ml-4 list-disc text-graphite">
+                  {b.lines.map((l) => (
+                    <li key={l.id}>
+                      {l.lead ? <span className="text-graphite">{l.lead}: </span> : null}
+                      {l.text}
+                      {l.directional ? ' (Directional)' : ''}
+                    </li>
+                  ))}
+                </ul>
+                {b.flag && <p className="ml-4 text-graphite">{b.flag}</p>}
+                {b.footnote && <p className="ml-4 text-xs text-graphite">{b.footnote}</p>}
+              </li>
             ))}
-            <ThemeRows themes={model.themes} open={themesOpen} onToggle={() => setThemesOpen((o) => !o)} />
-            {doc && <ConceptRows doc={doc} basis={basis} studyId={studyId} open={conceptsOpen} onToggle={() => setConceptsOpen((o) => !o)} />}
-          </main>
-
-          {sel && (
-            <aside aria-label="Sources" className="order-3 flex flex-col gap-4 lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto">
-              <Selected onClose={() => setSel(null)} />
-            </aside>
-          )}
-        </div>
-
-        <WizardFooter
-          previous={{ to: studyPath(studyId, screenById.A2), label: 'Emotion & behaviour' }}
-          message={
-            <span data-testid="report-status">
-              {total === 0 ? 'The report has no sentences yet.' : open > 0 ? `${approved} of ${plural(total, 'sentence')} approved · ${open} to review before you can publish.` : `All ${plural(total, 'sentence')} approved and cited. Ready to publish.`}
-            </span>
-          }
-        >
-          {open > 0 ? (
-            <Button variant="primary" onClick={() => setStudio('review')} data-testid="primary-action">
-              Review {plural(open, 'sentence')}
-            </Button>
-          ) : (
-            <Button variant="primary" onClick={() => setStudio('release')} data-testid="primary-action">
-              Publish
-            </Button>
-          )}
-        </WizardFooter>
-
-        {studio === 'review' && <ReviewStudio onClose={() => setStudio(null)} onRelease={() => setStudio('release')} />}
-        {studio === 'compare' && <CompareStudio onClose={() => setStudio(null)} />}
-        {studio === 'release' && <ReleaseStudio onClose={() => setStudio(null)} onReview={() => setStudio('review')} stale={stale} />}
-        {studio && studio !== 'review' && studio !== 'compare' && studio !== 'release' && <ComingStudio tool={studio} onClose={() => setStudio(null)} />}
-        <ExcludedDialog open={excludedOpen} onClose={() => setExcludedOpen(false)} sessions={excludedSessions} />
-      </div>
-    </WsProvider>
+          </ol>
+        </section>
+      )}
+    </div>
   )
 }

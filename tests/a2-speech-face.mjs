@@ -109,7 +109,7 @@ try {
 
   // ── The report groups ticked codes under their theme ──
   await b.evaluate(`(()=>{const k=Object.keys(localStorage).find(k=>/codebook/.test(k));const o=JSON.parse(localStorage[k]);const id=Object.keys(o)[0];const d=o[id];const c=d.codes.find(c=>c.name==='Flexibility matters more than price');d.signalPicks={...d.signalPicks,[c.id]:true};localStorage[k]=JSON.stringify(o);return true})()`)
-  await b.goto(`${root}/report`); await b.waitFor('EXECUTIVE SUMMARY'); await b.sleep(700)
+  await b.goto(`${root}/report`); await b.waitFor('Outputs'); await b.sleep(700)
   await b.evaluate(`document.querySelector('[data-testid=toggle-all-sections]')?.click(); true`); await b.sleep(300)
   await b.evaluate(`[...document.querySelectorAll('[data-testid=finding-more]')].forEach(x=>x.getAttribute('aria-expanded')==='false'&&x.click()); true`); await b.sleep(300)
   const rep = await b.evaluate(`[...document.querySelectorAll('[data-testid=signal-group]')].map(g=>({group:g.dataset.group,items:[...g.querySelectorAll('li[data-kind]')].map(li=>({kind:li.dataset.kind,name:li.querySelector('p').innerText}))}))`)

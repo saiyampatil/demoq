@@ -41,6 +41,17 @@ export type ReportPack = {
   highlightExamples: string[]
   /** What a Researcher might type into the audio summary's focus box. */
   focusExample: string
+  // ── A3 report: what the executive summary needs that the brief and the guide do not hold as fields ──
+  // In production the AI paraphrases the approved brief, and the objectives come from the brief module. Here they are one small
+  // table per study, so the prototype can say them without guessing. A study without them omits the sentence that needs them.
+  /** The decision the client is making, in the brief's own words, to finish "{Client} is deciding ...". */
+  decision?: string
+  /** The approved guide's objective the brief's first sentence is about. The summary leads with its finding. */
+  primaryObjective?: string
+  /** Each guide question's objective (the guide's own `covers` tags, written out once). */
+  questionObjective?: Record<string, string>
+  /** The guide question that concept lines and every kind of tension answer. */
+  pickQuestion?: string
 }
 
 const packs = new Map<string, ReportPack>()

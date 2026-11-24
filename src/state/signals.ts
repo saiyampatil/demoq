@@ -972,3 +972,65 @@ export function standouts(signals: CodeSignal[], moments: MomentSignal[], toRevi
 
 /** The tensions that draw on a code, so a code's panel can lead to them. */
 export const tensionsFor = (tensions: Tension[], codeId: string) => tensions.filter((t) => t.codeIds.includes(codeId) && !t.unavailable)
+
+// ─── the sentence a tension says in the report ──────────────────────────────
+// A pure addition (A3). One function for all four kinds of tension, so the sentence the Researcher reads in A2 is exactly the one the
+// client reads in the report. It takes a card's own counts and labels and returns finding sentences with ONE base each. It changes no
+// existing function. Findings only: it says what people said and then did, never what to do.
+
+/** One finding sentence about a tension, with its one base. */
+export type TensionLine = { text: string; n: number; of: number }
+
+/** "Of those on video, " and "Of those, " are how a card's second side introduces its own group. The sentence names the group itself. */
+const afterOfThose = (label: string) => label.replace(/^Of those( on video)?, /i, '')
+/** The card's answer labels quote the survey in short form. In a sentence they read as the answers the survey gave. */
+const surveyWords = (s: string) =>
+  s
+    .replace(/“probably” or “definitely would not”/g, '“probably would not” or “definitely would not”')
+    .replace(/“probably” or “definitely would”/g, '“probably would” or “definitely would”')
+    .replace(/ buy their favourite in the survey$/, ' in the survey')
+/** What the group said first: "Picked Cookie Dough Crunch as the one they would buy first" reads "picked Cookie Dough Crunch first". */
+const whoSaid = (label: string) => lowerFirst(label).replace(/ as the one they would buy first$/, ' first')
+
+/**
+ * The sentence(s) for one tension card. `groups` are the two segment labels (first, second), needed only for "Between segments".
+ * Empty when there is nothing true to say: a side with no people, or two groups that answered alike.
+ */
+export function tensionLines(t: Pick<Tension, 'kind' | 'sides'>, groups?: [string, string]): TensionLine[] {
+  const [s0, s1] = t.sides
+  switch (t.kind) {
+    case 'Said vs locked answer': {
+      if (!s0 || !s1 || !s1.of) return []
+      return [{ text: `${s1.n} of ${s1.of} people who ${whoSaid(s0.label)} ${surveyWords(lowerFirst(afterOfThose(s1.label)))}.`, n: s1.n, of: s1.of }]
+    }
+    case 'Said vs did': {
+      if (!s0 || !s1 || !s1.of) return []
+      const then = lowerFirst(afterOfThose(s1.label))
+      const who = whoSaid(s0.label)
+      // "picked Mango Lassi first" then "chose Mango Lassi to take home" reads better as "chose it".
+      const said = then.match(/^chose (.+) to take home$/)?.[1]
+      return [{ text: `${s1.n} of ${s1.of} people who ${who} ${said && who.includes(said) ? 'chose it to take home' : then}.`, n: s1.n, of: s1.of }]
+    }
+    case 'Said vs showed': {
+      if (!s0 || !s1 || !s1.of) return []
+      const then = lowerFirst(afterOfThose(s1.label))
+      const onVideo = /^Of those on video/i.test(s1.label)
+      return [{ text: `${s1.n} of ${s1.of} people${onVideo ? ' on video' : ''} who ${whoSaid(s0.label)} ${/^warmest/.test(then) ? `had their ${then}` : then}.`, n: s1.n, of: s1.of }]
+    }
+    case 'Between segments': {
+      // Sides: [first group, answer 1], [first group, answer 2], [second group, answer 1], [second group, answer 2].
+      if (!groups || t.sides.length < 4) return []
+      const share = (i: number) => (t.sides[i].of ? t.sides[i].n / t.sides[i].of : 0)
+      const gap = [0, 1].map((j) => share(j) - share(2 + j))
+      const j = Math.abs(gap[1]) > Math.abs(gap[0]) ? 1 : 0
+      if (gap[j] === 0) return []
+      const firstLeads = gap[j] > 0
+      const side = t.sides[(firstLeads ? 0 : 2) + j]
+      const lead = groups[firstLeads ? 0 : 1]
+      const other = groups[firstLeads ? 1 : 0]
+      const rest = side.label.startsWith(lead) ? side.label.slice(lead.length).trim() : lowerFirst(side.label)
+      if (!side.of) return []
+      return [{ text: `${side.n} of ${side.of} ${lead.toLowerCase()} ${rest}, a larger share than ${other.toLowerCase()}.`, n: side.n, of: side.of }]
+    }
+  }
+}

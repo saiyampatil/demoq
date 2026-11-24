@@ -98,6 +98,14 @@ registerReportPack({
   studyId: ICE_STUDY,
   findingDrafts: FINDINGS,
   stimulusOfCode: { 'ic-pick-caramel': 'Concept A', 'ic-caramel-safe': 'Concept A', 'ic-pick-mango': 'Concept B', 'ic-mango-different': 'Concept B', 'ic-lassi-unclear': 'Concept B', 'ic-explain-lassi': 'Concept B', 'ic-pick-cookie': 'Concept C', 'ic-cookie-family': 'Concept C' },
+  // The executive summary's inputs (see ReportPack). The decision is the brief's own words: "which of three new tub ice cream
+  // flavours ... shoppers would buy first" and "one clear first pick for a spring launch". The primary objective is the guide's o3,
+  // "Which flavour they would buy first, and why", which is what the brief's first sentence asks. The mapping is the guide's own
+  // `covers` tags by question; a test checks they agree.
+  decision: 'which of three new tub ice cream flavours to pick first for a spring launch',
+  primaryObjective: 'o3',
+  questionObjective: { 'iq-habit': 'o1', 'iq-choose': 'o1', 'iq-pick': 'o3', 'iq-stop': 'o4', 'iq-price': 'o4', 'iq-when': 'o5', 'iq-change': 'o3' },
+  pickQuestion: 'iq-pick',
   regenerateExample: 'More from parents, or Shorter',
   highlightExamples: ['too sweet', 'what a lassi is', 'the kids'],
   focusExample: 'start with the safe choice',

@@ -78,7 +78,7 @@ try {
   await b.evaluate(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})); true`); await b.sleep(200)
   await b.evaluate(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})); true`)
   await b.goto(`${root}/signals?tab=tensions`); await b.waitFor('Tensions'); await b.sleep(700); await scan('A2 Tensions')
-  await b.goto(`${root}/report`); await b.waitFor('EXECUTIVE SUMMARY'); await b.sleep(1500); await scan('A3 Report')
+  await b.goto(`${root}/report`); await b.waitFor('Outputs'); await b.sleep(1500); await scan('A3 Report')
   await b.goto(`${root}/report/themes-map`); await b.waitFor('Theme map'); await b.sleep(1200); await scan('the Theme map')
   await click('[data-testid=mode] button', 1); await b.sleep(400); await scan('the Theme map (Words vs delivery colours)')
   await b.evaluate(`document.querySelector('[data-testid=bubble]').click(); true`); await b.sleep(500); await scan('the Theme map panel')

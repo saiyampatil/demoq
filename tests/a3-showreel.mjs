@@ -35,15 +35,15 @@ try {
   await b.evaluate(`window.__mod = (path) => import(performance.getEntriesByType('resource').map((r) => r.name).filter((n) => n.includes(path + '.ts')).pop() ?? path + '.ts'); (async()=>{const cb=await window.__mod('/src/state/codebook'); cb.updateCodebook('pet-food-churn', d=>cb.restoreTension(d,{id:'tn-pause-concept',title:'t'},{by:'test'})); return true})()`); await b.sleep(800)
 
   // ═══ Entry, and Back to Report keeps the report as it was ═══
-  await b.goto(`${STUDY}/report`); await b.waitFor('EXECUTIVE SUMMARY'); await b.sleep(1500)
-  await b.evaluate(`document.querySelector('[data-testid=exec-card] [data-testid=sentence-text]').click(); true`); await b.sleep(300)
-  await click('[data-testid=approve]')
-  const before = await b.evaluate(`[...document.querySelectorAll('[data-testid=exec-card] [data-testid=sentence]')].map(s=>s.dataset.state).join()`)
+  await b.goto(`${STUDY}/report`); await b.waitFor('Outputs'); await b.sleep(1500)
+  // The old page approved a sentence here. The report now approves whole blocks and the page is a placeholder until Phase 1, so the approval is made through the store, exactly as the footer will.
+  await b.evaluate(`(async()=>{const el=document.querySelector('[data-testid=model-block][data-id=exec]'); const rp=await import(performance.getEntriesByType('resource').map((r)=>r.name).filter((n)=>n.includes('/src/state/report.ts')).pop()); rp.updateReport('pet-food-churn',(d)=>rp.approveBlock(d,{id:'exec',fingerprint:el.dataset.fingerprint,lines:[]},{by:'Test'})); return true})()`); await b.sleep(500)
+  const before = await b.evaluate(`[...document.querySelectorAll('[data-testid=model-block]')].map(s=>s.dataset.id+':'+s.dataset.status).join()`)
   await click('[data-testid=tool-theme-videos]'); await b.waitFor('Back to Report'); await b.sleep(600)
   ok('Theme videos in Tools opens the page at /report/videos on the Theme videos tab', /\/analysis\/report\/videos$/.test(await b.evaluate('location.pathname')) && (await b.evaluate(`document.querySelector('[data-testid=tab-themes]').getAttribute('aria-selected')`)) === 'true')
-  await click('[data-testid=back-to-report]'); await b.waitFor('EXECUTIVE SUMMARY'); await b.sleep(1200)
-  const after = await b.evaluate(`[...document.querySelectorAll('[data-testid=exec-card] [data-testid=sentence]')].map(s=>s.dataset.state).join()`)
-  ok('Back to Report returns with the approval exactly as it was', before === after && /^Approved/.test(after), { before, after })
+  await click('[data-testid=back-to-report]'); await b.waitFor('Outputs'); await b.sleep(1200)
+  const after = await b.evaluate(`[...document.querySelectorAll('[data-testid=model-block]')].map(s=>s.dataset.id+':'+s.dataset.status).join()`)
+  ok('Back to Report returns with the approval exactly as it was', before === after && /^exec:Approved/.test(after), { before, after })
   await click('[data-testid=tool-showreel]'); await b.waitFor('Back to Report'); await b.sleep(600)
   ok('Showreel in Tools opens the same page on the Showreel tab', /tab=showreel/.test(await b.evaluate('location.search')) && (await b.evaluate(`document.querySelector('[data-testid=tab-showreel]').getAttribute('aria-selected')`)) === 'true')
 

@@ -33,10 +33,10 @@ const NOTHING = 'code:c-nothing'
 try {
   await b.goto('/researcher'); await b.evaluate('localStorage.clear(); sessionStorage.clear(); true')
   // Entry: from Tools, with Back to Report.
-  await b.goto('/researcher/studies/pet-food-churn/analysis/report'); await b.waitFor('EXECUTIVE SUMMARY'); await b.sleep(1200)
+  await b.goto('/researcher/studies/pet-food-churn/analysis/report'); await b.waitFor('Outputs'); await b.sleep(1200)
   await click('[data-testid=tool-word-cloud]'); await b.waitFor('Back to Report'); await b.sleep(700)
   ok('Word cloud in Tools opens /report/wordcloud', /\/analysis\/report\/wordcloud$/.test(await b.evaluate('location.pathname')))
-  await click('[data-testid=back-to-report]'); await b.waitFor('EXECUTIVE SUMMARY')
+  await click('[data-testid=back-to-report]'); await b.waitFor('Outputs')
   await open()
   ok('the header has the description, the study line, no Lens selector and the leadership switch', /sized by how many people said them/.test(await b.evaluate('document.body.innerText')) && /Built on 20 accepted sessions · 2 excluded left out · Release v1\.0/.test((await text('[data-testid=built-on]')) ?? '') && (await count('[data-testid=lens-select]')) === 0 && (await count('[role=switch][aria-label="Preview as leadership"]')) === 1)
 

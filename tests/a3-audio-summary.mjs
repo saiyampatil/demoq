@@ -153,7 +153,7 @@ try {
   const URL = '/researcher/studies/pet-food-churn/analysis/report/audio-summary'
   const openPage = async (qs = '') => { await b.goto(`${URL}${qs}`); await b.waitFor('Audio summary'); await b.sleep(1500) }
   await b.goto('/researcher'); await b.evaluate('localStorage.clear(); sessionStorage.clear(); true')
-  await b.goto('/researcher/studies/pet-food-churn/analysis/report'); await b.waitFor('EXECUTIVE SUMMARY'); await b.sleep(1200)
+  await b.goto('/researcher/studies/pet-food-churn/analysis/report'); await b.waitFor('Outputs'); await b.sleep(1200)
   await click('[data-testid=tool-audio-summary]'); await b.waitFor('Back to Report'); await b.sleep(1500)
   ok('Audio summary in Tools opens /report/audio-summary', /\/analysis\/report\/audio-summary$/.test(await b.evaluate('location.pathname')))
   ok('the header has the description, the study line and no Lens selector', /written from the themes and tensions you approved\. Every claim links to the exact words people said\./.test(await b.evaluate('document.body.innerText')) && /Built on 20 accepted sessions · 2 excluded left out · Release v1\.0/.test((await text('[data-testid=built-on]')) ?? '') && (await count('[data-testid=lens-select]')) === 0)

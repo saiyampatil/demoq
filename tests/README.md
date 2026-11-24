@@ -14,6 +14,8 @@ These end with `... OK` or `... FAILED: <reasons>` and exit 1 on a failure: `cou
 
 `ice-seed` is not a browser probe either (`node tests/ice-seed.mjs`): it reads the people, themes, codes and tension tables out of `docs/stitch/ICE_CREAM_MOCK_DATA.md` and checks the real modules against them, with the few known differences listed in the test and in `docs/OPEN_QUESTIONS.md` (#279 to #288).
 
+`a3-report` is not a browser probe either (`node tests/a3-report.mjs`): it checks the A3 report model through Vite's SSR loader (blocks, per-block approval and Out of date, the executive summary generator, selection and validator, the shared tension sentences, the dev fixture). `a3-report-mutations` (`node tests/a3-report-mutations.mjs`) proves it: it breaks each rule twice in the real source, expects the test to fail each time, and puts the source back. It exits non-zero if any mutation survives.
+
 `a2-verdict` is not a browser probe: it runs the real modules through Vite's SSR loader (`node tests/a2-verdict.mjs`, no dev server needed) and checks the speech-only verdict, insight sentences, moments to watch and decisions.
 
 Things the probes had wrong, so they don't drift again:

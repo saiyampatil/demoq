@@ -130,7 +130,7 @@ try {
   const rule = await run(`const c=await window.__mod('/src/config/delivery'); return c.DELIVERY_RULE_LINES.join(' ')`)
   ok('the rule lines say “spoke in favour or against it”', /spoke in favour or against it/.test(rule) && !OLD.test(rule), rule)
   await b.evaluate(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})); true`)
-  for (const [label, path, wait] of [['A2 Tensions', `${root}/signals?tab=tensions`, 'Tensions'], ['A3 Report', `${root}/report`, 'EXECUTIVE SUMMARY'], ['the Theme map', `${root}/report/themes-map`, 'Theme map']]) {
+  for (const [label, path, wait] of [['A2 Tensions', `${root}/signals?tab=tensions`, 'Tensions'], ['A3 Report', `${root}/report`, 'Outputs'], ['the Theme map', `${root}/report/themes-map`, 'Theme map']]) {
     await b.goto(path); await b.waitFor(wait); await b.sleep(1300)
     const t = await b.evaluate(`document.body.innerText`)
     ok(`no old display string on ${label}`, !OLD.test(t), t.match(OLD)?.[0])
