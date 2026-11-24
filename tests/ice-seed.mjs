@@ -133,7 +133,7 @@ const byId = (id) => tens.find((t) => t.id === id)
   // Said vs showed: 8 of 20 said Caramel first; 6 on video, 2 audio-only (P-4116, P-4117); of the 6 warmest at Caramel 1, Mango 4, Cookie 1
   const car = said(A), vid = car.filter((p) => p.video)
   ok('Said vs showed (from the file): 8 of 20; 6 on video, 2 audio-only not read; warmest at Caramel 1, Mango 4, Cookie 1', car.length === 8 && vid.length === 6 && car.filter((p) => !p.video).map((p) => p.id).join() === 'P-4116,P-4117' && [A, B, C].map((c) => vid.filter((p) => p.warm === c).length).join() === '1,4,1')
-  ok('…and the card’s base is the same 8 of 20 (its warmest-at-another-concept rows are rebuilt in phase 4)', byId('tn-caramel-mango-face').sides[0].n + 2 === 8)
+  ok('…and the card’s base is the same 8 of 20 (its rows are checked in tests/a2-tensions.mjs)', byId('tn-caramel-mango-face').base === 8)
 }
 {
   const t = byId('tn-segments'), parents = people.filter((p) => p.seg === 'Parent'), adults = people.filter((p) => p.seg !== 'Parent')
@@ -150,7 +150,7 @@ ok('every card’s base is who said it: Said first 8, 7, 5, 8 of 20', [['tn-cara
   const pp = ms.acceptedParticipants('pet-food-churn')
   const pdoc = cb.seedCodebook('pet-food-churn', pp.map(ms.sessionOfParticipant))
   const pb = cb.basisOf(pp.map((p) => ({ id: ms.sessionOfParticipant(p), participantId: p })))
-  ok('Pet Food: 20 accepted, 4 audio-only (P-3105, 3110, 3113, 3118), 12 of 31 codes accepted, tensions 3 to review, 1 added, 1 dismissed, none waiting', pp.length === 20 && pp.filter((p) => !em.hasVideo(p)).join() === 'P-3105,P-3110,P-3113,P-3118' && pdoc.codes.filter((c) => c.status === 'Accepted').length === 12 && pdoc.codes.length === 31 && JSON.stringify(sg.tensionCounts(pdoc)) === '{"total":5,"waiting":0,"toReview":3,"themes":1,"dismissed":1}')
+  ok('Pet Food: 20 accepted, 4 audio-only (P-3105, 3110, 3113, 3118), 12 of 31 codes accepted, tensions 2 to review, 1 added, 1 dismissed, none waiting (the hesitation type is gone, so 4 cards)', pp.length === 20 && pp.filter((p) => !em.hasVideo(p)).join() === 'P-3105,P-3110,P-3113,P-3118' && pdoc.codes.filter((c) => c.status === 'Accepted').length === 12 && pdoc.codes.length === 31 && JSON.stringify(sg.tensionCounts(pdoc)) === '{"total":4,"waiting":0,"toReview":2,"themes":1,"dismissed":1}')
   const pc = cn.conceptRows(pdoc, pb)
   ok('Pet Food: no choice task, so no Did column; P-3106 never saw Concept B and P-3114 did not consent', pc && !pc.hasChoiceTask && pc.rows.every((r) => r.did === undefined) && !mc.revealReading('pet-food-churn', 'P-3106', B) && !mc.revealReading('pet-food-churn', 'P-3114', A))
 }
