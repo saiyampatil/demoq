@@ -12,7 +12,7 @@
 import { CONCEPTS } from '@/config/concepts'
 import { EARLY_MENTION, conceptStudyOf, revealReading, sawConcept, type ConceptDef, type RevealReading } from '@/mock/concepts'
 import { hasVideo, type Emotion, type Intensity } from '@/mock/emotion'
-import { liveExcerpts, peopleOf, type Basis, type CodebookDoc } from './codebook'
+import { liveExcerpts, peopleOf, relatedAddedTensions, type Basis, type CodebookDoc } from './codebook'
 import { hash } from './hash'
 import { checkNarration } from './narration'
 import { insightStatus, type InsightNow } from './speech'
@@ -194,9 +194,12 @@ export type ConceptRow = ConceptResult & { key: string; line: string | null; now
 export function conceptRows(doc: CodebookDoc, basis: Basis): { rows: ConceptRow[]; coverage: Coverage; input: ConceptInput; hasChoiceTask: boolean; defs: ConceptDef[] } | undefined {
   const input = conceptInputOf(doc, basis)
   if (!input) return undefined
+  const defs0 = conceptStudyOf(doc.studyId)!.concepts
   const rows = computeConcepts(input).map((r): ConceptRow => {
     const line = conceptLine(r)
-    const now = conceptNow(r, line)
+    const base = conceptNow(r, line)
+    const related = relatedAddedTensions(doc, [defs0.find((d) => d.id === r.id)?.codeId ?? ''])
+    const now = related.length ? { ...base, fingerprint: hash(`${base.fingerprint}|${related.join()}`) } : base
     const key = `concept:${r.id}`
     return { ...r, key, line, now, decision: insightStatus(doc.insights?.[key], now) }
   })

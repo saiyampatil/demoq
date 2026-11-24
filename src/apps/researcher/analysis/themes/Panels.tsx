@@ -245,10 +245,19 @@ export function ThemePanel({
               {status === 'Out of date' && (
                 <div className="flex flex-col gap-0.5 rounded-sm bg-pending-bg px-3 py-2 text-xs text-pending-fg" data-testid="out-of-date">
                   <span className="font-semibold">The data changed after you decided.</span>
-                  <span data-testid="was">Was: {prof.decision.was?.text}</span>
-                  <span data-testid="now">Now: {prof.decision.now?.text}</span>
+                  {prof.decision.was?.text === prof.decision.now?.text ? (
+                    <span data-testid="was">A tension was added that affects this. The sentence is the same: look again, then accept it.</span>
+                  ) : (
+                    <>
+                      <span data-testid="was">Was: {prof.decision.was?.text}</span>
+                      <span data-testid="now">Now: {prof.decision.now?.text}</span>
+                    </>
+                  )}
                 </div>
               )}
+              {tensionsOn(tensions, codeIds).filter((t) => t.status === 'Added as a tension theme').map((t) => (
+                <p key={t.id} className="text-xs text-graphite" data-testid="related-tension">Related tension: <button type="button" onClick={() => onOpenTension(t.id)} className="min-h-9 cursor-pointer rounded-xs font-medium text-iris-700 hover:underline">{t.title} ›</button></p>
+              ))}
             </div>
           )}
         </Section>

@@ -42,7 +42,7 @@ export function ThemesTab({
   tensions: Tension[]
   /** Changes when the footer's "Review n insights" is pressed. */
   reviewStart: number
-  onOpenTensions: () => void
+  onOpenTensions: (themeId?: string) => void
   onOpenTension: (id: string) => void
 }) {
   const { doc, me, studyId } = ctx
@@ -251,7 +251,7 @@ export function ThemesTab({
                             </h3>
                             <span className="text-xs text-muted tabular-nums" data-testid="group-count">{plural(p.codes.length, 'code')}</span>
                             {mine.length > 0 && (
-                              <button type="button" onClick={() => (mine.length === 1 ? onOpenTension(mine[0].id) : onOpenTensions())} data-testid="tension-flag" data-to-review={toReview} title={flagTip} aria-label={flagTip} className={cn('relative z-10 inline-flex min-h-6 cursor-pointer items-center gap-1 rounded-xs text-xs font-medium hover:underline', toReview ? 'text-pending-fg' : 'text-graphite')}>
+                              <button type="button" onClick={() => onOpenTensions(p.id)} data-testid="tension-flag" data-to-review={toReview} title={flagTip} aria-label={flagTip} className={cn('relative z-10 inline-flex min-h-6 cursor-pointer items-center gap-1 rounded-xs text-xs font-medium hover:underline', toReview ? 'text-pending-fg' : 'text-graphite')}>
                                 <AlertIcon size={12} />
                                 <span className="tabular-nums">{plural(mine.length, 'tension')}</span>
                               </button>

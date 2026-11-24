@@ -178,10 +178,19 @@ export function ConceptPanel({
                 {status === 'Out of date' && (
                   <div className="flex flex-col gap-0.5 rounded-sm bg-pending-bg px-3 py-2 text-xs text-pending-fg" data-testid="out-of-date">
                     <span className="font-semibold">The data changed after you decided.</span>
-                    <span data-testid="was">Was: {row.decision.was?.text}</span>
-                    <span data-testid="now">Now: {row.decision.now?.text}</span>
+                    {row.decision.was?.text === row.decision.now?.text ? (
+                      <span data-testid="was">A tension was added that affects this. The line is the same: look again, then accept it.</span>
+                    ) : (
+                      <>
+                        <span data-testid="was">Was: {row.decision.was?.text}</span>
+                        <span data-testid="now">Now: {row.decision.now?.text}</span>
+                      </>
+                    )}
                   </div>
                 )}
+                {mine.filter((t) => t.status === 'Added as a tension theme').map((t) => (
+                  <p key={t.id} className="text-xs text-graphite" data-testid="related-tension">Related tension: <button type="button" onClick={() => onOpenTension(t.id)} className="min-h-9 cursor-pointer rounded-xs font-medium text-iris-700 hover:underline">{t.title} ›</button></p>
+                ))}
               </div>
             ) : (
               <p className="text-sm text-graphite" data-testid="summary-sentence">{conceptNote(row, defs, doc)}</p>

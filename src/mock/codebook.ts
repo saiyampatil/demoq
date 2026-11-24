@@ -548,7 +548,7 @@ export const SEED_THEMES: SeedTheme[] = [
   { id: 't-price', name: 'Price creep', definition: 'Repeated price rises wore down the sense of value until people left.', codeIds: ['c-price-rise', 'c-price-first', 'c-stable-price'], by: maya, at: '2026-09-25T09:30:00-04:00' },
   { id: 't-pet', name: 'The pet decides', definition: 'The pet’s appetite or health ended the subscription, whatever the owner wanted.', codeIds: ['c-pet-refused', 'c-vet-diet', 'c-nothing'], by: maya, at: '2026-09-25T09:42:00-04:00' },
   // One approved tension, so the audio summary (and anything else that reads approved tensions) has one to show.
-  { id: 't-tn-slow', name: 'Pause: a slow first reaction', definition: 'The first reaction to Concept A and the later choice point in different directions for some people.', codeIds: ['c-idea-pause'], by: maya, at: '2026-09-26T10:05:00-04:00', tensionId: 'tn-pause-concept' },
+  { id: 't-tn-cats', name: 'Cats and flexibility, dogs and price', definition: 'Cat owners lean to flexibility and dog owners lean to price.', codeIds: ['c-flex-first', 'c-price-first'], by: maya, at: '2026-09-26T10:05:00-04:00', tensionId: 'tn-pet-segments' },
 ]
 
 /** Themes PulseAI would propose for accepted codes that aren't in a theme yet. Each appears only once one of its codes qualifies. */
@@ -561,7 +561,7 @@ export const THEME_SUGGESTIONS: Omit<SeedTheme, 'by' | 'at'>[] = [
 // ─── what has been decided on the tensions ──────────────────────────────────
 
 export const SEED_TENSIONS: Record<string, SeedTensionDecision> = {
-  'tn-pause-concept': { status: 'Added as a tension theme', by: maya, at: '2026-09-26T10:05:00-04:00', themeId: 't-tn-slow' },
+  'tn-pet-segments': { status: 'Added as a tension theme', by: maya, at: '2026-09-26T10:05:00-04:00', themeId: 't-tn-cats' },
   'tn-vet-survey': { status: 'Dismissed', by: maya, at: '2026-09-26T10:20:00-04:00', why: 'One person out of three. Too few to read.' },
 }
 
@@ -575,6 +575,8 @@ const CORRECTED: Record<string, { index: number; text: string }> = {
 const PET_PACK = registerPack(
   buildPack({
     studyId: CODEBOOK_STUDY,
+    // 2: the hesitation tension is gone (only four kinds remain), so a codebook saved from version 1 starts again.
+    seedVersion: 2,
     coder: AI_CODER,
     codedAt: CODED_AT,
     questions: CODE_QUESTIONS,

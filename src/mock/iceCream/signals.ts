@@ -55,7 +55,7 @@ export const ICE_TENSION_DEFS: TensionDef[] = [
   },
   {
     id: 'tn-cookie-locked',
-    kind: 'Said vs survey',
+    kind: 'Said vs locked answer',
     title: 'Said Cookie Dough Crunch first, but some then said they probably wouldn’t buy it',
     summary: 'In the interview these people picked cookie dough. In the locked survey right after, some chose a no.',
     themeName: 'Cookie dough: said first, then wouldn’t buy',
@@ -71,7 +71,7 @@ export const ICE_TENSION_DEFS: TensionDef[] = [
   },
   {
     id: 'tn-caramel-mango-face',
-    kind: 'Said vs emotion',
+    kind: 'Said vs showed',
     title: 'Said Salted Caramel first, but their warmest first reaction was somewhere else',
     summary: 'Asked which flavour they would buy first, these people said Salted Caramel Swirl. On video, their warmest first reaction was not to caramel but to a different flavour. This sets a choice against a face at another concept.',
     themeName: 'Caramel in words, another flavour in the face',
@@ -80,7 +80,7 @@ export const ICE_TENSION_DEFS: TensionDef[] = [
   },
   {
     id: 'tn-price-survey',
-    kind: 'Said vs survey',
+    kind: 'Said vs locked answer',
     title: 'Said a high price would stop them, but answered positively in the locked survey',
     summary: 'In conversation these people said a price over about six dollars would stop them. In the locked survey, most still said they would buy their favourite flavour.',
     themeName: 'Price limit or still a yes',

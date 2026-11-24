@@ -37,6 +37,7 @@ export function SignalsTensions() {
   const [loaded, setLoaded] = useState(false)
   const [failed, setFailed] = useState(params.get('demo') === 'error')
   const [filter, setFilter] = useState<TensionFilter>('Suggested')
+  const [affects, setAffects] = useState('all')
   const [focus, setFocus] = useState<SignalFocus>({})
   const [focusTension, setFocusTension] = useState<string>()
   const [reviewStart, setReviewStart] = useState(0)
@@ -115,18 +116,29 @@ export function SignalsTensions() {
 
   const showTensions = (f: TensionFilter) => {
     setFilter(f)
+    setAffects('all')
     go('tensions')
     toPanel()
   }
   const openTension = (id: string) => {
     setFilter('All')
+    setAffects('all')
     setFocusTension(id)
     go('tensions')
     toPanel()
   }
-  const seeThemes = (codeId?: string) => {
-    setFocus({ code: codeId })
-    go('themes')
+  /** The tension flag on a theme row: the Tensions tab, narrowed to that theme, in the All segment. */
+  const openTensionsFor = (themeId?: string) => {
+    setFilter('All')
+    setAffects(themeId ? `theme:${themeId}` : 'all')
+    setFocusTension(undefined)
+    go('tensions')
+    toPanel()
+  }
+  /** "Affects: {name} ›" and "View theme": the theme or concept, selected, in its own tab. */
+  const jump = (a: { kind: 'theme' | 'concept' | 'themes'; id?: string }) => {
+    if (a.kind === 'concept') { setFocus({ concept: a.id }); go('concepts') }
+    else { setFocus(a.kind === 'theme' ? { theme: a.id } : {}); go('themes') }
     toPanel()
   }
   const reviewInsights = () => {
@@ -180,12 +192,12 @@ export function SignalsTensions() {
               setFocus={setFocus}
               tensions={tensions}
               reviewStart={reviewStart}
-              onOpenTensions={() => showTensions('Suggested')}
+              onOpenTensions={openTensionsFor}
               onOpenTension={openTension}
             />
           )}
           {tab === 'concepts' && concepts && <ConceptsTab ctx={ctx} model={concepts} selected={focus.concept} setSelected={(id) => setFocus({ concept: id })} tensions={tensions} onOpenTension={openTension} />}
-          {tab === 'tensions' && <TensionsTab ctx={ctx} filter={filter} setFilter={setFilter} focusId={focusTension} onSeeSignals={seeThemes} onContinue={() => navigate(toReportPath)} />}
+          {tab === 'tensions' && <TensionsTab ctx={ctx} filter={filter} setFilter={setFilter} affects={affects} setAffects={setAffects} focusId={focusTension} onJump={jump} onContinue={() => navigate(toReportPath)} />}
         </div>
       </div>
 

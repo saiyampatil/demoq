@@ -19,6 +19,7 @@ import {
 } from '@/mock/codebook'
 import { segmentsOf } from '@/mock/studyAnalysis'
 import type { Emotion, Stance } from '@/mock/emotion'
+import { tensionDefsOf } from '@/mock/signals'
 import { hash } from './hash'
 import { now, uid } from './brief'
 
@@ -150,6 +151,14 @@ export function seedCodebook(studyId: string, acceptedSessions: string[]): Codeb
 /** What counts as the analysis data: the codes and their quotes, who is in each theme, the corrections, and the sessions. */
 const dataSig = (d: CodebookDoc) =>
   hash(JSON.stringify({ c: d.codes.map((c) => [c.id, c.status, c.excerpts, c.mergedInto]), t: d.themes.map((t) => [t.id, t.codeIds]), f: d.stanceFixes ?? {}, b: d.builtOn }))
+/**
+ * The tensions added as a theme that draw on any of these codes. They are part of what an insight was decided on: adding one afterwards makes an
+ * accepted insight Out of date, and the insight shows a "Related tension" line.
+ */
+export function relatedAddedTensions(d: CodebookDoc, codeIds: string[]): string[] {
+  const decisions = tensionDecisions(d)
+  return tensionDefsOf(d.studyId).filter((t) => decisions[t.id]?.status === 'Added as a tension theme' && t.codeIds.some((id) => codeIds.includes(id))).map((t) => t.id).sort()
+}
 export const dataVersionOf = (d: CodebookDoc) => d.dataVersion ?? 1
 
 export function updateCodebook(studyId: string, fn: (d: CodebookDoc) => CodebookDoc) {
