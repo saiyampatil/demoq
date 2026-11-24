@@ -4,7 +4,8 @@ const b = await launch()
 const root = '/researcher/studies/ice-cream-flavours/analysis'
 const T = `document.querySelector('main')?.innerText.replace(/\\s+/g,' ')`
 const screens = [['A1 codebook', '/codebook'], ['A1 themes', '/codebook?tab=themes'], ['A2 signals', '/signals'], ['A2 tensions', '/signals?tab=tensions'], ['A3 report', '/report'], ['theme videos', '/report/videos'], ['word cloud', '/report/wordcloud'], ['theme map', '/report/themes-map'], ['audio summary', '/report/audio-summary']]
-const LEFT = /\b(pause|portion|subscription|cancel|Burrow|Pet Food|dog|cat owner|Biscuit|vet\b)/i
+// Pet Food's concept is "Pause, don’t cancel". "pause" needs a closing word boundary: the audio player announces "Paused, line 1 of 32", which is not a leftover.
+const LEFT = /\b(pause\b|portion|subscription|cancel|Burrow|Pet Food|dog|cat owner|Biscuit|vet\b)/i
 let bad = 0
 try {
   await b.goto('/researcher'); await b.evaluate('localStorage.clear(); sessionStorage.clear(); true')
