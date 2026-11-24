@@ -12,6 +12,7 @@ import { coverage, plural, tensionCounts, tensionsOf } from '@/state/signals'
 import { conceptRows } from '@/state/concepts'
 import { PageHeader } from '../../shared/PageHeader'
 import { TabBadge } from './a2/ui'
+import { ReviewMode } from './a2/ReviewMode'
 import { ExploreControl } from './explore/ExploreControl'
 import { AnalysisStepper } from './AnalysisStepper'
 import { ContinueBar } from './ContinueBar'
@@ -40,7 +41,7 @@ export function SignalsTensions() {
   const [affects, setAffects] = useState('all')
   const [focus, setFocus] = useState<SignalFocus>({})
   const [focusTension, setFocusTension] = useState<string>()
-  const [reviewStart, setReviewStart] = useState(0)
+  const [reviewing, setReviewing] = useState(false)
 
   useEffect(() => {
     setLoaded(false)
@@ -141,10 +142,7 @@ export function SignalsTensions() {
     else { setFocus(a.kind === 'theme' ? { theme: a.id } : {}); go('themes') }
     toPanel()
   }
-  const reviewInsights = () => {
-    go('themes')
-    setReviewStart((n) => n + 1)
-  }
+  const reviewInsights = () => setReviewing(true)
   const toReportPath = studyPath(studyId, screenById.A3)
 
   return (
@@ -191,7 +189,7 @@ export function SignalsTensions() {
               focus={focus}
               setFocus={setFocus}
               tensions={tensions}
-              reviewStart={reviewStart}
+              reviewStart={0}
               onOpenTensions={openTensionsFor}
               onOpenTension={openTension}
             />
@@ -200,6 +198,19 @@ export function SignalsTensions() {
           {tab === 'tensions' && <TensionsTab ctx={ctx} filter={filter} setFilter={setFilter} affects={affects} setAffects={setAffects} focusId={focusTension} onJump={jump} onContinue={() => navigate(toReportPath)} />}
         </div>
       </div>
+
+      {reviewing && (
+        <ReviewMode
+          ctx={ctx}
+          model={model}
+          concepts={concepts}
+          tensions={tensions}
+          onExit={() => setReviewing(false)}
+          onTensions={() => showTensions('Suggested')}
+          onContinue={() => navigate(toReportPath)}
+          onOpenTension={(id) => { setReviewing(false); openTension(id) }}
+        />
+      )}
 
       <ContinueBar
         studyId={studyId}
