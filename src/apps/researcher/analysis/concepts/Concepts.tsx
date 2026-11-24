@@ -14,7 +14,8 @@ import type { ConceptRow, conceptRows } from '@/state/concepts'
 import type { CodebookCtx } from '../codebookCtx'
 import { InsightStatusChip } from '../themes/Bits'
 import type { Intent } from '../themes/Panels'
-import { MEASURE_WORDS, MatchChip, MeasureCell, conceptNote } from './Bits'
+import { MEASURE_WORDS, MatchChip, MeasureCell, conceptNote, rankDetail } from './Bits'
+import { ConceptLetter } from '../a2/ui'
 import { ConceptPanel } from './ConceptPanel'
 
 type Model = NonNullable<ReturnType<typeof conceptRows>>
@@ -101,7 +102,7 @@ export function ConceptsTab({
             <span className="pl-9">Concept</span>
             <span className="text-right" title={MEASURE_WORDS.said.tip}>Said</span>
             {hasChoiceTask && <span className="text-right" title={MEASURE_WORDS.did.tip}>Did</span>}
-            <span className={cn('text-right', greyed && 'text-muted')} title={MEASURE_WORDS.showed.tip}>Showed</span>
+            <span className={cn('text-right', greyed ? 'text-muted' : 'text-face-fg')} title={MEASURE_WORDS.showed.tip}>Showed (face)</span>
             <span>Match</span>
             <span>Status</span>
           </div>
@@ -116,7 +117,7 @@ export function ConceptsTab({
               return (
                 <div key={r.id} data-row={`c:${r.id}`} data-concept={r.id} data-testid="concept-row" data-selected={on ? 'true' : undefined} className={cn(GRID, 'group relative min-h-[4.5rem] border-b border-mist border-l-2 py-3 pr-3 pl-3 last:border-b-0', on ? 'border-l-iris-600 bg-iris-50' : 'border-l-transparent hover:bg-haze')}>
                   <div className="flex min-w-0 items-start gap-3">
-                    <span aria-hidden="true" className="mt-px inline-flex size-6 shrink-0 items-center justify-center rounded-xs border border-mist-strong text-xs font-semibold text-graphite">{def.letter}</span>
+                    <ConceptLetter letter={def.letter} className="mt-px" />
                     <div className="min-w-0">
                       <h3 className="text-[15px] leading-5 font-semibold">
                         <button type="button" data-row-main onClick={() => setSelected(r.id)} aria-current={on ? 'true' : undefined} data-testid="concept-name" className="cursor-pointer rounded-xs text-left underline-offset-2 after:absolute after:inset-0 after:content-[''] hover:underline">{r.name}</button>
@@ -127,7 +128,7 @@ export function ConceptsTab({
                   <MeasureCell kind="said" m={r.said} lead={r.leads.said} why={why} />
                   {hasChoiceTask && <MeasureCell kind="did" m={r.did} lead={r.leads.did} />}
                   <MeasureCell kind="showed" m={r.showed} lead={r.leads.showed} grey={r.showed.greyed} />
-                  <span className="relative z-10 -my-3 flex min-h-11 items-center"><MatchChip match={r.match} /></span>
+                  <span className="relative z-10 -my-3 flex min-h-11 items-center"><MatchChip match={r.match} detail={rankDetail(r)} /></span>
                   <span className="relative z-10 -my-3 flex min-h-11 items-center" data-testid="status-cell"><InsightStatusChip status={status} /></span>
                   {canAccept && (
                     <Button size="sm" variant="secondary" className="absolute right-3 bottom-2.5 z-10 w-[8.25rem] opacity-0 transition-opacity duration-150 group-focus-within:opacity-100 group-hover:opacity-100 focus:opacity-100 motion-reduce:transition-none" onClick={() => { setSelected(r.id); accept(r) }} data-testid="row-accept" aria-label={`Accept the line for ${r.name}`}>Accept</Button>

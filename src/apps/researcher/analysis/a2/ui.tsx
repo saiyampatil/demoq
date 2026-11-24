@@ -70,8 +70,8 @@ export function TabBadge({ n, label, testid }: { n: number; label: string; testi
   )
 }
 
-export type BarPerson = { id: string; tone: 'good' | 'warn' | 'quiet' | 'none'; word?: string }
-const BAR_TONE: Record<BarPerson['tone'], string> = { good: 'bg-positive-fg', warn: 'bg-pending-fg', quiet: 'bg-tone-flat', none: 'bg-mist-strong' }
+export type BarPerson = { id: string; tone: 'good' | 'warn' | 'quiet' | 'face' | 'none'; word?: string }
+const BAR_TONE: Record<BarPerson['tone'], string> = { good: 'bg-positive-fg', warn: 'bg-pending-fg', quiet: 'bg-tone-flat', face: 'bg-face-accent', none: 'bg-mist-strong' }
 
 /**
  * A segmented bar, one block per person, filling left to right in 300 ms with a 30 ms stagger. Hovering a block shows that person's ID.
@@ -189,5 +189,17 @@ export function FaceNotRight({ ctx, fixKey, name, from, who }: { ctx: CodebookCt
         </div>
       )}
     </span>
+  )
+}
+
+/** A small stand-in for the concept card, with the play control the reveal clip opens from. */
+export function RevealThumb({ letter, name, playing, onClick }: { letter: string; name: string; playing: boolean; onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} aria-expanded={playing} aria-label={`${playing ? 'Close' : 'Play'} the reveal of ${name}`} data-testid="reveal-thumb" className={cn('relative flex h-11 w-14 shrink-0 cursor-pointer items-center justify-center rounded-sm border', CONCEPT_TONE[letter] ?? CONCEPT_TONE.A)}>
+      <span className="text-xs font-semibold">{letter}</span>
+      <span aria-hidden="true" className="absolute right-1 bottom-1 inline-flex size-4 items-center justify-center rounded-full bg-ink/80 text-white">
+        <svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor"><path d="M2 1v6l5-3z" /></svg>
+      </span>
+    </button>
   )
 }

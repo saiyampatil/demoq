@@ -17,7 +17,7 @@ import { hash } from './hash'
 import { checkNarration } from './narration'
 import { insightStatus, type InsightNow } from './speech'
 
-export type ReadingLite = { conceptId: string; label: Emotion; intensity: Intensity; confidence: number } & Partial<Omit<RevealReading, 'label' | 'intensity' | 'confidence' | 'conceptId'>>
+export type ReadingLite = { conceptId: string; label: Emotion; intensity: Intensity; confidence: number; /** The Researcher corrected it: PulseAI's own label, and whether the correction was "No clear reading". */ from?: Emotion; corrected?: boolean; noClear?: boolean } & Partial<Omit<RevealReading, 'label' | 'intensity' | 'confidence' | 'conceptId'>>
 export type PersonConcept = {
   participantId: string
   saw: string[]
@@ -243,7 +243,15 @@ export function conceptInputOf(doc: CodebookDoc, basis: Basis): ConceptInput | u
     saw: study.concepts.filter((c) => sawConcept(study, participantId, c.id)).map((c) => c.id),
     video: hasVideo(participantId),
     consent: !study.noFaceConsent.includes(participantId),
-    readings: study.concepts.flatMap((c) => { const r = revealReading(study.studyId, participantId, c.id); return r ? [{ ...r, conceptId: c.id }] : [] }),
+    // A Researcher's correction ("Not right?") replaces the label here, so every count and line follows it. "No clear reading" is never warm.
+    readings: study.concepts.flatMap((c): ReadingLite[] => {
+      const r = revealReading(study.studyId, participantId, c.id)
+      if (!r) return []
+      const fix = doc.faceFixes?.[`m:${c.id}:${participantId}`]
+      if (!fix) return [{ ...r, conceptId: c.id }]
+      if (fix.to === 'No clear expression') return [{ ...r, conceptId: c.id, label: 'Neutral', intensity: 'Low', from: r.label, corrected: true, noClear: true }]
+      return [{ ...r, conceptId: c.id, label: fix.to, from: r.label, corrected: true }]
+    }),
     said: study.concepts.find((c) => sayers.get(c.id)!.has(participantId))?.id,
     did: study.choice?.picks[participantId],
   }))

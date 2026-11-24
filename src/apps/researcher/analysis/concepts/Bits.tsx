@@ -1,6 +1,7 @@
 // Small parts of the Concepts tab: the Match chip, the three measure cells, and the plain-words note for a concept that can't be compared yet.
 
 import { cn } from '@/components/cn'
+import { Tooltip } from '@/components/Tooltip'
 import { AlertIcon, CheckIcon } from '@/components/icons'
 import type { ConceptRow, Match, Measure, MeasureKey } from '@/state/concepts'
 import type { ConceptDef } from '@/mock/concepts'
@@ -12,14 +13,25 @@ const MATCH: Record<Match, { label: string; cls: string; tip: string }> = {
   'Not enough': { label: 'Not enough', cls: 'border-dashed border-mist-strong bg-transparent text-graphite', tip: 'Needs at least two of Said, Did and Showed to compare.' },
 }
 
-/** Agrees or Differs, with an icon and the word. A concept with too few measures says so. */
-export function MatchChip({ match, className }: { match: Match; className?: string }) {
+const ORDINAL = ['', '1st', '2nd', '3rd']
+/** "Said 1st · Did 1st · Showed 3rd": where the concept ranks on each measure that counts. Lives in the tooltip and the panel, never in the cell. */
+export function rankDetail(row: Pick<ConceptRow, 'ranks' | 'measures'>): string {
+  return row.measures.map((k) => (row.ranks[k] ? `${MEASURE_WORDS[k].label} ${ORDINAL[row.ranks[k]!] ?? `${row.ranks[k]}th`}` : '')).filter(Boolean).join(' · ')
+}
+
+/** Agrees or Differs: a one-word pill with an icon. The rank detail is in its tooltip. A concept with too few measures says so. */
+export function MatchChip({ match, className, detail }: { match: Match; className?: string; detail?: string }) {
   const m = MATCH[match]
-  return (
-    <span className={cn('inline-flex h-5 shrink-0 items-center gap-1 rounded-full border px-1.5 text-xs font-medium whitespace-nowrap', m.cls, className)} title={`${m.label}: ${m.tip}`} data-testid="match-chip" data-match={match}>
+  const chip = (
+    <span className={cn('inline-flex h-6 shrink-0 items-center gap-1 rounded-full border px-2 text-xs font-medium whitespace-nowrap', m.cls, className)} data-testid="match-chip" data-match={match}>
       {match === 'Agrees' ? <CheckIcon size={12} /> : match === 'Differs' ? <AlertIcon size={12} /> : <span aria-hidden="true" className="w-3 text-center">–</span>}
       {m.label}
     </span>
+  )
+  return (
+    <Tooltip align="left" content={<>{detail && <span className="block font-medium">{detail}</span>}{m.tip}</>}>
+      {chip}
+    </Tooltip>
   )
 }
 
@@ -37,7 +49,7 @@ export const MEASURE_WORDS: Record<MeasureKey, { label: string; short: string; t
 export function MeasureCell({ m, lead, grey, kind, why }: { m?: Measure; lead: boolean; grey?: boolean; kind: MeasureKey; why?: string }) {
   if (!m) return <span className="text-right text-xs text-muted" data-testid={`cell-${kind}`} title={why}>—</span>
   return (
-    <span className={cn('text-right text-[13px] leading-5 whitespace-nowrap tabular-nums', grey ? 'text-muted' : lead ? 'font-semibold text-ink' : 'text-graphite')} data-testid={`cell-${kind}`} data-lead={lead && !grey ? 'true' : undefined} data-n={m.n} data-of={m.of} title={`${MEASURE_WORDS[kind].tip}${grey ? ' Greyed: too few people on video to compare.' : ''}`}>
+    <span className={cn('text-right text-[13px] leading-5 whitespace-nowrap tabular-nums', grey ? 'text-muted' : lead ? 'font-semibold' : '', !grey && (kind === 'showed' ? 'text-face-fg' : lead ? 'text-ink' : 'text-graphite'))} data-testid={`cell-${kind}`} data-lead={lead && !grey ? 'true' : undefined} data-n={m.n} data-of={m.of} title={`${MEASURE_WORDS[kind].tip}${grey ? ' Greyed: too few people on video to compare.' : ''}`}>
       {m.n} of {m.of}
       {lead && !grey && <span className="sr-only"> (highest)</span>}
     </span>
