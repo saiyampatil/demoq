@@ -34,6 +34,7 @@ import type { Fit, PersonFit } from '@/state/speech'
 import { mmss } from '../../review/reviewUi'
 import type { CodebookCtx } from '../codebookCtx'
 import { FitChip, OneFitChip, playHref } from '../SignalBits'
+import { BackLink } from '../a2/ui'
 
 // ─── a small popover that closes on Escape or a click elsewhere ─────────────
 
@@ -88,49 +89,38 @@ export function InsightStatusChip({ status, className }: { status: InsightStatus
 
 const STANCES: Stance[] = ['Positive', 'Negative', 'Neutral']
 
+/** On a code row: "For it" or "Against it" as plain words. A code that just describes carries nothing. Corrected in the code panel. */
+export function StanceLabel({ ctx, code, className }: { ctx: CodebookCtx; code: Pick<Code, 'id'>; className?: string }) {
+  const now = codeStance(ctx.doc, code.id)
+  if (now === 'Neutral') return null
+  return (
+    <span className={cn('shrink-0 text-xs whitespace-nowrap text-graphite', className)} data-testid="stance-tag" data-stance={now} title={STANCE_TAG_DEF[now]}>
+      {STANCE_TAG[now]}
+    </span>
+  )
+}
+
 /**
- * The small tag on a code row: For it, Against it, or Just describes. One click opens the three choices and one more corrects it for the whole
- * code. A correction updates every count and is logged. A corrected tag shows a dashed border and says who changed it.
+ * The three-way switch in the code panel: For it · Against it · Just describes. A change recalculates every count, is logged with who and
+ * when, marks the accepted insights it touches Out of date, and gives a toast with Undo.
  */
-export function StanceTag({ ctx, code, className }: { ctx: CodebookCtx; code: Pick<Code, 'id' | 'name'>; className?: string }) {
+export function StanceSwitch({ ctx, code }: { ctx: CodebookCtx; code: Pick<Code, 'id' | 'name'> }) {
   const toast = useToast()
-  const { open, setOpen, ref } = usePopover()
   const now = codeStance(ctx.doc, code.id)
   const ai = aiStance(code.id)
   const fix = ctx.doc.stanceFixes?.[`code:${code.id}`]
   const pick = (to: Stance) => {
-    setOpen(false)
     if (to === now) return
     ctx.act((d) => correctCodeStance(d, code, ai, to, { by: ctx.me }))
     toast(`“${code.name}” is now “${STANCE_TAG[to]}”`, { label: 'Undo', onClick: () => ctx.act((d) => correctCodeStance(d, code, ai, now, { by: ctx.me })) })
   }
   return (
-    <span ref={ref} className={cn('relative inline-flex', className)} onClick={(e) => e.stopPropagation()}>
-      <button
-        type="button"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        onClick={() => setOpen((o) => !o)}
-        data-testid="stance-tag"
-        data-stance={now}
-        title={fix ? `Corrected from “${STANCE_TAG[fix.from]}” by ${fix.by}. ${STANCE_TAG_DEF[now]}` : `${STANCE_TAG_DEF[now]} Click to change.`}
-        className={cn('inline-flex min-h-6 cursor-pointer items-center rounded-xs border bg-surface px-1.5 text-xs whitespace-nowrap text-graphite hover:bg-haze', fix ? 'border-dashed border-iris-600' : 'border-mist-strong')}
-      >
-        {STANCE_TAG[now]}
-        <svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="ml-1 shrink-0"><path d="m1.5 3 2.5 2.5L6.5 3" /></svg>
-      </button>
-      {open && (
-        <ul role="menu" aria-label={`What “${code.name}” claims`} data-testid="stance-menu" className="absolute top-full right-0 z-30 mt-1 w-44 rounded-sm border border-mist bg-surface py-1 text-sm shadow-overlay">
-          {STANCES.map((s) => (
-            <li key={s} role="none">
-              <button type="button" role="menuitemradio" aria-checked={s === now} onClick={() => pick(s)} data-stance-option={s} className="flex min-h-9 w-full cursor-pointer items-center justify-between px-3 text-left hover:bg-haze">
-                {STANCE_TAG[s]}
-                {s === ai && <span className="text-xs text-muted">PulseAI</span>}
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
+    <span role="radiogroup" aria-label={`What “${code.name}” claims`} data-testid="stance-switch" className="inline-flex rounded-sm border border-mist-strong bg-haze p-0.5" title={fix ? `Corrected from “${STANCE_TAG[fix.from]}” by ${fix.by}` : 'What the words of this code claim'}>
+      {STANCES.map((s) => (
+        <button key={s} type="button" role="radio" aria-checked={s === now} onClick={() => pick(s)} data-stance-option={s} className={cn('min-h-8 cursor-pointer rounded-xs px-2.5 text-xs whitespace-nowrap', s === now ? 'bg-surface font-semibold text-ink shadow-raised' : 'text-graphite hover:text-ink')}>
+          {STANCE_TAG[s]}
+        </button>
+      ))}
     </span>
   )
 }
@@ -204,47 +194,43 @@ export function HowToRead() {
 // ─── tiles, and the people behind them ──────────────────────────────────────
 
 /** One word for why a person matched, did not match, or was hesitant: the tone, or "Hesitated". */
-const reasonWord = (p: Point, fit: FitKey | 'Split') => (fit === 'Split' ? 'Split across codes' : fit === 'Uncertain' ? 'Hesitated' : p.voice.tone)
+const reasonWord = (p: Point, fit: FitKey | 'Split' | 'Described') => (fit === 'Split' ? 'Split across codes' : fit === 'Described' ? 'Just described it' : fit === 'Uncertain' ? 'Hesitated' : p.voice.tone)
 
-/**
- * "Did their delivery match their words?": the tiles Matched · No match · Hesitant for each side that has people (two groups headed
- * "Spoke in favour · n" and "Spoke against it · n" when people are on both sides), a quiet line for people split across codes, and one for
- * people who just described it. A tile or a heading opens the people in it: ID, segment, one word, Play. With a `code`, each person has "Not right?".
- */
-export function Tiles({ reads, ctx, code }: { reads: PersonRead[]; ctx: CodebookCtx; code?: Pick<Code, 'id' | 'name'> }) {
-  const sum = sideSummary(reads)
+/** A list of people to show in place of the panel's content: what it is, and who. */
+export type WhoView = { title: string; rows: { point: Point; fit: FitKey | 'Split' | 'Described' }[] }
+
+/** One person in a list: ID, segment, one word, Play. With a `code`, "Not right?" corrects what their words claimed there (never a face). */
+export function PersonRow({ p, fit, ctx, code }: { p: Point; fit: FitKey | 'Split' | 'Described'; ctx: CodebookCtx; code?: Pick<Code, 'id' | 'name'> }) {
   const toast = useToast()
-  const [open, setOpen] = useState<{ side: string; fit?: FitKey } | null>(null)
-  const [who, setWho] = useState(false)
-  const [fixing, setFixing] = useState<string | null>(null)
+  const [fixing, setFixing] = useState(false)
   const current = code ? codeStance(ctx.doc, code.id) : undefined
-  const correct = (p: Point, to: Stance) => {
+  const correct = (to: Stance) => {
     if (!code || !current) return
     const had = ctx.doc.stanceFixes?.[`person:${code.id}|${p.participantId}`]?.to ?? current
     ctx.act((d) => correctPersonStance(d, code, p.participantId, current, to, { by: ctx.me }))
-    setFixing(null)
+    setFixing(false)
     toast(`${p.participantId}: “${STANCE_TAG[to]}” at “${code.name}”`, { label: 'Undo', onClick: () => ctx.act((d) => correctPersonStance(d, code, p.participantId, current, had, { by: ctx.me })) })
   }
-  const person = (p: Point, f: FitKey | 'Split') => (
-    <li key={p.participantId} data-testid="tile-person" className="flex flex-wrap items-center gap-x-2 gap-y-1 px-2.5 py-1.5 text-xs">
+  return (
+    <li data-testid="tile-person" className="flex flex-wrap items-center gap-x-2 gap-y-1 px-3 py-2 text-xs">
       <span className="font-medium whitespace-nowrap tabular-nums">{p.participantId}</span>
       <span className="text-graphite">{segmentLabelOf(p.participantId)}</span>
-      <span className="text-graphite" data-testid="tile-reason">{reasonWord(p, f)}</span>
-      <span className="ml-auto flex items-center gap-2">
+      <span className="text-graphite" data-testid="tile-reason">{reasonWord(p, fit)}</span>
+      <span className="ml-auto flex items-center gap-1">
         {code && (
-          <button type="button" onClick={() => setFixing(fixing === p.participantId ? null : p.participantId)} aria-expanded={fixing === p.participantId} data-testid="not-right" className="min-h-6 cursor-pointer rounded-xs text-graphite underline-offset-2 hover:text-ink hover:underline">
+          <button type="button" onClick={() => setFixing((f) => !f)} aria-expanded={fixing} data-testid="not-right" className="min-h-9 cursor-pointer rounded-xs px-1.5 text-graphite underline-offset-2 hover:bg-haze hover:text-ink hover:underline">
             Not right?
           </button>
         )}
-        <Link to={playHref(ctx.studyId, p.sessionId, p.atSec)} className="inline-flex min-h-6 items-center gap-1 rounded-xs font-medium text-iris-700 hover:underline" aria-label={`Play ${p.participantId} at ${mmss(p.atSec)}`}>
+        <Link to={playHref(ctx.studyId, p.sessionId, p.atSec)} className="inline-flex min-h-9 items-center gap-1 rounded-xs px-1.5 font-medium text-iris-700 hover:underline" aria-label={`Play ${p.participantId} at ${mmss(p.atSec)}`}>
           <PlayIcon size={11} /> Play
         </Link>
       </span>
-      {code && fixing === p.participantId && (
+      {code && fixing && (
         <span className="flex basis-full flex-wrap items-center gap-1.5 pt-1" role="group" aria-label={`What ${p.participantId} said at “${code.name}”`} data-testid="not-right-menu">
           <span className="text-graphite">Their words were:</span>
           {(['Positive', 'Negative', 'Neutral'] as const).map((s) => (
-            <button key={s} type="button" aria-pressed={(ctx.doc.stanceFixes?.[`person:${code.id}|${p.participantId}`]?.to ?? current) === s} onClick={() => correct(p, s)} data-stance-option={s} className="min-h-6 cursor-pointer rounded-xs border border-mist-strong px-1.5 hover:bg-haze aria-pressed:border-iris-600 aria-pressed:bg-iris-50">
+            <button key={s} type="button" aria-pressed={(ctx.doc.stanceFixes?.[`person:${code.id}|${p.participantId}`]?.to ?? current) === s} onClick={() => correct(s)} data-stance-option={s} className="min-h-9 cursor-pointer rounded-xs border border-mist-strong px-2 hover:bg-haze aria-pressed:border-iris-600 aria-pressed:bg-iris-50">
               {STANCE_TAG[s]}
             </button>
           ))}
@@ -252,21 +238,46 @@ export function Tiles({ reads, ctx, code }: { reads: PersonRead[]; ctx: Codebook
       )}
     </li>
   )
+}
+
+/** "Show who": replaces the panel's content with the people behind a count, and a link back. */
+export function WhoPanel({ view, ctx, code, back, onBack }: { view: WhoView; ctx: CodebookCtx; code?: Pick<Code, 'id' | 'name'>; back: string; onBack: () => void }) {
+  return (
+    <div className="a2-slide flex flex-col gap-3 px-5 py-4" data-testid="who-panel">
+      <BackLink onClick={onBack}>{back}</BackLink>
+      <h3 className="text-sm font-semibold" data-testid="who-title">{view.title}</h3>
+      <ul className="divide-y divide-mist rounded-sm border border-mist" data-testid="tile-people">
+        {view.rows.length === 0 && <li className="px-3 py-2 text-xs text-graphite">Nobody.</li>}
+        {[...view.rows].sort((a, b) => a.point.participantId.localeCompare(b.point.participantId)).map((r) => <PersonRow key={r.point.participantId} p={r.point} fit={r.fit} ctx={ctx} code={code} />)}
+      </ul>
+    </div>
+  )
+}
+
+/**
+ * "Did their delivery match their words?": the tiles Matched · No match · Hesitant for each side that has people (two groups headed
+ * "Spoke in favour · n" and "Spoke against it · n" when people are on both sides), a quiet line for people split across codes, and one for
+ * people who just described it. Each tile reads "n of N people"; a tile, a heading or "Show who" hands the people to `onWho`, which shows them in place of the panel.
+ */
+export function Tiles({ reads, onWho }: { reads: PersonRead[]; onWho: (v: WhoView) => void }) {
+  const sum = sideSummary(reads)
   return (
     <div className="flex flex-col gap-2.5" data-testid="delivery-breakdown">
       {sum.groups.map((g) => {
         const both = sum.groups.length > 1
-        const key = g.side
-        const listed = open?.side === key ? (open.fit ? g.tiles[open.fit] : g.points) : []
+        const head = both ? sideGroupHead(g.side, g.points.length) : sideGroupLine(g.side, g.points.length)
         return (
-          <section key={key} aria-label={SIDE_LABEL[g.side]} data-testid="tile-group" data-side={g.side} data-n={g.points.length} className="flex flex-col gap-1.5">
-            <button type="button" onClick={() => setOpen(open?.side === key && !open.fit ? null : { side: key })} aria-expanded={open?.side === key && !open.fit} data-testid="group-head" className="min-h-6 cursor-pointer self-start rounded-xs text-left text-xs text-graphite hover:text-ink hover:underline">
-              {both ? sideGroupHead(g.side, g.points.length) : sideGroupLine(g.side, g.points.length)}
+          <section key={g.side} aria-label={SIDE_LABEL[g.side]} data-testid="tile-group" data-side={g.side} data-n={g.points.length} className="flex flex-col gap-1.5">
+            <button type="button" onClick={() => onWho({ title: head, rows: g.points.map((p) => ({ point: p, fit: g.fits[p.participantId] as FitKey | 'Split' })) })} data-testid="group-head" className="min-h-9 cursor-pointer self-start rounded-xs text-left text-xs text-graphite hover:text-ink hover:underline">
+              {head}
             </button>
             <dl className="grid grid-cols-3 gap-2" data-testid="match-tiles">
               {FIT_ORDER.map((k) => (
-                <button key={k} type="button" onClick={() => setOpen(open?.side === key && open.fit === k ? null : { side: key, fit: k })} aria-pressed={open?.side === key && open.fit === k} data-testid={`fig-${{ Matches: 'matched', 'Pulls against': 'against', Uncertain: 'uncertain' }[k]}`} data-fit={k} data-n={g.tiles[k].length} title={FIT_DEF[k]} className={cn('min-h-11 cursor-pointer rounded-sm border px-2 py-1.5 text-left', open?.side === key && open.fit === k && 'ring-1 ring-ink')} style={{ background: FIT_COLOUR[k].bg, borderColor: FIT_COLOUR[k].line }}>
-                  <dd className="text-lg leading-none font-semibold tabular-nums" style={{ color: FIT_COLOUR[k].fg }}>{g.tiles[k].length}</dd>
+                <button key={k} type="button" onClick={() => onWho({ title: `${head} · ${FIT_LABEL[k]}`, rows: g.tiles[k].map((p) => ({ point: p, fit: k })) })} data-testid={`fig-${{ Matches: 'matched', 'Pulls against': 'against', Uncertain: 'uncertain' }[k]}`} data-fit={k} data-n={g.tiles[k].length} title={FIT_DEF[k]} className="min-h-14 cursor-pointer rounded-sm border px-2.5 py-2 text-left hover:brightness-95" style={{ background: FIT_COLOUR[k].bg, borderColor: FIT_COLOUR[k].line }}>
+                  <dd className="text-[24px] leading-none font-semibold tabular-nums" style={{ color: FIT_COLOUR[k].fg }}>
+                    {g.tiles[k].length}
+                    <span className="ml-1 text-xs font-normal text-graphite"> of {g.points.length} people</span>
+                  </dd>
                   <dt className="mt-1 text-xs text-graphite">{FIT_LABEL[k]}</dt>
                 </button>
               ))}
@@ -276,35 +287,16 @@ export function Tiles({ reads, ctx, code }: { reads: PersonRead[]; ctx: Codebook
                 {g.split.length} split across codes
               </p>
             )}
-            {listed.length > 0 && open?.side === key && (
-              <ul className="divide-y divide-mist rounded-sm border border-mist" data-testid="tile-people" data-for={open.fit ?? 'all'}>
-                {listed.map((p) => person(p, g.fits[p.participantId] as FitKey | 'Split'))}
-              </ul>
-            )}
           </section>
         )
       })}
       {sum.described.length > 0 && (
         <p className="text-xs text-graphite" data-testid="fact-only">
           {sum.described.length} just described what happened, not checked.{' '}
-          <button type="button" aria-expanded={who} onClick={() => setWho((w) => !w)} data-testid="see-who" className="min-h-6 cursor-pointer rounded-xs font-medium text-iris-700 hover:underline">
+          <button type="button" onClick={() => onWho({ title: 'Just described what happened', rows: sum.described.map((p) => ({ point: p, fit: 'Described' as const })) })} data-testid="see-who" className="min-h-9 cursor-pointer rounded-xs font-medium text-iris-700 hover:underline">
             Show who
           </button>
         </p>
-      )}
-      {who && sum.described.length > 0 && (
-        <ul className="divide-y divide-mist rounded-sm border border-mist" data-testid="fact-only-people">
-          {[...sum.described].sort((a, b) => a.participantId.localeCompare(b.participantId)).map((p) => (
-            <li key={p.participantId} data-testid="tile-person" className="flex items-center gap-2 px-2.5 py-1.5 text-xs">
-              <span className="font-medium whitespace-nowrap tabular-nums">{p.participantId}</span>
-              <span className="text-graphite">{segmentLabelOf(p.participantId)}</span>
-              <span className="text-graphite">Just described it</span>
-              <Link to={playHref(ctx.studyId, p.sessionId, p.atSec)} className="ml-auto inline-flex min-h-6 items-center gap-1 rounded-xs font-medium text-iris-700 hover:underline" aria-label={`Play ${p.participantId} at ${mmss(p.atSec)}`}>
-                <PlayIcon size={11} /> Play
-              </Link>
-            </li>
-          ))}
-        </ul>
       )}
     </div>
   )
@@ -342,7 +334,7 @@ export function Moments({ moments, studyId, fits }: { moments: MomentToWatch[]; 
               <PlayIcon size={11} /> Play
             </Link>
           </div>
-          {m.quote && <p className="font-serif text-quote leading-snug text-ink">“{m.quote}”</p>}
+          {m.quote && <p className="quote text-ink">“{m.quote}”</p>}
           {m.reason && <p className="text-xs text-graphite" data-testid="moment-reason">{m.reason}</p>}
         </li>
       ))}

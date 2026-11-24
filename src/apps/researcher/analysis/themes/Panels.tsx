@@ -17,7 +17,7 @@ import { textSignalsOf } from '@/state/concepts'
 import { plural, themeInsight, type CodeSignal, type InsightStatus, type Tension, type ThemeSignal } from '@/state/signals'
 import type { CodebookCtx } from '../codebookCtx'
 import { FitChip } from '../SignalBits'
-import { InsightStatusChip, Moments, SentenceWithN, StanceTag, Tiles } from './Bits'
+import { InsightStatusChip, Moments, SentenceWithN, StanceSwitch, Tiles, WhoPanel, type WhoView } from './Bits'
 
 /** Each person's one result, for the chip on their clip. */
 const fitsOf = (reads: { participantId: string; fit?: PersonFit }[]) => Object.fromEntries(reads.map((r) => [r.participantId, r.fit]))
@@ -172,6 +172,7 @@ export function ThemePanel({
   const [text, setText] = useState('')
   const [why, setWhy] = useState('')
   const [note, setNote] = useState(doc.insightNotes?.[prof.id] ?? '')
+  const [who, setWho] = useState<WhoView | null>(null)
   const tooFew = status === 'Nothing to decide'
   const problems = mode === 'edit' && computed ? checkInsightEdit(text, computed) : []
 
@@ -180,6 +181,7 @@ export function ThemePanel({
   useEffect(() => {
     setNote(doc.insightNotes?.[prof.id] ?? '')
     setMode('view')
+    setWho(null)
   }, [prof.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -201,6 +203,8 @@ export function ThemePanel({
   return (
     <section aria-label={`Theme ${prof.name}`} data-testid="theme-panel" data-theme={prof.id} data-status={status} className="flex max-h-[calc(100vh-9rem)] flex-col rounded-md border border-mist bg-surface">
       <div className="flex-1 overflow-y-auto pb-6">
+        {who && <WhoPanel view={who} ctx={ctx} back={prof.name} onBack={() => setWho(null)} />}
+        <div className={who ? 'hidden' : undefined}>
         <header className="flex flex-col gap-2 border-b border-mist px-5 py-4">
           <div className="flex flex-wrap items-center gap-2">
             <FitChip pattern={prof.verdict} />
@@ -252,7 +256,7 @@ export function ThemePanel({
         {prof.reads.some((r) => r.side) || prof.reads.length > 0 ? (
           <section aria-label="Did their delivery match their words?" data-testid="theme-figures" className="flex flex-col gap-2 border-b border-mist px-5 py-4">
             {prof.reads.some((r) => r.side) && <h3 className="text-xs font-semibold text-ink" data-testid="match-question">Did their delivery match their words?</h3>}
-            <Tiles reads={prof.reads} ctx={ctx} />
+            <Tiles reads={prof.reads} onWho={setWho} />
             <p className="text-xs text-graphite tabular-nums" data-testid="theme-coverage">{ins.coverage || 'Everyone who said it was read on speech.'}</p>
           </section>
         ) : null}
@@ -285,6 +289,7 @@ export function ThemePanel({
           <H>Your note</H>
           <TextArea aria-label="Your note on this theme" value={note} onChange={(e) => setNote(e.target.value)} onBlur={() => onNote(note)} rows={2} data-testid="note" hint="Kept apart from the insight. It is never part of the sentence." />
         </section>
+        </div>
       </div>
       <DecisionBar status={status} tooFew={tooFew} accepted={accepted} acceptLabel={acceptLabel} mode={mode} why={why} setWhy={setWhy} leftOutWhy={decision?.why} onAccept={onAccept} onEdit={() => { setText(shown ?? ''); setMode('edit') }} onLeave={() => { setWhy(''); setMode('leave') }} onLeaveConfirm={() => { onLeaveOut(why); setMode('view') }} onCancel={() => setMode('view')} />
       <footer className="border-t border-mist bg-paper px-5 py-3 text-xs text-graphite tabular-nums" data-testid="approval-line">{approvalLine(prof, doc)}</footer>
@@ -318,21 +323,27 @@ export function CodePanel({
   const override = doc.codeOverrides?.[s.code.id]
   const inReport = override ?? themeAccepted
   const [custom, setCustom] = useState(false)
+  const [who, setWho] = useState<WhoView | null>(null)
   const approval = theme ? approvalLine(theme, doc) : 'This code is not in a theme yet'
   return (
     <section aria-label={`Code ${s.code.name}`} data-testid="signal-panel" data-code={s.code.id} className="flex max-h-[calc(100vh-9rem)] flex-col rounded-md border border-mist bg-surface">
       <div className="flex-1 overflow-y-auto pb-6">
+        {who && <WhoPanel view={who} ctx={ctx} code={s.code} back={s.code.name} onBack={() => setWho(null)} />}
+        <div className={who ? 'hidden' : undefined}>
         <header className="flex flex-col gap-2 border-b border-mist px-5 py-4">
           {back && (
             <button type="button" onClick={back.onClick} data-testid="back-to-theme" className="min-h-6 cursor-pointer self-start rounded-xs text-xs font-medium text-iris-700 hover:underline">← {back.name}</button>
           )}
           <div className="flex flex-wrap items-center gap-2">
             <FitChip pattern={s.readable ? s.fit.pattern : 'Too few to read'} />
-            <StanceTag ctx={ctx} code={s.code} />
             {!s.decidable && <InsightStatusChip status="Nothing to decide" />}
           </div>
           <h2 className="text-lg leading-snug font-semibold" data-testid="code-panel-name">{s.code.name}</h2>
           <p className="text-xs text-graphite tabular-nums" data-testid="code-panel-said-by">Said by {s.people} of {s.of} people</p>
+          <div className="flex flex-wrap items-center gap-2 text-xs text-graphite">
+            What the words claim
+            <StanceSwitch ctx={ctx} code={s.code} />
+          </div>
         </header>
 
         <Section label="Speech evidence" testid="speech-evidence">
@@ -349,6 +360,7 @@ export function CodePanel({
           </ul>
         </Section>
 
+        {(signals.hedged.n > 0 || signals.raised.n > 0) && (
         <Section label="What the transcripts show" testid="observations">
           <ul className="flex flex-col divide-y divide-mist" data-testid="observation-lines">
             {([
@@ -365,6 +377,7 @@ export function CodePanel({
             ))}
           </ul>
         </Section>
+        )}
 
         <Section label="Insight" testid="insight">
           {insight ? (
@@ -379,7 +392,7 @@ export function CodePanel({
 
         <section aria-label="Did their delivery match their words?" data-testid="code-figures" className="flex flex-col gap-2 border-b border-mist px-5 py-4">
           {s.reads.some((r) => r.side) && <h3 className="text-xs font-semibold text-ink" data-testid="match-question">Did their delivery match their words?</h3>}
-          <Tiles reads={s.reads} ctx={ctx} code={s.code} />
+          <Tiles reads={s.reads} onWho={setWho} />
           <p className="text-xs text-graphite tabular-nums" data-testid="code-coverage">
             {[s.reads.filter((r) => !r.side).length ? `${s.reads.filter((r) => !r.side).length} just described it` : '', s.emotions.noVideo ? `${s.emotions.noVideo} audio-only, read on speech` : ''].filter(Boolean).join(' · ') || 'Everyone who said it was read on speech.'}
           </p>
@@ -407,6 +420,7 @@ export function CodePanel({
             </div>
           )}
         </section>
+        </div>
       </div>
       <footer className="border-t border-mist bg-paper px-5 py-3 text-xs text-graphite tabular-nums" data-testid="approval-line">
         {theme ? `Theme “${theme.name}”: ${approval}` : approval} · {codeStance(doc, s.code.id) === 'Neutral' ? 'Words: just describes' : `Words: ${codeStance(doc, s.code.id) === 'Positive' ? 'for it' : 'against it'}`} · data v{dataVersionOf(doc)}

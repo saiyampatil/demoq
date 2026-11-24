@@ -11,12 +11,12 @@ import { useToast } from '@/components/Toast'
 import { screenById, studyPath } from '@/routes/screens'
 import { acceptInsight, editInsight, leaveOutInsight, setInsightNote, undoInsight, type Theme } from '@/state/codebook'
 import { standoutLabel } from '@/state/speech'
-import { plural, tensionsFor, type CodeSignal, type Tension, type ThemeSignal } from '@/state/signals'
+import { TENSION_KIND_LABEL, plural, tensionsFor, type CodeSignal, type Tension, type ThemeSignal } from '@/state/signals'
 import type { CodebookCtx } from '../codebookCtx'
 import { FitChip } from '../SignalBits'
-import { HowToRead, InsightStatusChip, StanceTag } from './Bits'
+import { HowToRead, InsightStatusChip, StanceLabel } from './Bits'
 import type { ThemeModel, SignalFocus } from './model'
-import { CodePanel, ThemePanel, type Intent, type Review } from './Panels'
+import { CodePanel, ThemePanel, tensionsOn, type Intent, type Review } from './Panels'
 
 // Fixed widths and a clear gap, so no header label touches the next. Cells line up on the first line of the name.
 const GRID = 'grid grid-cols-[minmax(0,1fr)_4.5rem_9.5rem_7.25rem_8.25rem] items-start gap-x-3'
@@ -50,6 +50,8 @@ export function ThemesTab({
   const { signals, profiles } = model
   const themes = profiles.filter((p) => p.kind === 'theme')
   const none = profiles.find((p) => p.kind === 'none')
+  // Accepted tension themes: shown apart, with no verdict, no insight and no Accept, and never in the insights counter.
+  const fromTensions = profiles.filter((p) => p.kind === 'tension')
   const [open, setOpen] = useState<Set<string>>(new Set())
   const [show, setShow] = useState<Show>('All')
   const [intent, setIntent] = useState<Intent>()
@@ -184,7 +186,7 @@ export function ThemesTab({
         >
           <span className="flex min-w-0 items-start gap-2">
             <button type="button" data-row-main data-testid="code-name" className="line-clamp-2 min-w-0 flex-1 cursor-pointer rounded-xs text-left font-medium">{c.code.name}</button>
-            <StanceTag ctx={ctx} code={c.code} className="shrink-0" />
+            <StanceLabel ctx={ctx} code={c.code} />
           </span>
           <span className="text-right text-xs whitespace-nowrap text-graphite tabular-nums" data-testid="code-said-by">{c.people} of {c.of}</span>
           <span className="text-xs text-graphite tabular-nums" data-testid="code-stood-out">{c.standout ? standoutLabel(c.standout) : '—'}</span>
@@ -227,7 +229,8 @@ export function ThemesTab({
               {shownThemes.map((p) => {
                 const isOpen = open.has(p.id)
                 const on = focus.theme === p.id
-                const mine = tensions.filter((t) => !t.unavailable && t.codeIds.some((id) => p.codes.some((c) => c.code.id === id)))
+                // The same list the panel shows (tensionsOn), so a row's count and its panel always match.
+                const mine = tensionsOn(tensions, new Set(p.codes.map((c) => c.code.id)))
                 const toReview = mine.filter((t) => t.status === 'Suggested').length
                 const status = p.decision.status
                 const decision = doc.insights?.[p.id]
@@ -289,6 +292,24 @@ export function ThemesTab({
                     <span /><span /><span /><span />
                   </div>
                   {open.has('none') && <ul className="pb-1">{none.codes.map((c) => codeRow(c, 'none'))}</ul>}
+                </section>
+              )}
+              {fromTensions.length > 0 && show === 'All' && (
+                <section aria-labelledby="grp-tensions" data-testid="tension-group" className="border-b border-mist bg-haze/40 last:border-0">
+                  <h3 id="grp-tensions" className="px-4 pt-3 pb-1 text-[15px] font-semibold">From tensions <span className="text-xs font-normal text-muted tabular-nums" data-testid="group-count">({fromTensions.length})</span></h3>
+                  <ul className="pb-2">
+                    {fromTensions.map((p) => {
+                      const tn = tensions.find((t) => t.id === p.theme?.tensionId)
+                      return (
+                        <li key={p.id} data-testid="tension-theme-row" className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2 text-sm">
+                          <span className="min-w-0 font-medium">{p.name}</span>
+                          <span className="inline-flex h-5 items-center rounded-xs border border-pending-line bg-pending-bg px-1.5 text-xs font-medium text-pending-fg" data-testid="from-a-tension-tag">From a tension</span>
+                          {tn && <span className="text-xs text-graphite" data-testid="tension-type">{TENSION_KIND_LABEL[tn.kind]}</span>}
+                          {tn && <button type="button" onClick={() => onOpenTension(tn.id)} data-testid="open-tension-card" className="ml-auto min-h-9 cursor-pointer rounded-xs text-xs font-medium text-iris-700 hover:underline">Open its card in Tensions</button>}
+                        </li>
+                      )
+                    })}
+                  </ul>
                 </section>
               )}
             </div>

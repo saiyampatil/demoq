@@ -11,6 +11,7 @@ import { CODEBOOK_STUDY, updateCodebook } from '@/state/codebook'
 import { coverage, plural, tensionCounts, tensionsOf } from '@/state/signals'
 import { conceptRows } from '@/state/concepts'
 import { PageHeader } from '../../shared/PageHeader'
+import { TabBadge } from './a2/ui'
 import { ExploreControl } from './explore/ExploreControl'
 import { AnalysisStepper } from './AnalysisStepper'
 import { ContinueBar } from './ContinueBar'
@@ -104,7 +105,13 @@ export function SignalsTensions() {
   const cov = coverage(accepted, excluded)
   const t = tensionCounts(doc)
   const { counts } = model
-  const toReview = counts.toReview.length
+  // One counter for the footer, the Review button and the tab badges: theme insights plus concept lines. A skipped item is still to decide.
+  const conceptLines = concepts ? concepts.rows.filter((r) => r.line) : []
+  const conceptsToReview = conceptLines.filter((r) => r.decision.status === 'Suggested' || r.decision.status === 'Out of date').length
+  const conceptsDecided = conceptLines.filter((r) => ['Accepted', 'Edited', 'Left out'].includes(r.decision.status)).length
+  const total = counts.total + conceptLines.length
+  const decided = counts.decided + conceptsDecided
+  const toReview = counts.toReview.length + conceptsToReview
 
   const showTensions = (f: TensionFilter) => {
     setFilter(f)
@@ -138,13 +145,8 @@ export function SignalsTensions() {
         </Banner>
       )}
 
-      <div className="sticky top-0 z-20 -mx-1 flex flex-col gap-0.5 border-b border-mist bg-paper/95 px-1 py-2 backdrop-blur" data-testid="a2-header">
-        <p className="text-sm text-ink tabular-nums" data-testid="insights-progress">
-          {counts.decided} of {counts.total} insights decided ·{' '}
-          <button type="button" onClick={() => showTensions('Suggested')} data-testid="tensions-link" className="min-h-6 cursor-pointer rounded-xs font-medium text-iris-700 hover:underline">
-            {plural(t.toReview, 'tension')} to review
-          </button>
-        </p>
+      <div className="sticky top-0 z-20 -mx-1 flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-mist bg-paper/95 px-1 py-2 backdrop-blur" data-testid="a2-header">
+        <span className="inline-flex h-6 items-center rounded-full border border-mist-strong bg-surface px-2 text-xs font-medium text-graphite tabular-nums" data-testid="people-chip">{cov.sessions} people</span>
         <CoverageLine cov={cov} concepts={concepts?.coverage} />
       </div>
 
@@ -163,16 +165,9 @@ export function SignalsTensions() {
               className={cn('-mb-px flex min-h-11 items-center gap-1.5 border-b-2 px-3 text-sm font-medium', tab === x.key ? 'border-ink text-ink' : 'border-transparent text-graphite hover:text-ink')}
             >
               {x.label}
-              {x.key === 'concepts' && concepts && concepts.rows.filter((r) => r.line && (r.decision.status === 'Suggested' || r.decision.status === 'Out of date')).length > 0 && (
-                <span className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-pending-bg px-1 text-[11px] font-semibold text-pending-fg" aria-label="concept lines to decide" data-testid="concepts-badge">
-                  {concepts.rows.filter((r) => r.line && (r.decision.status === 'Suggested' || r.decision.status === 'Out of date')).length}
-                </span>
-              )}
-              {x.key === 'tensions' && t.toReview > 0 && (
-                <span className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-pending-bg px-1 text-[11px] font-semibold text-pending-fg" aria-label={`${t.toReview} to review`} data-testid="tensions-badge">
-                  {t.toReview}
-                </span>
-              )}
+              {x.key === 'themes' && <TabBadge n={counts.toReview.length} label="insights to review" testid="themes-badge" />}
+              {x.key === 'concepts' && <TabBadge n={conceptsToReview} label="concept lines to decide" testid="concepts-badge" />}
+              {x.key === 'tensions' && <TabBadge n={t.toReview} label="tensions to review" testid="tensions-badge" />}
             </button>
           ))}
         </div>
@@ -200,11 +195,15 @@ export function SignalsTensions() {
         previous={{ screen: 'A1', label: 'Codebook' }}
         next={{ screen: 'A3', label: 'Continue to Report' }}
         stay="Keep working on tensions"
-        lead={tab === 'themes' && toReview > 0 ? { label: `Review ${plural(toReview, 'insight')}`, onClick: reviewInsights } : undefined}
+        lead={toReview > 0 ? { label: `Review ${plural(toReview, 'insight')}`, onClick: reviewInsights } : undefined}
         message={
           <>
-            <span data-testid="report-footer-count">{counts.decided} of {counts.total} insights decided.</span>
-            {t.toReview > 0 ? <span className="ml-1.5 font-medium text-pending-fg">{plural(t.toReview, 'tension')} to review.</span> : <span className="ml-1.5 text-positive-fg">Every tension is decided.</span>}
+            <span data-testid="report-footer-count">{decided} of {total} insights decided.</span>
+            {t.toReview > 0 ? (
+              <button type="button" onClick={() => showTensions('Suggested')} data-testid="tensions-link" className="ml-1.5 min-h-9 cursor-pointer rounded-xs font-medium text-ink underline underline-offset-2 hover:text-iris-700">{plural(t.toReview, 'tension')} to review</button>
+            ) : (
+              <span className="ml-1.5 text-positive-fg">Every tension is decided.</span>
+            )}
           </>
         }
       />
