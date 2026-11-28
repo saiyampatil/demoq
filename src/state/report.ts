@@ -6,6 +6,7 @@ import { useSyncExternalStore } from 'react'
 import { currentUser } from '@/mock/people'
 import { hasAnalysis } from '@/mock/studyAnalysis'
 import { now, uid } from './brief'
+import type { Line, PartKey } from './reportLines'
 
 export const REPORT_STORAGE_KEY = 'pulseai-qual:report'
 /**
@@ -49,8 +50,11 @@ export type BlockDecision = {
 export type LogEntry = { id: string; at: string; by: string; action: string; blockId: string; detail?: string }
 
 /** A frozen copy of the Approved blocks as they were published. Never changes after it is written. */
-export type PublishedBlock = { id: string; title: string; fingerprint: string; lines: { id: string; text: string; tag: string }[] }
-export type PublishedVersion = { version: number; at: string; by: string; blocks: PublishedBlock[] }
+export type PublishedBlock = { id: string; title: string; kicker?: string; number?: number; fingerprint: string; footnote?: string; lines: Line[] }
+export type PublishedVersion = { version: number; at: string; by: string; blocks: PublishedBlock[]; /** The Researcher's own words, written by them. */ implications?: string }
+
+/** The executive summary has two drafts: the AI's, and the Researcher's own (which starts empty). */
+export type ExecDraft = { active: 'ai' | 'mine'; mine: Partial<Record<PartKey, string>>; implications: string }
 
 export type ReportDoc = {
   studyId: string
@@ -62,6 +66,11 @@ export type ReportDoc = {
   /** Newest first. */
   log: LogEntry[]
   published: PublishedVersion[]
+  /** The Researcher's wording over a generated sentence, by line ID. Numbers stay locked. */
+  edits?: Record<string, string>
+  exec?: ExecDraft
+  /** The Researcher's own note on a block, by block ID. */
+  notes?: Record<string, string>
 }
 
 type Store = Record<string, ReportDoc>
@@ -132,7 +141,7 @@ export function resetReport() {
 // ─── decisions: pure functions over a ReportDoc ─────────────────────────────
 
 type Who = { by: string }
-type BlockRef = { id: string; fingerprint: string; lines: { id: string; text: string }[] }
+export type BlockRef = { id: string; fingerprint: string; lines: { id: string; text: string }[] }
 
 export const nextVersion = (d: ReportDoc) => d.published.length + 1
 
@@ -167,3 +176,51 @@ export function restoreDecision(d: ReportDoc, blockId: string, previous: BlockDe
 }
 
 export const REPORT_USER = currentUser.name
+
+// ─── wording, drafts, notes ─────────────────────────────────────────────────
+
+export const execOf = (d: ReportDoc): ExecDraft => d.exec ?? { active: 'ai', mine: {}, implications: '' }
+
+export function saveEdit(d: ReportDoc, lineId: string, text: string | undefined, { by }: Who, blockId: string): ReportDoc {
+  const edits = { ...(d.edits ?? {}) }
+  if (text === undefined) delete edits[lineId]
+  else edits[lineId] = text
+  return { ...d, edits, log: logged(d, by, text === undefined ? 'Went back to the generated wording' : 'Edited wording', blockId) }
+}
+export const setExecActive = (d: ReportDoc, active: 'ai' | 'mine', { by }: Who): ReportDoc => ({ ...d, exec: { ...execOf(d), active }, log: logged(d, by, active === 'mine' ? 'Switched to Mine' : 'Switched to AI draft', 'exec') })
+export const setMinePart = (d: ReportDoc, part: PartKey, text: string): ReportDoc => ({ ...d, exec: { ...execOf(d), mine: { ...execOf(d).mine, [part]: text } } })
+export const setImplications = (d: ReportDoc, text: string): ReportDoc => ({ ...d, exec: { ...execOf(d), implications: text } })
+export const setNote = (d: ReportDoc, blockId: string, text: string): ReportDoc => ({ ...d, notes: { ...(d.notes ?? {}), [blockId]: text } })
+
+// ─── publish ────────────────────────────────────────────────────────────────
+
+type PublishBlock = Omit<BlockRef, 'lines'> & { title: string; kicker?: string; number?: number; footnote?: string; lines: Line[]; status: BlockStatus }
+
+/** Freeze the Approved blocks exactly as shown. Nothing is sent. A published version never changes. */
+export function publishReport(d: ReportDoc, blocks: PublishBlock[], { by }: Who): ReportDoc {
+  const version = nextVersion(d)
+  const snap: PublishedVersion = {
+    version,
+    at: now(),
+    by,
+    implications: execOf(d).implications.trim() || undefined,
+    blocks: blocks.filter((b) => b.status === 'Approved').map((b) => ({ id: b.id, title: b.title, kicker: b.kicker, number: b.number, fingerprint: b.fingerprint, footnote: b.footnote, lines: b.lines.map((l) => ({ ...l })) })),
+  }
+  return { ...d, published: [...d.published, snap], log: logged(d, by, `Published version ${version}`, 'report') }
+}
+
+/** What differs from the last published version: blocks approved since, changed since, or no longer approved. */
+export function changesSince(d: ReportDoc, blocks: { id: string; title: string; fingerprint: string; status: BlockStatus }[]): string[] {
+  const last = d.published.at(-1)
+  if (!last) return []
+  const out: string[] = []
+  const approved = blocks.filter((b) => b.status === 'Approved')
+  for (const b of approved) {
+    const was = last.blocks.find((x) => x.id === b.id)
+    if (!was) out.push(`${b.title} is approved and was not in version ${last.version}`)
+    else if (was.fingerprint !== b.fingerprint) out.push(`${b.title} has changed`)
+  }
+  for (const w of last.blocks) if (!approved.some((b) => b.id === w.id)) out.push(`${w.title} is no longer approved`)
+  if ((execOf(d).implications.trim() || undefined) !== last.implications) out.push('Your implications have changed')
+  return out
+}

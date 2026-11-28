@@ -13,11 +13,11 @@ import { conceptRows } from './concepts'
 import { hash } from './hash'
 import { themeSignals } from './signals'
 import type { Basis, CodebookDoc } from './codebook'
-import type { BlockDecision, BlockStatus, LineSnapshot, ReportDoc } from './report'
+import { execOf, type BlockDecision, type BlockStatus, type LineSnapshot, type ReportDoc } from './report'
 import { acceptedItems, questionRows, type Accepted, type QuestionRow, type ReportInputs } from './reportInputs'
 import { renderTemplate, representativeQuotes, strengthFor } from './reportLogic'
-import { verbatim, type Line } from './reportLines'
-import { buildSummary, strengthOf, type SummaryResult } from './reportSummary'
+import { partsOf, verbatim, type Line, type PartKey } from './reportLines'
+import { buildSummary, checkLine, strengthOf, type SummaryResult } from './reportSummary'
 import { speechCoverageLine } from './reportCoverage'
 
 export type BlockKind = 'exec' | 'concepts' | 'question' | 'sounded' | 'tensions' | 'thin'
@@ -46,6 +46,10 @@ export type Block = {
   /** The executive summary: inputs the brief does not hold, and the empty state. */
   missing?: SummaryResult['missing']
   empty?: boolean
+  /** The executive summary: which draft it shows. */
+  draft?: 'ai' | 'mine'
+  /** The researcher's own note on this block. */
+  note?: string
   /** Open by default. The guide-question group is collapsed. */
   defaultOpen: boolean
   fingerprint: string
@@ -101,6 +105,15 @@ export function thinText(q: Pick<QuestionRow, 'n' | 'of' | 'notAsked'>): string 
 
 const thinLine = (q: QuestionRow): Line => verbatim(`thin:${q.id}`, thinText(q), 'Analysis', { type: 'question', id: q.id, codeIds: q.codeIds }, { lead: q.label })
 
+const digits = (t: string) => (t.match(/\d+/g) ?? []).join(',')
+/** What is wrong with a changed sentence: the numbers are locked, and it must pass the same rules as the generated one. Empty when fine. */
+export function checkEdit(line: Pick<Line, 'text' | 'tag' | 'source'>, text: string): string[] {
+  const problems: string[] = []
+  if (digits(text) !== digits(line.text)) problems.push('The numbers are locked. Change the words around them, not the numbers.')
+  if (!text.trim()) problems.push('A sentence cannot be empty.')
+  return [...problems, ...checkLine({ text, tag: line.tag, source: line.source })]
+}
+
 export type ReportModel = {
   inputs: ReportInputs
   accepted: Accepted
@@ -119,7 +132,11 @@ export function reportModel(a: { studyId: string; doc: CodebookDoc; basis: Basis
   const drafts = findingDraftsOf(doc.studyId)
   const ctx = { doc, basis }
   const blocks: Block[] = []
+  const edits = report?.edits ?? {}
+  // The Researcher's wording replaces a generated sentence only while its numbers are still the generated ones.
+  const worded = (lines: Line[]): Line[] => lines.map((l) => (edits[l.id] && edits[l.id] !== l.text && digits(edits[l.id]) === digits(l.text) ? { ...l, text: edits[l.id], parts: partsOf(edits[l.id]), edited: true } : l))
   const add = (b: Omit<Block, 'fingerprint' | 'status' | 'decision' | 'was'>) => {
+    b = { ...b, note: report?.notes?.[b.id] }
     const fingerprint = fingerprintOf(b)
     const decision = report?.decisions[b.id]
     const status = statusOf(fingerprint, decision)
@@ -127,7 +144,9 @@ export function reportModel(a: { studyId: string; doc: CodebookDoc; basis: Basis
   }
 
   // 1. Executive summary.
-  add({ id: 'exec', kind: 'exec', title: 'Executive summary', lines: summary.lines.map((l) => ({ ...l })), missing: summary.missing, empty: summary.empty, defaultOpen: true })
+  const ex = execOf(report ?? ({ exec: undefined } as ReportDoc))
+  const mine: Line[] = (['study', 'who', 'found', 'firm'] as PartKey[]).filter((k) => ex.mine[k]?.trim()).map((k) => ({ id: `mine-${k}`, text: ex.mine[k]!.trim(), parts: partsOf(ex.mine[k]!.trim()), tag: 'Analysis' as const, source: { type: 'mine' as const }, part: k }))
+  add({ id: 'exec', kind: 'exec', title: 'Executive summary', lines: ex.active === 'mine' ? mine : worded(summary.lines.map((l) => ({ ...l }))), missing: ex.active === 'mine' ? undefined : summary.missing, empty: ex.active === 'mine' ? false : summary.empty, draft: ex.active, defaultOpen: true })
 
   // 2. Concept results: only if the study has stimuli and a concept line is accepted.
   const concepts = conceptRows(doc, basis)
@@ -159,7 +178,7 @@ export function reportModel(a: { studyId: string; doc: CodebookDoc; basis: Basis
       title: q.text,
       kicker: q.section,
       number: i + 1,
-      lines: sentences.map((x) => verbatim(x.s.id, x.text, 'Analysis', { type: 'question', id: q.id, codeIds: x.s.cites.filter((c) => c.kind === 'code').map((c) => c.id) })),
+      lines: worded(sentences.map((x) => verbatim(x.s.id, x.text, 'Analysis', { type: 'question', id: q.id, codeIds: x.s.cites.filter((c) => c.kind === 'code').map((c) => c.id) }))),
       strength: { label, n: q.n, of: q.of, notAsked: q.notAsked },
       flag: label === 'Strong' ? undefined : thinText(q),
       quotes: representativeQuotes(codes, basis, 2).map((x) => x.excerpt.id),

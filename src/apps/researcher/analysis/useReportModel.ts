@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo } from 'react'
 import { useSearchParams } from 'react-router'
 import { useStudies } from '@/state/StudyContext'
-import { approveBlock, ensureReport, isCurrentReport, leaveOutBlock, REPORT_USER, reopenBlock, restoreDecision, updateReport, useReport, type BlockDecision } from '@/state/report'
+import { approveBlock, ensureReport, isCurrentReport, leaveOutBlock, publishReport, REPORT_USER, reopenBlock, restoreDecision, saveEdit, setExecActive, setImplications, setMinePart, setNote, updateReport, useReport, type BlockDecision } from '@/state/report'
+import type { PartKey } from '@/state/reportLines'
 import { reportModel, type Block } from '@/state/reportBlocks'
 import { reportInputs } from '@/state/reportInputs'
 import { applyA2Accepted, FIXTURE_PARAM, FIXTURE_VALUE } from '@/state/reportFixture'
@@ -54,8 +55,14 @@ export function useReportModel() {
       },
       reopen: (id: string) => updateReport(a.studyId, (d) => reopenBlock(d, id, { by })),
       undo: (id: string, prev: BlockDecision | undefined) => updateReport(a.studyId, (d) => restoreDecision(d, id, prev, { by })),
+      edit: (blockId: string, lineId: string, text: string | undefined) => updateReport(a.studyId, (d) => saveEdit(d, lineId, text, { by }, blockId)),
+      draft: (active: 'ai' | 'mine') => updateReport(a.studyId, (d) => setExecActive(d, active, { by })),
+      mine: (part: PartKey, text: string) => updateReport(a.studyId, (d) => setMinePart(d, part, text)),
+      implications: (text: string) => updateReport(a.studyId, (d) => setImplications(d, text)),
+      note: (blockId: string, text: string) => updateReport(a.studyId, (d) => setNote(d, blockId, text)),
+      publish: () => model && updateReport(a.studyId, (d) => publishReport(d, model.blocks, { by })),
     }),
-    [a.studyId, by, report],
+    [a.studyId, by, report, model],
   )
   return { ...a, report, inputs, model, act, find, fixture }
 }

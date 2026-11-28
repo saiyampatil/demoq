@@ -14,6 +14,8 @@ export type Source =
   /** A finding sentence about one guide question, built on its accepted codes. */
   | { type: 'question'; id: string; codeIds?: string[] }
   | { type: 'firmness'; questionIds: string[]; objectiveIds: string[] }
+  /** Written by the Researcher in the Mine draft. */
+  | { type: 'mine' }
 
 export type Part = { t: 'text' | 'fig'; v: string }
 export const txt = (v: string): Part => ({ t: 'text', v })
@@ -32,6 +34,8 @@ export type Line = {
   part?: PartKey
   /** A group under 10 people, as A2 says. A firmness statement, not a metric. */
   directional?: boolean
+  /** The Researcher changed the wording (the numbers are locked). */
+  edited?: boolean
 }
 
 export function lineOf(id: string, parts: Part[], tag: Tag, source: Source, extra: { lead?: string; part?: PartKey; directional?: boolean } = {}): Line {
